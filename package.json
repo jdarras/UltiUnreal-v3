@@ -1,0 +1,48 @@
+{
+  "name": "ultiunreal",
+  "version": "2026.3.0",
+  "private": true,
+  "type": "module",
+  "main": "main/main.cjs",
+  "scripts": {
+    "dev": "npm run rebuild:electron && concurrently -k \"vite --config app/vite.config.mjs\" \"wait-on http://localhost:5173 && cross-env VITE_DEV=true electron .\"",
+    "build:ui": "vite build --config app/vite.config.mjs",
+    "build:main": "npm run rebuild:electron && node scripts/build-main.mjs",
+    "build:exe": "npm run build:ui && npm run build:main && electron-builder -c electron-builder.json",
+    "dev:ui": "vite --config app/vite.config.mjs",
+    "dev:electron": "npm run rebuild:electron && set VITE_DEV=true && npx electron .",
+    "test": "npm run rebuild:node && node --test",
+    "rebuild:electron": "npx electron-rebuild -f -w better-sqlite3",
+    "rebuild:node": "npm rebuild better-sqlite3 --build-from-source",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@vitejs/plugin-react": "5.1.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^39.1.0",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.27.2",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "globals": "^16.4.0",
+    "png-to-ico": "^3.0.1",
+    "vite": "^7.3.1",
+    "wait-on": "^9.0.1"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-window": "^1.8.11"
+  },
+  "overrides": {
+    "tar": "6.2.1",
+    "@electron/rebuild": {
+      "tar": "6.2.1"
+    }
+  }
+}

@@ -1,0 +1,230 @@
+/* ---- Slider widget ---- */
+/* Conteneur du widget (autour de la barre + Min/Max) */
+.uu-slider-widget { margin-top: -8px; }
+
+.uu-slider-root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Orientation horizontale / verticale */
+.uu-slider-horizontal {
+  align-items: stretch;
+}
+
+.uu-slider-vertical {
+  align-items: center;
+}
+
+/* Ligne globale : Min | barre | Max */
+.uu-slider-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Vertical : Max en haut, Min en bas */
+.uu-slider-vertical .uu-slider-track {
+  flex-direction: column-reverse;
+  align-items: center;
+}
+
+.uu-slider-vertical .uu-slider-limit {
+  margin: 2px 0;
+}
+
+/* Conteneur de la barre + bulle */
+.uu-slider-horizontal .uu-slider-track-inner,
+.uu-slider-vertical .uu-slider-track-inner {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Largeur / hauteur de la barre suivant l'orientation */
+.uu-slider-horizontal .uu-slider-track-inner {
+  width: var(--uu-slider-length, 210px);
+}
+
+/* Espace dédié à la bulle de valeur pour éviter qu'elle recouvre le titre */
+.uu-slider-horizontal .uu-slider-track {
+  margin-top: 8px;
+}
+
+.uu-slider-vertical .uu-slider-track-inner {
+  height: var(--uu-slider-length, 210px);
+}
+
+/* Labels Min / Max */
+.uu-slider-limit {
+  font-size: 11px;
+  color: var(--muted, #9CA3AF);
+}
+
+/* Base input slider */
+.uu-slider-root .uu-slider-input {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.uu-slider-input {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+}
+
+/* Horizontal : l'input remplit la largeur disponible */
+.uu-slider-horizontal .uu-slider-input {
+  width: 100%;
+}
+
+/* Vertical : l'input remplit la hauteur disponible */
+.uu-slider-vertical .uu-slider-input {
+  writing-mode: vertical-lr;
+  height: 100%;
+  width: 14px; /* même épaisseur que le curseur */
+}
+
+/* BARRE (track) – même épaisseur que le curseur */
+.uu-slider-input::-webkit-slider-runnable-track {
+  height: 14px;
+  background: var(--uu-slider-accent, var(--accent, #00bcd4));
+  border-radius: 999px;
+}
+
+/* CURSEUR (thumb) blanc */
+.uu-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;  /* curseur blanc */
+  border: 2px solid var(--uu-slider-accent, var(--accent, #00bcd4));
+  cursor: pointer;
+  margin-top: 0; /* centré sur la barre horizontale */
+}
+
+/* Bulle attachée au curseur */
+.uu-slider-thumb-value {
+  position: absolute;
+  min-width: 24px;
+  padding: 2px 4px;
+  font-size: 11px;
+  line-height: 1;
+  border-radius: 4px;
+  background: var(--surface-elevated, #111827);
+  color: var(--text, #F9FAFB);
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Horizontal : bulle au-dessus du curseur, centrée */
+.uu-slider-horizontal .uu-slider-thumb-value {
+  top: -18px;
+  left: calc(7px + var(--uu-slider-t) * (100% - 14px));
+  transform: translateX(-50%);
+}
+
+/* Vertical : bulle à droite, attachée au curseur
+   t = 0  → valeur min (en bas)
+   t = 1  → valeur max (en haut)
+*/
+.uu-slider-vertical .uu-slider-thumb-value {
+  left: 22px;
+  top: calc(7px + (1 - var(--uu-slider-t)) * (100% - 14px));
+  transform: translateY(-50%);
+}
+
+/* Edition du widget Slider (colonne de droite) */
+.prod-editor-right-slider .uu-row {
+  display: flex;
+  flex-wrap: nowrap;   /* <-- IMPORTANT : on force sur une seule ligne */
+  align-items: center;
+  gap: 8px;
+}
+
+.prod-editor-right-slider .uu-label {
+  flex: 0 0 160px;
+}
+
+.prod-editor-right-slider .uu-input-arg,
+.prod-editor-right-slider select,
+.prod-editor-right-slider textarea {
+  flex: 1 1 auto;
+}
+
+/* ---- Menu édition Slider : alignement Min / Max / Step ---- */
+.prod-editor-right-slider .uu-slider-editor-row {
+  flex-wrap: nowrap;              /* tout sur une seule ligne */
+  column-gap: 8px;
+}
+
+.prod-editor-right-slider .uu-slider-editor-row .uu-label {
+  flex: 0 0 160px;                /* même largeur de label que le reste */
+}
+
+.prod-editor-right-slider .uu-slider-editor-row .uu-muted {
+  flex: 0 0 36px;                 /* "Min", "Max", "Step" */
+  text-align: center;
+}
+
+.prod-editor-right-slider .uu-slider-editor-row .uu-slider-editor-input {
+  flex: 0 0 80px;                 /* largeur fixe pour chaque champ */
+  max-width: 80px;
+}
+
+/* ---- Menu édition Slider : Orientation (colonne gauche) ---- */
+.prod-editor-left .uu-slider-orientation-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.prod-editor-left .uu-slider-orientation-row .uu-label {
+  flex: 0 0 160px;
+  margin-bottom: 0;
+}
+
+.prod-editor-left .uu-slider-orientation-row .uu-slider-orientation-select {
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
+/* ---- Menu édition Slider : Valeur par défaut (colonne droite) ---- */
+.prod-editor-right-slider .uu-slider-default-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prod-editor-right-slider .uu-slider-default-row .uu-label {
+  flex: 0 0 160px;
+}
+
+.prod-editor-right-slider .uu-slider-default-row .uu-slider-default-input {
+  flex: 1 1 auto;
+}
+
+/* ---- Menu édition Joystick : Type de liaison (colonne gauche) ---- */
+.uu-joystick-binding-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.uu-joystick-binding-row .uu-label {
+  flex: 0 0 160px;
+  margin-bottom: 0;
+}
+
+.uu-joystick-binding-row select,
+.uu-joystick-binding-row .uu-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}

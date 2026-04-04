@@ -1,0 +1,75 @@
+/* app/widgets/vectorwidget.css */
+/* Styles spécifiques au widget Vector3 */
+.uu-vector-widget { margin-top: -8px; }
+
+.uu-vector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Ligne qui contient X / Y / Z */
+.uu-vector-row {
+  display: flex;
+  gap: 8px;
+}
+
+/* Bloc d'un axe (label au-dessus du champ) */
+.uu-vector-axis {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Label "X", "Y", "Z" */
+.uu-vector-label {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Champs X/Y/Z plus compacts (seulement pour le Vector3) */
+.uu-vector .uu-input-arg {
+  max-width: 80px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 13px;
+}
+
+/* Pastilles machines en bas à gauche du widget (mode prod) */
+.uu-vector-machines {
+  margin-top: 8px;
+}
+
+.uu-vector-body-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.uu-vector-body-buttons .uu-buttons-row {
+  margin-top: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+/* Colonne droite – édition du widget Vector3 :
+   label + champ sur une seule ligne (Blueprint/Asset, Liaison propriété, etc.) */
+.prod-editor-right-vector .uu-row {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.prod-editor-right-vector .uu-row > .uu-label {
+  margin-bottom: 0;
+  flex: 0 0 160px;
+}
+
+.prod-editor-right-vector .uu-row > .uu-input,
+.prod-editor-right-vector .uu-row > .uu-input-arg,
+.prod-editor-right-vector .uu-row > select,
+.prod-editor-right-vector .uu-row > textarea {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}

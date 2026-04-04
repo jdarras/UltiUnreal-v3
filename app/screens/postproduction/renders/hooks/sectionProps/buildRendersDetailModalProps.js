@@ -1,0 +1,54 @@
+function buildDetailModalProps({
+  t,
+  detailRender = null,
+  detailPreviewKind = "",
+  detailPreviewSource = "",
+  detailPreviewError = "",
+  detailPreviewCandidatesCount = 0,
+  advancePreviewCandidate = null,
+  openRenderOutputExternally = null,
+  closeRenderDetail = null,
+  renderOutputFilename = null,
+  renderLinkedTaskValue = null,
+  renderReviewStatusKey = null,
+  reviewFlow = [],
+  renderReviewStatusLabel = null,
+  canReviewRenders = false,
+  rendersLoading = false,
+  busyRenderId = 0,
+  applyReviewStatus = null,
+  detailTransitionsLoading = false,
+  detailTransitionsError = "",
+  detailTransitions = [],
+} = {}) {
+  return {
+    t,
+    render: detailRender,
+    previewKind: detailPreviewKind,
+    previewSource: detailPreviewSource,
+    previewError: detailPreviewError,
+    previewCandidatesCount: detailPreviewCandidatesCount,
+    onAdvancePreviewCandidate: advancePreviewCandidate,
+    onOpenOutputExternally: openRenderOutputExternally,
+    onClose: closeRenderDetail,
+    outputFilename: renderOutputFilename,
+    linkedTaskValue: renderLinkedTaskValue,
+    reviewStatusValue: renderReviewStatusKey ? renderReviewStatusKey(detailRender) : "",
+    reviewFlow,
+    reviewStatusLabel: renderReviewStatusLabel,
+    canReviewRenders,
+    rendersLoading,
+    busyRenderId,
+    onApplyReviewStatus: applyReviewStatus,
+    transitionsLoading: detailTransitionsLoading,
+    transitionsError: detailTransitionsError,
+    transitions: detailTransitions,
+  };
+}
+
+export {
+  buildDetailModalProps,
+};
+
+export default buildDetailModalProps;
+

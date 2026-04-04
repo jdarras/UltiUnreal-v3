@@ -1,0 +1,49 @@
+import { safeT } from "../../../shared/helpers";
+
+function TaskEditorTitleFields({
+  t,
+  isEditingTask = false,
+  tasksLoading = false,
+  title = "",
+  description = "",
+  onTitleChange = null,
+  onDescriptionChange = null,
+}) {
+  return (
+    <>
+      <h4 className="uu-h3" style={{ marginBottom: "10px" }}>
+        {isEditingTask
+          ? safeT(t, "postprod.tasks.editTitle", "Modifier tache")
+          : safeT(t, "postprod.tasks.createTitle", "Nouvelle tache")}
+      </h4>
+      <div className="uu-grid-field mt-12">
+        <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
+          <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+            {safeT(t, "postprod.tasks.form.name", "Nom")}
+          </label>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <input
+              className="uu-input"
+              type="text"
+              value={title}
+              disabled={tasksLoading}
+              onChange={(e) => onTitleChange?.(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+      <div className="uu-grid-field mt-12">
+        <label className="uu-label">{safeT(t, "postprod.tasks.form.description", "Description")}</label>
+        <textarea
+          className="uu-input"
+          value={description}
+          disabled={tasksLoading}
+          onChange={(e) => onDescriptionChange?.(e.target.value)}
+          rows={4}
+        />
+      </div>
+    </>
+  );
+}
+
+export { TaskEditorTitleFields };

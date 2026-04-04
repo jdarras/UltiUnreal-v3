@@ -1,0 +1,95 @@
+/* app/widgets/buttonwidget.css */
+/* Styles spécifiques au widget Button */
+
+.uu-button-widget {
+margin-top: -8px;
+}
+
+.uu-button-widget-args {
+  width: 100%;
+  gap: 6px;
+}
+
+.uu-button-widget-arg-row {
+  align-items: center;
+  gap: 8px;
+}
+
+.uu-button-widget-arg-label {
+  width: 140px;
+  min-width: 140px;
+  margin-bottom: 0;
+}
+
+.uu-button-widget-arg-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.uu-button-widget-arg-small {
+  width: 140px;
+  max-width: 140px;
+  flex: 0 0 auto;
+}
+
+.uu-button-widget-arg-transform {
+  gap: 6px;
+}
+
+.uu-button-widget-arg-color {
+  width: 48px;
+  min-width: 48px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--uu-stroke, #24304b);
+  background: transparent;
+  cursor: pointer;
+}
+
+.uu-button-widget-arg-color-row {
+  position: relative;
+}
+
+.uu-button-widget-arg-color-swatch {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--uu-stroke, #24304b);
+}
+
+.uu-button-widget-arg-color-popover {
+  position: absolute;
+  top: 34px;
+  left: 148px;
+  z-index: 80;
+}
+
+/* Bouton principal : couleur pilotée par une variable CSS */
+.uu-btn-primary.uu-button-widget-main {
+  background-color: var(--uu-button-bg, var(--uu-color-blue));
+  border-color: var(--uu-button-border, var(--uu-color-blue));
+}
+
+/* Colonne droite - édition du widget Button :
+   label + champ sur une seule ligne (comme le Text) */
+.prod-editor-right-button .uu-row {
+  flex-wrap: nowrap;        /* label + champ sur la même ligne */
+  align-items: center;
+}
+
+/* le label garde sa largeur (w-160) */
+.prod-editor-right-button .uu-row > .uu-label {
+  margin-bottom: 0;
+}
+
+/* les champs prennent la place à droite du label */
+.prod-editor-right-button .uu-row > .uu-input,
+.prod-editor-right-button .uu-row > .uu-input-arg,
+.prod-editor-right-button .uu-row > select,
+.prod-editor-right-button .uu-row > textarea {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}

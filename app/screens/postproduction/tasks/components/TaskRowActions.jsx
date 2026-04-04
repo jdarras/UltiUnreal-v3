@@ -1,0 +1,33 @@
+import { safeT } from "../../shared/helpers";
+
+function TaskRowActions({
+  t,
+  task = null,
+  disabledEdit = false,
+  disabledDelete = false,
+  onEdit = null,
+  onDelete = null,
+}) {
+  return (
+    <div className="uu-row uu-gap-4" style={{ flexWrap: "nowrap", whiteSpace: "nowrap" }}>
+      <button
+        className="uu-btn-ghost"
+        type="button"
+        disabled={disabledEdit}
+        onClick={() => onEdit?.(task)}
+      >
+        {safeT(t, "postprod.tasks.action.edit", "Editer")}
+      </button>
+      <button
+        className="uu-btn-ghost"
+        type="button"
+        disabled={disabledDelete}
+        onClick={() => onDelete?.(task)}
+      >
+        {safeT(t, "postprod.tasks.action.delete", "Supprimer")}
+      </button>
+    </div>
+  );
+}
+
+export { TaskRowActions };

@@ -1,0 +1,68 @@
+function buildQueuePanelProps({
+  t,
+  tasksLoading = false,
+  rendersLoading = false,
+  renderQueueTasks = [],
+  filteredRenderQueueTasks = [],
+  sortedRenderQueueTasks = [],
+  selectedQueueEntrySet = new Set(),
+  launchableQueueTaskIdSet = new Set(),
+  selectedLaunchableQueueEntries = [],
+  queueStateSummary = null,
+  queueBatchBusyMode = "",
+  queueBatchError = "",
+  queueBatchFeedback = "",
+  queueSortIndicator = null,
+  canLaunchRenders = false,
+  busyScheduledTaskId = 0,
+  queueEntryWorkerLabel = null,
+  getQueueEntryLaunchMeta = null,
+  queueTaskPriorityLabel = null,
+  toggleSelectAllQueueEntries = null,
+  launchQueueBatch = null,
+  toggleQueueSort = null,
+  toggleQueueTaskSelection = null,
+  launchScheduledTaskRender = null,
+  openRenderDetail = null,
+} = {}) {
+  return {
+    t,
+    tasksLoading,
+    rendersLoading,
+    renderQueueTasks,
+    filteredRenderQueueTasks,
+    sortedRenderQueueTasks,
+    selectedQueueEntrySet,
+    launchableQueueTaskIdSet,
+    selectedLaunchableQueueEntries,
+    queueStateSummary,
+    queueBatchBusyMode,
+    queueBatchError,
+    queueBatchFeedback,
+    queueSortIndicator,
+    canLaunchRenders,
+    busyScheduledTaskId,
+    queueEntryWorkerLabel,
+    getQueueEntryLaunchMeta,
+    queueTaskPriorityLabel,
+    onToggleSelectAllQueueEntries: toggleSelectAllQueueEntries,
+    onLaunchQueueBatch: (entries) => {
+      if (typeof launchQueueBatch === "function") void launchQueueBatch(entries);
+    },
+    onToggleQueueSort: toggleQueueSort,
+    onToggleQueueTaskSelection: toggleQueueTaskSelection,
+    onLaunchScheduledTaskRender: (task, queueEntry) => {
+      if (typeof launchScheduledTaskRender === "function") {
+        void launchScheduledTaskRender(task, queueEntry);
+      }
+    },
+    onOpenRenderDetail: openRenderDetail,
+  };
+}
+
+export {
+  buildQueuePanelProps,
+};
+
+export default buildQueuePanelProps;
+

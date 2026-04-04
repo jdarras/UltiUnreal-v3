@@ -1,0 +1,57 @@
+/* app/widgets/dropdownwidget.css */
+
+.uu-dropdown-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: -8px;
+   min-width: 220px; /* ajuste la valeur comme tu veux */
+}
+
+.uu-dropdown-label {
+  font-size: 13px;
+}
+
+.uu-dropdown-inner {
+  margin-top: 4px;
+}
+
+.uu-dropdown-select {
+  width: 100%;
+}
+
+.uu-dropdown-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;           /* espace entre le bloc gauche et le bloc droit */
+  margin-top: 8px;
+}
+
+.uu-dropdown-footer-left,
+.uu-dropdown-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Colonne droite – édition du widget Dropdown :
+   label + champ sur une seule ligne */
+.prod-editor-right-dropdown .uu-row {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.prod-editor-right-dropdown .uu-row > .uu-label {
+  margin-bottom: 0;
+  flex: 0 0 160px;
+}
+
+.prod-editor-right-dropdown .uu-row > .uu-input,
+.prod-editor-right-dropdown .uu-row > .uu-input-arg,
+.prod-editor-right-dropdown .uu-row > select,
+.prod-editor-right-dropdown .uu-row > textarea {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}

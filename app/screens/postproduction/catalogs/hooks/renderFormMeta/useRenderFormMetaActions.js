@@ -1,0 +1,106 @@
+import { useCreateRenderFormAction } from "./useCreateRenderFormAction";
+import { useDeleteRenderFormAction } from "./useDeleteRenderFormAction";
+import { useSaveRenderFormMetaAction } from "./useSaveRenderFormMetaAction";
+
+function useRenderFormMetaActions({
+  t,
+  selectedForm = null,
+  selectedProjectRef = "",
+  canManageRenderTemplates = false,
+  onCreateRenderForm = null,
+  onUpdateRenderForm = null,
+  onDeleteRenderForm = null,
+  setSelectedFormId = null,
+  setEditorIntent = null,
+  setShowEditor = null,
+  newFormName = "",
+  setNewFormName = null,
+  newTemplateName = "",
+  setNewTemplateName = null,
+  newMapName = "",
+  setNewMapName = null,
+  newSequenceName = "",
+  setNewSequenceName = null,
+  newOutputProfile = "",
+  setNewOutputProfile = null,
+  newPresetName = "",
+  setNewPresetName = null,
+  setCreating = null,
+  setCreateError = null,
+  setCreateInfo = null,
+  metaName = "",
+  metaTemplateName = "",
+  metaMapName = "",
+  metaSequenceName = "",
+  metaOutputProfile = "",
+  metaPresetName = "",
+  metaActive = true,
+  metaBusy = false,
+  setMetaBusy = null,
+  setMetaError = null,
+  setMetaInfo = null,
+}) {
+  const { createRenderForm } = useCreateRenderFormAction({
+    t,
+    canManageRenderTemplates,
+    onCreateRenderForm,
+    setSelectedFormId,
+    setEditorIntent,
+    newFormName,
+    selectedProjectRef,
+    newTemplateName,
+    newMapName,
+    newSequenceName,
+    newOutputProfile,
+    newPresetName,
+    setNewFormName,
+    setNewTemplateName,
+    setNewMapName,
+    setNewSequenceName,
+    setNewOutputProfile,
+    setNewPresetName,
+    setCreating,
+    setCreateError,
+    setCreateInfo,
+  });
+
+  const { saveRenderFormMeta } = useSaveRenderFormMetaAction({
+    t,
+    selectedForm,
+    selectedProjectRef,
+    canManageRenderTemplates,
+    onUpdateRenderForm,
+    metaName,
+    metaTemplateName,
+    metaMapName,
+    metaSequenceName,
+    metaOutputProfile,
+    metaPresetName,
+    metaActive,
+    metaBusy,
+    setMetaBusy,
+    setMetaError,
+    setMetaInfo,
+  });
+
+  const { deleteRenderForm } = useDeleteRenderFormAction({
+    t,
+    selectedForm,
+    canManageRenderTemplates,
+    onDeleteRenderForm,
+    setSelectedFormId,
+    setEditorIntent,
+    setShowEditor,
+    setMetaBusy,
+    setMetaError,
+    setMetaInfo,
+  });
+
+  return {
+    createRenderForm,
+    saveRenderFormMeta,
+    deleteRenderForm,
+  };
+}
+
+export { useRenderFormMetaActions };

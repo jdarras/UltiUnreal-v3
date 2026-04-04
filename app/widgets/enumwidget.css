@@ -1,0 +1,54 @@
+/* app/widgets/enumwidget.css */
+
+/* Layout du widget Enum en production */
+.uu-enum-widget {
+  margin-top: 0;
+}
+
+/* Ligne champ + boutons */
+.uu-enum-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 8px;
+}
+
+/* Select principal */
+.uu-enum-select {
+  width: 320px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Colonne droite - édition widget Enum :
+   label + champs sur une seule ligne */
+.prod-editor-right-enum .uu-row {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.prod-editor-right-enum .uu-row > .uu-label {
+  margin-bottom: 0;
+}
+
+/* Les champs prennent la place à droite du label */
+.prod-editor-right-enum .uu-row > .uu-input,
+.prod-editor-right-enum .uu-row > select,
+.prod-editor-right-enum .uu-row > textarea {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+/* Ligne d'une option Enum (label + valeur + delete) */
+.uu-enum-option-row {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.uu-enum-option-label,
+.uu-enum-option-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}

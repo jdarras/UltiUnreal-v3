@@ -1,0 +1,25 @@
+node_modules
+dist
+main-dist/
+.idea
+.vscode
+*.log
+release/
+win-unpacked/
+*.exe
+
+# Private tooling (do not commit)
+tools/
+
+# Local data (do not commit)
+data/
+
+# Local tests (do not commit)
+test/
+test-utils/
+
+# License files (do not commit)
+main/license-core.cjs
+main/license-public.pem
+main/license.cjs
+build/

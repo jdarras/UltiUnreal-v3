@@ -1,0 +1,100 @@
+/* app/widgets/zonewidget.css */
+
+/* Carte interne de la Zone (l'extérieur est déjà géré par WidgetCard) */
+.uu-zone-widget {
+  height: 100%;  /* la zone occupe toute la hauteur de la carte */
+  margin: 0;     /* plus aucune marge spéciale */
+}
+
+.uu-zone {
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  overflow: hidden;
+  height: 100%;          /* très important : la zone remplit la carte */
+}
+
+/* Header coloré (couleur pleine) */
+.uu-zone-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--uu-color-border);
+}
+
+.uu-zone-header-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.uu-zone-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uu-zone-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--uu-color-text);
+}
+
+.uu-zone-note {
+  font-size: 12px;
+  color: var(--uu-color-text-muted);
+  white-space: pre-wrap;
+}
+
+/* Actions (supprimer + pastilles) */
+.uu-zone-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.uu-zone-header-actions .uu-btn-square {
+  margin-top: 2px;
+}
+
+/* La géométrie (26x26, centrage du X) vient de .uu-btn-delete */
+.uu-zone-delete {
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.uu-zone-targets {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Corps de la zone (couleur avec alpha) */
+.uu-zone-body {
+  padding: 8px 12px;
+  border-radius: 0 0 6px 6px;
+  min-height: 40px;
+  flex: 1;               /* prend tout l’espace restant sous le header */
+}
+
+/* Textarea de note (édition) */
+.uu-zone-note-input {
+  resize: none;
+  min-height: 32px;
+  line-height: 1.3;
+  font-size: 13px;
+}
+
+/* Textarea de note (édition) */
+.uu-zone-note-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uu-zone-note-input {
+  width: 100%;
+  resize: none;
+  overflow: hidden;
+  min-height: 32px;
+  line-height: 1.3;
+  font-size: 13px;
+}

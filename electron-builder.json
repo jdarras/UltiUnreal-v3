@@ -1,0 +1,54 @@
+{
+  "appId": "com.juliendarras.ultiunreal",
+  "productName": "UltiUnreal",
+  "asar": true,
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "extraMetadata": {
+    "main": "main-dist/main.cjs"
+  },
+  "files": [
+    "package.json",
+    "main-dist/**",
+    "dist/**",
+    "app/**",
+    "!tools/**",
+    "!data/**"
+  ],
+  "win": {
+    "artifactName": "UltiUnreal 2026.3.${ext}",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      },
+      {
+        "target": "zip",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
+  },
+  "nsis": {
+    "artifactName": "UltiUnreal Setup 2026.3.${ext}",
+    "oneClick": false,
+    "perMachine": false,
+    "selectPerMachineByDefault": true,
+    "allowElevation": true,
+    "allowToChangeInstallationDirectory": true,
+    "runAfterFinish": true,
+    "include": "installer.nsh",
+    "displayLanguageSelector": true,
+    "installerLanguages": [
+      "en_US",
+      "fr_FR"
+    ],
+    "createDesktopShortcut": false,
+    "createStartMenuShortcut": true
+  }
+}

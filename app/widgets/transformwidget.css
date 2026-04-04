@@ -1,0 +1,64 @@
+/* ---- Transform widget ---- */
+
+/* Le widget lui-même */
+.uu-transform-widget {
+  margin-top: 0px; /* comme les autres widgets */
+}
+
+/* Lignes Location / Rotation / Scale
+   - dans le widget (gauche)
+   - dans le menu édition, colonne droite (prod-editor-right / prod-editor-right-transform)
+*/
+.uu-transform-widget .uu-transform-row,
+.prod-editor-right-transform .uu-transform-row,
+.prod-editor-right .uu-transform-row {
+  display: flex;
+  align-items: center;
+  column-gap: 8px;
+  flex-wrap: nowrap; /* tout sur une ligne */
+}
+
+/* Colonne du label principal : "Location", "Rotation", "Scale" */
+.uu-transform-widget .uu-transform-label,
+.prod-editor-right-transform .uu-transform-label,
+.prod-editor-right .uu-transform-label {
+  flex: 0 0 70px;   /* largeur fixe = les X/Y/Z commencent tous au même endroit */
+}
+
+/* Petits labels X / Y / Z */
+.uu-transform-widget .uu-transform-row > .uu-muted:not(.uu-transform-label),
+.prod-editor-right-transform .uu-transform-row > .uu-muted:not(.uu-transform-label),
+.prod-editor-right .uu-transform-row > .uu-muted:not(.uu-transform-label) {
+  flex: 0 0 16px;
+  text-align: center;
+}
+
+/* Champs numériques X / Y / Z */
+.uu-transform-widget .uu-transform-row .uu-input,
+.prod-editor-right-transform .uu-transform-row .uu-input,
+.prod-editor-right .uu-transform-row .uu-input {
+  flex: 0 0 80px;   /* un peu plus large */
+  max-width: 80px;
+}
+
+/* Colonne droite – édition du widget Transform :
+   label + champ sur une seule ligne */
+.prod-editor-right-transform .uu-row {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+/* le label garde sa largeur */
+.prod-editor-right-transform .uu-row > .uu-label {
+  margin-bottom: 0;
+}
+
+/* le champ prend la place à droite du label */
+.prod-editor-right-transform .uu-row > .uu-input,
+.prod-editor-right-transform .uu-row > .uu-input-arg,
+.prod-editor-right-transform .uu-row > select,
+.prod-editor-right-transform .uu-row > textarea {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}

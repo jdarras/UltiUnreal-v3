@@ -1,0 +1,227 @@
+/* app/widgets/colorwidget.css */
+/* Styles spécifiques au widget Color */
+
+.uu-color-widget {
+  margin-top: -8px;
+  position: relative; /* pour positionner le panel flottant */
+}
+
+.uu-color-main-row {
+  display: flex;
+  gap: 8px;
+}
+
+/* Bouton de preview de la couleur dans le widget (ouvre la palette) */
+.uu-color-swatch-btn {
+  border-radius: 6px;
+  border: 1px solid #2b2f36;
+  padding: 2px;
+  background: #111317;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.uu-color-swatch-btn:focus-visible {
+  outline: 1px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.uu-color-swatch {
+  width: 40px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid #2b2f36;
+  background: #ffffff;
+}
+
+/* Alpha dans le widget */
+.uu-input-alpha {
+  max-width: 80px;
+}
+
+/* Colonne droite – édition du widget Color :
+   label + champ sur une seule ligne (Binding + couleur par défaut) */
+.prod-editor-right-color .uu-row {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.prod-editor-right-color .uu-row > .uu-label {
+  margin-bottom: 0;
+  flex: 0 0 160px;
+}
+
+.prod-editor-right-color .uu-row
+  > .uu-input,
+.prod-editor-right-color .uu-row
+  > .uu-input-arg,
+.prod-editor-right-color .uu-row
+  > select,
+.prod-editor-right-color .uu-row
+  > textarea,
+.prod-editor-right-color .uu-row
+  > .uu-input-color {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+/* === Panel flottant (picker) === */
+
+.uu-color-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+}
+
+.uu-color-popover-inner {
+  background: #111317;
+  border-radius: 12px;
+  border: 1px solid #2b2f36;
+  padding: 8px 10px 10px 10px;
+  width: 320px;
+  height: 340px;
+  box-sizing: border-box;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
+}
+
+.uu-color-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.uu-color-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: calc(100% - 24px);
+}
+
+/* Roue de teinte */
+
+.uu-color-wheel-wrapper {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  margin-top: 4px;
+}
+
+.uu-color-wheel {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 50%;
+}
+
+.uu-color-wheel-knob {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.9);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Colonne de droite : sliders + champs */
+
+.uu-color-popover-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Sliders verticaux (Saturation + Luminosité) */
+
+.uu-color-vsliders {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.uu-color-vtrack {
+  position: relative;
+  width: 22px;
+  height: 220px;
+  border-radius: 9999px;
+  border: 1px solid #2b2f36;
+  background: #111317;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.uu-color-vslider {
+  position: absolute;
+  width: 220px;
+  height: 22px;
+  transform: rotate(-90deg);
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+}
+
+/* on cache complètement le trait de la piste :
+   seule la couleur du parent (dégradé) est visible */
+.uu-color-vslider::-webkit-slider-runnable-track,
+.uu-color-vslider::-moz-range-track {
+  background: transparent;
+  border: none;
+  height: 0;
+}
+
+/* thumb du slider */
+.uu-color-vslider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 2px solid #ffffff;
+  background: #111827;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+}
+.uu-color-vslider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 2px solid #ffffff;
+  background: #111827;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+}
+
+/* Champs numériques (R, G, B, Hex) */
+
+.uu-color-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.uu-color-field label {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-bottom: 2px;
+  display: block;
+}
+
+.uu-color-field input {
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #2b2f36;
+  background: #0b1016;
+  color: #e5e7eb;
+  box-sizing: border-box;
+  font-size: 12px;
+}

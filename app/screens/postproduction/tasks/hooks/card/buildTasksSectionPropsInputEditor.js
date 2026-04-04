@@ -1,0 +1,42 @@
+export function buildTasksSectionPropsInputEditor({
+  data = {},
+  lifecycle = {},
+  editor = {},
+  ui = {},
+} = {}) {
+  return {
+    isEditingTask: data.isEditingTask,
+    title: data.title,
+    description: data.description,
+    setTitle: data.setTitle,
+    setDescription: data.setDescription,
+    autoSaveEditedTaskOnBlur: editor.autoSaveEditedTaskOnBlur,
+    filteredAutoRenderForms: data.filteredAutoRenderForms,
+    autoRenderFormId: data.autoRenderFormId,
+    changeAutoRenderForm: ui.changeAutoRenderForm,
+    renderTemplatesForSelectedAutoForm: data.renderTemplatesForSelectedAutoForm,
+    autoRenderTemplateId: data.autoRenderTemplateId,
+    changeAutoRenderTemplate: ui.changeAutoRenderTemplate,
+    autoRenderProjectCatalogLoading: data.autoRenderProjectCatalogLoading,
+    autoRenderProjectCatalogError: data.autoRenderProjectCatalogError,
+    selectedAutoRenderForm: data.selectedAutoRenderForm,
+    autoRenderWorkerKey: data.autoRenderWorkerKey,
+    changeAutoRenderWorker: ui.changeAutoRenderWorker,
+    availableRenderWorkers: data.availableRenderWorkers,
+    autoRenderLaunchMode: data.autoRenderLaunchMode,
+    changeAutoRenderLaunchMode: ui.changeAutoRenderLaunchMode,
+    autoRenderFormFieldsLoading: data.autoRenderFormFieldsLoading,
+    autoRenderFormFieldsError: data.autoRenderFormFieldsError,
+    visibleAutoRenderFormFields: data.visibleAutoRenderFormFields,
+    autoRenderFormValues: data.autoRenderFormValues,
+    handleUpdateAutoRenderFormValue: editor.handleUpdateAutoRenderFormValue,
+    autoExpectedRenderName: data.autoExpectedRenderName,
+    formError: data.formError,
+    canSubmitTaskForm: editor.canSubmitTaskForm,
+    submitTaskFormLabel: editor.submitTaskFormLabel,
+    handleSubmitTaskForm: editor.handleSubmitTaskForm,
+    closeTaskForm: lifecycle.closeTaskForm,
+  };
+}
+
+export default buildTasksSectionPropsInputEditor;

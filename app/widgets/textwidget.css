@@ -1,0 +1,135 @@
+/* app/widgets/textwidget.css */
+/* Styles spécifiques au widget Text (édition) */
+
+/* Colonne droite - édition du widget Text :
+   label + champ sur une seule ligne,
+   sauf "Valeur par défaut" qui reste en dessous */
+.prod-editor-right-text .uu-row {
+  flex-wrap: nowrap;        /* label + champ sur la même ligne */
+  align-items: center;
+}
+
+/* le label garde sa largeur (w-160) */
+.prod-editor-right-text .uu-row > .uu-label {
+  margin-bottom: 0;
+}
+
+/* les champs prennent la place à droite du label */
+.prod-editor-right-text .uu-row > .uu-input,
+.prod-editor-right-text .uu-row > .uu-input-arg,
+.prod-editor-right-text .uu-row > select,
+.prod-editor-right-text .uu-row > textarea {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+/* Exception : la ligne "Valeur par défaut" garde la mise en page classique */
+.prod-editor-right-text .uu-row.uu-row-text-default {
+  flex-wrap: wrap;          /* textarea peut passer en dessous du label */
+}
+
+.prod-editor-right-text .uu-row.uu-row-text-default textarea {
+  flex: 0 0 100%;
+  width: 100%;
+}
+
+/* ---- Layout du widget Text (affichage) ---- */
+/* ---- Widget Text : layout boutons + pastilles ---- */
+
+.uu-text-widget-row {
+  align-items: flex-start;
+}
+
+.uu-text-widget-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.uu-text-widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+/* Le premier bouton (Reset ou Envoyer si pas de Reset)
+   est collé à gauche du groupe, même quand Reset est masqué */
+.uu-text-widget-actions > .uu-btn:first-of-type {
+  margin-left: 0;
+}
+
+.uu-text-widget-targets {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+/* Reset caché mais largeur conservée + déplacement de "Envoyer" */
+.uu-text-reset-hidden {
+  visibility: hidden;      /* invisible mais garde sa largeur */
+  pointer-events: none;
+  order: 1;                /* placé en dernier dans le groupe de boutons */
+}
+
+/* Quand il n'y a pas de Reset, "Envoyer" devient le premier bouton visible */
+.uu-text-send-first {
+  order: -1;               /* passe devant le Reset caché et Supprimer */
+}
+
+/* Le textarea du widget Text peut grandir librement en hauteur */
+.uu-text-widget .uu-input-textarea {
+  overflow-y: hidden;
+  min-height: 32px;
+}
+
+/* --- Layout du widget Text en PRODUCTION --- */
+
+/* Réduit l'espace entre le haut de la carte et le label */
+.uu-text-widget {
+  margin-top: 4px;  /* au lieu du gros mt-8 visuel */
+}
+
+/* Ligne champ + boutons dans le widget Text (mode prod) */
+.uu-text-widget .uu-row {
+  display: flex;
+  flex-wrap: wrap;   /* permet 2 lignes : champ puis boutons */
+  column-gap: 8px;   /* espace horizontal entre les boutons */
+  row-gap: 8px;      /* espace VERTICAL entre champ et boutons (ta ligne verte) */
+}
+
+.uu-text-widget .uu-input-text-widget {
+  width: 320px;      /* largeur fixe du champ texte */
+  max-width: 100%;   /* mais ne dépasse jamais la carte du widget */
+  box-sizing: border-box;
+}
+
+/* Mode Live : label a gauche, champ texte a droite */
+.uu-text-widget-live-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.uu-text-widget-live-label {
+  flex: 0 0 150px;
+  width: 150px;
+  margin: 6px 0 0;
+}
+
+.uu-text-widget-live-input-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.uu-text-widget-live-row .uu-input-text-widget {
+  width: 100%;
+}
+
+/* --- Layout du widget Text en PRODUCTION --- */
+
+/* Réduit l'espace entre le haut de la carte et le label */
+.uu-text-widget {
+  margin-top: 0px;  /* au lieu du gros mt-8 visuel */
+}

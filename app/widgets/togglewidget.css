@@ -1,0 +1,114 @@
+/* app/widgets/togglewidget.css */
+/* ---- Widget Toggle ---- */
+.uu-toggle-widget {
+  margin-top: 0;
+}
+
+.uu-toggle {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.uu-toggle-option {
+  padding: 4px 10px;
+  border-radius: 9999px;
+  border: 1px solid #2b2f36;
+  background: #1b1e24;
+  color: #cdd3de;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.uu-toggle-option-active {
+  background-color: var(--uu-color-blue);
+  border-color: var(--uu-color-blue);
+  color: #e9ecef;
+}
+
+.uu-toggle-option:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Hover : comme un bouton "Exécuter" */
+.uu-toggle-option:hover:not(.uu-toggle-option-active):not(:disabled) {
+  background-color: var(--uu-color-blue);
+  border-color: var(--uu-color-blue);
+  color: #e9ecef;
+}
+
+/* Colonne droite - édition du widget Toggle :
+   label + champ sur une seule ligne */
+.prod-editor-right-toggle .uu-row {
+  flex-wrap: nowrap;            /* ⬅ empêche le retour à la ligne */
+  align-items: center;
+}
+
+/* le label garde sa largeur (via w-160) et pas de marge dessous */
+.prod-editor-right-toggle .uu-row > .uu-label {
+  margin-bottom: 0;
+}
+
+/* le champ prend toute la place restante à droite du label */
+.prod-editor-right-toggle .uu-row > .uu-input,
+.prod-editor-right-toggle .uu-row > .uu-input-arg,
+.prod-editor-right-toggle .uu-row > select,
+.prod-editor-right-toggle .uu-row > textarea {
+  flex: 1 1 auto;
+  width: auto;                  /* ⬅ annule le width:100% de .uu-input */
+  min-width: 0;                 /* ⬅ autorise la réduction sans casser la ligne */
+}
+
+/* Espace entre le label du toggle et le bouton (spécifique au widget Toggle) */
+.uu-toggle-widget .uu-item-title-toggle {
+  margin-bottom: 0;
+}
+.uu-toggle-widget .uu-item-title-row {
+  margin-bottom: 16px; /* espace sous le label + bouton */
+}
+
+/* Bouton du toggle (couleur pilotée par les mêmes variables que le Button) */
+.uu-toggle-button {
+  background-color: var(--uu-button-bg, var(--uu-color-blue));
+  border-color: var(--uu-button-border, var(--uu-color-blue));
+}
+
+/* ----- Éditeur colonne GAUCHE : couleur du bouton alignée sur les "Cibles" ----- */
+.prod-editor-left .uu-row.uu-toggle-color-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.prod-editor-left .uu-row.uu-toggle-color-row > .uu-label {
+  flex: 0 0 160px;
+  margin-bottom: 0;
+}
+
+.prod-editor-left .uu-row.uu-toggle-color-row > .uu-input-color {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+/* Sélecteur Type de liaison (toggle) aligné comme le joystick */
+.prod-editor-left .uu-row.uu-toggle-binding-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.prod-editor-left .uu-row.uu-toggle-binding-row > .uu-label {
+  flex: 0 0 160px;
+  margin-bottom: 0;
+}
+
+.prod-editor-left .uu-row.uu-toggle-binding-row > .uu-toggle-binding-select {
+  flex: 0 0 auto;
+  width: 220px;
+  max-width: 220px;
+}
