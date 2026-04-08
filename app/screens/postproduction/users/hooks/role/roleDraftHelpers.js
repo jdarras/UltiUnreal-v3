@@ -2,6 +2,8 @@ export const DEFAULT_ROLE_DRAFT = Object.freeze({
   key: "",
   displayName: "",
   note: "",
+  canUseLiveMode: true,
+  canUsePostprodMode: true,
   canValidate: false,
   canSyncScenes: false,
   canManageUsers: false,
@@ -12,6 +14,10 @@ export const DEFAULT_ROLE_DRAFT = Object.freeze({
   canManageProjectPermissions: false,
   canLaunchProjects: true,
   canLaunchRenders: true,
+  canViewResources: true,
+  canCreateTasks: true,
+  canEditProjects: true,
+  canManageLayouts: true,
   manageableRoles: [],
 });
 
@@ -29,6 +35,8 @@ export function buildRoleDraftFromRole(role) {
     key: roleKey,
     displayName: String(role?.displayName || roleKey),
     note: String(role?.note || ""),
+    canUseLiveMode: role?.canUseLiveMode !== false,
+    canUsePostprodMode: role?.canUsePostprodMode !== false,
     canValidate: role?.canValidate === true,
     canSyncScenes: role?.canSyncScenes === true,
     canManageUsers: role?.canManageUsers === true,
@@ -39,6 +47,10 @@ export function buildRoleDraftFromRole(role) {
     canManageProjectPermissions: role?.canManageProjectPermissions === true,
     canLaunchProjects: role?.canLaunchProjects !== false,
     canLaunchRenders: role?.canLaunchRenders !== false,
+    canViewResources: role?.canViewResources === true,
+    canCreateTasks: role?.canCreateTasks === true,
+    canEditProjects: role?.canEditProjects === true,
+    canManageLayouts: role?.canManageLayouts === true,
     manageableRoles: Array.isArray(role?.manageableRoles) ? role.manageableRoles : [],
   };
 }
@@ -48,6 +60,8 @@ export function buildRolePayloadFromDraft(roleDraft = {}) {
   return {
     displayName: String(roleDraft?.displayName || ""),
     note: String(roleDraft?.note || ""),
+    canUseLiveMode: roleDraft?.canUseLiveMode !== false,
+    canUsePostprodMode: roleDraft?.canUsePostprodMode !== false,
     canValidate: roleDraft?.canValidate === true,
     canSyncScenes: roleDraft?.canSyncScenes === true,
     canManageUsers,
@@ -58,6 +72,10 @@ export function buildRolePayloadFromDraft(roleDraft = {}) {
     canManageProjectPermissions: canManageUsers && roleDraft?.canManageProjectPermissions === true,
     canLaunchProjects: roleDraft?.canLaunchProjects !== false,
     canLaunchRenders: roleDraft?.canLaunchRenders !== false,
+    canViewResources: roleDraft?.canViewResources === true,
+    canCreateTasks: roleDraft?.canCreateTasks === true,
+    canEditProjects: roleDraft?.canEditProjects === true,
+    canManageLayouts: roleDraft?.canManageLayouts === true,
     manageableRoles: canManageUsers
       ? (Array.isArray(roleDraft?.manageableRoles) ? roleDraft.manageableRoles : [])
       : [],

@@ -846,6 +846,109 @@ function deleteProjectDoc(id) {
   try { sharedStore.deleteProjectDoc(pid); } catch {}
 }
 
+// ---------------------------------------------------------------------------
+// Verrou de projet (open lock) + source d'autorité
+// ---------------------------------------------------------------------------
+
+function setProjectLock(projectId, hostIp, hostName) {
+  const pid = String(projectId || '').trim();
+  if (!isValidId(pid)) return false;
+  const ip   = String(hostIp   || '').trim();
+  const name = String(hostName || '').trim();
+  if (!ip) return false;
+
+  const pj = loadProjects();
+  const projects = Array.isArray(pj.projects) ? pj.projects : [];
+  const idx = projects.findIndex(p => p && p.id === pid);
+  if (idx === -1) return false;
+
+  projects[idx] = {
+    ...projects[idx],
+    lockedByHostIp:   ip,
+    lockedByHostName: name,
+    lockedAt:         new Date().toISOString(),
+  };
+  pj.projects = projects;
+  saveProjects(pj, { onlyIfChanged: false });
+  return true;
+}
+
+function clearProjectLock(projectId) {
+  const pid = String(projectId || '').trim();
+  if (!isValidId(pid)) return false;
+
+  const pj = loadProjects();
+  const projects = Array.isArray(pj.projects) ? pj.projects : [];
+  const idx = projects.findIndex(p => p && p.id === pid);
+  if (idx === -1) return false;
+
+  const p = { ...projects[idx] };
+  delete p.lockedByHostIp;
+  delete p.lockedByHostName;
+  delete p.lockedAt;
+  projects[idx] = p;
+  pj.projects = projects;
+  saveProjects(pj, { onlyIfChanged: false });
+  return true;
+}
+
+function clearProjectLockByIp(hostIp) {
+  const ip = String(hostIp || '').trim();
+  if (!ip) return false;
+
+  const pj = loadProjects();
+  const projects = Array.isArray(pj.projects) ? pj.projects : [];
+  let changed = false;
+  for (let i = 0; i < projects.length; i++) {
+    if (projects[i] && String(projects[i].lockedByHostIp || '').trim() === ip) {
+      const p = { ...projects[i] };
+      delete p.lockedByHostIp;
+      delete p.lockedByHostName;
+      delete p.lockedAt;
+      projects[i] = p;
+      changed = true;
+    }
+  }
+  if (!changed) return false;
+  pj.projects = projects;
+  saveProjects(pj, { onlyIfChanged: false });
+  return true;
+}
+
+function setProjectSource(projectId, hostIp) {
+  const pid = String(projectId || '').trim();
+  if (!isValidId(pid)) return false;
+  const ip = String(hostIp || '').trim();
+  if (!ip) return false;
+
+  const pj = loadProjects();
+  const projects = Array.isArray(pj.projects) ? pj.projects : [];
+  const idx = projects.findIndex(p => p && p.id === pid);
+  if (idx === -1) return false;
+
+  projects[idx] = { ...projects[idx], sourceHostIp: ip };
+  pj.projects = projects;
+  saveProjects(pj, { onlyIfChanged: false });
+  return true;
+}
+
+function isProjectLocked(projectId) {
+  const pid = String(projectId || '').trim();
+  if (!isValidId(pid)) return { locked: false, byIp: '', byName: '' };
+
+  const pj = loadProjects();
+  const projects = Array.isArray(pj.projects) ? pj.projects : [];
+  const p = projects.find(pr => pr && pr.id === pid);
+  if (!p) return { locked: false, byIp: '', byName: '' };
+
+  const byIp = String(p.lockedByHostIp || '').trim();
+  return {
+    locked: Boolean(byIp),
+    byIp,
+    byName: String(p.lockedByHostName || '').trim(),
+  };
+}
+
 module.exports = {
   loadProjects,
   saveProjects,
@@ -861,4 +964,9 @@ module.exports = {
   extractProjectInsights,
   deleteProjectMeta,
   deleteProjectDoc,
+  setProjectLock,
+  clearProjectLock,
+  clearProjectLockByIp,
+  setProjectSource,
+  isProjectLocked,
 };

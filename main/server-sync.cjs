@@ -63,7 +63,7 @@ function computeDiffs(srcFiles, dstFiles) {
       added.push(rel);
     } else if (!fa && fb) {
       removed.push(rel);
-    } else if (fa && fb && fa.size !== fb.size) {
+    } else if (fa && fb && (fa.size !== fb.size || fa.mtimeMs !== fb.mtimeMs)) {
       modified.push(rel);
     }
   }
@@ -136,20 +136,23 @@ function resolveSourceUproject(hostList) {
     active = projects.find((p) => p && p.id === activeId) || null;
   }
 
+  // Utiliser sourceHostIp du projet actif pour identifier la machine source
+  const sourceIp = String(active?.sourceHostIp || "").trim();
+  const sourceHost = sourceIp
+    ? (list.find((h) => String(h?.ip || h?.address || "").trim() === sourceIp) || null)
+    : null;
+
+  // Fallback : première machine de la liste (hôte local)
   const localHost = list[0] || null;
-  const localIp = localHost
-    ? String(localHost.ip || localHost.address || "").trim()
+  const effectiveHost = sourceHost || localHost;
+  const effectiveIp = effectiveHost
+    ? String(effectiveHost.ip || effectiveHost.address || "").trim()
     : "";
 
-  // 1) Projet actif (uproject / projectPath / path) — source principale
-  let sourceUproject =
-    resolveUprojectPath(
-      active?.uproject || active?.projectPath || active?.path || ""
-    ) || "";
-
-  // 2) activeByHost pour la machine locale (clé = id uniquement)
-  if (!sourceUproject && localIp) {
-    const perHost = activeByHost[localIp];
+  // 1) activeByHost pour la machine source (clé = projectId)
+  let sourceUproject = "";
+  if (effectiveIp) {
+    const perHost = activeByHost[effectiveIp];
     const key = (active && active.id) || "";
     if (perHost && typeof perHost === "object") {
       if (key && perHost[key]) {
@@ -162,12 +165,20 @@ function resolveSourceUproject(hostList) {
     }
   }
 
-  // 3) uproject direct sur la machine locale (fallback)
-  if (!sourceUproject && localHost && localHost.uproject) {
-    sourceUproject = resolveUprojectPath(localHost.uproject);
+  // 2) Projet actif (uproject / projectPath / path)
+  if (!sourceUproject) {
+    sourceUproject =
+      resolveUprojectPath(
+        active?.uproject || active?.projectPath || active?.path || ""
+      ) || "";
   }
 
-  // 4) Dernier recours : premier projet de la liste (si rien d’actif ou mal renseigné)
+  // 3) uproject direct sur la machine source (fallback)
+  if (!sourceUproject && effectiveHost && effectiveHost.uproject) {
+    sourceUproject = resolveUprojectPath(effectiveHost.uproject);
+  }
+
+  // 4) Dernier recours : premier projet de la liste
   if (!sourceUproject && projects.length) {
     const firstProj = projects[0];
     sourceUproject = resolveUprojectPath(

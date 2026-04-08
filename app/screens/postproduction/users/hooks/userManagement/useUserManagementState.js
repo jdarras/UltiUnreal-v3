@@ -45,6 +45,7 @@ export function useUserManagementState({
   });
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [editorInputFocused, setEditorInputFocused] = useState(false);
   const editorAvatarInputRef = useRef(null);
 
   const {
@@ -146,6 +147,12 @@ export function useUserManagementState({
     return orderedUsers.find((entry) => Number(entry?.id || 0) === Number(editingUserId || 0)) || null;
   }, [orderedUsers, editorMode, editingUserId]);
 
+  useEffect(() => {
+    if (editorMode !== "edit") {
+      setEditorInputFocused(false);
+    }
+  }, [editorMode, setEditorInputFocused]);
+
   return {
     rolesByKey,
     roleOptions,
@@ -159,6 +166,8 @@ export function useUserManagementState({
     setListSortDir,
     searchQuery,
     setSearchQuery,
+    editorInputFocused,
+    setEditorInputFocused,
     editorAvatarInputRef,
     editorMode,
     setEditorMode,

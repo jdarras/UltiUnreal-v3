@@ -12,6 +12,9 @@ function TaskEditorPanel({
   onTitleChange = null,
   onDescriptionChange = null,
   onAutoSaveOnBlur = null,
+  normalizedProjectOptions = [],
+  autoRenderProjectRef = "",
+  onChangeAutoRenderProject = null,
   filteredAutoRenderForms = [],
   autoRenderFormId = "",
   onChangeAutoRenderForm = null,
@@ -68,6 +71,9 @@ function TaskEditorPanel({
       <TaskEditorAutoConfigFields
         t={t}
         tasksLoading={tasksLoading}
+        normalizedProjectOptions={normalizedProjectOptions}
+        autoRenderProjectRef={autoRenderProjectRef}
+        onChangeAutoRenderProject={onChangeAutoRenderProject}
         filteredAutoRenderForms={filteredAutoRenderForms}
         autoRenderFormId={autoRenderFormId}
         onChangeAutoRenderForm={onChangeAutoRenderForm}

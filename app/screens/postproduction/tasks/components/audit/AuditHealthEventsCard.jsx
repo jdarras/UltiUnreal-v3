@@ -1,4 +1,4 @@
-import { formatDate, safeT } from "../../../shared/helpers";
+﻿import { formatDate, safeT } from "../../../shared/helpers";
 import { hubEventKindLabel, hubEventStateLabel } from "./auditUiHelpers";
 
 function AuditHealthEventsCard({
@@ -9,7 +9,7 @@ function AuditHealthEventsCard({
 }) {
   return (
     <div className="uu-card mt-12">
-      <h4 className="uu-h3" style={{ marginBottom: "8px" }}>
+      <h4 className="uu-h3 uu-block-title" style={{ marginBottom: "8px" }}>
         {safeT(t, "postprod.renders.health.events.title", "Evenements Hub")}
       </h4>
       <div className="uu-row">
@@ -68,3 +68,4 @@ function AuditHealthEventsCard({
 }
 
 export { AuditHealthEventsCard };
+

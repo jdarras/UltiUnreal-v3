@@ -2,12 +2,13 @@ import { safeT } from "../../shared/helpers";
 import { UserActivityBlock } from "../editor/UserActivityBlock";
 import { UserEditorHeader } from "../editor/UserEditorHeader";
 import { UserIdentityBlock } from "../editor/UserIdentityBlock";
-import { UserProjectPermissionsBlock } from "../editor/UserProjectPermissionsBlock";
 import { UserSecurityBlock } from "../editor/UserSecurityBlock";
+import { UserDeleteDialog } from "./UserDeleteDialog";
 
 function UserEditorPanel({
   t,
   usersLoading = false,
+  setEditorInputFocused = null,
   closeEditor = null,
   editorAvatarSrc = "",
   editorAvatarInitials = "",
@@ -25,30 +26,8 @@ function UserEditorPanel({
   isCreate = false,
   canBanUsers = false,
   editingEntry = null,
-  canManageProjectPermissions = false,
   projectsLoading = false,
-  projectsError = "",
   projectOptions = [],
-  permissionOverridesCount = 0,
-  permissionSummaryRows = [],
-  permissionTableSearch = "",
-  setPermissionTableSearch = null,
-  permissionTableScope = "all",
-  setPermissionTableScope = null,
-  permissionLoading = false,
-  permissionSaving = false,
-  filteredPermissionSummaryRows = [],
-  selectedPermissionProjectRef = "",
-  setSelectedPermissionProjectRef = null,
-  setPermissionError = null,
-  setPermissionInfo = null,
-  selectedPermissionProject = null,
-  permissionDraft = {},
-  setPermissionDraft = null,
-  submitProjectPermissions = null,
-  onUpdateUserProjectPermissions = null,
-  permissionError = "",
-  permissionInfo = "",
   activityLoading = false,
   activityError = "",
   activityFromAtLocal = "",
@@ -68,14 +47,42 @@ function UserEditorPanel({
   editingTypeSummary = null,
   editingActivities = [],
   filteredEditingActivities = [],
+  onOpenActivityTarget = null,
   submitDisabled = false,
   submitEditor = null,
   userAutosaveBusy = false,
   userAutosaveError = "",
   userAutosaveInfo = "",
+  canDeleteUser = false,
+  deleteUserTargetName = "",
+  requestDeleteUser = null,
+  cancelDeleteUser = null,
+  confirmDeleteUser = null,
+  deleteDialogOpen = false,
+  deleteDialogConfirmRef = null,
+  deleteUserBusy = false,
 }) {
   return (
-    <div className="uu-card mt-12">
+    <div
+      className="uu-card mt-12"
+      onFocusCapture={() => {
+        if (typeof setEditorInputFocused === "function") {
+          setEditorInputFocused(true);
+        }
+      }}
+      onBlurCapture={(event) => {
+        if (typeof setEditorInputFocused !== "function") return;
+        const container = event.currentTarget;
+        setTimeout(() => {
+          const activeElement = document.activeElement;
+          const stillInside =
+            container instanceof HTMLElement
+            && activeElement instanceof HTMLElement
+            && container.contains(activeElement);
+          setEditorInputFocused(stillInside);
+        }, 0);
+      }}
+    >
       <UserEditorHeader
         t={t}
         usersLoading={usersLoading}
@@ -100,13 +107,16 @@ function UserEditorPanel({
           }
         }}
         editorAvatarPath={editorAvatarPath}
+        isCreate={isCreate}
+        canDeleteUser={canDeleteUser}
+        onRequestDeleteUser={requestDeleteUser}
+        deleteUserBusy={deleteUserBusy}
       />
 
       <UserIdentityBlock
         t={t}
         draft={draft}
         setDraft={setDraft}
-        usersLoading={usersLoading}
         roleOptions={roleOptions}
         rolesByKey={rolesByKey}
       />
@@ -115,40 +125,9 @@ function UserEditorPanel({
         t={t}
         draft={draft}
         setDraft={setDraft}
-        usersLoading={usersLoading}
         isCreate={isCreate}
         canBanUsers={canBanUsers}
       />
-
-      {!isCreate && editingEntry && canManageProjectPermissions ? (
-        <UserProjectPermissionsBlock
-          t={t}
-          usersLoading={usersLoading}
-          projectsLoading={projectsLoading}
-          projectsError={projectsError}
-          projectOptions={projectOptions}
-          permissionOverridesCount={permissionOverridesCount}
-          permissionSummaryRows={permissionSummaryRows}
-          permissionTableSearch={permissionTableSearch}
-          setPermissionTableSearch={setPermissionTableSearch}
-          permissionTableScope={permissionTableScope}
-          setPermissionTableScope={setPermissionTableScope}
-          permissionLoading={permissionLoading}
-          permissionSaving={permissionSaving}
-          filteredPermissionSummaryRows={filteredPermissionSummaryRows}
-          selectedPermissionProjectRef={selectedPermissionProjectRef}
-          setSelectedPermissionProjectRef={setSelectedPermissionProjectRef}
-          setPermissionError={setPermissionError}
-          setPermissionInfo={setPermissionInfo}
-          selectedPermissionProject={selectedPermissionProject}
-          permissionDraft={permissionDraft}
-          setPermissionDraft={setPermissionDraft}
-          submitProjectPermissions={submitProjectPermissions}
-          onUpdateUserProjectPermissions={onUpdateUserProjectPermissions}
-          permissionError={permissionError}
-          permissionInfo={permissionInfo}
-        />
-      ) : null}
 
       {!isCreate && editingEntry ? (
         <UserActivityBlock
@@ -175,6 +154,7 @@ function UserEditorPanel({
           editingTypeSummary={editingTypeSummary}
           editingActivities={editingActivities}
           filteredEditingActivities={filteredEditingActivities}
+          onOpenActivityTarget={onOpenActivityTarget}
         />
       ) : null}
 
@@ -189,7 +169,7 @@ function UserEditorPanel({
             disabled={submitDisabled}
             onClick={() => submitEditor?.()}
           >
-            {safeT(t, "postprod.users.form.create", "Creer utilisateur")}
+            {safeT(t, "postprod.users.form.create", "Créer utilisateur")}
           </button>
         </div>
       ) : (
@@ -201,6 +181,15 @@ function UserEditorPanel({
           ) : null}
         </>
       )}
+      <UserDeleteDialog
+        t={t}
+        open={deleteDialogOpen}
+        busy={deleteUserBusy}
+        targetName={deleteUserTargetName}
+        onCancel={cancelDeleteUser}
+        onConfirm={confirmDeleteUser}
+        confirmRef={deleteDialogConfirmRef}
+      />
     </div>
   );
 }

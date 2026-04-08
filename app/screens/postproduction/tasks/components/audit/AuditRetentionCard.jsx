@@ -1,4 +1,4 @@
-import { formatDate, safeT } from "../../../shared/helpers";
+﻿import { formatDate, safeT } from "../../../shared/helpers";
 import { formatRetentionDurationMs } from "./auditUiHelpers";
 
 function AuditRetentionCard({
@@ -14,7 +14,7 @@ function AuditRetentionCard({
   return (
     <div className="uu-card mt-12">
       <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-        <h4 className="uu-h3" style={{ marginBottom: "8px" }}>
+        <h4 className="uu-h3 uu-block-title" style={{ marginBottom: "8px" }}>
           {safeT(t, "postprod.audit.retention.title", "Retention evenements Hub")}
         </h4>
         <div className="uu-row">
@@ -102,3 +102,4 @@ function AuditRetentionCard({
 }
 
 export { AuditRetentionCard };
+

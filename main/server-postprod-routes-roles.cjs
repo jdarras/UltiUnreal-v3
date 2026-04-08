@@ -55,6 +55,12 @@ async function handlePostprodRoleRoutes({
 
       const displayName = sanitizeDisplayName(displayNameInput, roleKey);
       const note = sanitizeRoleNote(body?.note);
+      const canUseLiveMode = body?.canUseLiveMode !== false;
+      const canUsePostprodMode = body?.canUsePostprodMode !== false;
+      if (!canUseLiveMode && !canUsePostprodMode) {
+        sendJSON(res, 400, { ok: false, error: 'invalid_mode_access' });
+        return true;
+      }
       const canValidate = body?.canValidate === true;
       const canSyncScenes = body?.canSyncScenes === true;
       const canManageUsers = body?.canManageUsers === true;
@@ -65,6 +71,14 @@ async function handlePostprodRoleRoutes({
       const canManageProjectPermissions = body?.canManageProjectPermissions === true;
       const canLaunchProjects = body?.canLaunchProjects !== false;
       const canLaunchRenders = body?.canLaunchRenders !== false;
+      const canViewResources = body?.canViewResources === true
+        || (!Object.prototype.hasOwnProperty.call(body || {}, 'canViewResources') && (canUseLiveMode || canUsePostprodMode));
+      const canCreateTasks = body?.canCreateTasks === true
+        || (!Object.prototype.hasOwnProperty.call(body || {}, 'canCreateTasks') && canLaunchRenders);
+      const canEditProjects = body?.canEditProjects === true
+        || (!Object.prototype.hasOwnProperty.call(body || {}, 'canEditProjects') && canLaunchProjects);
+      const canManageLayouts = body?.canManageLayouts === true
+        || (!Object.prototype.hasOwnProperty.call(body || {}, 'canManageLayouts') && canUseLiveMode);
 
       const requestedManageable = normalizeManageableRolesInput(body?.manageableRoles);
       const resolvedManageable = [];
@@ -89,6 +103,8 @@ async function handlePostprodRoleRoutes({
           roleKey,
           displayName,
           note,
+          canUseLiveMode ? 1 : 0,
+          canUsePostprodMode ? 1 : 0,
           canValidate ? 1 : 0,
           canSyncScenes ? 1 : 0,
           canManageUsers ? 1 : 0,
@@ -99,6 +115,10 @@ async function handlePostprodRoleRoutes({
           safeCanManageProjectPermissions ? 1 : 0,
           canLaunchProjects ? 1 : 0,
           canLaunchRenders ? 1 : 0,
+          canViewResources ? 1 : 0,
+          canCreateTasks ? 1 : 0,
+          canEditProjects ? 1 : 0,
+          canManageLayouts ? 1 : 0,
           JSON.stringify(manageableRoles),
           0,
           now,
@@ -113,8 +133,8 @@ async function handlePostprodRoleRoutes({
         throw err;
       }
 
-      refreshRolesCache();
-      const created = rolesCache.byKey.get(roleKey);
+      const freshCacheAfterCreate = refreshRolesCache();
+      const created = freshCacheAfterCreate.byKey.get(roleKey);
       audit(
         auth.session.user_id,
         'role_created',
@@ -122,6 +142,8 @@ async function handlePostprodRoleRoutes({
           key: roleKey,
           displayName,
           note,
+          canUseLiveMode,
+          canUsePostprodMode,
           canValidate,
           canSyncScenes,
           canManageUsers,
@@ -132,6 +154,10 @@ async function handlePostprodRoleRoutes({
           canManageProjectPermissions: safeCanManageProjectPermissions,
           canLaunchProjects,
           canLaunchRenders,
+          canViewResources,
+          canCreateTasks,
+          canEditProjects,
+          canManageLayouts,
           manageableRoles,
         },
         'role',
@@ -174,6 +200,8 @@ async function handlePostprodRoleRoutes({
 
   const hasDisplayName = Object.prototype.hasOwnProperty.call(body || {}, 'displayName');
   const hasNote = Object.prototype.hasOwnProperty.call(body || {}, 'note');
+  const hasCanUseLiveMode = Object.prototype.hasOwnProperty.call(body || {}, 'canUseLiveMode');
+  const hasCanUsePostprodMode = Object.prototype.hasOwnProperty.call(body || {}, 'canUsePostprodMode');
   const hasCanValidate = Object.prototype.hasOwnProperty.call(body || {}, 'canValidate');
   const hasCanSyncScenes = Object.prototype.hasOwnProperty.call(body || {}, 'canSyncScenes');
   const hasCanManageUsers = Object.prototype.hasOwnProperty.call(body || {}, 'canManageUsers');
@@ -184,6 +212,10 @@ async function handlePostprodRoleRoutes({
   const hasCanManageProjectPermissions = Object.prototype.hasOwnProperty.call(body || {}, 'canManageProjectPermissions');
   const hasCanLaunchProjects = Object.prototype.hasOwnProperty.call(body || {}, 'canLaunchProjects');
   const hasCanLaunchRenders = Object.prototype.hasOwnProperty.call(body || {}, 'canLaunchRenders');
+  const hasCanViewResources = Object.prototype.hasOwnProperty.call(body || {}, 'canViewResources');
+  const hasCanCreateTasks = Object.prototype.hasOwnProperty.call(body || {}, 'canCreateTasks');
+  const hasCanEditProjects = Object.prototype.hasOwnProperty.call(body || {}, 'canEditProjects');
+  const hasCanManageLayouts = Object.prototype.hasOwnProperty.call(body || {}, 'canManageLayouts');
   const hasManageableRoles = Object.prototype.hasOwnProperty.call(body || {}, 'manageableRoles');
 
   let next = {
@@ -196,6 +228,8 @@ async function handlePostprodRoleRoutes({
   if (hasNote) {
     next.note = sanitizeRoleNote(body?.note);
   }
+  if (hasCanUseLiveMode) next.canUseLiveMode = body?.canUseLiveMode === true;
+  if (hasCanUsePostprodMode) next.canUsePostprodMode = body?.canUsePostprodMode === true;
   if (hasCanValidate) next.canValidate = body?.canValidate === true;
   if (hasCanSyncScenes) next.canSyncScenes = body?.canSyncScenes === true;
   if (hasCanManageUsers) next.canManageUsers = body?.canManageUsers === true;
@@ -206,6 +240,10 @@ async function handlePostprodRoleRoutes({
   if (hasCanManageProjectPermissions) next.canManageProjectPermissions = body?.canManageProjectPermissions === true;
   if (hasCanLaunchProjects) next.canLaunchProjects = body?.canLaunchProjects === true;
   if (hasCanLaunchRenders) next.canLaunchRenders = body?.canLaunchRenders === true;
+  if (hasCanViewResources) next.canViewResources = body?.canViewResources === true;
+  if (hasCanCreateTasks) next.canCreateTasks = body?.canCreateTasks === true;
+  if (hasCanEditProjects) next.canEditProjects = body?.canEditProjects === true;
+  if (hasCanManageLayouts) next.canManageLayouts = body?.canManageLayouts === true;
 
   if (hasManageableRoles) {
     const requestedManageable = normalizeManageableRolesInput(body?.manageableRoles);
@@ -231,6 +269,8 @@ async function handlePostprodRoleRoutes({
   }
 
   if (next.key === SYSTEM_MAINTENANCE_ROLE) {
+    next.canUseLiveMode = true;
+    next.canUsePostprodMode = true;
     next.canManageUsers = true;
     next.canManageRoles = true;
     next.canManageForms = true;
@@ -238,9 +278,21 @@ async function handlePostprodRoleRoutes({
     next.canBanUsers = true;
     next.canManageProjectPermissions = true;
     next.canLaunchProjects = true;
+    next.canViewResources = true;
+    next.canCreateTasks = true;
+    next.canEditProjects = true;
+    next.canManageLayouts = true;
     next.manageableRoles = Array.from(rolesCache.byKey.keys());
   } else {
     next.canManageRoles = false;
+  }
+  if (!next.canUseLiveMode) {
+    next.canManageLayouts = false;
+  }
+
+  if (!next.canUseLiveMode && !next.canUsePostprodMode) {
+    sendJSON(res, 400, { ok: false, error: 'invalid_mode_access' });
+    return true;
   }
 
   if (current.canManageRoles && !next.canManageRoles) {
@@ -258,6 +310,8 @@ async function handlePostprodRoleRoutes({
   const noChanges =
     !hasDisplayName &&
     !hasNote &&
+    !hasCanUseLiveMode &&
+    !hasCanUsePostprodMode &&
     !hasCanValidate &&
     !hasCanSyncScenes &&
     !hasCanManageUsers &&
@@ -268,6 +322,10 @@ async function handlePostprodRoleRoutes({
     !hasCanManageProjectPermissions &&
     !hasCanLaunchProjects &&
     !hasCanLaunchRenders &&
+    !hasCanViewResources &&
+    !hasCanCreateTasks &&
+    !hasCanEditProjects &&
+    !hasCanManageLayouts &&
     !hasManageableRoles;
   if (noChanges) {
     sendJSON(res, 400, { ok: false, error: 'no_changes' });
@@ -277,6 +335,8 @@ async function handlePostprodRoleRoutes({
   const effectiveUnchanged =
     current.displayName === next.displayName &&
     sanitizeRoleNote(current.note) === sanitizeRoleNote(next.note) &&
+    current.canUseLiveMode === next.canUseLiveMode &&
+    current.canUsePostprodMode === next.canUsePostprodMode &&
     current.canValidate === next.canValidate &&
     current.canSyncScenes === next.canSyncScenes &&
     current.canManageUsers === next.canManageUsers &&
@@ -287,6 +347,10 @@ async function handlePostprodRoleRoutes({
     current.canManageProjectPermissions === next.canManageProjectPermissions &&
     current.canLaunchProjects === next.canLaunchProjects &&
     current.canLaunchRenders === next.canLaunchRenders &&
+    current.canViewResources === next.canViewResources &&
+    current.canCreateTasks === next.canCreateTasks &&
+    current.canEditProjects === next.canEditProjects &&
+    current.canManageLayouts === next.canManageLayouts &&
     sameManageable;
   if (effectiveUnchanged) {
     sendJSON(res, 200, { ok: true, role: buildRolePayload(current), unchanged: true });
@@ -297,6 +361,8 @@ async function handlePostprodRoleRoutes({
   stmts.updateRole.run(
     next.displayName,
     next.note,
+    next.canUseLiveMode ? 1 : 0,
+    next.canUsePostprodMode ? 1 : 0,
     next.canValidate ? 1 : 0,
     next.canSyncScenes ? 1 : 0,
     next.canManageUsers ? 1 : 0,
@@ -307,12 +373,16 @@ async function handlePostprodRoleRoutes({
     next.canManageProjectPermissions ? 1 : 0,
     next.canLaunchProjects ? 1 : 0,
     next.canLaunchRenders ? 1 : 0,
+    next.canViewResources ? 1 : 0,
+    next.canCreateTasks ? 1 : 0,
+    next.canEditProjects ? 1 : 0,
+    next.canManageLayouts ? 1 : 0,
     JSON.stringify(nextManageable),
     now,
     current.key
   );
-  refreshRolesCache();
-  const updated = rolesCache.byKey.get(current.key);
+  const freshCacheAfterUpdate = refreshRolesCache();
+  const updated = freshCacheAfterUpdate.byKey.get(current.key);
 
   audit(
     auth.session.user_id,
@@ -322,6 +392,8 @@ async function handlePostprodRoleRoutes({
       changed: {
         displayName: current.displayName !== updated.displayName,
         note: sanitizeRoleNote(current.note) !== sanitizeRoleNote(updated.note),
+        canUseLiveMode: current.canUseLiveMode !== updated.canUseLiveMode,
+        canUsePostprodMode: current.canUsePostprodMode !== updated.canUsePostprodMode,
         canValidate: current.canValidate !== updated.canValidate,
         canSyncScenes: current.canSyncScenes !== updated.canSyncScenes,
         canManageUsers: current.canManageUsers !== updated.canManageUsers,
@@ -332,6 +404,10 @@ async function handlePostprodRoleRoutes({
         canManageProjectPermissions: current.canManageProjectPermissions !== updated.canManageProjectPermissions,
         canLaunchProjects: current.canLaunchProjects !== updated.canLaunchProjects,
         canLaunchRenders: current.canLaunchRenders !== updated.canLaunchRenders,
+        canViewResources: current.canViewResources !== updated.canViewResources,
+        canCreateTasks: current.canCreateTasks !== updated.canCreateTasks,
+        canEditProjects: current.canEditProjects !== updated.canEditProjects,
+        canManageLayouts: current.canManageLayouts !== updated.canManageLayouts,
         manageableRoles: !sameManageable,
       },
     },

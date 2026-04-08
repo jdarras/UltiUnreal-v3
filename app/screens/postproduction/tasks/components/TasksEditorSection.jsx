@@ -10,6 +10,9 @@ function TasksEditorSection({
   onTitleChange = null,
   onDescriptionChange = null,
   onAutoSaveOnBlur = null,
+  normalizedProjectOptions = [],
+  autoRenderProjectRef = "",
+  onChangeAutoRenderProject = null,
   filteredAutoRenderForms = [],
   autoRenderFormId = "",
   onChangeAutoRenderForm = null,
@@ -53,6 +56,9 @@ function TasksEditorSection({
       onTitleChange={onTitleChange}
       onDescriptionChange={onDescriptionChange}
       onAutoSaveOnBlur={onAutoSaveOnBlur}
+      normalizedProjectOptions={normalizedProjectOptions}
+      autoRenderProjectRef={autoRenderProjectRef}
+      onChangeAutoRenderProject={onChangeAutoRenderProject}
       filteredAutoRenderForms={filteredAutoRenderForms}
       autoRenderFormId={autoRenderFormId}
       onChangeAutoRenderForm={onChangeAutoRenderForm}

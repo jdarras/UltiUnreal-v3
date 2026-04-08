@@ -4,6 +4,7 @@ function TasksToolbar({
   t,
   showCreateForm = false,
   tasksLoading = false,
+  canCreateTasks = false,
   onOpenCreateForm = null,
   onCloseForm = null,
   listSortKey = "updatedAt",
@@ -26,7 +27,7 @@ function TasksToolbar({
           <button
             className="uu-btn"
             type="button"
-            disabled={tasksLoading && !showCreateForm}
+            disabled={!canCreateTasks || (tasksLoading && !showCreateForm)}
             onClick={() => onOpenCreateForm?.()}
           >
             {safeT(t, "postprod.tasks.form.new", "+ Nouvelle tache")}
@@ -135,4 +136,3 @@ function TasksToolbar({
 }
 
 export { TasksToolbar };
-

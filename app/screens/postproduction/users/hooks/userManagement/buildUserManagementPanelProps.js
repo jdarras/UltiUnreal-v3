@@ -16,6 +16,7 @@ export function buildUserEditorPanelProps({ t, data = {} } = {}) {
   return {
     t,
     usersLoading: data.usersLoading,
+    setEditorInputFocused: data.setEditorInputFocused,
     closeEditor: data.closeEditor,
     editorAvatarSrc: data.editorAvatarSrc,
     editorAvatarInitials: data.editorAvatarInitials,
@@ -38,7 +39,6 @@ export function buildUserEditorPanelProps({ t, data = {} } = {}) {
     editingEntry: data.editingEntry,
     canManageProjectPermissions: data.canManageProjectPermissions,
     projectsLoading: data.projectsLoading,
-    projectsError: data.projectsError,
     projectOptions: data.projectOptions,
     permissionOverridesCount: data.permissionOverridesCount,
     permissionSummaryRows: data.permissionSummaryRows,
@@ -84,6 +84,14 @@ export function buildUserEditorPanelProps({ t, data = {} } = {}) {
     userAutosaveBusy: data.userAutosaveBusy,
     userAutosaveError: data.userAutosaveError,
     userAutosaveInfo: data.userAutosaveInfo,
+    canDeleteUser: data.canDeleteUser,
+    deleteUserTargetName: data.deleteUserTargetName,
+    requestDeleteUser: data.requestDeleteUser,
+    cancelDeleteUser: data.cancelDeleteUser,
+    confirmDeleteUser: data.confirmDeleteUser,
+    deleteDialogOpen: data.deleteDialogOpen,
+    deleteDialogConfirmRef: data.deleteDialogConfirmRef,
+    deleteUserBusy: data.deleteUserBusy,
   };
 }
 
@@ -100,4 +108,3 @@ export function buildUserBrowsePanelProps({ t, data = {} } = {}) {
     manageableSet: data.manageableSet,
   };
 }
-

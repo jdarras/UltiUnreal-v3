@@ -1,14 +1,18 @@
 import { useCallback, useMemo, useState } from "react";
-import { safeT } from "../../shared/helpers";
 import {
   collectRenderThumbCandidates,
   resolveDetailPreview,
   resolveDetailPreviewState,
   resolveDetailRender,
-  toRenderId,
 } from "./renderDetail/renderDetailHelpers";
 import { useRenderDetailModalState } from "./renderDetail/useRenderDetailModalState";
 import { useRenderDetailTransitions } from "./renderDetail/useRenderDetailTransitions";
+import {
+  advancePreviewCandidateAction,
+  openRenderDetailAction,
+  openRenderOutputExternallyAction,
+} from "./renderDetail/renderDetailControllerActions";
+import { buildRenderDetailControllerOutput } from "./renderDetail/buildRenderDetailControllerOutput";
 
 export function useRenderDetailController({
   t,
@@ -32,53 +36,24 @@ export function useRenderDetailController({
   });
 
   const openRenderOutputExternally = useCallback(async (render) => {
-    const outputPath = String(render?.outputPath || "").trim();
-    if (!outputPath) return;
-    try {
-      if (typeof window !== "undefined" && typeof window.electron?.openPath === "function") {
-        await window.electron.openPath(outputPath);
-      }
-    } catch {}
+    await openRenderOutputExternallyAction(render);
   }, []);
 
   const openRenderDetail = useCallback((render) => {
-    const renderId = toRenderId(render?.id);
-    if (renderId <= 0) return;
-    openRenderDetailById(renderId);
-    setPreviewStateByRenderId((prev) => ({
-      ...(prev || {}),
-      [renderId]: { index: 0, error: "" },
-    }));
-    void loadRenderTransitionsForDetail(renderId);
+    openRenderDetailAction({
+      render,
+      openRenderDetailById,
+      setPreviewStateByRenderId,
+      loadRenderTransitionsForDetail,
+    });
   }, [loadRenderTransitionsForDetail, openRenderDetailById]);
 
   const advancePreviewCandidate = useCallback((renderId, candidateCount) => {
-    const total = Number(candidateCount || 0);
-    const normalizedRenderId = toRenderId(renderId);
-    if (normalizedRenderId <= 0) return;
-    setPreviewStateByRenderId((prev) => {
-      const current = (
-        prev?.[normalizedRenderId]
-        && typeof prev[normalizedRenderId] === "object"
-      ) ? prev[normalizedRenderId] : { index: 0, error: "" };
-      const nextIndex = Number(current.index || 0) + 1;
-      if (nextIndex < total) {
-        return {
-          ...(prev || {}),
-          [normalizedRenderId]: { index: nextIndex, error: "" },
-        };
-      }
-      return {
-        ...(prev || {}),
-        [normalizedRenderId]: {
-          index: Number(current.index || 0),
-          error: safeT(
-            t,
-            "postprod.renders.preview.unsupported",
-            "Lecture interne indisponible pour ce format. Ouvre le fichier en externe."
-          ),
-        },
-      };
+    advancePreviewCandidateAction({
+      t,
+      renderId,
+      candidateCount,
+      setPreviewStateByRenderId,
     });
   }, [t]);
 
@@ -101,21 +76,29 @@ export function useRenderDetailController({
   const detailTransitionsLoading = detailTransitionsState?.loading === true;
   const detailTransitionsError = String(detailTransitionsState?.error || "").trim();
 
-  return {
-    buildRenderThumbCandidates,
-    openRenderOutputExternally,
-    openRenderDetail,
-    closeRenderDetail,
-    advancePreviewCandidate,
-    detailRender,
-    detailPreviewKind: detailPreview.kind,
-    detailPreviewSource: detailPreview.source,
-    detailPreviewError: detailPreview.error,
-    detailPreviewCandidatesCount: detailPreview.candidates.length,
-    detailTransitions,
-    detailTransitionsLoading,
-    detailTransitionsError,
-  };
+  return buildRenderDetailControllerOutput({
+    actions: {
+      buildRenderThumbCandidates,
+      openRenderOutputExternally,
+      openRenderDetail,
+      closeRenderDetail,
+      advancePreviewCandidate,
+    },
+    detail: {
+      detailRender,
+    },
+    preview: {
+      kind: detailPreview.kind,
+      source: detailPreview.source,
+      error: detailPreview.error,
+      candidatesCount: detailPreview.candidates.length,
+    },
+    transitions: {
+      items: detailTransitions,
+      loading: detailTransitionsLoading,
+      error: detailTransitionsError,
+    },
+  });
 }
 
 export default useRenderDetailController;

@@ -1,3 +1,51 @@
+import { pickKeys } from "../../../shared/objectProps";
+
+const DATA_KEYS = [
+  "isEditingTask",
+  "title",
+  "description",
+  "setTitle",
+  "setDescription",
+  "normalizedProjectOptions",
+  "autoRenderProjectRef",
+  "filteredAutoRenderForms",
+  "autoRenderFormId",
+  "renderTemplatesForSelectedAutoForm",
+  "autoRenderTemplateId",
+  "autoRenderProjectCatalogLoading",
+  "autoRenderProjectCatalogError",
+  "selectedAutoRenderForm",
+  "autoRenderWorkerKey",
+  "availableRenderWorkers",
+  "autoRenderLaunchMode",
+  "autoRenderFormFieldsLoading",
+  "autoRenderFormFieldsError",
+  "visibleAutoRenderFormFields",
+  "autoRenderFormValues",
+  "autoExpectedRenderName",
+  "formError",
+];
+
+const LIFECYCLE_KEYS = [
+  "closeTaskForm",
+];
+
+const EDITOR_KEYS = [
+  "autoSaveEditedTaskOnBlur",
+  "handleUpdateAutoRenderFormValue",
+  "canSubmitTaskForm",
+  "submitTaskFormLabel",
+  "handleSubmitTaskForm",
+];
+
+const UI_KEYS = [
+  "changeAutoRenderProject",
+  "changeAutoRenderForm",
+  "changeAutoRenderTemplate",
+  "changeAutoRenderWorker",
+  "changeAutoRenderLaunchMode",
+];
+
 export function buildTasksSectionPropsInputEditor({
   data = {},
   lifecycle = {},
@@ -5,37 +53,10 @@ export function buildTasksSectionPropsInputEditor({
   ui = {},
 } = {}) {
   return {
-    isEditingTask: data.isEditingTask,
-    title: data.title,
-    description: data.description,
-    setTitle: data.setTitle,
-    setDescription: data.setDescription,
-    autoSaveEditedTaskOnBlur: editor.autoSaveEditedTaskOnBlur,
-    filteredAutoRenderForms: data.filteredAutoRenderForms,
-    autoRenderFormId: data.autoRenderFormId,
-    changeAutoRenderForm: ui.changeAutoRenderForm,
-    renderTemplatesForSelectedAutoForm: data.renderTemplatesForSelectedAutoForm,
-    autoRenderTemplateId: data.autoRenderTemplateId,
-    changeAutoRenderTemplate: ui.changeAutoRenderTemplate,
-    autoRenderProjectCatalogLoading: data.autoRenderProjectCatalogLoading,
-    autoRenderProjectCatalogError: data.autoRenderProjectCatalogError,
-    selectedAutoRenderForm: data.selectedAutoRenderForm,
-    autoRenderWorkerKey: data.autoRenderWorkerKey,
-    changeAutoRenderWorker: ui.changeAutoRenderWorker,
-    availableRenderWorkers: data.availableRenderWorkers,
-    autoRenderLaunchMode: data.autoRenderLaunchMode,
-    changeAutoRenderLaunchMode: ui.changeAutoRenderLaunchMode,
-    autoRenderFormFieldsLoading: data.autoRenderFormFieldsLoading,
-    autoRenderFormFieldsError: data.autoRenderFormFieldsError,
-    visibleAutoRenderFormFields: data.visibleAutoRenderFormFields,
-    autoRenderFormValues: data.autoRenderFormValues,
-    handleUpdateAutoRenderFormValue: editor.handleUpdateAutoRenderFormValue,
-    autoExpectedRenderName: data.autoExpectedRenderName,
-    formError: data.formError,
-    canSubmitTaskForm: editor.canSubmitTaskForm,
-    submitTaskFormLabel: editor.submitTaskFormLabel,
-    handleSubmitTaskForm: editor.handleSubmitTaskForm,
-    closeTaskForm: lifecycle.closeTaskForm,
+    ...pickKeys(data, DATA_KEYS),
+    ...pickKeys(lifecycle, LIFECYCLE_KEYS),
+    ...pickKeys(editor, EDITOR_KEYS),
+    ...pickKeys(ui, UI_KEYS),
   };
 }
 

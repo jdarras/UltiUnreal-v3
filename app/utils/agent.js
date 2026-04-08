@@ -543,6 +543,26 @@ export async function postprodUpdateUser(token = '', userId, payload = {}, timeo
   return res.json || { ok: true };
 }
 
+export async function postprodDeleteUser(token = '', userId, timeoutMs = 8000) {
+  const authToken = assertPostprodToken(token);
+  const idNum = Number(userId);
+  if (!Number.isFinite(idNum) || idNum <= 0) {
+    const err = new Error('invalid_user_id');
+    err.code = 'invalid_user_id';
+    err.status = 400;
+    throw err;
+  }
+  const res = await httpRequest(`/agent/postprod/users/${Math.trunc(idNum)}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+    },
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true };
+}
+
 export async function postprodUpdateUserProfile(token = '', userId, payload = {}, timeoutMs = 8000) {
   const authToken = assertPostprodToken(token);
   const idNum = Number(userId);

@@ -3,6 +3,9 @@ import { safeT } from "../../../shared/helpers";
 function TaskEditorAutoConfigFields({
   t,
   tasksLoading = false,
+  normalizedProjectOptions = [],
+  autoRenderProjectRef = "",
+  onChangeAutoRenderProject = null,
   filteredAutoRenderForms = [],
   autoRenderFormId = "",
   onChangeAutoRenderForm = null,
@@ -30,13 +33,44 @@ function TaskEditorAutoConfigFields({
         <div className="uu-grid-field">
           <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
             <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+              {safeT(t, "postprod.tasks.form.autoRenderProjectSelect", "Projet")}
+            </label>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <select
+                className="uu-input"
+                value={autoRenderProjectRef}
+                disabled={tasksLoading || normalizedProjectOptions.length <= 0}
+                onChange={(e) => onChangeAutoRenderProject?.(String(e.target.value || "").trim())}
+              >
+                <option value="">{safeT(t, "postprod.tasks.form.autoRenderProjectSelect.none", "Selectionner un projet")}</option>
+                {normalizedProjectOptions.map((entry) => (
+                  <option key={`task-auto-render-project-${entry.ref}`} value={entry.ref}>
+                    {entry.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {!tasksLoading && normalizedProjectOptions.length <= 0 ? (
+            <div className="uu-msg info mt-8">
+              {safeT(
+                t,
+                "postprod.tasks.form.autoRenderProjectSelect.empty",
+                "Aucun projet en mode rendu automatique. Active ce mode dans le detail projet."
+              )}
+            </div>
+          ) : null}
+        </div>
+        <div className="uu-grid-field">
+          <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
+            <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
               {safeT(t, "postprod.tasks.form.autoRenderFormShort", "Formulaire")}
             </label>
             <div style={{ flex: 1, minWidth: 0 }}>
               <select
                 className="uu-input"
                 value={autoRenderFormId}
-                disabled={tasksLoading || filteredAutoRenderForms.length <= 0}
+                disabled={tasksLoading || !autoRenderProjectRef || filteredAutoRenderForms.length <= 0}
                 onChange={(e) => onChangeAutoRenderForm?.(String(e.target.value || "").trim())}
               >
                 <option value="">{safeT(t, "postprod.tasks.form.autoRenderForm.none", "Selectionner un formulaire")}</option>
@@ -54,7 +88,7 @@ function TaskEditorAutoConfigFields({
           {!renderFormsLoading && renderFormsError ? (
             <div className="uu-msg warn mt-8">{renderFormsError}</div>
           ) : null}
-          {!renderFormsLoading && !renderFormsError && filteredAutoRenderForms.length <= 0 ? (
+          {!renderFormsLoading && !renderFormsError && !!autoRenderProjectRef && filteredAutoRenderForms.length <= 0 ? (
             <div className="uu-msg info mt-8">
               {canManageRenderTemplates
                 ? safeT(
@@ -70,6 +104,8 @@ function TaskEditorAutoConfigFields({
             </div>
           ) : null}
         </div>
+      </div>
+      <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
           <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
             <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
@@ -79,7 +115,7 @@ function TaskEditorAutoConfigFields({
               <select
                 className="uu-input"
                 value={autoRenderTemplateId}
-                disabled={tasksLoading || renderTemplatesForSelectedAutoForm.length <= 0}
+                disabled={tasksLoading || !autoRenderProjectRef || renderTemplatesForSelectedAutoForm.length <= 0}
                 onChange={(e) => onChangeAutoRenderTemplate?.(String(e.target.value || "").trim())}
               >
                 <option value="">{safeT(t, "postprod.tasks.form.renderMode.none", "Selectionner un mode de rendu")}</option>
@@ -109,8 +145,6 @@ function TaskEditorAutoConfigFields({
             </div>
           ) : null}
         </div>
-      </div>
-      <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
           <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
             <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
@@ -141,6 +175,8 @@ function TaskEditorAutoConfigFields({
             <div className="uu-msg warn mt-8">{renderWorkersError}</div>
           ) : null}
         </div>
+      </div>
+      <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
           <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
             <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
@@ -157,12 +193,13 @@ function TaskEditorAutoConfigFields({
                   {safeT(t, "postprod.tasks.form.autoRenderLaunchMode.scheduled", "Programmer (lancer plus tard)")}
                 </option>
                 <option value="now" disabled={isEditingTask}>
-                  {safeT(t, "postprod.tasks.form.autoRenderLaunchMode.now", "Creer et lancer maintenant")}
+                  {safeT(t, "postprod.tasks.form.autoRenderLaunchMode.now", "Créer et lancer maintenant")}
                 </option>
               </select>
             </div>
           </div>
         </div>
+        <div />
       </div>
     </>
   );

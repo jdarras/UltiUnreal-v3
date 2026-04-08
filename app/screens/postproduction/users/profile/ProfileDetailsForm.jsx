@@ -1,4 +1,4 @@
-import { safeT } from "../../shared/helpers";
+﻿import { safeT } from "../../shared/helpers";
 import { buildProfileUpdatePayload } from "./buildProfileUpdatePayload";
 import { ProfileAvatarSection } from "./components/ProfileAvatarSection";
 import { ProfileGeneralSection } from "./components/ProfileGeneralSection";
@@ -42,7 +42,7 @@ function ProfileDetailsForm({
 }) {
   return (
     <>
-      <h3 className="uu-h3">{safeT(t, "postprod.profile.title", "Mon profil")}</h3>
+      <h3 className="uu-h3 uu-block-title">{safeT(t, "postprod.profile.title", "Mon profil")}</h3>
       <p className="uu-muted" style={{ marginTop: "8px", marginBottom: "12px" }}>
         {safeT(t, "postprod.profile.subtitle", "Modifie ton profil, mot de passe et tes informations de contact.")}
       </p>
@@ -114,3 +114,4 @@ function ProfileDetailsForm({
 }
 
 export { ProfileDetailsForm };
+

@@ -1,4 +1,4 @@
-import { safeT } from "../../../shared/helpers";
+﻿import { safeT } from "../../../shared/helpers";
 import { normalizeAuditExportFormat } from "../../helpers/auditExport";
 
 function AuditExportToolbar({
@@ -14,7 +14,7 @@ function AuditExportToolbar({
 }) {
   return (
     <div className="uu-row uu-align-center" style={{ justifyContent: "space-between" }}>
-      <h3 className="uu-h3">{safeT(t, "postprod.audit.title", "Historique & Logs")}</h3>
+      <h3 className="uu-h3 uu-block-title">{safeT(t, "postprod.audit.title", "Historique & Logs")}</h3>
       <div className="uu-row">
         <button
           className="uu-btn-ghost"
@@ -66,3 +66,4 @@ function AuditExportToolbar({
 }
 
 export { AuditExportToolbar };
+

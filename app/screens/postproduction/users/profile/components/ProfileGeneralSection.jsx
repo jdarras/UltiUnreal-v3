@@ -29,7 +29,7 @@ function ProfileGeneralSection({
   return (
     <>
       <div className="uu-grid-field">
-        <label className="uu-label">{safeT(t, "postprod.profile.form.displayName", "Nom affiche")}</label>
+        <label className="uu-label">{safeT(t, "postprod.profile.form.displayName", "Nom affiché")}</label>
         <input
           className="uu-input"
           type="text"

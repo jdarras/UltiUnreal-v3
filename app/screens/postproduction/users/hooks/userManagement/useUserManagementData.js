@@ -12,9 +12,9 @@ export function useUserManagementData({
   usersLoading = false,
   projects = [],
   projectsLoading = false,
-  projectsError = "",
   onCreateUser = null,
   onUpdateUser = null,
+  onDeleteUser = null,
   onUpdateUserProjectPermissions = null,
   onLoadUserActivity = null,
   onLoadUserProjectPermissions = null,
@@ -42,6 +42,7 @@ export function useUserManagementData({
     usersLoading,
     onCreateUser,
     onUpdateUser,
+    onDeleteUser,
     onNotify,
     editUserIdRequest,
     onEditUserIdHandled,
@@ -58,7 +59,6 @@ export function useUserManagementData({
     canBanUsers,
     canManageProjectPermissions,
     projectsLoading,
-    projectsError,
     onUpdateUserProjectPermissions,
   });
 }

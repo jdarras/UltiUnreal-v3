@@ -135,7 +135,7 @@ function UserListTable({
                       )
                       : undefined}
                   >
-                    {safeT(t, "postprod.users.actions.edit", "Editer")}
+                    {safeT(t, "postprod.users.actions.edit", "Éditer")}
                   </button>
                 </td>
               </tr>

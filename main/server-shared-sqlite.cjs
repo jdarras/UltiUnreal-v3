@@ -322,23 +322,54 @@ function createSqliteStore(paths, logLine = () => {}) {
   }
 
   function importLegacyMetaAndDocs() {
+    // Sync project meta: file fills in any fields missing from SQLite cache
     try {
       const metaFiles = fs.readdirSync(paths.projectMetaDir, { withFileTypes: true });
       for (const entry of metaFiles) {
         if (!entry || !entry.isFile() || !/\.json$/i.test(entry.name || '')) continue;
         const pid = path.basename(entry.name, '.json');
         if (!pid) continue;
-        readProjectMeta(pid);
+        const key = `${KEY_PREFIX_PROJECT_META}${pid}`;
+        const legacyPath = path.join(paths.projectMetaDir, entry.name);
+        const existing = stmts.getByKey.get(key);
+        if (!existing) {
+          const fromFile = normalizeObject(readLegacyJson(legacyPath, {}), {});
+          stmts.upsertByKey.run(key, JSON.stringify(fromFile), nowIso());
+        } else {
+          const fromDb = safeJsonParse(existing.json_text, {});
+          const fromFile = normalizeObject(readLegacyJson(legacyPath, {}), {});
+          // SQLite wins for fields it already has; file fills in missing fields
+          const merged = { ...fromFile, ...fromDb };
+          const mergedText = JSON.stringify(merged);
+          if (mergedText !== existing.json_text) {
+            stmts.upsertByKey.run(key, mergedText, nowIso());
+          }
+        }
       }
     } catch {}
 
+    // Sync project docs (same merge strategy)
     try {
       const docFiles = fs.readdirSync(paths.productionDir, { withFileTypes: true });
       for (const entry of docFiles) {
         if (!entry || !entry.isFile() || !/\.json$/i.test(entry.name || '')) continue;
         const pid = path.basename(entry.name, '.json');
         if (!pid) continue;
-        readProjectDoc(pid);
+        const key = `${KEY_PREFIX_PROJECT_DOC}${pid}`;
+        const legacyPath = path.join(paths.productionDir, entry.name);
+        const existing = stmts.getByKey.get(key);
+        if (!existing) {
+          const fromFile = normalizeObject(readLegacyJson(legacyPath, {}), {});
+          stmts.upsertByKey.run(key, JSON.stringify(fromFile), nowIso());
+        } else {
+          const fromDb = safeJsonParse(existing.json_text, {});
+          const fromFile = normalizeObject(readLegacyJson(legacyPath, {}), {});
+          const merged = { ...fromFile, ...fromDb };
+          const mergedText = JSON.stringify(merged);
+          if (mergedText !== existing.json_text) {
+            stmts.upsertByKey.run(key, mergedText, nowIso());
+          }
+        }
       }
     } catch {}
   }

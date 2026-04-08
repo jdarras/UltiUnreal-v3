@@ -24,6 +24,11 @@ const {
   saveProjects,
   readProjectDoc,
   writeProjectDoc,
+  setProjectLock,
+  clearProjectLock,
+  clearProjectLockByIp,
+  setProjectSource,
+  isProjectLocked,
 } = require('./server-projects.cjs');
 
 const { hostsToList } = require('./server-normalize.cjs');
@@ -164,7 +169,7 @@ async function handleLaunch(req, res, url, context) {
     clearCurrentProcess,
   } = safeContext;
 
-  // Petit garde-fou : si sendJSON n’est pas fourni, on ne fait rien
+  // Petit garde-fou : si sendJSON n'est pas fourni, on ne fait rien
   if (typeof sendJSON !== 'function') {
     return false;
   }
@@ -292,6 +297,15 @@ async function handleLaunch(req, res, url, context) {
   }
 
   // -------------------------------------------------------------------------
+  // 1b) GET /agent/project-lock  — état du verrou local pour un projectId
+  // -------------------------------------------------------------------------
+  if (req.method === 'GET' && url.pathname === '/agent/project-lock') {
+    const projectId = String(url.searchParams.get('projectId') || '').trim();
+    const state = isProjectLocked(projectId);
+    return sendJSON(res, 200, { ...state, projectId });
+  }
+
+  // -------------------------------------------------------------------------
   // 2) /agent/host/:ip[/:action]
   // -------------------------------------------------------------------------
   if (url.pathname.startsWith('/agent/host/')) {
@@ -415,7 +429,6 @@ async function handleLaunch(req, res, url, context) {
       const list = hostsToList(hosts);
       const cfg  = list.find(h => h && h.ip === ip) || null;
 
-
       if (!cfg) {
         return sendJSON(res, 404, { ok: false, error: `Machine inconnue ${ip}` });
       }
@@ -429,6 +442,27 @@ async function handleLaunch(req, res, url, context) {
 
       const activeId   = projects.activeId  || '';
       const activeName = projects.activeName || '';
+
+      // Vérification du verrou avant tout lancement
+      if (activeId) {
+        const lockState = isProjectLocked(activeId);
+        if (lockState.locked && lockState.byIp !== ip) {
+          log({
+            level: 'warn',
+            action: 'launch_host',
+            host: ip,
+            message: `Projet verrouillé par ${lockState.byIp} (${lockState.byName})`,
+            data: { activeId, lockedByIp: lockState.byIp, lockedByName: lockState.byName },
+          });
+          return sendJSON(res, 409, {
+            ok: false,
+            error: 'project_locked',
+            message: `Le projet est déjà ouvert sur ${lockState.byName || lockState.byIp}`,
+            lockedByIp: lockState.byIp,
+            lockedByName: lockState.byName,
+          });
+        }
+      }
 
       let uproject = '';
 
@@ -494,6 +528,9 @@ async function handleLaunch(req, res, url, context) {
         rcHttpPort: common.rcHttpPort || '',
         rcWsPort: common.rcWsPort || '',
         mode: launchMode,
+        hostIp: ip,
+        hostName: String(cfg.name || ip),
+        projectId: activeId,
       };
 
       const target = `http://${ip}:${agentPort}/agent/launch`;
@@ -517,6 +554,11 @@ async function handleLaunch(req, res, url, context) {
           data: { error: String(e && e.message ? e.message : e) },
         });
         return sendJSON(res, 200, { ok: false, error: 'launch_request_failed', message: String(e && e.message ? e.message : e) });
+      }
+
+      if (r && r.ok !== false && activeId) {
+        setProjectLock(activeId, ip, String(cfg.name || ip));
+        setProjectSource(activeId, ip);
       }
 
       log({
@@ -556,6 +598,10 @@ async function handleLaunch(req, res, url, context) {
           data: { error: String(e && e.message ? e.message : e) },
         });
         return sendJSON(res, 200, { ok: false, error: 'stop_request_failed', message: String(e && e.message ? e.message : e) });
+      }
+
+      if (r && r.ok !== false) {
+        clearProjectLockByIp(ip);
       }
 
       log({
@@ -693,8 +739,8 @@ async function handleLaunch(req, res, url, context) {
       return sendJSON(res, 200, { ok: true });
     }
 
-    // Si on est dans /agent/host/... mais qu’aucune action ne matche
-    // on considère que ce n’est pas géré ici
+    // Si on est dans /agent/host/... mais qu'aucune action ne matche
+    // on considère que ce n'est pas géré ici
     return false;
   }
 
@@ -710,6 +756,10 @@ async function handleLaunch(req, res, url, context) {
     const uproject = normPath(body.uproject);
     const a        = body.args && typeof body.args === 'object' ? body.args : {};
     const editorOnly = body.editorOnly === true;
+
+    const hostIp    = normPath(body.hostIp);
+    const hostName  = normPath(body.hostName) || hostIp;
+    const projectId = normPath(body.projectId);
 
     // Mode de lancement : 'production' (par défaut) ou 'integration'
     const mode = (String(body.mode || '').toLowerCase() === 'integration')
@@ -825,6 +875,72 @@ async function handleLaunch(req, res, url, context) {
       }
     }
 
+    // Vérification distribuée du verrou avant lancement local
+    if (projectId && hostIp) {
+      const common    = readJSON(COMMON_FILE) || {};
+      const hosts     = readJSON(HOSTS_FILE)  || {};
+      const agentPort = common?.agentPort || 4000;
+      const peerList  = hostsToList(hosts).filter(h => String(h?.ip || '').trim() !== hostIp);
+
+      const LOCK_TIMEOUT_MS = 2000;
+      const fetchLockState = async (peerIp) => {
+        const url = `http://${peerIp}:${agentPort}/agent/project-lock?projectId=${encodeURIComponent(projectId)}`;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), LOCK_TIMEOUT_MS);
+        try {
+          const resp = await fetch(url, { signal: ctrl.signal });
+          const txt  = await resp.text();
+          return JSON.parse(txt || '{}');
+        } catch {
+          return null; // timeout ou machine inaccessible → on ne bloque pas
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+
+      const results = await Promise.allSettled(peerList.map(h => fetchLockState(String(h.ip || ''))));
+
+      for (const result of results) {
+        if (result.status !== 'fulfilled' || !result.value) continue;
+        const remote = result.value;
+        if (remote.locked && String(remote.byIp || '').trim() !== hostIp) {
+          log({
+            level: 'warn',
+            src: 'agent',
+            action: 'launch',
+            message: `Projet verrouillé sur ${remote.byIp} (${remote.byName})`,
+            data: { projectId, lockedByIp: remote.byIp, lockedByName: remote.byName },
+          });
+          return sendJSON(res, 409, {
+            ok: false,
+            error: 'project_locked',
+            message: `Le projet est déjà ouvert sur ${remote.byName || remote.byIp}`,
+            lockedByIp: remote.byIp,
+            lockedByName: remote.byName,
+          });
+        }
+      }
+
+      // Vérification locale en complément
+      const localLock = isProjectLocked(projectId);
+      if (localLock.locked && localLock.byIp !== hostIp) {
+        log({
+          level: 'warn',
+          src: 'agent',
+          action: 'launch',
+          message: `Projet verrouillé localement par ${localLock.byIp} (${localLock.byName})`,
+          data: { projectId, lockedByIp: localLock.byIp, lockedByName: localLock.byName },
+        });
+        return sendJSON(res, 409, {
+          ok: false,
+          error: 'project_locked',
+          message: `Le projet est déjà ouvert sur ${localLock.byName || localLock.byIp}`,
+          lockedByIp: localLock.byIp,
+          lockedByName: localLock.byName,
+        });
+      }
+    }
+
     const currentPid = getPid();
     if (currentPid) {
       let alive = true;
@@ -838,7 +954,7 @@ async function handleLaunch(req, res, url, context) {
           level: 'success',
           src: 'agent',
           action: 'launch',
-          message: 'Unreal déjà en cours d’exécution',
+          message: "Unreal déjà en cours d'exécution",
           data: { exe, uproject, args: a, pid: currentPid },
         });
         return sendJSON(res, 200, { ok: true, alreadyRunning: true, pid: currentPid });
@@ -854,6 +970,15 @@ async function handleLaunch(req, res, url, context) {
 
       setProc(child.pid, child);
       child.unref();
+
+      // Poser le verrou et enregistrer la source après spawn réussi
+      if (projectId && hostIp) {
+        setProjectLock(projectId, hostIp, hostName);
+        setProjectSource(projectId, hostIp);
+        // Lever le verrou automatiquement à la fermeture du process
+        child.once('exit', () => { clearProjectLock(projectId); });
+        child.once('close', () => { clearProjectLock(projectId); });
+      }
 
       log({
         level: 'success',
@@ -921,9 +1046,10 @@ async function handleLaunch(req, res, url, context) {
     return sendJSON(res, 200, { ok: true, killed, strategy });
   }
 
-  // Si aucune route ne correspond, on indique à server.cjs qu’on n’a rien fait
+  // Si aucune route ne correspond, on indique à server.cjs qu'on n'a rien fait
   return false;
 }
 
 module.exports = { handleLaunch };
+
 

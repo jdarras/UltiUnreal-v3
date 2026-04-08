@@ -1,13 +1,21 @@
 import { useCallback, useMemo } from "react";
-import { safeT } from "../../shared/helpers";
+import {
+  canSubmitTaskForm as buildCanSubmitTaskForm,
+  mergeAutoRenderFormValue,
+  runTaskEditAutosaveCycle,
+  runTaskSubmit,
+  submitTaskFormLabel as buildSubmitTaskFormLabel,
+} from "./editor/taskEditorHelpers";
 
 export function useTaskEditorController({
   t,
   showCreateForm = false,
   isEditingTask = false,
   tasksLoading = false,
+  canCreateTasks = false,
   editingTaskId = 0,
   title = "",
+  autoRenderProjectRef = "",
   autoRenderLaunchMode = "scheduled",
   filteredAutoRenderForms = [],
   autoRenderFormId = "",
@@ -26,75 +34,54 @@ export function useTaskEditorController({
   const taskSaveHandler = isEditingTask ? onUpdateTask : onCreateTask;
 
   const canSubmitTaskForm = useMemo(() => (
-    !tasksLoading
-    && !!taskSaveHandler
-    && !(!isEditingTask && autoRenderLaunchMode === "now" && !onCreateRender)
-    && !!String(title || "").trim()
-    && !(filteredAutoRenderForms.length > 0 && !String(autoRenderFormId || "").trim())
-    && !!String(renderOutputDir || "").trim()
+    buildCanSubmitTaskForm({
+      tasksLoading,
+      canCreateTasks,
+      taskSaveHandler,
+      isEditingTask,
+      autoRenderLaunchMode,
+      onCreateRender,
+      title,
+      autoRenderProjectRef,
+      filteredAutoRenderForms,
+      autoRenderFormId,
+      renderOutputDir,
+    })
   ), [
     tasksLoading,
+    canCreateTasks,
     taskSaveHandler,
     isEditingTask,
     autoRenderLaunchMode,
     onCreateRender,
     title,
+    autoRenderProjectRef,
     filteredAutoRenderForms,
     autoRenderFormId,
     renderOutputDir,
   ]);
 
   const submitTaskFormLabel = useMemo(() => (
-    isEditingTask
-      ? safeT(t, "postprod.tasks.form.save", "Enregistrer tache")
-      : (
-        autoRenderLaunchMode === "now"
-          ? safeT(t, "postprod.tasks.form.autoRender.createNow", "Creer et lancer rendu auto")
-          : safeT(t, "postprod.tasks.form.autoRender.createScheduled", "Programmer rendu auto")
-      )
+    buildSubmitTaskFormLabel({ t, isEditingTask, autoRenderLaunchMode })
   ), [isEditingTask, autoRenderLaunchMode, t]);
 
   const handleUpdateAutoRenderFormValue = useCallback((fieldKey, nextValue) => {
-    const key = String(fieldKey || "").trim();
-    if (!key || typeof setAutoRenderFormValues !== "function") return;
-    setAutoRenderFormValues((prev) => ({
-      ...(prev && typeof prev === "object" && !Array.isArray(prev) ? prev : {}),
-      [key]: nextValue,
-    }));
+    if (typeof setAutoRenderFormValues !== "function") return;
+    setAutoRenderFormValues((prev) => mergeAutoRenderFormValue(prev, fieldKey, nextValue));
   }, [setAutoRenderFormValues]);
 
   const autoSaveEditedTaskOnBlur = useCallback(async () => {
-    if (!showCreateForm || !isEditingTask || typeof onUpdateTask !== "function") return;
-    if (tasksLoading || typeof buildTaskPayloadFromCurrentForm !== "function") return;
-    const built = buildTaskPayloadFromCurrentForm();
-    if (!built?.ok) return;
-    let signature = "";
-    try {
-      signature = JSON.stringify(built.taskPayload);
-    } catch {
-      signature = "";
-    }
-    if (!signature || !editAutosaveStateRef?.current) return;
-    const state = editAutosaveStateRef.current;
-    if (state.signature === signature) return;
-    if (state.inFlight) {
-      state.pending = true;
-      return;
-    }
-    state.inFlight = true;
-    try {
-      const saved = await Promise.resolve(onUpdateTask(editingTaskId, built.taskPayload));
-      if (saved !== false) {
-        state.signature = signature;
-        if (typeof setFormError === "function") setFormError("");
-      }
-    } finally {
-      state.inFlight = false;
-      if (state.pending) {
-        state.pending = false;
-        void autoSaveEditedTaskOnBlur();
-      }
-    }
+    await runTaskEditAutosaveCycle({
+      showCreateForm,
+      isEditingTask,
+      onUpdateTask,
+      tasksLoading,
+      buildTaskPayloadFromCurrentForm,
+      editAutosaveStateRef,
+      editingTaskId,
+      setFormError,
+      rerun: autoSaveEditedTaskOnBlur,
+    });
   }, [
     showCreateForm,
     isEditingTask,
@@ -107,69 +94,35 @@ export function useTaskEditorController({
   ]);
 
   const handleSubmitTaskForm = useCallback(async () => {
-    if (typeof setFormError === "function") setFormError("");
-    if (typeof buildTaskPayloadFromCurrentForm !== "function") return;
-    const launchMode = autoRenderLaunchMode === "now" ? "now" : "scheduled";
-    const built = buildTaskPayloadFromCurrentForm();
-    if (!built?.ok) {
-      if (typeof setFormError === "function") {
-        setFormError(String(built?.error || safeT(t, "postprod.tasks.error.generic", "Impossible d'enregistrer la tache.")));
-      }
-      return;
-    }
-    const {
-      taskPayload,
-      expectedRenderCount,
-      expectedRenderNames,
-      basePayload,
-      effectiveTemplateName,
-      projectRef,
-    } = built;
-    const savedTask = isEditingTask
-      ? await Promise.resolve(onUpdateTask?.(editingTaskId, taskPayload))
-      : await Promise.resolve(onCreateTask?.(taskPayload));
-    if (savedTask === false) return;
-    try {
-      if (editAutosaveStateRef?.current) {
-        editAutosaveStateRef.current.signature = JSON.stringify(taskPayload);
-      }
-    } catch {}
-    if (!isEditingTask && launchMode === "now") {
-      const createdTaskIdRaw = Number(savedTask?.id || 0);
-      const createdTaskId = Number.isFinite(createdTaskIdRaw) && createdTaskIdRaw > 0
-        ? Math.trunc(createdTaskIdRaw)
-        : 0;
-      const immediatePayload = {
-        ...basePayload,
-        source: "task_auto_render_now",
-        taskId: createdTaskId > 0 ? createdTaskId : undefined,
-        taskTitle: String(savedTask?.title || title || "").trim(),
-        taskStatus: String(savedTask?.status || "A faire").trim(),
-        matchedExpectedRenderName: String(expectedRenderNames[0] || "").trim() || undefined,
-        taskExpectedRenderCount: expectedRenderCount,
-      };
-      await Promise.resolve(onCreateRender?.({
-        templateName: effectiveTemplateName,
-        projectName: String(projectRef || selectedAutoRenderForm?.projectName || ""),
-        payload: immediatePayload,
-        requiresValidation: false,
-      }));
-    }
-    if (typeof resetCreateForm === "function") resetCreateForm();
-    if (typeof setShowCreateForm === "function") setShowCreateForm(false);
+    await runTaskSubmit({
+      t,
+      isEditingTask,
+      editingTaskId,
+      autoRenderLaunchMode,
+      onCreateTask,
+      onUpdateTask,
+      onCreateRender,
+      selectedAutoRenderForm,
+      title,
+      buildTaskPayloadFromCurrentForm,
+      editAutosaveStateRef,
+      setFormError,
+      resetCreateForm,
+      setShowCreateForm,
+    });
   }, [
-    setFormError,
-    buildTaskPayloadFromCurrentForm,
-    autoRenderLaunchMode,
     t,
     isEditingTask,
-    onUpdateTask,
     editingTaskId,
+    autoRenderLaunchMode,
     onCreateTask,
-    editAutosaveStateRef,
+    onUpdateTask,
     onCreateRender,
-    title,
     selectedAutoRenderForm,
+    title,
+    buildTaskPayloadFromCurrentForm,
+    editAutosaveStateRef,
+    setFormError,
     resetCreateForm,
     setShowCreateForm,
   ]);

@@ -142,7 +142,16 @@ function applyFavoritesToProjects(list = [], favoritesMap = {}) {
 }
 
 /* ===================================================== */
-export default function ProjectsScreen({ canManageUnrealProjects = true, showProjectActivation = true }) {
+export default function ProjectsScreen({
+  canManageUnrealProjects = true,
+  canEditProjectFields = null,
+  canCreateTasks = false,
+  canBypassPadForTasks = false,
+  showProjectActivation = true,
+  onCreateTaskFromProject = null,
+}) {
+  // canEditProjectFields defaults to canManageUnrealProjects when not explicitly set
+  const canEditFields = canEditProjectFields !== null ? canEditProjectFields : canManageUnrealProjects;
   const id = React.useMemo(readIdentity, []);
   const role = String(id.role || '').trim() || 'server';
   const localIp = getLocalIp();
@@ -501,6 +510,22 @@ export default function ProjectsScreen({ canManageUnrealProjects = true, showPro
     () => Object.entries(searchAdvanced || {}).some(([, v]) => (Array.isArray(v) ? v.length > 0 : !!v)),
     [searchAdvanced]
   );
+  const canCreateTaskFromProject = React.useMemo(() => (
+    canCreateTasks === true && typeof onCreateTaskFromProject === 'function'
+  ), [canCreateTasks, onCreateTaskFromProject]);
+  const isAutoRenderUsage = React.useCallback((usageMode, metaStatus) => {
+    const mode = String(usageMode || '').trim();
+    if (mode !== 'auto_render' && mode !== 'live_auto_render') return false;
+    const status = String(metaStatus || '').trim();
+    if (canBypassPadForTasks) return status === 'PAD' || status === 'Test';
+    return status === 'PAD';
+  }, [canBypassPadForTasks]);
+  const createTaskFromProject = React.useCallback((projectRef) => {
+    if (!canCreateTaskFromProject) return;
+    const ref = String(projectRef || '').trim();
+    if (!ref) return;
+    onCreateTaskFromProject(ref);
+  }, [canCreateTaskFromProject, onCreateTaskFromProject]);
 
   const noneLabel = React.useMemo(() => {
     const raw = t('common.none');
@@ -2140,7 +2165,7 @@ async function activateOne(projectKey) {
           {detailLoading ? (
             <div className="uu-muted">{t('projects.detail.loading')}</div>
           ) : (
-            <>
+            <fieldset disabled={!canEditFields} style={{ border: 'none', padding: 0, margin: 0 }}>
               {/* Bloc : Chemin (sans titre) */}
               <div className="uu-card">
                 <div className="uu-row wrap">
@@ -2955,7 +2980,7 @@ async function activateOne(projectKey) {
                   </div>
                 </div>
               ) : null}
-            </>
+            </fieldset>
           )}
         </div>
 
@@ -2986,6 +3011,14 @@ async function activateOne(projectKey) {
                     onClick={() => { startIntegration(detailId); }}
                   >
                     {t('launch.buttons.start')}
+                  </button>
+                ) : null}
+                {canCreateTaskFromProject && isAutoRenderUsage(detailMeta?.usageMode, detailMeta?.status) ? (
+                  <button
+                    className="uu-btn"
+                    onClick={() => { createTaskFromProject(detailId); }}
+                  >
+                    {t('projects.actions.createTask', 'Tâche')}
                   </button>
                 ) : null}
                 <button className="uu-btn" onClick={() => { removeOne(detailId); setDetailId(''); }}>{t('projects.server.card.delete')}</button>
@@ -3019,7 +3052,7 @@ async function activateOne(projectKey) {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-                <strong>{t('projects.snapshots.title')}</strong>
+                <strong className="uu-block-title">{t('projects.snapshots.title')}</strong>
                 <span className="uu-muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {snapshotOpen.rel || ''}
                 </span>
@@ -3167,7 +3200,7 @@ async function activateOne(projectKey) {
           {searchExpanded && (
             <div className="uu-card uu-col uu-gap-12" style={{ marginBottom: '16px' }}>
               <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-                <strong>{t('projects.search.advancedTitle')}</strong>
+                <strong className="uu-block-title">{t('projects.search.advancedTitle')}</strong>
                 <div className="uu-muted">
                   {filteredProjects.length ? `(${filteredProjects.length} ${t('projects.search.resultsLabel')})` : ''}
                 </div>
@@ -3373,6 +3406,7 @@ async function activateOne(projectKey) {
                 openDetails={openDetails}
                 activateOne={activateOne}
                 onToggleFavorite={toggleProjectFavorite}
+                onCreateTaskFromProject={createTaskFromProject}
                 startIntegration={startIntegration}
                 stopIntegration={stopIntegration}
                 serverHost={serverHost}
@@ -3382,6 +3416,8 @@ async function activateOne(projectKey) {
                 integrationMsgType={integrationMsgType}
                 removeOne={removeOne}
                 canManageUnrealProjects={canManageUnrealProjects}
+                canCreateTasks={canCreateTaskFromProject}
+                isAutoRenderUsage={isAutoRenderUsage}
                 showActivationControls={showProjectActivation}
               />
             )}
@@ -3393,6 +3429,7 @@ async function activateOne(projectKey) {
                 versionEl={versionEl}
                 openDetails={openDetails}
                 activateOne={activateOne}
+                onCreateTaskFromProject={createTaskFromProject}
                 onToggleFavorite={toggleProjectFavorite}
                 startIntegration={startIntegration}
                 stopIntegration={stopIntegration}
@@ -3403,6 +3440,8 @@ async function activateOne(projectKey) {
                 sortDir={sortDir}
                 onSort={handleSort}
                 canManageUnrealProjects={canManageUnrealProjects}
+                canCreateTasks={canCreateTaskFromProject}
+                isAutoRenderUsage={isAutoRenderUsage}
                 showActivationControls={showProjectActivation}
               />
             )}
@@ -3415,12 +3454,15 @@ async function activateOne(projectKey) {
                 openDetails={openDetails}
                 activateOne={activateOne}
                 onToggleFavorite={toggleProjectFavorite}
+                onCreateTaskFromProject={createTaskFromProject}
                 startIntegration={startIntegration}
                 stopIntegration={stopIntegration}
                 serverHost={serverHost}
                 serverRunning={serverRunning}
                 integrationBusy={integrationBusy}
                 canManageUnrealProjects={canManageUnrealProjects}
+                canCreateTasks={canCreateTaskFromProject}
+                isAutoRenderUsage={isAutoRenderUsage}
                 showActivationControls={showProjectActivation}
               />
             )}

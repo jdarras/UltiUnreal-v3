@@ -1,0 +1,60 @@
+function buildTasksListControllerInput({
+  t,
+  tasks = [],
+  renders = [],
+  renderForms = [],
+  normalizedProjectOptions = [],
+  normalizedResourceOptions = [],
+  normalizedRenderWorkers = [],
+  favoriteOnly = false,
+  taskFavorites = {},
+  setTaskFavorites = null,
+  searchQuery = "",
+  listStatusFilter = "all",
+  listRenderWorkerFilter = "all",
+  setListRenderWorkerFilter = null,
+  listProjectFilter = "all",
+  setListProjectFilter = null,
+  listFormFilter = "all",
+  setListFormFilter = null,
+  listRenderModeFilter = "all",
+  setListRenderModeFilter = null,
+  listSortKey = "updatedAt",
+  setListSortKey = null,
+  listSortDir = "desc",
+  setListSortDir = null,
+} = {}) {
+  return {
+    t,
+    tasks,
+    renders,
+    renderForms,
+    normalizedProjectOptions,
+    normalizedResourceOptions,
+    normalizedRenderWorkers,
+    favoriteOnly,
+    taskFavorites,
+    setTaskFavorites,
+    searchQuery,
+    listStatusFilter,
+    listRenderWorkerFilter,
+    setListRenderWorkerFilter,
+    listProjectFilter,
+    setListProjectFilter,
+    listFormFilter,
+    setListFormFilter,
+    listRenderModeFilter,
+    setListRenderModeFilter,
+    listSortKey,
+    setListSortKey,
+    listSortDir,
+    setListSortDir,
+  };
+}
+
+export {
+  buildTasksListControllerInput,
+};
+
+export default buildTasksListControllerInput;
+

@@ -4,6 +4,12 @@ import { useTaskEditorController } from "../useTaskEditorController";
 import { useTasksUiActions } from "../useTasksUiActions";
 import { useTasksSectionProps } from "../useTasksSectionProps";
 import { buildTasksSectionPropsInput } from "./buildTasksSectionPropsInput";
+import {
+  buildTaskDeleteDialogControllerInput,
+  buildTaskEditorControllerInput,
+  buildTaskLifecycleControllerInput,
+  buildTasksUiActionsInput,
+} from "./buildTasksCardFlowInputs";
 
 export function useTasksCardFlowController({
   t,
@@ -12,6 +18,7 @@ export function useTasksCardFlowController({
   renderFormsLoading = false,
   renderFormsError = "",
   canManageRenderTemplates = false,
+  canCreateTasks = false,
   renderWorkersLoading = false,
   renderWorkersError = "",
   renderOutputDir = "",
@@ -21,68 +28,39 @@ export function useTasksCardFlowController({
   onCreateRender = null,
   data = {},
 } = {}) {
-  const lifecycle = useTaskFormLifecycleController({
-    setEditingTaskId: data.setEditingTaskId,
-    setShowCreateForm: data.setShowCreateForm,
-    setTitle: data.setTitle,
-    setDescription: data.setDescription,
-    setSelectedResourceRefs: data.setSelectedResourceRefs,
-    hydrateAutoRenderFromTask: data.hydrateAutoRenderFromTask,
-    resetAutoRenderState: data.resetAutoRenderState,
-    setFormError: data.setFormError,
-  });
+  const lifecycle = useTaskFormLifecycleController(
+    buildTaskLifecycleControllerInput(data)
+  );
 
-  const dialog = useTaskDeleteDialogController({
-    onDeleteTask,
-    editingTaskId: data.editingTaskId,
-    onDeleteEditingTask: lifecycle.closeTaskForm,
-  });
+  const dialog = useTaskDeleteDialogController(
+    buildTaskDeleteDialogControllerInput({ onDeleteTask, data, lifecycle })
+  );
 
-  const editor = useTaskEditorController({
-    t,
-    showCreateForm: data.showCreateForm,
-    isEditingTask: data.isEditingTask,
-    tasksLoading,
-    editingTaskId: data.editingTaskId,
-    title: data.title,
-    autoRenderLaunchMode: data.autoRenderLaunchMode,
-    filteredAutoRenderForms: data.filteredAutoRenderForms,
-    autoRenderFormId: data.autoRenderFormId,
-    renderOutputDir,
-    onCreateTask,
-    onUpdateTask,
-    onCreateRender,
-    selectedAutoRenderForm: data.selectedAutoRenderForm,
-    buildTaskPayloadFromCurrentForm: data.buildTaskPayloadFromCurrentForm,
-    setFormError: data.setFormError,
-    setAutoRenderFormValues: data.setAutoRenderFormValues,
-    resetCreateForm: lifecycle.resetCreateForm,
-    setShowCreateForm: data.setShowCreateForm,
-    editAutosaveStateRef: data.editAutosaveStateRef,
-  });
+  const editor = useTaskEditorController(
+    buildTaskEditorControllerInput({
+      t,
+      tasksLoading,
+      canCreateTasks,
+      renderOutputDir,
+      onCreateTask,
+      onUpdateTask,
+      onCreateRender,
+      data,
+      lifecycle,
+    })
+  );
 
-  const ui = useTasksUiActions({
-    t,
-    tasksLoading,
-    showCreateForm: data.showCreateForm,
-    onDeleteTask,
-    openTaskEditor: lifecycle.openTaskEditor,
-    openDeleteTaskDialog: dialog.openDeleteTaskDialog,
-    setSearchQuery: data.setSearchQuery,
-    setListStatusFilter: data.setListStatusFilter,
-    setListRenderWorkerFilter: data.setListRenderWorkerFilter,
-    setListProjectFilter: data.setListProjectFilter,
-    setListFormFilter: data.setListFormFilter,
-    setListRenderModeFilter: data.setListRenderModeFilter,
-    setFavoriteOnly: data.setFavoriteOnly,
-    setSearchExpanded: data.setSearchExpanded,
-    setAutoRenderFormId: data.setAutoRenderFormId,
-    setAutoRenderTemplateId: data.setAutoRenderTemplateId,
-    setAutoRenderFormValues: data.setAutoRenderFormValues,
-    setFormError: data.setFormError,
-    setAutoRenderWorkerKey: data.setAutoRenderWorkerKey,
-    setAutoRenderLaunchMode: data.setAutoRenderLaunchMode,
-  });
+  const ui = useTasksUiActions(
+    buildTasksUiActionsInput({
+      t,
+      tasksLoading,
+      canCreateTasks,
+      onDeleteTask,
+      data,
+      lifecycle,
+      dialog,
+    })
+  );
 
   const sectionPropsInput = buildTasksSectionPropsInput({
     t,
@@ -91,6 +69,7 @@ export function useTasksCardFlowController({
     renderFormsLoading,
     renderFormsError,
     canManageRenderTemplates,
+    canCreateTasks,
     renderWorkersLoading,
     renderWorkersError,
     renderOutputDir,
@@ -105,4 +84,3 @@ export function useTasksCardFlowController({
 }
 
 export default useTasksCardFlowController;
-

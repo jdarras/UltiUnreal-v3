@@ -44,6 +44,7 @@ import {
   postprodListUsers,
   postprodCreateUser,
   postprodUpdateUser,
+  postprodDeleteUser,
   postprodListUserProjectPermissions,
   postprodUpdateUserProjectPermissions,
   postprodListUserActivity,
@@ -121,7 +122,7 @@ const POSTPROD_NET_LAN = 'lan';
 const POSTPROD_NET_VPN = 'vpn';
 const POSTPROD_NET_BROKER = 'broker';
 const POSTPROD_TAB_USERS = "Utilisateurs";
-const POSTPROD_TABS_BASE = [POSTPROD_TAB_USERS, "Projets", "Ressources", "Datas", "Taches", "Rendus"];
+const POSTPROD_TABS_BASE = [POSTPROD_TAB_USERS, "Projets", "Ressources", "Datas", "Taches", "Rendus", "Synchronisation"];
 const POSTPROD_TAB_PROFILES = "Profils";
 const LIVE_MODE_BLOCKED_FALLBACK_ROLES = new Set([
   "Graphiste",
@@ -140,6 +141,7 @@ function normalizeTaskCatalogOptions(entries = []) {
     const name = String(entry?.name || "").trim();
     const usageMode = String(entry?.usageMode || "").trim();
     const uprojectPath = String(entry?.uprojectPath || "").trim();
+    const metaStatus = String(entry?.metaStatus || "").trim();
     out.push({
       ref,
       label: String(entry?.label || ref).trim() || ref,
@@ -147,6 +149,7 @@ function normalizeTaskCatalogOptions(entries = []) {
       name,
       usageMode,
       uprojectPath,
+      metaStatus,
     });
   }
   out.sort((a, b) => a.label.localeCompare(b.label));
@@ -161,6 +164,7 @@ function mapTaskProjectOptions(payload = {}) {
       const name = String(project?.name || "").trim();
       const usageMode = String(project?.metaUsageMode || project?.usageMode || "").trim();
       const uprojectPath = String(project?.uprojectPath || project?.uproject || '').trim();
+      const metaStatus = String(project?.metaStatus || project?.status || "").trim();
       return {
         ref: id || name,
         label: id && name ? `${name} [${id}]` : (name || id),
@@ -168,6 +172,7 @@ function mapTaskProjectOptions(payload = {}) {
         name: name || '',
         uprojectPath,
         usageMode: usageMode || '',
+        metaStatus: metaStatus || '',
       };
     })
   );
@@ -187,17 +192,33 @@ function mapTaskResourceOptions(payload = {}) {
   );
 }
 
-function getPostprodTabsForUser(user = null, authenticated = false) {
+function getPostprodTabsForUser(
+  user = null,
+  authenticated = false,
+  {
+    resourcesEnabled = true,
+  } = {}
+) {
   if (!authenticated || !user || typeof user !== 'object') return [POSTPROD_TAB_USERS];
   const canManageUsers = user?.permissions?.canManageUsers === true;
   const canManageRoles = user?.permissions?.canManageRoles === true;
   const canManageForms = user?.permissions?.canManageForms === true;
+  const canCreateTasks = user?.permissions?.canCreateTasks !== false;
+  const canSyncScenes = user?.permissions?.canSyncScenes === true;
+  const canViewResources = user?.permissions?.canViewResources !== false;
+  const canAccessResources = canViewResources && resourcesEnabled;
   const tabs = [];
   if (canManageRoles) tabs.push(POSTPROD_TAB_PROFILES);
   if (canManageUsers) tabs.push(POSTPROD_TAB_USERS);
   tabs.push(
     ...POSTPROD_TABS_BASE.filter(
-      (tab) => tab !== POSTPROD_TAB_USERS && (tab !== "Datas" || canManageForms)
+      (tab) => (
+        tab !== POSTPROD_TAB_USERS
+        && (tab !== "Datas" || canManageForms)
+        && (tab !== "Ressources" || canAccessResources)
+        && (tab !== "Taches" || canCreateTasks)
+        && (tab !== "Synchronisation" || canSyncScenes)
+      )
     )
   );
   return tabs;
@@ -215,15 +236,17 @@ function getModeAccessForUser(user = null, authenticated = false) {
 
   const roleName = String(user?.role || "").trim();
   const explicitCanUseLive = user?.permissions?.canUseLiveMode;
+  const explicitCanUsePostprod = user?.permissions?.canUsePostprodMode;
   const canUseLive = typeof explicitCanUseLive === "boolean"
     ? explicitCanUseLive
     : !LIVE_MODE_BLOCKED_FALLBACK_ROLES.has(roleName);
-
-  const canUsePostprod = true;
+  const canUsePostprod = typeof explicitCanUsePostprod === "boolean"
+    ? explicitCanUsePostprod
+    : true;
   const canChooseMode = canUseLive && canUsePostprod;
   const forcedMode = canChooseMode
     ? null
-    : (canUsePostprod ? APP_MODE_POSTPROD : APP_MODE_LIVE);
+    : (canUsePostprod ? APP_MODE_POSTPROD : (canUseLive ? APP_MODE_LIVE : APP_MODE_POSTPROD));
 
   return {
     canUseLive,
@@ -504,7 +527,9 @@ function resolvePostprodUsersError(err, t) {
   if (code === 'invalid_role') return t('postprod.users.error.invalidRole');
   if (code === 'no_changes') return t('postprod.users.error.noChanges');
   if (code === 'cannot_disable_self') return t('postprod.users.error.cannotDisableSelf');
+  if (code === 'cannot_delete_self') return t('postprod.users.error.cannotDeleteSelf');
   if (code === 'last_maintenance_forbidden') return t('postprod.users.error.lastMaintenanceForbidden');
+  if (code === 'user_has_linked_data') return t('postprod.users.error.userHasLinkedData');
   if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
   if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
   if (code === 'client_cert_required') return t('postprod.auth.error.clientCertRequired');
@@ -540,6 +565,7 @@ function resolvePostprodRolesError(err, t) {
   if (code === 'role_exists') return t('postprod.roles.error.roleExists');
   if (code === 'invalid_role_key') return t('postprod.roles.error.invalidRoleKey');
   if (code === 'invalid_manageable_roles') return t('postprod.roles.error.invalidManageableRoles');
+  if (code === 'invalid_mode_access') return t('postprod.roles.error.invalidModeAccess');
   if (code === 'last_manage_roles_forbidden') return t('postprod.roles.error.lastManageRolesForbidden');
   if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
   if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
@@ -1209,6 +1235,13 @@ function getAllowedTabs({
     : ["Setup", "Projets", ...accountTabs, "Logs"];
 }
 
+function resolveDefaultTab(allowedTabs = [], appMode = APP_MODE_LIVE) {
+  const tabs = Array.isArray(allowedTabs) ? allowedTabs : [];
+  if (tabs.includes("Projets")) return "Projets";
+  if (tabs.length > 0) return tabs[0];
+  return appMode === APP_MODE_POSTPROD ? POSTPROD_TAB_USERS : "Setup";
+}
+
 /* --------------------- Notice (bande flottante) --------------------- */
 function useNotice() {
   const [notice, setNotice] = useState({ text: '', type: '', sticky: false });
@@ -1555,7 +1588,7 @@ function App() {
   const [showWelcome, setShowWelcome] = useState(true);
   const [showLicense, setShowLicense] = useState(false);
   const [licenseOrigin, setLicenseOrigin] = useState('welcome');
-  const [current, setCurrent] = useState("Setup");
+  const [current, setCurrent] = useState("Projets");
   const [quitDialogOpen, setQuitDialogOpen] = useState(false);
   const [resourcesRefreshKey, setResourcesRefreshKey] = useState(0);
   const [postprodTaskFormOpen, setPostprodTaskFormOpen] = useState(false);
@@ -1684,7 +1717,7 @@ function App() {
     };
     writeIdentity(nextIdentity);
     setIdentity(nextIdentity);
-    setCurrent(forcedMode === APP_MODE_POSTPROD ? POSTPROD_TAB_USERS : "Setup");
+    setCurrent("Projets");
   }, [
     postprodAuthenticated,
     postprodModeAccess?.forcedMode,
@@ -1863,6 +1896,23 @@ function App() {
   const postprodCanBanUsers = postprodAuth.user?.permissions?.canBanUsers === true;
   const postprodCanManageProjectPermissions =
     postprodAuth.user?.permissions?.canManageProjectPermissions === true;
+  const postprodCanViewResources = postprodAuth.user?.permissions?.canViewResources !== false;
+  const resourcesEnabled = !!(
+    commonCfg
+    && (
+      commonCfg.fab_resources_enabled === true
+      || commonCfg.fabResourcesEnabled === true
+    )
+  );
+  const postprodCanAccessResources = postprodCanViewResources && resourcesEnabled;
+  const postprodCanCreateTasks = postprodAuth.user?.permissions?.canCreateTasks !== false;
+  const postprodCanBypassPadForTasks = (
+    postprodAuth.user?.role === 'Maintenance'
+    || postprodAuth.user?.role === 'Responsable Fabrication'
+    || postprodAuth.user?.role === 'Integrateur'
+  );
+  const postprodCanEditProjects = postprodAuth.user?.permissions?.canEditProjects !== false;
+  const postprodCanManageLayouts = postprodAuth.user?.permissions?.canManageLayouts !== false;
   const postprodCanLaunchProjects = postprodAuth.user?.permissions?.canLaunchProjects !== false;
   const postprodCanLaunchRenders = !!postprodAuth.user?.permissions?.canLaunchRenders;
   const postprodRefreshSec = Math.max(2, Number(commonCfg?.refreshSec || 5) || 5);
@@ -1871,8 +1921,11 @@ function App() {
     ? postprodAuth.user.permissions.manageableRoles
     : [];
   const postprodVisibleTabs = useMemo(
-    () => getPostprodTabsForUser(postprodAuth.user, postprodAuthenticated),
-    [postprodAuth.user, postprodAuthenticated]
+    () =>
+      getPostprodTabsForUser(postprodAuth.user, postprodAuthenticated, {
+        resourcesEnabled,
+      }),
+    [postprodAuth.user, postprodAuthenticated, resourcesEnabled]
   );
   const liveAccountTabs = useMemo(
     () => getLiveAccountTabs({
@@ -2284,8 +2337,8 @@ function App() {
     return () => { cancelled = true; };
   }, [role, current, showWelcome, showLicense]);
 
-  const resourcesEnabled = !!(commonCfg && (commonCfg.fab_resources_enabled === true || commonCfg.fabResourcesEnabled === true));
   const resourcesAvailable = resourcesEnabled && hasLibraryItems;
+  const resourcesTabAvailable = resourcesAvailable && postprodCanViewResources;
 
   const refreshLibraryAvailability = React.useCallback(async () => {
     if (role !== 'server' || showWelcome || showLicense || !resourcesEnabled) {
@@ -2310,22 +2363,69 @@ function App() {
   const handleNavClick = React.useCallback((item, opts = {}) => {
     const force = !!opts.force;
     if (item === "Ressources") {
-      if (!resourcesAvailable && !force) return;
+      const canOpenResources = appMode === APP_MODE_POSTPROD
+        ? postprodCanAccessResources
+        : resourcesTabAvailable;
+      if (!canOpenResources && !force) return;
       setResourcesRefreshKey((prev) => prev + 1);
     }
     setCurrent(item);
-  }, [resourcesAvailable]);
+  }, [appMode, postprodCanAccessResources, resourcesTabAvailable]);
   const handlePostprodOpenTasksFromLink = React.useCallback((payload = {}) => {
     const type = String(payload?.type || '').trim().toLowerCase();
     const ref = String(payload?.ref || '').trim();
     if (!ref) return;
-    if (type !== 'project' && type !== 'resource') return;
+    const action = String(payload?.action || '').trim().toLowerCase();
+    if (
+      type !== 'project'
+      && type !== 'resource'
+      && type !== 'task'
+      && type !== 'project_create'
+    ) return;
     setPostprodTaskFocusRequest({
-      id: `${type}:${ref}:${Date.now()}`,
+      id: `${type}:${action}:${ref}:${Date.now()}`,
       type,
       ref,
+      action,
     });
     setCurrent('Taches');
+  }, []);
+  const handlePostprodOpenActivityTarget = React.useCallback((payload = {}) => {
+    const type = String(payload?.type || "").trim().toLowerCase();
+    if (!type) return;
+
+    if (type === "project") {
+      const projectRef = String(payload?.projectRef || payload?.ref || "").trim();
+      if (projectRef) {
+        try { localStorage.setItem("uu_pending_detail", projectRef); } catch {}
+      }
+      setCurrent("Projets");
+      return;
+    }
+
+    if (type === "form" || type === "formulaire") {
+      setCurrent("Datas");
+      return;
+    }
+
+    if (type === "task" || type === "tache") {
+      const taskIdRaw = Number(payload?.taskId || payload?.ref || 0);
+      const taskRef = Number.isFinite(taskIdRaw) && taskIdRaw > 0
+        ? String(Math.trunc(taskIdRaw))
+        : String(payload?.ref || "").trim();
+      if (!taskRef) return;
+      setPostprodTaskFocusRequest({
+        id: `task:${taskRef}:${Date.now()}`,
+        type: "task",
+        ref: taskRef,
+      });
+      setCurrent("Taches");
+      return;
+    }
+
+    if (type === "validation" || type === "render" || type === "rendu") {
+      setCurrent("Rendus");
+    }
   }, []);
   const handlePostprodTaskFocusHandled = React.useCallback(() => {
     setPostprodTaskFocusRequest(null);
@@ -2333,6 +2433,12 @@ function App() {
   const handlePostprodEditUserHandled = React.useCallback((reqKey) => {
     setPostprodEditUserRequest(prev => prev?.reqKey === reqKey ? null : prev);
   }, []);
+  const handlePostprodOpenUser = React.useCallback((entry) => {
+    const userId = Number(entry?.id || 0);
+    if (!userId) return;
+    handleNavClick(POSTPROD_TAB_USERS);
+    setPostprodEditUserRequest({ userId, reqKey: Date.now() });
+  }, [handleNavClick]);
   const handleLibraryImported = React.useCallback(() => {
     setHasLibraryItems(true);
     setResourcesRefreshKey((prev) => prev + 1);
@@ -2517,7 +2623,16 @@ function App() {
     };
     writeIdentity(nextIdentity);
     setIdentity(nextIdentity);
-    setCurrent(nextIdentity.mode === APP_MODE_POSTPROD ? POSTPROD_TAB_USERS : "Setup");
+    const allowed = getAllowedTabs({
+      role: nextIdentity.mode === APP_MODE_POSTPROD ? "server" : (String(nextIdentity.role || "server").trim() || "server"),
+      appMode: nextIdentity.mode,
+      clientSyncEnabled,
+      resourcesAvailable: resourcesTabAvailable,
+      postprodTabs: postprodVisibleTabs,
+      postprodCanManageMachines,
+      liveAccountTabs,
+    });
+    setCurrent(resolveDefaultTab(allowed, nextIdentity.mode));
     setInitialClientNavDone(false);
     const latest = await refreshLicenseStatus();
     if (latest && latest.ok) {
@@ -2663,12 +2778,34 @@ function App() {
       });
       applyUserLanguageToIdentity(user);
       setPostprodProfile({ saving: false, error: '' });
-      const nextTabs = getPostprodTabsForUser(user, true);
+      const nextTabs = getPostprodTabsForUser(user, true, {
+        resourcesEnabled,
+      });
       setCurrent((prev) => {
         if (normalizedMode === APP_MODE_POSTPROD) {
-          return nextTabs.includes(prev) ? prev : (nextTabs[0] || POSTPROD_TAB_USERS);
+          const allowed = getAllowedTabs({
+            role: "server",
+            appMode: normalizedMode,
+            clientSyncEnabled,
+            resourcesAvailable: resourcesTabAvailable,
+            postprodTabs: nextTabs,
+            postprodCanManageMachines,
+            liveAccountTabs,
+          });
+          if (allowed.includes(prev)) return prev;
+          return resolveDefaultTab(allowed, normalizedMode);
         }
-        return prev || 'Setup';
+        const allowed = getAllowedTabs({
+          role: String(nextIdentity.role || "server").trim() || "server",
+          appMode: normalizedMode,
+          clientSyncEnabled,
+          resourcesAvailable: resourcesTabAvailable,
+          postprodTabs: postprodVisibleTabs,
+          postprodCanManageMachines,
+          liveAccountTabs,
+        });
+        if (allowed.includes(prev)) return prev;
+        return resolveDefaultTab(allowed, normalizedMode);
       });
       showNotice(t('app.auth.msg.loginOk'), 'ok');
     } catch (e) {
@@ -2680,7 +2817,18 @@ function App() {
         hydrated: true,
       }));
     }
-  }, [showNotice, t, safeIdentity.agentPort, applyUserLanguageToIdentity]);
+  }, [
+    showNotice,
+    t,
+    safeIdentity.agentPort,
+    applyUserLanguageToIdentity,
+    clientSyncEnabled,
+    resourcesTabAvailable,
+    resourcesEnabled,
+    postprodCanManageMachines,
+    liveAccountTabs,
+    postprodVisibleTabs,
+  ]);
 
   const handlePostprodLogout = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();
@@ -2691,10 +2839,31 @@ function App() {
       }
     } finally {
       clearPostprodAuth('');
-      setCurrent(appMode === APP_MODE_POSTPROD ? POSTPROD_TAB_USERS : 'Setup');
+      const allowed = getAllowedTabs({
+        role,
+        appMode,
+        clientSyncEnabled,
+        resourcesAvailable: resourcesTabAvailable,
+        postprodTabs: postprodVisibleTabs,
+        postprodCanManageMachines,
+        liveAccountTabs,
+      });
+      setCurrent(resolveDefaultTab(allowed, appMode));
       showNotice(t('app.auth.msg.logoutOk'), 'info');
     }
-  }, [postprodAuth.token, clearPostprodAuth, showNotice, t, appMode]);
+  }, [
+    postprodAuth.token,
+    clearPostprodAuth,
+    showNotice,
+    t,
+    appMode,
+    role,
+    clientSyncEnabled,
+    resourcesTabAvailable,
+    postprodVisibleTabs,
+    postprodCanManageMachines,
+    liveAccountTabs,
+  ]);
 
   const loadPostprodUsers = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();
@@ -4033,6 +4202,25 @@ function App() {
     }
   }, [postprodAuth.token, postprodAuth.user?.id, loadPostprodUsers, showNotice, t, applyUserLanguageToIdentity]);
 
+  const handlePostprodDeleteUser = useCallback(async (userId) => {
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return false;
+    setPostprodUsers((prev) => ({ ...prev, loading: true, error: '' }));
+    try {
+      await postprodDeleteUser(token, userId);
+      await loadPostprodUsers();
+      showNotice(t('postprod.users.msg.deleted'), 'info');
+      return true;
+    } catch (e) {
+      setPostprodUsers((prev) => ({
+        ...prev,
+        loading: false,
+        error: resolvePostprodUsersError(e, t),
+      }));
+      return false;
+    }
+  }, [postprodAuth.token, loadPostprodUsers, showNotice, t]);
+
   const handlePostprodUpdateUserProjectPermissions = useCallback(async (userId, projectRef, payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
     if (!token) return null;
@@ -4775,11 +4963,13 @@ function App() {
   useEffect(() => {
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
     if (current !== 'Ressources') return;
+    if (!postprodCanAccessResources) return;
     loadPostprodResources();
   }, [
     appMode,
     postprodAuthenticated,
     current,
+    postprodCanAccessResources,
     loadPostprodResources,
   ]);
 
@@ -4874,7 +5064,9 @@ function App() {
     } else if (current === 'Projets') {
       queue(loadPostprodProjects);
     } else if (current === 'Ressources') {
-      queue(loadPostprodResources);
+      if (postprodCanAccessResources) {
+        queue(loadPostprodResources);
+      }
     } else if (current === 'Taches') {
       if (!postprodTaskFormOpen) {
         queue(() => loadPostprodTasks({ silent: true }));
@@ -4947,6 +5139,7 @@ function App() {
     postprodCanManageUsers,
     postprodCanManageRoles,
     postprodCanManageRenderTemplates,
+    postprodCanAccessResources,
     loadPostprodUsers,
     loadPostprodProjects,
     loadPostprodRoles,
@@ -5353,26 +5546,42 @@ function App() {
       role,
       appMode,
       clientSyncEnabled,
-      resourcesAvailable,
+      resourcesAvailable: resourcesTabAvailable,
       postprodTabs: postprodVisibleTabs,
       postprodCanManageMachines,
       liveAccountTabs,
     });
     if (!allowed.includes(current)) {
-      if (appMode === APP_MODE_POSTPROD) {
-        setCurrent(postprodVisibleTabs[0] || POSTPROD_TAB_USERS);
-      } else {
-        setCurrent('Setup');
-      }
+      setCurrent(resolveDefaultTab(allowed, appMode));
     }
-  }, [role, appMode, current, clientSyncEnabled, resourcesAvailable, postprodVisibleTabs, postprodCanManageMachines, liveAccountTabs]);
+  }, [role, appMode, current, clientSyncEnabled, resourcesTabAvailable, postprodVisibleTabs, postprodCanManageMachines, liveAccountTabs]);
 
   useEffect(() => {
     if (appMode !== APP_MODE_POSTPROD || postprodAuthenticated) return;
     if (postprodLockedTabs.includes(current)) {
-      setCurrent(POSTPROD_TAB_USERS);
+      const allowed = getAllowedTabs({
+        role,
+        appMode,
+        clientSyncEnabled,
+        resourcesAvailable: resourcesTabAvailable,
+        postprodTabs: postprodVisibleTabs,
+        postprodCanManageMachines,
+        liveAccountTabs,
+      });
+      setCurrent(resolveDefaultTab(allowed, appMode));
     }
-  }, [appMode, postprodAuthenticated, postprodLockedTabs, current]);
+  }, [
+    appMode,
+    postprodAuthenticated,
+    postprodLockedTabs,
+    current,
+    role,
+    clientSyncEnabled,
+    resourcesTabAvailable,
+    postprodVisibleTabs,
+    postprodCanManageMachines,
+    liveAccountTabs,
+  ]);
 
   useEffect(() => {
     if (appMode !== APP_MODE_POSTPROD) return;
@@ -5428,7 +5637,7 @@ function App() {
         // on garde sync = false par défaut
       }
       if (!cancelled) {
-        setCurrent(sync ? "Synchronisation" : "Projets");
+        setCurrent("Projets");
         setInitialClientNavDone(true);
       }
     })();
@@ -5620,7 +5829,7 @@ function App() {
           postprodCanManageMachines={postprodCanManageMachines}
           liveAccountTabs={liveAccountTabs}
           configMissing={configMissing}
-          resourcesAvailable={resourcesAvailable}
+          resourcesAvailable={resourcesTabAvailable}
           postprodLockedTabs={postprodLockedTabs}
           postprodLockedTitle={t('postprod.auth.navLocked')}
           logsAlert={logsNavAlert}
@@ -5694,6 +5903,8 @@ function App() {
                 onLibraryImported={handleLibraryImported}
                 onIdentityUpdated={setIdentity}
                 appMode={appMode}
+                canViewResources={postprodCanViewResources}
+                canManageProjects={postprodCanEditProjects}
               />
             </Suspense>
           )}
@@ -5702,7 +5913,7 @@ function App() {
               <ProjectsScreen showProjectActivation={true} />
             </Suspense>
           )}
-          {role === "server" && appMode === APP_MODE_LIVE && current === "Ressources" && (
+          {role === "server" && appMode === APP_MODE_LIVE && resourcesTabAvailable && current === "Ressources" && (
             <Suspense fallback={ScreenFallback}>
               <ResourcesScreen refreshKey={resourcesRefreshKey} />
             </Suspense>
@@ -5724,7 +5935,7 @@ function App() {
           )}
           {role === "server" && appMode === APP_MODE_LIVE && current === "Production" && (
             <Suspense fallback={ScreenFallback}>
-              <ProductionScreen />
+              <ProductionScreen canManageLayouts={postprodCanManageLayouts} />
             </Suspense>
           )}
           {role === "server" && appMode === APP_MODE_LIVE && current === "Logs" && (
@@ -5734,15 +5945,35 @@ function App() {
           )}
           {role === "server" && appMode === APP_MODE_POSTPROD && postprodAuthenticated && current === "Projets" && (
             <Suspense fallback={ScreenFallback}>
-              <ProjectsScreen canManageUnrealProjects={postprodCanLaunchProjects} showProjectActivation={false} />
+              <ProjectsScreen
+                canManageUnrealProjects={postprodCanLaunchProjects}
+                canEditProjectFields={postprodCanEditProjects}
+                canCreateTasks={postprodCanCreateTasks}
+                canBypassPadForTasks={postprodCanBypassPadForTasks}
+                showProjectActivation={false}
+                onCreateTaskFromProject={(projectRef) => {
+                  const ref = String(projectRef || "").trim();
+                  if (!ref) return;
+                  handlePostprodOpenTasksFromLink({
+                    type: "project_create",
+                    action: "create",
+                    ref,
+                  });
+                }}
+              />
             </Suspense>
           )}
-          {role === "server" && appMode === APP_MODE_POSTPROD && postprodAuthenticated && current === "Ressources" && (
+          {role === "server" && appMode === APP_MODE_POSTPROD && postprodAuthenticated && postprodCanAccessResources && current === "Ressources" && (
             <Suspense fallback={ScreenFallback}>
               <ResourcesScreen refreshKey={resourcesRefreshKey} />
             </Suspense>
           )}
-          {role === "server" && appMode === APP_MODE_POSTPROD && (postprodVisibleTabs.includes(current) || current === "Logs") && current !== "Projets" && current !== "Ressources" && (
+          {role === "server" && appMode === APP_MODE_POSTPROD && postprodAuthenticated && current === "Synchronisation" && (
+            <Suspense fallback={ScreenFallback}>
+              <SynchronisationScreen />
+            </Suspense>
+          )}
+          {role === "server" && appMode === APP_MODE_POSTPROD && (postprodVisibleTabs.includes(current) || current === "Logs") && current !== "Projets" && current !== "Ressources" && current !== "Synchronisation" && (
             <Suspense fallback={ScreenFallback}>
               <PostProductionScreen
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}
@@ -5763,6 +5994,10 @@ function App() {
                 canManageRenderTemplates={postprodCanManageRenderTemplates}
                 canBanUsers={postprodCanBanUsers}
                 canManageProjectPermissions={postprodCanManageProjectPermissions}
+                canViewResources={postprodCanAccessResources}
+                canCreateTasks={postprodCanCreateTasks}
+                canEditProjects={postprodCanEditProjects}
+                canManageLayouts={postprodCanManageLayouts}
                 manageableRoles={postprodManageableRoles}
                 users={postprodUsers.items}
                 usersLoading={postprodUsers.loading}
@@ -5829,6 +6064,7 @@ function App() {
                 renderOutputDir={postprodRenderOutputDir}
                 onCreateUser={handlePostprodCreateUser}
                 onUpdateUser={handlePostprodUpdateUser}
+                onDeleteUser={handlePostprodDeleteUser}
                 onUpdateUserProjectPermissions={handlePostprodUpdateUserProjectPermissions}
                 onLoadUserActivity={handlePostprodLoadUserActivity}
                 onLoadUserProjectPermissions={handlePostprodLoadUserProjectPermissions}
@@ -5836,6 +6072,7 @@ function App() {
                 onRefreshUsers={loadPostprodUsers}
                 onCreateRole={handlePostprodCreateRole}
                 onUpdateRole={handlePostprodUpdateRole}
+                onOpenUser={handlePostprodOpenUser}
                 onRefreshRoles={loadPostprodRoles}
                 onUpdateMe={handlePostprodUpdateMe}
                 onRefreshMyActivity={loadPostprodMyActivity}                onRefreshAudit={loadPostprodAudit}
@@ -5887,6 +6124,7 @@ function App() {
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
+                onOpenActivityTarget={handlePostprodOpenActivityTarget}
               />
             </Suspense>
           )}
@@ -5911,6 +6149,10 @@ function App() {
                 canManageRenderTemplates={postprodCanManageRenderTemplates}
                 canBanUsers={postprodCanBanUsers}
                 canManageProjectPermissions={postprodCanManageProjectPermissions}
+                canViewResources={postprodCanAccessResources}
+                canCreateTasks={postprodCanCreateTasks}
+                canEditProjects={postprodCanEditProjects}
+                canManageLayouts={postprodCanManageLayouts}
                 manageableRoles={postprodManageableRoles}
                 users={postprodUsers.items}
                 usersLoading={postprodUsers.loading}
@@ -5977,6 +6219,7 @@ function App() {
                 renderOutputDir={postprodRenderOutputDir}
                 onCreateUser={handlePostprodCreateUser}
                 onUpdateUser={handlePostprodUpdateUser}
+                onDeleteUser={handlePostprodDeleteUser}
                 onUpdateUserProjectPermissions={handlePostprodUpdateUserProjectPermissions}
                 onLoadUserActivity={handlePostprodLoadUserActivity}
                 onLoadUserProjectPermissions={handlePostprodLoadUserProjectPermissions}
@@ -5984,6 +6227,7 @@ function App() {
                 onRefreshUsers={loadPostprodUsers}
                 onCreateRole={handlePostprodCreateRole}
                 onUpdateRole={handlePostprodUpdateRole}
+                onOpenUser={handlePostprodOpenUser}
                 onRefreshRoles={loadPostprodRoles}
                 onUpdateMe={handlePostprodUpdateMe}
                 onRefreshMyActivity={loadPostprodMyActivity}                onRefreshAudit={loadPostprodAudit}
@@ -6035,6 +6279,7 @@ function App() {
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
+                onOpenActivityTarget={handlePostprodOpenActivityTarget}
               />
             </Suspense>
           )}
@@ -6060,7 +6305,12 @@ function App() {
               <LogsScreen />
             </Suspense>
           )}
-          {role === "client" && appMode === APP_MODE_POSTPROD && (postprodVisibleTabs.includes(current) || current === "Logs") && (
+          {role === "client" && appMode === APP_MODE_POSTPROD && postprodAuthenticated && current === "Synchronisation" && (
+            <Suspense fallback={ScreenFallback}>
+              <SynchronisationScreen />
+            </Suspense>
+          )}
+          {role === "client" && appMode === APP_MODE_POSTPROD && (postprodVisibleTabs.includes(current) || current === "Logs") && current !== "Synchronisation" && (
             <Suspense fallback={ScreenFallback}>
               <PostProductionScreen
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}
@@ -6146,6 +6396,7 @@ function App() {
                 renderOutputDir={postprodRenderOutputDir}
                 onCreateUser={handlePostprodCreateUser}
                 onUpdateUser={handlePostprodUpdateUser}
+                onDeleteUser={handlePostprodDeleteUser}
                 onUpdateUserProjectPermissions={handlePostprodUpdateUserProjectPermissions}
                 onLoadUserActivity={handlePostprodLoadUserActivity}
                 onLoadUserProjectPermissions={handlePostprodLoadUserProjectPermissions}
@@ -6153,6 +6404,7 @@ function App() {
                 onRefreshUsers={loadPostprodUsers}
                 onCreateRole={handlePostprodCreateRole}
                 onUpdateRole={handlePostprodUpdateRole}
+                onOpenUser={handlePostprodOpenUser}
                 onRefreshRoles={loadPostprodRoles}
                 onUpdateMe={handlePostprodUpdateMe}
                 onRefreshMyActivity={loadPostprodMyActivity}                onRefreshAudit={loadPostprodAudit}
@@ -6204,6 +6456,7 @@ function App() {
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
+                onOpenActivityTarget={handlePostprodOpenActivityTarget}
               />
             </Suspense>
           )}
@@ -6293,6 +6546,7 @@ function App() {
                 renderOutputDir={postprodRenderOutputDir}
                 onCreateUser={handlePostprodCreateUser}
                 onUpdateUser={handlePostprodUpdateUser}
+                onDeleteUser={handlePostprodDeleteUser}
                 onUpdateUserProjectPermissions={handlePostprodUpdateUserProjectPermissions}
                 onLoadUserActivity={handlePostprodLoadUserActivity}
                 onLoadUserProjectPermissions={handlePostprodLoadUserProjectPermissions}
@@ -6300,6 +6554,7 @@ function App() {
                 onRefreshUsers={loadPostprodUsers}
                 onCreateRole={handlePostprodCreateRole}
                 onUpdateRole={handlePostprodUpdateRole}
+                onOpenUser={handlePostprodOpenUser}
                 onRefreshRoles={loadPostprodRoles}
                 onUpdateMe={handlePostprodUpdateMe}
                 onRefreshMyActivity={loadPostprodMyActivity}                onRefreshAudit={loadPostprodAudit}
@@ -6351,6 +6606,7 @@ function App() {
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
+                onOpenActivityTarget={handlePostprodOpenActivityTarget}
               />
             </Suspense>
           )}

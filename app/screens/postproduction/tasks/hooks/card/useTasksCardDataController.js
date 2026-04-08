@@ -52,6 +52,10 @@ export function useTasksCardDataController({
     setListStatusFilter: listData.setListStatusFilter,
     setEditingTaskId: listData.setEditingTaskId,
     setShowCreateForm: listData.setShowCreateForm,
+    setAutoRenderProjectRef: autoRenderData.setAutoRenderProjectRef,
+    setAutoRenderFormId: autoRenderData.setAutoRenderFormId,
+    setAutoRenderTemplateId: autoRenderData.setAutoRenderTemplateId,
+    setAutoRenderFormValues: autoRenderData.setAutoRenderFormValues,
     setViewMode: listData.setViewMode,
     setFormError: listData.setFormError,
   });
@@ -63,4 +67,3 @@ export function useTasksCardDataController({
 }
 
 export default useTasksCardDataController;
-

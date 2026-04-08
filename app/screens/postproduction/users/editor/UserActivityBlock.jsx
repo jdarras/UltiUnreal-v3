@@ -25,9 +25,10 @@ function UserActivityBlock({
   editingUserId = 0,
   loadUserActivity,
   editingSummary = { projects: [], total: 0 },
-  editingTypeSummary = { auth: 0, task: 0, render: 0, sync: 0, other: 0 },
+  editingTypeSummary = { project: 0, form: 0, task: 0, validation: 0, other: 0 },
   editingActivities = [],
   filteredEditingActivities = [],
+  onOpenActivityTarget = null,
 }) {
   const {
     disabled,
@@ -103,6 +104,7 @@ function UserActivityBlock({
           <UserActivityList
             t={t}
             filteredEditingActivities={filteredEditingActivities}
+            onOpenActivityTarget={onOpenActivityTarget}
           />
         </div>
       ) : null}

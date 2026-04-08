@@ -1,10 +1,5 @@
 function useUserEditorActions({
   roleOptions = [],
-  projectOptions = [],
-  selectedPermissionProjectRef = "",
-  setSelectedPermissionProjectRef,
-  canManageProjectPermissions = false,
-  loadUserProjectPermissions,
   loadUserActivity,
   setDraft,
   setEditorAvatarError,
@@ -12,12 +7,10 @@ function useUserEditorActions({
   setEditingUserId,
   setEditorMode,
   resetEditorDraft,
-  resetPermissionState,
   resetActivityState,
 }) {
   function resetEditorContext(nextRole = "") {
     resetEditorDraft?.(nextRole);
-    resetPermissionState?.();
     resetActivityState?.();
   }
 
@@ -49,16 +42,7 @@ function useUserEditorActions({
       role: String(entry?.role || roleOptions[0] || "").trim(),
       isActive: entry?.isActive !== false,
     });
-    const preferredProjectRef = String(selectedPermissionProjectRef || "").trim();
-    resetPermissionState?.();
     resetActivityState?.();
-    if (typeof setSelectedPermissionProjectRef === "function") {
-      setSelectedPermissionProjectRef((prev) => {
-        const currentRef = String(preferredProjectRef || prev || "").trim();
-        if (currentRef && projectOptions.some((project) => project.ref === currentRef)) return currentRef;
-        return String(projectOptions[0]?.ref || "");
-      });
-    }
     setEditorAvatarError?.("");
     setEditorAvatarLoading?.(false);
     setEditingUserId?.(id);
@@ -70,9 +54,6 @@ function useUserEditorActions({
       projectRef: "",
       searchQuery: "",
     });
-    if (canManageProjectPermissions) {
-      void loadUserProjectPermissions?.(id);
-    }
   }
 
   function closeEditor() {

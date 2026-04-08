@@ -1,6 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import { canEditRenderReviewStatus } from "../../shared/helpers";
 import { renderReviewStatusKey } from "../helpers";
+import {
+  buildRenderReviewTransitionSteps,
+  isSameReviewStatus,
+  toRenderId,
+} from "./renderReviewHelpers";
 
 export function useRenderReviewController({
   user = null,
@@ -11,61 +16,21 @@ export function useRenderReviewController({
 
   const applyReviewStatus = useCallback(async (render, nextReviewStatus) => {
     if (!canReviewRenders) return;
-    const renderId = Number(render?.id || 0);
-    if (!Number.isFinite(renderId) || renderId <= 0) return;
+    const renderId = toRenderId(render?.id);
+    if (renderId <= 0) return;
     const currentReviewStatus = renderReviewStatusKey(render);
-    if (String(nextReviewStatus || "").trim() === currentReviewStatus) return;
+    if (isSameReviewStatus(currentReviewStatus, nextReviewStatus)) return;
     if (typeof onTransitionRender !== "function") return;
+
+    const transitionSteps = buildRenderReviewTransitionSteps(render, nextReviewStatus);
+    if (!Array.isArray(transitionSteps) || transitionSteps.length <= 0) return;
 
     setBusyRenderId(renderId);
     try {
-      const currentStatus = String(render?.status || "").trim();
-      if (nextReviewStatus === "validated") {
-        if (currentStatus !== "Done") {
-          await Promise.resolve(onTransitionRender(renderId, {
-            toStatus: "Done",
-            comment: "validation_ready",
-          }));
-        }
-        await Promise.resolve(onTransitionRender(renderId, {
-          action: "validate",
-          toStatus: "Done",
-          comment: "render_validated",
-        }));
-        return;
+      for (const transitionPayload of transitionSteps) {
+        if (!transitionPayload || typeof transitionPayload !== "object") continue;
+        await Promise.resolve(onTransitionRender(renderId, transitionPayload));
       }
-
-      if (nextReviewStatus === "to_modify") {
-        await Promise.resolve(onTransitionRender(renderId, {
-          toStatus: "Failed",
-          comment: "validation_to_modify",
-        }));
-        return;
-      }
-
-      if (nextReviewStatus === "canceled") {
-        await Promise.resolve(onTransitionRender(renderId, {
-          toStatus: "Canceled",
-          comment: "validation_canceled",
-        }));
-        return;
-      }
-
-      if (currentStatus === "Done") {
-        const validatedByUserId = Number(render?.validatedByUserId || 0);
-        if (Number.isFinite(validatedByUserId) && validatedByUserId > 0) {
-          await Promise.resolve(onTransitionRender(renderId, {
-            action: "mark_pending",
-            toStatus: "Done",
-            comment: "render_marked_pending",
-          }));
-          return;
-        }
-      }
-      await Promise.resolve(onTransitionRender(renderId, {
-        toStatus: "Done",
-        comment: "validation_pending",
-      }));
     } finally {
       setBusyRenderId(0);
     }

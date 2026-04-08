@@ -1,45 +1,35 @@
-function buildListPanelProps({
-  t,
-  sortedDisplayedRenders = [],
-  viewMode = "thumbs",
-  listSortIndicator = null,
-  toggleListSort = null,
-  buildRenderThumbCandidates = null,
-  renderOutputFilename = null,
-  renderLinkedTaskValue = null,
-  renderReviewStatusKey = null,
-  renderReviewStatusLabel = null,
-  reviewFlow = [],
-  busyRenderId = 0,
-  rendersLoading = false,
-  onTransitionRender = null,
-  canReviewRenders = false,
-  applyReviewStatus = null,
-  openRenderDetail = null,
-  isRenderFavorite = null,
-  toggleRenderFavorite = null,
-} = {}) {
-  return {
-    t,
-    sortedDisplayedRenders,
-    viewMode,
-    listSortIndicator,
-    toggleListSort,
-    buildRenderThumbCandidates,
-    renderOutputFilename,
-    renderLinkedTaskValue,
-    renderReviewStatusKey,
-    renderReviewStatusLabel,
-    reviewFlow,
-    busyRenderId,
-    rendersLoading,
-    onTransitionRender,
-    canReviewRenders,
-    onApplyReviewStatus: applyReviewStatus,
-    onOpenRenderDetail: openRenderDetail,
-    isRenderFavorite,
-    onToggleRenderFavorite: toggleRenderFavorite,
-  };
+import { buildProps } from "../../../shared/objectProps";
+
+const DIRECT_KEYS = [
+  "t",
+  "sortedDisplayedRenders",
+  "viewMode",
+  "listSortIndicator",
+  "toggleListSort",
+  "buildRenderThumbCandidates",
+  "renderOutputFilename",
+  "renderLinkedTaskValue",
+  "renderReviewStatusKey",
+  "renderReviewStatusLabel",
+  "reviewFlow",
+  "busyRenderId",
+  "rendersLoading",
+  "onTransitionRender",
+  "canReviewRenders",
+  "isRenderFavorite",
+];
+
+const ALIASES = {
+  onApplyReviewStatus: "applyReviewStatus",
+  onOpenRenderDetail: "openRenderDetail",
+  onToggleRenderFavorite: "toggleRenderFavorite",
+};
+
+function buildListPanelProps(input = {}) {
+  return buildProps(input, {
+    keys: DIRECT_KEYS,
+    aliases: ALIASES,
+  });
 }
 
 export {
@@ -47,4 +37,3 @@ export {
 };
 
 export default buildListPanelProps;
-

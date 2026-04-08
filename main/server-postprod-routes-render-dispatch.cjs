@@ -35,6 +35,7 @@ async function handlePostprodRenderDispatchRoutes({
   buildRenderDispatchPairs,
   db,
   buildRenderJobPayload,
+  createRenderOutputSubdir = null,
 }) {
   if (pathname === '/agent/postprod/render-workers') {
     const auth = requireSession(req, res, sendJSON);
@@ -312,6 +313,19 @@ async function handlePostprodRenderDispatchRoutes({
       }
       return out;
     })();
+
+    if (typeof createRenderOutputSubdir === 'function') {
+      for (const job of dispatched) {
+        const jobId = Number(job?.id || 0);
+        const projectName = String(job?.projectName || '').trim();
+        if (!jobId || !projectName) continue;
+        const result = createRenderOutputSubdir(jobId, projectName);
+        if (result.ok && result.outputPath) {
+          stmts.updateRenderJobOutputPath.run(result.outputPath, now, jobId);
+          job.outputPath = result.outputPath;
+        }
+      }
+    }
 
     audit(
       auth.session.user_id,

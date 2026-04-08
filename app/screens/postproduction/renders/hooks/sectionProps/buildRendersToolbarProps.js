@@ -1,45 +1,42 @@
-function buildToolbarProps({
-  t,
-  rendersLoading = false,
-  onScanDetectedRenders = null,
-  listSortKey = "",
-  listSortDir = "",
-  setListSortFromSelect = null,
-  searchQuery = "",
-  setSearchQuery = null,
-  hasActiveFilters = false,
-  clearFilters = null,
-  openAdvancedSearch = null,
-  favoriteOnly = false,
-  toggleFavoriteOnly = null,
-  viewMode = "thumbs",
-  setViewMode = null,
-  searchExpanded = false,
-  closeAdvancedSearch = null,
-  sortedDisplayedRenders = [],
-  projectFilter = "all",
-  setProjectFilter = null,
-  reviewFilter = "all",
-  setReviewFilter = null,
-  projectFilterOptions = [],
-} = {}) {
+import { buildProps } from "../../../shared/objectProps";
+
+const DIRECT_KEYS = [
+  "t",
+  "rendersLoading",
+  "onScanDetectedRenders",
+  "listSortKey",
+  "listSortDir",
+  "searchQuery",
+  "hasActiveFilters",
+  "favoriteOnly",
+  "viewMode",
+  "searchExpanded",
+  "projectFilter",
+  "reviewFilter",
+  "projectFilterOptions",
+];
+
+const ALIASES = {
+  onSetListSortFromSelect: "setListSortFromSelect",
+  onSetSearchQuery: "setSearchQuery",
+  onClearFilters: "clearFilters",
+  onOpenAdvancedSearch: "openAdvancedSearch",
+  onToggleFavoriteOnly: "toggleFavoriteOnly",
+  onSetViewMode: "setViewMode",
+  onSetProjectFilter: "setProjectFilter",
+  onSetReviewFilter: "setReviewFilter",
+};
+
+function buildToolbarProps(input = {}) {
+  const openAdvancedSearch = input?.openAdvancedSearch;
+  const closeAdvancedSearch = input?.closeAdvancedSearch;
+  const sortedDisplayedRenders = input?.sortedDisplayedRenders;
+
   return {
-    t,
-    rendersLoading,
-    onScanDetectedRenders,
-    listSortKey,
-    listSortDir,
-    onSetListSortFromSelect: setListSortFromSelect,
-    searchQuery,
-    onSetSearchQuery: setSearchQuery,
-    hasActiveFilters,
-    onClearFilters: clearFilters,
-    onOpenAdvancedSearch: openAdvancedSearch,
-    favoriteOnly,
-    onToggleFavoriteOnly: toggleFavoriteOnly,
-    viewMode,
-    onSetViewMode: setViewMode,
-    searchExpanded,
+    ...buildProps(input, {
+      keys: DIRECT_KEYS,
+      aliases: ALIASES,
+    }),
     onSetSearchExpanded: (value) => {
       if (value) {
         if (typeof openAdvancedSearch === "function") openAdvancedSearch();
@@ -48,11 +45,6 @@ function buildToolbarProps({
       if (typeof closeAdvancedSearch === "function") closeAdvancedSearch();
     },
     sortedDisplayedRendersCount: Array.isArray(sortedDisplayedRenders) ? sortedDisplayedRenders.length : 0,
-    projectFilter,
-    onSetProjectFilter: setProjectFilter,
-    reviewFilter,
-    onSetReviewFilter: setReviewFilter,
-    projectFilterOptions,
   };
 }
 
@@ -61,4 +53,3 @@ export {
 };
 
 export default buildToolbarProps;
-

@@ -54,6 +54,10 @@ async function handlePostprodTaskRoutes(options = {}) {
     }
 
     if (req.method === 'POST') {
+      if (actorPerms.canCreateTasks !== true) {
+        sendJSON(res, 403, { ok: false, error: 'forbidden_task_create' });
+        return true;
+      }
       const body = await parseBody(req);
       const title = sanitizeTaskTitle(body?.title, '');
       const description = sanitizeTaskDescription(body?.description);
@@ -267,6 +271,11 @@ async function handlePostprodTaskRoutes(options = {}) {
     }
     const auth = requireSession(req, res, sendJSON);
     if (!auth) return true;
+    const actorPerms = rolePermissions(auth?.session?.role, rolesCache);
+    if (actorPerms.canCreateTasks !== true) {
+      sendJSON(res, 403, { ok: false, error: 'forbidden_task_edit' });
+      return true;
+    }
     const taskId = Number(taskUpdateMatch[1] || 0);
     if (!Number.isFinite(taskId) || taskId <= 0) {
       sendJSON(res, 400, { ok: false, error: 'invalid_task_id' });
@@ -634,4 +643,3 @@ async function handlePostprodTaskRoutes(options = {}) {
 module.exports = {
   handlePostprodTaskRoutes,
 };
-

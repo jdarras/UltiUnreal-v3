@@ -83,7 +83,7 @@ function writeWidgetClipboard(payload) {
   window[PRODUCTION_WIDGET_CLIPBOARD_KEY] = cloneClipboardData(payload);
 }
 
-export default function ProductionScreen() {
+export default function ProductionScreen({ canManageLayouts = true }) {
   const [common, setCommon] = useState(null);
   const [hosts, setHosts] = useState([]);
   const [activeName, setActiveName] = useState('');
@@ -389,6 +389,7 @@ export default function ProductionScreen() {
 
   const EDIT_MODE_STORAGE_KEY = 'uu_production_edit_mode';
   const [editMode, setEditMode] = useState(() => {
+    if (canManageLayouts !== true) return false;
     try {
       const raw = localStorage.getItem(EDIT_MODE_STORAGE_KEY);
       if (raw === 'true') return true;
@@ -416,6 +417,12 @@ export default function ProductionScreen() {
       localStorage.setItem(EDIT_MODE_STORAGE_KEY, editMode ? 'true' : 'false');
     } catch {}
   }, [editMode]);
+
+  useEffect(() => {
+    if (canManageLayouts !== true && editMode) {
+      setEditMode(false);
+    }
+  }, [canManageLayouts, editMode]);
 
   const activeProjectWrcName = useMemo(() => {
     const id = String(activeId || '').trim();
@@ -2472,7 +2479,9 @@ export default function ProductionScreen() {
             >
                 <button
                   className={`uu-btn ${editMode ? 'prod-toggle-active' : ''}`}
+                  disabled={canManageLayouts !== true}
                   onClick={() => {
+                    if (canManageLayouts !== true) return;
                     if (!editMode) {
                       setEditMode(true);
                       loadPreset();

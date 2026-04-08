@@ -13,10 +13,24 @@ function UserEditorHeader({
   onSelectEditorAvatar,
   onClearAvatar,
   editorAvatarPath = "",
+  isCreate = false,
+  canDeleteUser = false,
+  onRequestDeleteUser = null,
+  deleteUserBusy = false,
 }) {
   return (
     <>
       <div className="uu-row" style={{ justifyContent: "flex-end", alignItems: "center" }}>
+        {!isCreate && canDeleteUser ? (
+          <button
+            className="uu-btn-ghost"
+            type="button"
+            onClick={() => onRequestDeleteUser?.()}
+            disabled={deleteUserBusy}
+          >
+            {safeT(t, "postprod.users.action.deleteUser", "Supprimer utilisateur")}
+          </button>
+        ) : null}
         <button className="uu-btn-ghost" type="button" onClick={closeEditor} disabled={usersLoading}>
           {safeT(t, "postprod.users.form.cancel", "Retour liste")}
         </button>
@@ -60,7 +74,7 @@ function UserEditorHeader({
                 whiteSpace: "nowrap",
               }}
             >
-              {String(draft?.displayName || "").trim() || safeT(t, "postprod.users.form.displayName", "Nom affiche")}
+              {String(draft?.displayName || "").trim() || safeT(t, "postprod.users.form.displayName", "Nom affiché")}
             </div>
             <span
               title={draft?.isActive !== false
@@ -106,7 +120,7 @@ function UserEditorHeader({
               }}
               disabled={usersLoading || editorAvatarLoading || !editorAvatarPath}
             >
-              {safeT(t, "postprod.profile.form.avatar.clear", "Supprimer")}
+              {safeT(t, "postprod.profile.form.avatar.clear", "Supprimer photo")}
             </button>
           </div>
           {editorAvatarLoading ? (

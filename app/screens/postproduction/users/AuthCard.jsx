@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { safeT } from "../shared/helpers";
 
 export function AuthCard({ t, busy = false, error = "", onLogin }) {
@@ -12,7 +12,7 @@ export function AuthCard({ t, busy = false, error = "", onLogin }) {
 
   return (
     <section className="uu-section">
-      <h2 className="uu-h3">
+      <h2 className="uu-h3 uu-block-title">
         {safeT(t, "postprod.auth.title", "Connexion Post-production")}
       </h2>
       <p className="uu-muted" style={{ marginTop: "8px", marginBottom: "14px" }}>
@@ -65,4 +65,5 @@ export function AuthCard({ t, busy = false, error = "", onLogin }) {
     </section>
   );
 }
+
 

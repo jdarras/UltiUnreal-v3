@@ -30,6 +30,10 @@ export default function PostProductionScreen({
   canManageRenderTemplates = false,
   canBanUsers = false,
   canManageProjectPermissions = false,
+  canViewResources = false,
+  canCreateTasks = false,
+  canEditProjects = false,
+  canManageLayouts = false,
   onNotify = null,
   manageableRoles = [],
   users = [],
@@ -54,6 +58,7 @@ export default function PostProductionScreen({
   auditFilters = null,
   tasks = [],
   tasksLoading = false,
+  taskCatalogLoading = false,
   tasksError = "",
   projects = [],
   projectsLoading = false,
@@ -85,6 +90,7 @@ export default function PostProductionScreen({
   renderHealthAuditLastPurge = null,
   onCreateUser = null,
   onUpdateUser = null,
+  onDeleteUser = null,
   onUpdateUserProjectPermissions = null,
   onLoadUserActivity = null,
   onLoadUserProjectPermissions = null,
@@ -92,6 +98,7 @@ export default function PostProductionScreen({
   onRefreshUsers = null,
   onCreateRole = null,
   onUpdateRole = null,
+  onOpenUser = null,
   onRefreshRoles = null,
   onUpdateMe = null,
   onRefreshMyActivity = null,
@@ -110,6 +117,7 @@ export default function PostProductionScreen({
   onTaskFocusHandled = null,
   editUserIdRequest = null,
   onEditUserIdHandled = null,
+  onOpenActivityTarget = null,
   onRequestOpenTasks = null,
   onRefreshProjects = null,
   onUserEditorModeChange = null,
@@ -202,6 +210,7 @@ export default function PostProductionScreen({
           projectsError={projectsError}
           onCreateUser={onCreateUser}
           onUpdateUser={onUpdateUser}
+          onDeleteUser={onDeleteUser}
           onUpdateUserProjectPermissions={onUpdateUserProjectPermissions}
           onLoadUserActivity={onLoadUserActivity}
           onLoadUserProjectPermissions={onLoadUserProjectPermissions}
@@ -212,6 +221,7 @@ export default function PostProductionScreen({
           onNotify={onNotify}
           editUserIdRequest={editUserIdRequest}
           onEditUserIdHandled={onEditUserIdHandled}
+          onOpenActivityTarget={onOpenActivityTarget}
         />
       ) : null}
 
@@ -227,13 +237,14 @@ export default function PostProductionScreen({
           renderFormsLoading={renderFormsLoading}
           renderFormsError={renderFormsError}
           canManageRenderTemplates={canManageRenderTemplates}
+          canCreateTasks={canCreateTasks}
           renderWorkers={renderWorkers}
           renderWorkersLoading={renderWorkersLoading}
           renderWorkersError={renderWorkersError}
           renderOutputDir={renderOutputDir}
           taskFocusRequest={taskFocusRequest}
           onTaskFocusHandled={onTaskFocusHandled}
-          tasksLoading={tasksLoading}
+          tasksLoading={tasksLoading || taskCatalogLoading}
           tasksError={tasksError}
           onCreateTask={onCreateTask}
           onUpdateTask={onUpdateTask}
@@ -260,7 +271,7 @@ export default function PostProductionScreen({
         />
       ) : null}
 
-      {tabKey === "Ressources" ? (
+      {tabKey === "Ressources" && canViewResources ? (
         <ResourcesCatalogCard
           t={t}
           resources={resources}
@@ -274,6 +285,17 @@ export default function PostProductionScreen({
           onReindexResources={onReindexResources}
           onLoadResourceDetail={onLoadResourceDetail}
         />
+      ) : null}
+      {tabKey === "Ressources" && !canViewResources ? (
+        <section className="uu-section">
+          <div className="uu-msg warn">
+            {safeT(
+              t,
+              "postprod.resources.forbidden",
+              "Tu n'es pas autorise a voir les ressources."
+            )}
+          </div>
+        </section>
       ) : null}
 
       {tabKey === "Datas" && canManageRenderTemplates ? (
@@ -358,12 +380,14 @@ export default function PostProductionScreen({
       {tabKey === "Profils" && canManageRoles ? (
         <RoleManagementCard
           t={t}
+          tabKey={tabKey}
           roles={roles}
           rolesLoading={rolesLoading}
           rolesError={rolesError}
           users={users}
           onCreateRole={onCreateRole}
           onUpdateRole={onUpdateRole}
+          onOpenUser={onOpenUser}
           onRefreshRoles={onRefreshRoles}
         />
       ) : null}

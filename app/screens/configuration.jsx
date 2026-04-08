@@ -75,6 +75,8 @@ export default function ConfigurationScreen({
   onLibraryImported,
   onIdentityUpdated,
   appMode = '',
+  canViewResources = true,
+  canManageProjects = true,
 }) {
   // identité + langue courante
   const identity = React.useMemo(readIdentity, []);
@@ -1308,6 +1310,7 @@ export default function ConfigurationScreen({
 
       </div>
 
+      {canManageProjects ? (
       <div className="uu-section mt-16">
         <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
           <h3 className="uu-h3 uu-block-title">
@@ -1495,7 +1498,9 @@ export default function ConfigurationScreen({
           </>
         ) : null}
       </div>
+      ) : null}
 
+      {canViewResources ? (
       <div className="uu-section mt-16">
         <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
           <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
@@ -1630,6 +1635,7 @@ export default function ConfigurationScreen({
         ) : null}
 
       </div>
+      ) : null}
 
     </div>
   );

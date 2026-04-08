@@ -7,6 +7,7 @@ export default function ProjectsListView({
   versionEl,
   openDetails,
   activateOne,
+  onCreateTaskFromProject,
   startIntegration,
   stopIntegration,
   serverHost,
@@ -17,6 +18,8 @@ export default function ProjectsListView({
   onSort,
   onToggleFavorite,
   canManageUnrealProjects = true,
+  canCreateTasks = false,
+  isAutoRenderUsage = null,
   showActivationControls = true,
 }) {
   const usageModeLabel = (value) => {
@@ -34,19 +37,19 @@ export default function ProjectsListView({
   const renderRow = (p, key, style, asTable = false) => {
     const isActive = !!p.isActive;
     const isFav = p?.favorite === true;
+    const canCreateTask = (
+      canCreateTasks === true
+      && typeof onCreateTaskFromProject === 'function'
+      && (
+        typeof isAutoRenderUsage === 'function'
+          ? isAutoRenderUsage(p?.metaUsageMode || p?.usageMode, p?.metaStatus || p?.status)
+          : String(p?.metaUsageMode || p?.usageMode || '').trim() === 'auto_render'
+      )
+    );
+    const showStartButton = canManageUnrealProjects && !!serverHost && (showActivationControls ? isActive : true);
 
     const actionButtons = (
       <div className="uu-row uu-gap-4">
-        {typeof onToggleFavorite === 'function' ? (
-          <button
-            className={`uu-fav-btn ${isFav ? 'active' : ''}`}
-            onClick={() => onToggleFavorite(p)}
-            aria-pressed={isFav ? 'true' : 'false'}
-            title={t('resources.detail.labels.favorite') || 'Favoris'}
-          >
-            ★
-          </button>
-        ) : null}
         {canManageUnrealProjects ? (
           <>
             <button className="uu-btn" onClick={() => openDetails(p.id)}>
@@ -63,10 +66,12 @@ export default function ProjectsListView({
             ) : null}
           </>
         ) : null}
-        {canManageUnrealProjects && showActivationControls && isActive && serverHost ? (
+        {showStartButton ? (
           <button
             className={`uu-btn ${serverRunning ? 'uu-btn-danger' : 'prod-toggle-active'}`}
-            onClick={serverRunning ? stopIntegration : startIntegration}
+            onClick={serverRunning
+              ? stopIntegration
+              : (showActivationControls ? startIntegration : () => startIntegration?.(p.id))}
             disabled={integrationBusy}
             title={t('projects.integration.hint')}
           >
@@ -77,14 +82,24 @@ export default function ProjectsListView({
                 : t('launch.buttons.start')}
           </button>
         ) : null}
-        {canManageUnrealProjects && !showActivationControls && serverHost ? (
+        {canCreateTask && showStartButton ? (
+          <button className="uu-btn" onClick={() => onCreateTaskFromProject?.(p.id)}>
+            {t('projects.actions.createTask', 'Tâche')}
+          </button>
+        ) : null}
+        {typeof onToggleFavorite === 'function' ? (
           <button
-            className="uu-btn"
-            onClick={() => startIntegration?.(p.id)}
-            disabled={integrationBusy}
-            title={t('projects.integration.hint')}
+            className={`uu-fav-btn ${isFav ? 'active' : ''}`}
+            onClick={() => onToggleFavorite(p)}
+            aria-pressed={isFav ? 'true' : 'false'}
+            title={t('resources.detail.labels.favorite') || 'Favoris'}
           >
-            {integrationBusy ? '...' : t('launch.buttons.start')}
+            ★
+          </button>
+        ) : null}
+        {canCreateTask && !showStartButton ? (
+          <button className="uu-btn" onClick={() => onCreateTaskFromProject?.(p.id)}>
+            {t('projects.actions.createTask', 'Tâche')}
           </button>
         ) : null}
       </div>

@@ -1,6 +1,10 @@
 import { useRendersPreferences } from "./useRendersPreferences";
 import { useRendersCardControllers } from "./useRendersCardControllers";
 import { buildRendersCardDataOutput } from "./buildRendersCardDataOutput";
+import {
+  buildRendersCardControllersInput,
+  buildRendersCardDataPreferences,
+} from "./buildRendersCardDataInput";
 
 export function useRendersCardData({
   t,
@@ -27,8 +31,6 @@ export function useRendersCardData({
     setFavoriteOnly,
     renderFavorites,
     setRenderFavorites,
-    viewMode,
-    setViewMode,
     listSortKey,
     setListSortKey,
     listSortDir,
@@ -39,7 +41,7 @@ export function useRendersCardData({
     setQueueSortDir,
   } = preferences;
 
-  const { review, list, detail, queue, toolbar } = useRendersCardControllers({
+  const controllersInput = buildRendersCardControllersInput({
     t,
     user,
     renders,
@@ -73,144 +75,15 @@ export function useRendersCardData({
     },
   });
 
-  const {
-    canReviewRenders,
-    busyRenderId,
-    applyReviewStatus,
-  } = review;
-
-  const {
-    projectFilterOptions,
-    hasActiveFilters,
-    sortedDisplayedRenders,
-    isRenderFavorite,
-    toggleRenderFavorite,
-    listSortIndicator,
-    toggleListSort,
-    setListSortFromSelect,
-  } = list;
-
-  const {
-    buildRenderThumbCandidates,
-    openRenderOutputExternally,
-    openRenderDetail,
-    closeRenderDetail,
-    advancePreviewCandidate,
-    detailRender,
-    detailPreviewKind,
-    detailPreviewSource,
-    detailPreviewError,
-    detailPreviewCandidatesCount,
-    detailTransitions,
-    detailTransitionsLoading,
-    detailTransitionsError,
-  } = detail;
-
-  const {
-    busyScheduledTaskId,
-    queueBatchBusyMode,
-    queueBatchFeedback,
-    queueBatchError,
-    renderQueueTasks,
-    filteredRenderQueueTasks,
-    sortedRenderQueueTasks,
-    selectedQueueEntrySet,
-    launchableQueueTaskIdSet,
-    selectedLaunchableQueueEntries,
-    queueStateSummary,
-    queueSortIndicator,
-    canLaunchRenders,
-    queueEntryWorkerLabel,
-    getQueueEntryLaunchMeta,
-    queueTaskPriorityLabel,
-    toggleSelectAllQueueEntries,
-    launchQueueBatch,
-    toggleQueueSort,
-    toggleQueueTaskSelection,
-    launchScheduledTaskRender,
-  } = queue;
-
-  const {
-    clearFilters,
-    openAdvancedSearch,
-    closeAdvancedSearch,
-    toggleFavoriteOnly,
-  } = toolbar;
+  const { review, list, detail, queue, toolbar } = useRendersCardControllers(controllersInput);
 
   return buildRendersCardDataOutput({
-    preferences: {
-      searchQuery,
-      setSearchQuery,
-      reviewFilter,
-      setReviewFilter,
-      projectFilter,
-      setProjectFilter,
-      searchExpanded,
-      favoriteOnly,
-      viewMode,
-      setViewMode,
-      listSortKey,
-      listSortDir,
-    },
-    review: {
-      canReviewRenders,
-      busyRenderId,
-      applyReviewStatus,
-    },
-    list: {
-      projectFilterOptions,
-      hasActiveFilters,
-      sortedDisplayedRenders,
-      isRenderFavorite,
-      toggleRenderFavorite,
-      listSortIndicator,
-      toggleListSort,
-      setListSortFromSelect,
-    },
-    detail: {
-      buildRenderThumbCandidates,
-      openRenderOutputExternally,
-      openRenderDetail,
-      closeRenderDetail,
-      advancePreviewCandidate,
-      detailRender,
-      detailPreviewKind,
-      detailPreviewSource,
-      detailPreviewError,
-      detailPreviewCandidatesCount,
-      detailTransitions,
-      detailTransitionsLoading,
-      detailTransitionsError,
-    },
-    queue: {
-      busyScheduledTaskId,
-      queueBatchBusyMode,
-      queueBatchFeedback,
-      queueBatchError,
-      renderQueueTasks,
-      filteredRenderQueueTasks,
-      sortedRenderQueueTasks,
-      selectedQueueEntrySet,
-      launchableQueueTaskIdSet,
-      selectedLaunchableQueueEntries,
-      queueStateSummary,
-      queueSortIndicator,
-      canLaunchRenders,
-      queueEntryWorkerLabel,
-      getQueueEntryLaunchMeta,
-      queueTaskPriorityLabel,
-      toggleSelectAllQueueEntries,
-      launchQueueBatch,
-      toggleQueueSort,
-      toggleQueueTaskSelection,
-      launchScheduledTaskRender,
-    },
-    toolbar: {
-      clearFilters,
-      openAdvancedSearch,
-      closeAdvancedSearch,
-      toggleFavoriteOnly,
-    },
+    preferences: buildRendersCardDataPreferences(preferences),
+    review,
+    list,
+    detail,
+    queue,
+    toolbar,
   });
 }
 

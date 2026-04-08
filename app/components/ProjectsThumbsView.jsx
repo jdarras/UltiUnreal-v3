@@ -8,12 +8,15 @@ export default function ProjectsThumbsView({
   openDetails,
   activateOne,
   onToggleFavorite,
+  onCreateTaskFromProject,
   startIntegration,
   stopIntegration,
   serverHost,
   serverRunning,
   integrationBusy,
   canManageUnrealProjects = true,
+  canCreateTasks = false,
+  isAutoRenderUsage = null,
   showActivationControls = true,
 }) {
   const THRESHOLD = 120;
@@ -31,6 +34,16 @@ export default function ProjectsThumbsView({
   const renderCard = (p, key, style = {}) => {
     const isActive = !!p.isActive;
     const isFav = p?.favorite === true;
+    const canCreateTask = (
+      canCreateTasks === true
+      && typeof onCreateTaskFromProject === 'function'
+      && (
+        typeof isAutoRenderUsage === 'function'
+          ? isAutoRenderUsage(p?.metaUsageMode || p?.usageMode, p?.metaStatus || p?.status)
+          : String(p?.metaUsageMode || p?.usageMode || '').trim() === 'auto_render'
+      )
+    );
+    const showStartButton = canManageUnrealProjects && !!serverHost;
     const showActiveState = showActivationControls && isActive;
     const activeStyle = showActiveState ? { border: '1px solid #2ecc71', background: '#132b1a' } : {};
     return (
@@ -103,18 +116,7 @@ export default function ProjectsThumbsView({
                 ) : null}
               </>
             ) : null}
-            {typeof onToggleFavorite === 'function' ? (
-              <button
-                type="button"
-                className={`uu-fav-btn ${isFav ? 'active' : ''}`}
-                onClick={() => onToggleFavorite(p)}
-                aria-pressed={isFav ? 'true' : 'false'}
-                title={t('resources.detail.labels.favorite') || 'Favoris'}
-              >
-                ★
-              </button>
-            ) : null}
-            {canManageUnrealProjects && showActivationControls && isActive && serverHost ? (
+            {showStartButton && showActivationControls && isActive ? (
               <button
                 type="button"
                 className={`uu-btn ${serverRunning ? 'uu-btn-danger' : 'prod-toggle-active'}`}
@@ -129,7 +131,7 @@ export default function ProjectsThumbsView({
                     : t('launch.buttons.start')}
               </button>
             ) : null}
-            {canManageUnrealProjects && !showActivationControls && serverHost ? (
+            {showStartButton && !showActivationControls ? (
               <button
                 type="button"
                 className="uu-btn"
@@ -138,6 +140,35 @@ export default function ProjectsThumbsView({
                 title={t('projects.integration.hint')}
               >
                 {integrationBusy ? '...' : t('launch.buttons.start')}
+              </button>
+            ) : null}
+            {canCreateTask && showStartButton ? (
+              <button
+                type="button"
+                className="uu-btn"
+                onClick={() => onCreateTaskFromProject?.(p.id)}
+              >
+                {t('projects.actions.createTask', 'Tâche')}
+              </button>
+            ) : null}
+            {typeof onToggleFavorite === 'function' ? (
+              <button
+                type="button"
+                className={`uu-fav-btn ${isFav ? 'active' : ''}`}
+                onClick={() => onToggleFavorite(p)}
+                aria-pressed={isFav ? 'true' : 'false'}
+                title={t('resources.detail.labels.favorite') || 'Favoris'}
+              >
+                ★
+              </button>
+            ) : null}
+            {canCreateTask && !showStartButton ? (
+              <button
+                type="button"
+                className="uu-btn"
+                onClick={() => onCreateTaskFromProject?.(p.id)}
+              >
+                {t('projects.actions.createTask', 'Tâche')}
               </button>
             ) : null}
           </div>

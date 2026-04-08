@@ -1,4 +1,4 @@
-// app/screens/synchronisation.jsx
+﻿// app/screens/synchronisation.jsx
 import React from 'react';
 
 import {
@@ -1704,7 +1704,7 @@ export default function SynchronisationScreen() {
               <>
                 {syncHosts.length > 0 && (
                   <div className="uu-section">
-                    <h3 className="uu-h3">
+                    <h3 className="uu-h3 uu-block-title">
                       {t('sync.server.section.syncHosts')}
                     </h3>
                     <div className="uu-list">
@@ -1715,7 +1715,7 @@ export default function SynchronisationScreen() {
 
                 {localProjectHosts.length > 0 && (
                   <div className="uu-section">
-                    <h3 className="uu-h3">
+                    <h3 className="uu-h3 uu-block-title">
                       {t('sync.server.section.localProject')}
                     </h3>
                     <div className="uu-list">
@@ -1732,7 +1732,7 @@ export default function SynchronisationScreen() {
 
                 {excludedHosts.length > 0 && (
                   <div className="uu-section">
-                    <h3 className="uu-h3">
+                    <h3 className="uu-h3 uu-block-title">
                       {t('sync.server.section.excluded')}
                     </h3>
                     <div className="uu-list">
@@ -1764,3 +1764,4 @@ export default function SynchronisationScreen() {
   // Sécurité
   return null;
 }
+

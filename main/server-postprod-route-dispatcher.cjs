@@ -201,6 +201,8 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     resolveRenderDetectedRoots,
     buildRenderJobPayload,
     shouldExposeDetectedRender,
+    buildRenderOutputSubdir,
+    createRenderOutputSubdir,
     requireRenderLaunchForProject,
     sanitizeRenderComment,
     buildRenderWorkerPayload,
@@ -227,6 +229,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     sanitizeRenderOutputPath,
     sanitizeRenderErrorMessage,
     inferRenderReviewStatus,
+    computeRenderTransitionState,
     canRenderValidate,
     buildRenderJobEventPayload,
     requireManageUsers,
@@ -475,6 +478,8 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     pathname,
     sendJSON,
     requireSession,
+    rolePermissions,
+    rolesCache,
     requireRenderDispatch,
     maybeSyncResourcesIndexFromLibrary,
     listPostprodResources,
@@ -657,6 +662,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     buildRenderDispatchPairs,
     db,
     buildRenderJobPayload,
+    createRenderOutputSubdir,
   });
   if (renderDispatchRoutesHandled) return true;
 
@@ -868,4 +874,3 @@ async function dispatchPostprodRouteHandlers(options = {}) {
 module.exports = {
   dispatchPostprodRouteHandlers,
 };
-

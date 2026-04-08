@@ -2,6 +2,13 @@ import { useRenderQueueDerivedData } from "./queue/useRenderQueueDerivedData";
 import { useRenderQueueSelection } from "./queue/useRenderQueueSelection";
 import { useRenderQueueSorting } from "./queue/useRenderQueueSorting";
 import { useRenderQueueLaunch } from "./queue/useRenderQueueLaunch";
+import {
+  buildRenderQueueDerivedDataInput,
+  buildRenderQueueLaunchInput,
+  buildRenderQueueSelectionInput,
+  buildRenderQueueSortingInput,
+} from "./queue/buildRenderQueueControllerInputs";
+import { buildRenderQueueControllerOutput } from "./queue/buildRenderQueueControllerOutput";
 
 export function useRenderQueueController({
   t,
@@ -16,86 +23,53 @@ export function useRenderQueueController({
   onCreateRender = null,
   onDispatchRenders = null,
 }) {
-  const {
-    renderQueueTasks,
-    filteredRenderQueueTasks,
-    sortedRenderQueueTasks,
-    queueStateSummary,
-    queueEntryWorkerLabel,
-    getQueueEntryLaunchMeta,
-    queueTaskPriorityLabel,
-  } = useRenderQueueDerivedData({
-    t,
-    tasks,
-    renders,
-    renderWorkers,
-    searchQuery,
-    queueSortKey,
-    queueSortDir,
-  });
+  const derived = useRenderQueueDerivedData(
+    buildRenderQueueDerivedDataInput({
+      t,
+      tasks,
+      renders,
+      renderWorkers,
+      searchQuery,
+      queueSortKey,
+      queueSortDir,
+    })
+  );
 
-  const {
-    selectedQueueTaskIds,
-    setSelectedQueueTaskIds,
-    selectedQueueEntrySet,
-    launchableQueueTaskIdSet,
-    selectedLaunchableQueueEntries,
-    toggleQueueTaskSelection,
-    toggleSelectAllQueueEntries,
-  } = useRenderQueueSelection({
-    filteredRenderQueueTasks,
-    getQueueEntryLaunchMeta,
-  });
+  const { filteredRenderQueueTasks, getQueueEntryLaunchMeta } = derived;
 
-  const {
-    queueSortIndicator,
-    toggleQueueSort,
-  } = useRenderQueueSorting({
-    queueSortKey,
-    queueSortDir,
-    setQueueSortKey,
-    setQueueSortDir,
-  });
+  const selection = useRenderQueueSelection(
+    buildRenderQueueSelectionInput({
+      filteredRenderQueueTasks,
+      getQueueEntryLaunchMeta,
+    })
+  );
 
-  const {
-    busyScheduledTaskId,
-    queueBatchBusyMode,
-    queueBatchFeedback,
-    queueBatchError,
-    canLaunchRenders,
-    launchScheduledTaskRender,
-    launchQueueBatch,
-  } = useRenderQueueLaunch({
-    t,
-    onCreateRender,
-    onDispatchRenders,
-    setSelectedQueueTaskIds,
-  });
+  const { setSelectedQueueTaskIds } = selection;
 
-  return {
-    selectedQueueTaskIds,
-    busyScheduledTaskId,
-    queueBatchBusyMode,
-    queueBatchFeedback,
-    queueBatchError,
-    renderQueueTasks,
-    filteredRenderQueueTasks,
-    sortedRenderQueueTasks,
-    selectedQueueEntrySet,
-    launchableQueueTaskIdSet,
-    selectedLaunchableQueueEntries,
-    queueStateSummary,
-    queueSortIndicator,
-    canLaunchRenders,
-    queueEntryWorkerLabel,
-    getQueueEntryLaunchMeta,
-    queueTaskPriorityLabel,
-    toggleSelectAllQueueEntries,
-    launchQueueBatch,
-    toggleQueueSort,
-    toggleQueueTaskSelection,
-    launchScheduledTaskRender,
-  };
+  const sorting = useRenderQueueSorting(
+    buildRenderQueueSortingInput({
+      queueSortKey,
+      queueSortDir,
+      setQueueSortKey,
+      setQueueSortDir,
+    })
+  );
+
+  const launch = useRenderQueueLaunch(
+    buildRenderQueueLaunchInput({
+      t,
+      onCreateRender,
+      onDispatchRenders,
+      setSelectedQueueTaskIds,
+    })
+  );
+
+  return buildRenderQueueControllerOutput({
+    derived,
+    selection,
+    sorting,
+    launch,
+  });
 }
 
 export default useRenderQueueController;

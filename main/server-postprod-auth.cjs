@@ -275,6 +275,8 @@ const DEFAULT_ROLE_POLICIES = [
   {
     key: 'Maintenance',
     displayName: 'Maintenance',
+    canUseLiveMode: true,
+    canUsePostprodMode: true,
     canValidate: true,
     canSyncScenes: true,
     canManageUsers: true,
@@ -285,12 +287,18 @@ const DEFAULT_ROLE_POLICIES = [
     canManageProjectPermissions: true,
     canLaunchProjects: true,
     canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: true,
+    canManageLayouts: true,
     manageableRoles: [...DEFAULT_ROLE_KEYS],
     isSystem: true,
   },
   {
     key: 'Responsable Fabrication',
     displayName: 'Responsable Fabrication',
+    canUseLiveMode: true,
+    canUsePostprodMode: true,
     canValidate: true,
     canSyncScenes: true,
     canManageUsers: true,
@@ -301,12 +309,18 @@ const DEFAULT_ROLE_POLICIES = [
     canManageProjectPermissions: true,
     canLaunchProjects: true,
     canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: true,
+    canManageLayouts: true,
     manageableRoles: ['Graphiste', 'Journaliste'],
     isSystem: true,
   },
   {
     key: 'Integrateur',
     displayName: 'Integrateur',
+    canUseLiveMode: true,
+    canUsePostprodMode: true,
     canValidate: true,
     canSyncScenes: true,
     canManageUsers: true,
@@ -317,12 +331,18 @@ const DEFAULT_ROLE_POLICIES = [
     canManageProjectPermissions: true,
     canLaunchProjects: true,
     canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: true,
+    canManageLayouts: true,
     manageableRoles: ['Operateur', 'Journaliste'],
     isSystem: true,
   },
   {
     key: 'Operateur',
     displayName: 'Operateur',
+    canUseLiveMode: true,
+    canUsePostprodMode: true,
     canValidate: false,
     canSyncScenes: false,
     canManageUsers: false,
@@ -333,12 +353,18 @@ const DEFAULT_ROLE_POLICIES = [
     canManageProjectPermissions: false,
     canLaunchProjects: true,
     canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: true,
+    canManageLayouts: true,
     manageableRoles: [],
     isSystem: true,
   },
   {
     key: 'Graphiste',
     displayName: 'Graphiste',
+    canUseLiveMode: false,
+    canUsePostprodMode: true,
     canValidate: false,
     canSyncScenes: false,
     canManageUsers: false,
@@ -349,12 +375,18 @@ const DEFAULT_ROLE_POLICIES = [
     canManageProjectPermissions: false,
     canLaunchProjects: false,
     canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: false,
+    canManageLayouts: false,
     manageableRoles: [],
     isSystem: true,
   },
   {
     key: 'Journaliste',
     displayName: 'Journaliste',
+    canUseLiveMode: false,
+    canUsePostprodMode: true,
     canValidate: false,
     canSyncScenes: false,
     canManageUsers: false,
@@ -365,6 +397,10 @@ const DEFAULT_ROLE_POLICIES = [
     canManageProjectPermissions: false,
     canLaunchProjects: false,
     canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: false,
+    canManageLayouts: false,
     manageableRoles: [],
     isSystem: true,
   },
@@ -1572,12 +1608,14 @@ function listPostprodProjects(sharedStore, usageModeFilters = [], stmts = null, 
   const out = projects.filter((project) => {
     const usageMode = normalizeProjectUsageMode(project?.usageMode) || 'other';
     if (usageFilterSet.size > 0 && !usageFilterSet.has(usageMode)) return false;
-    if (roleVisibilityPolicy === 'postprod_only' && !AUTO_RENDER_PROJECT_USAGE_MODES.has(usageMode)) {
-      return false;
+    if (roleVisibilityPolicy === 'postprod_only') {
+      if (!AUTO_RENDER_PROJECT_USAGE_MODES.has(usageMode)) return false;
+      const status = normalizeProjectMetaStatus(project?.status || project?.metaStatus || '');
+      if (status !== 'PAD') return false;
     }
     if (roleVisibilityPolicy === 'validated_only') {
       const status = normalizeProjectMetaStatus(project?.status || project?.metaStatus || '');
-      if (!isValidatedPostprodProjectStatus(status)) return false;
+      if (status !== 'PAD') return false;
     }
     return true;
   }).map((project) => {
@@ -4707,10 +4745,16 @@ function normalizeManageableRolesInput(value) {
 
 function defaultRoleRow(policy) {
   const now = nowIso();
+  const canUseLiveMode = policy?.canUseLiveMode !== false;
+  const canUsePostprodMode = policy?.canUsePostprodMode !== false;
+  const canLaunchProjects = policy?.canLaunchProjects !== false;
+  const canLaunchRenders = policy?.canLaunchRenders !== false;
   return {
     key: sanitizeRoleKey(policy?.key, ''),
     displayName: sanitizeDisplayName(policy?.displayName, policy?.key),
     note: sanitizeRoleNote(policy?.note),
+    canUseLiveMode,
+    canUsePostprodMode,
     canValidate: policy?.canValidate === true,
     canSyncScenes: policy?.canSyncScenes === true,
     canManageUsers: policy?.canManageUsers === true,
@@ -4719,8 +4763,20 @@ function defaultRoleRow(policy) {
     canManageMachines: policy?.canManageMachines === true,
     canBanUsers: policy?.canBanUsers === true,
     canManageProjectPermissions: policy?.canManageProjectPermissions === true,
-    canLaunchProjects: policy?.canLaunchProjects !== false,
-    canLaunchRenders: policy?.canLaunchRenders !== false,
+    canLaunchProjects,
+    canLaunchRenders,
+    canViewResources:
+      policy?.canViewResources === true
+      || (policy?.canViewResources == null && (canUseLiveMode || canUsePostprodMode)),
+    canCreateTasks:
+      policy?.canCreateTasks === true
+      || (policy?.canCreateTasks == null && canLaunchRenders),
+    canEditProjects:
+      policy?.canEditProjects === true
+      || (policy?.canEditProjects == null && canLaunchProjects),
+    canManageLayouts:
+      policy?.canManageLayouts === true
+      || (policy?.canManageLayouts == null && canUseLiveMode),
     manageableRoles: normalizeManageableRolesInput(policy?.manageableRoles),
     isSystem: policy?.isSystem === true,
     createdAt: now,
@@ -4738,6 +4794,12 @@ function normalizeRoleRow(row = {}) {
     key,
     displayName: sanitizeDisplayName(row?.display_name ?? row?.displayName, key),
     note: sanitizeRoleNote(row?.note ?? row?.role_note),
+    canUseLiveMode:
+      Number(row?.can_use_live_mode ?? row?.canUseLiveMode) === 1
+      || row?.canUseLiveMode === true,
+    canUsePostprodMode:
+      Number(row?.can_use_postprod_mode ?? row?.canUsePostprodMode) === 1
+      || row?.canUsePostprodMode === true,
     canValidate: Number(row?.can_validate ?? row?.canValidate) === 1 || row?.canValidate === true,
     canSyncScenes: Number(row?.can_sync_scenes ?? row?.canSyncScenes) === 1 || row?.canSyncScenes === true,
     canManageUsers: Number(row?.can_manage_users ?? row?.canManageUsers) === 1 || row?.canManageUsers === true,
@@ -4754,6 +4816,18 @@ function normalizeRoleRow(row = {}) {
       Number(row?.can_launch_projects ?? row?.canLaunchProjects) === 1
       || row?.canLaunchProjects === true,
     canLaunchRenders: Number(row?.can_launch_renders ?? row?.canLaunchRenders) === 1 || row?.canLaunchRenders === true,
+    canViewResources:
+      Number(row?.can_view_resources ?? row?.canViewResources) === 1
+      || row?.canViewResources === true,
+    canCreateTasks:
+      Number(row?.can_create_tasks ?? row?.canCreateTasks) === 1
+      || row?.canCreateTasks === true,
+    canEditProjects:
+      Number(row?.can_edit_projects ?? row?.canEditProjects) === 1
+      || row?.canEditProjects === true,
+    canManageLayouts:
+      Number(row?.can_manage_layouts ?? row?.canManageLayouts) === 1
+      || row?.canManageLayouts === true,
     manageableRoles: manageable,
     isSystem: Number(row?.is_system ?? row?.isSystem) === 1 || row?.isSystem === true,
     createdAt: row?.created_at ?? row?.createdAt ?? null,
@@ -4799,6 +4873,8 @@ function buildRolesCache(roleRows = []) {
     const next = {
       ...row,
       key,
+      canUseLiveMode: row.canUseLiveMode !== false,
+      canUsePostprodMode: row.canUsePostprodMode !== false,
       canManageUsers: row.canManageUsers === true,
       canManageRoles: row.canManageRoles === true,
       canManageForms: row.canManageForms === true,
@@ -4806,6 +4882,10 @@ function buildRolesCache(roleRows = []) {
       canBanUsers: row.canBanUsers === true,
       canManageProjectPermissions: row.canManageProjectPermissions === true,
       canLaunchProjects: row.canLaunchProjects !== false,
+      canViewResources: row.canViewResources === true,
+      canCreateTasks: row.canCreateTasks === true,
+      canEditProjects: row.canEditProjects === true,
+      canManageLayouts: row.canManageLayouts === true,
       manageableRoles: row.canManageUsers ? manageable : [],
       canValidate: row.canValidate === true,
       canSyncScenes: row.canSyncScenes === true,
@@ -4816,6 +4896,8 @@ function buildRolesCache(roleRows = []) {
     };
 
     if (key === SYSTEM_MAINTENANCE_ROLE) {
+      next.canUseLiveMode = true;
+      next.canUsePostprodMode = true;
       next.canManageUsers = true;
       next.canManageRoles = true;
       next.canManageForms = true;
@@ -4823,6 +4905,10 @@ function buildRolesCache(roleRows = []) {
       next.canBanUsers = true;
       next.canManageProjectPermissions = true;
       next.canLaunchProjects = true;
+      next.canViewResources = true;
+      next.canCreateTasks = true;
+      next.canEditProjects = true;
+      next.canManageLayouts = true;
       next.manageableRoles = Array.from(baseByKey.keys());
     }
 
@@ -4830,6 +4916,9 @@ function buildRolesCache(roleRows = []) {
       next.canBanUsers = false;
       next.canManageProjectPermissions = false;
       next.manageableRoles = [];
+    }
+    if (!next.canUseLiveMode) {
+      next.canManageLayouts = false;
     }
 
     normalizedByKey.set(key, next);
@@ -4892,6 +4981,8 @@ function rolePermissions(roleRaw, rolesCache) {
   const policy = cache.byKey.get(roleKey);
   if (!policy) {
     return {
+      canUseLiveMode: true,
+      canUsePostprodMode: true,
       canValidate: false,
       canSyncScenes: false,
       canManageUsers: false,
@@ -4902,6 +4993,10 @@ function rolePermissions(roleRaw, rolesCache) {
       canManageProjectPermissions: false,
       canLaunchProjects: true,
       canLaunchRenders: true,
+      canViewResources: true,
+      canCreateTasks: true,
+      canEditProjects: true,
+      canManageLayouts: true,
       manageableRoles: [],
     };
   }
@@ -4916,6 +5011,8 @@ function rolePermissions(roleRaw, rolesCache) {
   const canManageUsers = policy.canManageUsers === true && manageable.length > 0;
 
   return {
+    canUseLiveMode: policy.canUseLiveMode !== false,
+    canUsePostprodMode: policy.canUsePostprodMode !== false,
     canValidate: policy.canValidate === true,
     canSyncScenes: policy.canSyncScenes === true,
     canManageUsers,
@@ -4926,6 +5023,10 @@ function rolePermissions(roleRaw, rolesCache) {
     canManageProjectPermissions: canManageUsers && policy.canManageProjectPermissions === true,
     canLaunchProjects: policy.canLaunchProjects !== false,
     canLaunchRenders: policy.canLaunchRenders !== false,
+    canViewResources: policy.canViewResources === true,
+    canCreateTasks: policy.canCreateTasks === true,
+    canEditProjects: policy.canEditProjects === true,
+    canManageLayouts: policy.canManageLayouts === true && policy.canUseLiveMode !== false,
     manageableRoles: manageable,
   };
 }
@@ -5491,6 +5592,8 @@ function ensureDefaultRoles(db, logLine = () => {}) {
       key,
       display_name,
       note,
+      can_use_live_mode,
+      can_use_postprod_mode,
       can_validate,
       can_sync_scenes,
       can_manage_users,
@@ -5501,12 +5604,16 @@ function ensureDefaultRoles(db, logLine = () => {}) {
       can_manage_project_permissions,
       can_launch_projects,
       can_launch_renders,
+      can_view_resources,
+      can_create_tasks,
+      can_edit_projects,
+      can_manage_layouts,
       manageable_roles_json,
       is_system,
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const now = nowIso();
   let inserted = 0;
@@ -5520,6 +5627,8 @@ function ensureDefaultRoles(db, logLine = () => {}) {
         key,
         sanitizeDisplayName(policy?.displayName, key),
         sanitizeRoleNote(policy?.note),
+        policy?.canUseLiveMode !== false ? 1 : 0,
+        policy?.canUsePostprodMode !== false ? 1 : 0,
         policy?.canValidate === true ? 1 : 0,
         policy?.canSyncScenes === true ? 1 : 0,
         policy?.canManageUsers === true ? 1 : 0,
@@ -5530,6 +5639,10 @@ function ensureDefaultRoles(db, logLine = () => {}) {
         policy?.canManageProjectPermissions === true ? 1 : 0,
         policy?.canLaunchProjects !== false ? 1 : 0,
         policy?.canLaunchRenders !== false ? 1 : 0,
+        policy?.canViewResources === true ? 1 : 0,
+        policy?.canCreateTasks === true ? 1 : 0,
+        policy?.canEditProjects === true ? 1 : 0,
+        policy?.canManageLayouts === true ? 1 : 0,
         JSON.stringify(manageableRoles),
         policy?.isSystem === true ? 1 : 0,
         now,
@@ -5636,6 +5749,8 @@ function ensureSchema(db, logLine = () => {}) {
         key TEXT PRIMARY KEY,
         display_name TEXT NOT NULL,
         note TEXT NOT NULL DEFAULT '',
+        can_use_live_mode INTEGER NOT NULL DEFAULT 1,
+        can_use_postprod_mode INTEGER NOT NULL DEFAULT 1,
         can_validate INTEGER NOT NULL DEFAULT 0,
         can_sync_scenes INTEGER NOT NULL DEFAULT 0,
         can_manage_users INTEGER NOT NULL DEFAULT 0,
@@ -5646,6 +5761,10 @@ function ensureSchema(db, logLine = () => {}) {
         can_manage_project_permissions INTEGER NOT NULL DEFAULT 0,
         can_launch_projects INTEGER NOT NULL DEFAULT 1,
         can_launch_renders INTEGER NOT NULL DEFAULT 1,
+        can_view_resources INTEGER NOT NULL DEFAULT 1,
+        can_create_tasks INTEGER NOT NULL DEFAULT 1,
+        can_edit_projects INTEGER NOT NULL DEFAULT 1,
+        can_manage_layouts INTEGER NOT NULL DEFAULT 1,
         manageable_roles_json TEXT NOT NULL DEFAULT '[]',
         is_system INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
@@ -7133,6 +7252,91 @@ function ensureSchema(db, logLine = () => {}) {
     });
   }
 
+  const hasV37 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 37 LIMIT 1')
+    .get();
+  if (!hasV37) {
+    const roleCols = db.prepare('PRAGMA table_info(roles)').all();
+    const roleColNames = new Set(roleCols.map((c) => String(c?.name || '').trim()));
+    if (!roleColNames.has('can_use_live_mode')) {
+      db.exec("ALTER TABLE roles ADD COLUMN can_use_live_mode INTEGER NOT NULL DEFAULT 1");
+    }
+    if (!roleColNames.has('can_use_postprod_mode')) {
+      db.exec("ALTER TABLE roles ADD COLUMN can_use_postprod_mode INTEGER NOT NULL DEFAULT 1");
+    }
+    db.exec(`
+      UPDATE roles
+      SET
+        can_use_live_mode = CASE
+          WHEN key IN ('Graphiste', 'Journaliste') THEN 0
+          ELSE 1
+        END,
+        can_use_postprod_mode = 1
+      WHERE is_system = 1;
+    `);
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(37, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v37',
+      message: 'Migration SQLite postprod v37 appliquee (permissions mode live/rendu)',
+    });
+  }
+
+  const hasV38 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 38 LIMIT 1')
+    .get();
+  if (!hasV38) {
+    const roleCols = db.prepare('PRAGMA table_info(roles)').all();
+    const roleColNames = new Set(roleCols.map((c) => String(c?.name || '').trim()));
+    if (!roleColNames.has('can_view_resources')) {
+      db.exec("ALTER TABLE roles ADD COLUMN can_view_resources INTEGER NOT NULL DEFAULT 1");
+    }
+    if (!roleColNames.has('can_create_tasks')) {
+      db.exec("ALTER TABLE roles ADD COLUMN can_create_tasks INTEGER NOT NULL DEFAULT 1");
+    }
+    if (!roleColNames.has('can_edit_projects')) {
+      db.exec("ALTER TABLE roles ADD COLUMN can_edit_projects INTEGER NOT NULL DEFAULT 1");
+    }
+    if (!roleColNames.has('can_manage_layouts')) {
+      db.exec("ALTER TABLE roles ADD COLUMN can_manage_layouts INTEGER NOT NULL DEFAULT 1");
+    }
+    db.exec(`
+      UPDATE roles
+      SET
+        can_view_resources = CASE
+          WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur', 'Operateur', 'Graphiste', 'Journaliste') THEN 1
+          ELSE CASE WHEN can_use_live_mode = 1 OR can_use_postprod_mode = 1 THEN 1 ELSE 0 END
+        END,
+        can_create_tasks = CASE
+          WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur', 'Operateur', 'Graphiste', 'Journaliste') THEN 1
+          ELSE CASE WHEN can_launch_renders = 1 THEN 1 ELSE 0 END
+        END,
+        can_edit_projects = CASE
+          WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur', 'Operateur') THEN 1
+          WHEN key IN ('Graphiste', 'Journaliste') THEN 0
+          ELSE CASE WHEN can_launch_projects = 1 THEN 1 ELSE 0 END
+        END,
+        can_manage_layouts = CASE
+          WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur', 'Operateur') THEN 1
+          WHEN key IN ('Graphiste', 'Journaliste') THEN 0
+          ELSE CASE WHEN can_use_live_mode = 1 THEN 1 ELSE 0 END
+        END
+      WHERE is_system = 1;
+
+      UPDATE roles
+      SET can_manage_layouts = 0
+      WHERE can_use_live_mode <> 1;
+    `);
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(38, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v38',
+      message: 'Migration SQLite postprod v38 appliquee (permissions ressources/taches/projets/layouts)',
+    });
+  }
+
   ensureDefaultRoles(db, logLine);
 }
 
@@ -7352,6 +7556,10 @@ function createStatements(db) {
         language = excluded.language,
         notification_preferences_json = excluded.notification_preferences_json,
         updated_at = excluded.updated_at
+    `),
+    deleteUserById: db.prepare(`
+      DELETE FROM users
+      WHERE id = ?
     `),
     countActiveMaintenanceExcluding: db.prepare(`
       SELECT COUNT(*) AS n
@@ -8451,6 +8659,11 @@ function createStatements(db) {
         AND status = 'Queued'
         AND assigned_worker_id IS NULL
     `),
+    updateRenderJobOutputPath: db.prepare(`
+      UPDATE render_jobs
+      SET output_path = ?, updated_at = ?
+      WHERE id = ?
+    `),
     assignRenderJobToWorkerCurrent: db.prepare(`
       UPDATE render_workers
       SET
@@ -8663,6 +8876,8 @@ function createStatements(db) {
         key,
         display_name,
         note,
+        can_use_live_mode,
+        can_use_postprod_mode,
         can_validate,
         can_sync_scenes,
         can_manage_users,
@@ -8673,6 +8888,10 @@ function createStatements(db) {
         can_manage_project_permissions,
         can_launch_projects,
         can_launch_renders,
+        can_view_resources,
+        can_create_tasks,
+        can_edit_projects,
+        can_manage_layouts,
         manageable_roles_json,
         is_system,
         created_at,
@@ -8685,6 +8904,8 @@ function createStatements(db) {
         key,
         display_name,
         note,
+        can_use_live_mode,
+        can_use_postprod_mode,
         can_validate,
         can_sync_scenes,
         can_manage_users,
@@ -8695,6 +8916,10 @@ function createStatements(db) {
         can_manage_project_permissions,
         can_launch_projects,
         can_launch_renders,
+        can_view_resources,
+        can_create_tasks,
+        can_edit_projects,
+        can_manage_layouts,
         manageable_roles_json,
         is_system,
         created_at,
@@ -8708,6 +8933,8 @@ function createStatements(db) {
         key,
         display_name,
         note,
+        can_use_live_mode,
+        can_use_postprod_mode,
         can_validate,
         can_sync_scenes,
         can_manage_users,
@@ -8718,18 +8945,24 @@ function createStatements(db) {
         can_manage_project_permissions,
         can_launch_projects,
         can_launch_renders,
+        can_view_resources,
+        can_create_tasks,
+        can_edit_projects,
+        can_manage_layouts,
         manageable_roles_json,
         is_system,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     updateRole: db.prepare(`
       UPDATE roles
       SET
         display_name = ?,
         note = ?,
+        can_use_live_mode = ?,
+        can_use_postprod_mode = ?,
         can_validate = ?,
         can_sync_scenes = ?,
         can_manage_users = ?,
@@ -8740,6 +8973,10 @@ function createStatements(db) {
         can_manage_project_permissions = ?,
         can_launch_projects = ?,
         can_launch_renders = ?,
+        can_view_resources = ?,
+        can_create_tasks = ?,
+        can_edit_projects = ?,
+        can_manage_layouts = ?,
         manageable_roles_json = ?,
         updated_at = ?
       WHERE key = ?
@@ -8838,6 +9075,8 @@ function buildRolePayload(row) {
     key: String(row?.key || ''),
     displayName: sanitizeDisplayName(row?.displayName, row?.key || ''),
     note: sanitizeRoleNote(row?.note),
+    canUseLiveMode: row?.canUseLiveMode !== false,
+    canUsePostprodMode: row?.canUsePostprodMode !== false,
     canValidate: row?.canValidate === true,
     canSyncScenes: row?.canSyncScenes === true,
     canManageUsers: row?.canManageUsers === true,
@@ -8848,6 +9087,10 @@ function buildRolePayload(row) {
     canManageProjectPermissions: row?.canManageProjectPermissions === true,
     canLaunchProjects: row?.canLaunchProjects !== false,
     canLaunchRenders: row?.canLaunchRenders !== false,
+    canViewResources: row?.canViewResources === true,
+    canCreateTasks: row?.canCreateTasks === true,
+    canEditProjects: row?.canEditProjects === true,
+    canManageLayouts: row?.canManageLayouts === true,
     manageableRoles: normalizeManageableRolesInput(row?.manageableRoles),
     isSystem: row?.isSystem === true,
     createdAt: row?.createdAt || null,
@@ -8893,21 +9136,116 @@ function normalizeActivityProjectRefs(payload) {
   return refs.slice(0, MAX_TASK_REFS);
 }
 
+function normalizeActivityDetailValue(value, maxLen = 180) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value.trim().slice(0, maxLen);
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value).trim().slice(0, maxLen);
+  if (Array.isArray(value)) {
+    const compact = value
+      .map((item) => (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean')
+        ? String(item).trim()
+        : '')
+      .filter(Boolean)
+      .join(', ');
+    return compact.slice(0, maxLen);
+  }
+  if (typeof value === 'object') {
+    const candidate = String(
+      value?.displayName
+      || value?.name
+      || value?.title
+      || value?.label
+      || value?.id
+      || ''
+    ).trim();
+    return candidate.slice(0, maxLen);
+  }
+  return '';
+}
+
+function buildUserActivityDetail({
+  payload = {},
+  scopeType = '',
+  scopeId = '',
+  fromStatus = '',
+  toStatus = '',
+  comment = '',
+  projectRefs = [],
+}) {
+  const parts = [];
+  const pushPart = (value) => {
+    const normalized = normalizeActivityDetailValue(value, 220);
+    if (!normalized) return;
+    if (parts.includes(normalized)) return;
+    parts.push(normalized);
+  };
+  const pushLabeled = (label, value) => {
+    const normalized = normalizeActivityDetailValue(value, 180);
+    if (!normalized) return;
+    pushPart(`${label}: ${normalized}`);
+  };
+
+  if (fromStatus || toStatus) {
+    if (fromStatus && toStatus) pushPart(`${fromStatus} -> ${toStatus}`);
+    else pushPart(toStatus || fromStatus);
+  }
+  if (comment) pushPart(comment);
+
+  pushPart(payload?.message);
+  pushLabeled('Erreur', payload?.error || payload?.errorMessage || payload?.reason);
+  pushLabeled('Resultat', payload?.result);
+  pushLabeled('Utilisateur', payload?.username || payload?.targetUsername || payload?.displayName);
+  pushLabeled('Role', payload?.role);
+  pushLabeled('IP', payload?.ip || payload?.sourceIp);
+  pushLabeled('Tache', payload?.taskTitle || payload?.taskName);
+  pushLabeled('Rendu', payload?.renderName || payload?.expectedRenderName || payload?.matchedRenderName);
+  pushLabeled('Formulaire', payload?.formName);
+  pushLabeled('Preset', payload?.presetName || payload?.templateName || payload?.outputProfile);
+  pushLabeled('Projet', payload?.projectName || payload?.projectId || payload?.projectRef);
+
+  const scopeTypeText = normalizeActivityDetailValue(scopeType, 80);
+  const scopeIdText = normalizeActivityDetailValue(scopeId, 80);
+  if (scopeTypeText || scopeIdText) {
+    pushPart(`Scope: ${scopeTypeText}${scopeIdText ? `#${scopeIdText}` : ''}`);
+  }
+  if (Array.isArray(projectRefs) && projectRefs.length > 0) {
+    pushPart(`Projets: ${projectRefs.join(', ')}`);
+  }
+
+  const joined = parts.join(' | ').trim();
+  return joined.slice(0, 500);
+}
+
 function buildUserActivityPayload(row) {
   const payload = parseAuditPayloadJson(row?.payload_json);
+  const scopeType = String(row?.scope_type || '');
+  const scopeId = String(row?.scope_id || '');
+  const fromStatus = String(payload?.fromStatus || '').trim().slice(0, 120);
+  const toStatus = String(payload?.toStatus || '').trim().slice(0, 120);
+  const comment = String(payload?.comment || '').trim().slice(0, MAX_TASK_COMMENT_LEN);
+  const projectRefs = normalizeActivityProjectRefs(payload);
   return {
     id: Number(row?.id || 0),
     actorUserId: Number(row?.actor_user_id || 0),
     action: String(row?.action || ''),
-    scopeType: String(row?.scope_type || ''),
-    scopeId: String(row?.scope_id || ''),
+    scopeType,
+    scopeId,
     createdAt: row?.created_at || null,
     taskId: asOptionalPositiveInt(payload?.taskId),
     renderId: asOptionalPositiveInt(payload?.renderId),
-    fromStatus: String(payload?.fromStatus || '').trim().slice(0, 120),
-    toStatus: String(payload?.toStatus || '').trim().slice(0, 120),
-    projectRefs: normalizeActivityProjectRefs(payload),
-    comment: String(payload?.comment || '').trim().slice(0, MAX_TASK_COMMENT_LEN),
+    fromStatus,
+    toStatus,
+    projectRefs,
+    comment,
+    detail: buildUserActivityDetail({
+      payload,
+      scopeType,
+      scopeId,
+      fromStatus,
+      toStatus,
+      comment,
+      projectRefs,
+    }),
   };
 }
 
@@ -9632,6 +9970,33 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
       } catch {}
     }
     return roots;
+  }
+
+  function buildRenderOutputSubdir(jobId, projectName, baseDir) {
+    const paddedJobId = String(Math.trunc(Math.max(0, Number(jobId) || 0))).padStart(3, '0');
+    // eslint-disable-next-line no-control-regex
+    const cleanProjectName = String(projectName || '').trim().replace(/[/\\:*?"<>|]/g, '_').replace(/\s+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 80) || 'projet';
+    const subdirName = `${paddedJobId}_${cleanProjectName}`;
+    return path.join(String(baseDir || '').trim(), subdirName);
+  }
+
+  function createRenderOutputSubdir(jobId, projectName) {
+    try {
+      const raw = fs.readFileSync(commonServerFile, 'utf8');
+      const common = JSON.parse(raw || '{}');
+      const baseDir = String(
+        common?.render_output_dir ??
+        common?.renderOutputDir ??
+        (Array.isArray(common?.render_output_dirs) && common.render_output_dirs[0]) ??
+        ''
+      ).trim();
+      if (!baseDir) return { ok: false, error: 'render_output_dir_not_configured' };
+      const outputPath = buildRenderOutputSubdir(jobId, projectName, baseDir);
+      fs.mkdirSync(outputPath, { recursive: true });
+      return { ok: true, outputPath };
+    } catch (err) {
+      return { ok: false, error: String(err?.message || 'create_subdir_failed') };
+    }
   }
 
   function resolveAbsPathSafe(value) {
@@ -11657,7 +12022,7 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     renderDetectedScanMaxFiles,
     renderDetectedExtensions,
     renderDetectedScanState,
-    rolesCache,
+    get rolesCache() { return rolesCache; },
     normalizeUsername,
     sanitizeEmail,
     MAX_USERNAME_LEN,
@@ -11805,6 +12170,8 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     resolveRenderDetectedRoots,
     buildRenderJobPayload,
     shouldExposeDetectedRender,
+    buildRenderOutputSubdir,
+    createRenderOutputSubdir,
     requireRenderLaunchForProject,
     sanitizeRenderComment,
     buildRenderWorkerPayload,
@@ -11831,6 +12198,7 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     sanitizeRenderOutputPath,
     sanitizeRenderErrorMessage,
     inferRenderReviewStatus,
+    computeRenderTransitionState,
     canRenderValidate,
     buildRenderJobEventPayload,
     requireManageUsers,

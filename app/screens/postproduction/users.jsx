@@ -18,9 +18,9 @@ function UserManagementCard({
   usersError = "",
   projects = [],
   projectsLoading = false,
-  projectsError = "",
   onCreateUser = null,
   onUpdateUser = null,
+  onDeleteUser = null,
   onUpdateUserProjectPermissions = null,
   onLoadUserActivity = null,
   onLoadUserProjectPermissions = null,
@@ -28,6 +28,7 @@ function UserManagementCard({
   onEditUserIdHandled = null,
   onEditorModeChange = null,
   onNotify = null,
+  onOpenActivityTarget = null,
 }) {
   const {
     inEditor,
@@ -46,9 +47,9 @@ function UserManagementCard({
     usersError,
     projects,
     projectsLoading,
-    projectsError,
     onCreateUser,
     onUpdateUser,
+    onDeleteUser,
     onUpdateUserProjectPermissions,
     onLoadUserActivity,
     onLoadUserProjectPermissions,
@@ -71,7 +72,7 @@ function UserManagementCard({
       ) : null}
 
       {inEditor ? (
-        <UserEditorPanel {...editorPanelProps} />
+        <UserEditorPanel {...editorPanelProps} onOpenActivityTarget={onOpenActivityTarget} />
       ) : (
         <UserBrowsePanel {...browsePanelProps} />
       )}
@@ -85,4 +86,3 @@ export {
   UserManagementCard,
   RoleManagementCard,
 };
-

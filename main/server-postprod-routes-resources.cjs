@@ -5,6 +5,8 @@ async function handlePostprodResourcesRoutes({
   pathname = '',
   sendJSON,
   requireSession,
+  rolePermissions,
+  rolesCache,
   requireRenderDispatch,
   maybeSyncResourcesIndexFromLibrary,
   listPostprodResources,
@@ -20,6 +22,11 @@ async function handlePostprodResourcesRoutes({
   if (pathname === '/agent/postprod/resources') {
     const auth = requireSession(req, res, sendJSON);
     if (!auth) return true;
+    const actorPerms = rolePermissions(auth?.session?.role, rolesCache);
+    if (actorPerms.canViewResources !== true) {
+      sendJSON(res, 403, { ok: false, error: 'forbidden_resources' });
+      return true;
+    }
     if (req.method !== 'GET') {
       sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
       return true;
@@ -55,6 +62,11 @@ async function handlePostprodResourcesRoutes({
     }
     const auth = requireSession(req, res, sendJSON);
     if (!auth) return true;
+    const actorPerms = rolePermissions(auth?.session?.role, rolesCache);
+    if (actorPerms.canViewResources !== true) {
+      sendJSON(res, 403, { ok: false, error: 'forbidden_resources' });
+      return true;
+    }
     const dispatchPerms = requireRenderDispatch(auth, res, sendJSON);
     if (!dispatchPerms) return true;
     const syncResult = syncResourcesIndexFromLibrary(stmts, sharedStore, { now: nowIso() });
@@ -116,6 +128,11 @@ async function handlePostprodResourcesRoutes({
   if (postprodResourceMatch) {
     const auth = requireSession(req, res, sendJSON);
     if (!auth) return true;
+    const actorPerms = rolePermissions(auth?.session?.role, rolesCache);
+    if (actorPerms.canViewResources !== true) {
+      sendJSON(res, 403, { ok: false, error: 'forbidden_resources' });
+      return true;
+    }
     if (req.method !== 'GET') {
       sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
       return true;

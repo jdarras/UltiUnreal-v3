@@ -30,9 +30,9 @@ function ProfileActivityPanel({
   return (
     <div className="mt-12">
       <div className="uu-row uu-align-center" style={{ justifyContent: "space-between" }}>
-        <div className="uu-label">
+        <h4 className="uu-h3 uu-block-title">
           {safeT(t, "postprod.profile.activity.title", "Mon activite recente")}
-        </div>
+        </h4>
       </div>
       <ProfileActivityFiltersRow
         t={t}

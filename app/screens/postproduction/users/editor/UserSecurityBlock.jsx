@@ -4,7 +4,6 @@ function UserSecurityBlock({
   t,
   draft = {},
   setDraft,
-  usersLoading = false,
   isCreate = false,
   canBanUsers = false,
 }) {
@@ -20,7 +19,6 @@ function UserSecurityBlock({
           type="password"
           value={String(draft?.password || "")}
           onChange={(e) => setDraft((prev) => ({ ...(prev || {}), password: e.target.value }))}
-          disabled={usersLoading}
           placeholder={!isCreate
             ? safeT(t, "postprod.users.form.passwordOptional", "Laisser vide pour ne pas changer")
             : undefined}
@@ -31,7 +29,6 @@ function UserSecurityBlock({
           type="checkbox"
           checked={draft?.mustChangePassword === true}
           onChange={(e) => setDraft((prev) => ({ ...(prev || {}), mustChangePassword: e.target.checked }))}
-          disabled={usersLoading}
         />
         <span>{safeT(t, "postprod.users.form.mustChangePassword", "Doit changer le mot de passe")}</span>
       </label>
@@ -41,7 +38,6 @@ function UserSecurityBlock({
             type="checkbox"
             checked={draft?.isActive !== false}
             onChange={(e) => setDraft((prev) => ({ ...(prev || {}), isActive: e.target.checked }))}
-            disabled={usersLoading}
           />
           <span>{safeT(t, "postprod.users.form.isActive", "Compte disponible")}</span>
         </label>

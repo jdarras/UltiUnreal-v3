@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
 function safeT(t, key, fallback, params) {
   if (typeof t !== "function") return fallback;
@@ -24,7 +24,7 @@ export default function AuthGateScreen({
   return (
     <div className="uu-page uu-page-compact">
       <section className="uu-section uu-maxw-420" style={{ margin: "24px auto" }}>
-        <h2 className="uu-h3">
+        <h2 className="uu-h3 uu-block-title">
           {safeT(t, "app.auth.title", "Connexion utilisateur")}
         </h2>
 
@@ -75,3 +75,4 @@ export default function AuthGateScreen({
     </div>
   );
 }
+

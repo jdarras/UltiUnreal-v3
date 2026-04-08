@@ -59,6 +59,45 @@ function resolveDetailTransitionsState(renderTransitionsByRenderId = {}, detailR
   return state;
 }
 
+function buildPreviewStateOnOpen(previousState = {}, renderId = 0) {
+  const normalizedRenderId = toRenderId(renderId);
+  if (normalizedRenderId <= 0) return previousState || {};
+  return {
+    ...(previousState || {}),
+    [normalizedRenderId]: { index: 0, error: "" },
+  };
+}
+
+function buildPreviewStateAfterAdvance({
+  previousState = {},
+  renderId = 0,
+  candidateCount = 0,
+  unsupportedMessage = "",
+} = {}) {
+  const normalizedRenderId = toRenderId(renderId);
+  if (normalizedRenderId <= 0) return previousState || {};
+  const state = previousState || {};
+  const current = (
+    state?.[normalizedRenderId]
+    && typeof state[normalizedRenderId] === "object"
+  ) ? state[normalizedRenderId] : { index: 0, error: "" };
+  const total = Number(candidateCount || 0);
+  const nextIndex = Number(current.index || 0) + 1;
+  if (nextIndex < total) {
+    return {
+      ...state,
+      [normalizedRenderId]: { index: nextIndex, error: "" },
+    };
+  }
+  return {
+    ...state,
+    [normalizedRenderId]: {
+      index: Number(current.index || 0),
+      error: String(unsupportedMessage || "").trim(),
+    },
+  };
+}
+
 function buildTransitionLoadError(t, error) {
   return String(error?.message || safeT(t, "postprod.renders.logs.error", "Impossible de charger les logs d'execution."));
 }
@@ -93,6 +132,8 @@ function collectRenderThumbCandidates(render = null) {
 export {
   EMPTY_PREVIEW_STATE,
   EMPTY_TRANSITIONS_STATE,
+  buildPreviewStateAfterAdvance,
+  buildPreviewStateOnOpen,
   buildTransitionLoadError,
   collectRenderThumbCandidates,
   resolveDetailPreview,

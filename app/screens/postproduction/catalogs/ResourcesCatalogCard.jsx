@@ -1,4 +1,4 @@
-import { formatDate, safeT } from "../shared/helpers";
+﻿import { formatDate, safeT } from "../shared/helpers";
 import { useResourcesCatalogController } from "./hooks/useResourcesCatalogController";
 import { ResourcesCatalogListPanel } from "./components/ResourcesCatalogListPanel";
 import { ResourcesCatalogDetailPanel } from "./components/ResourcesCatalogDetailPanel";
@@ -57,7 +57,7 @@ function ResourcesCatalogCard({
   return (
     <section className="uu-section">
       <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-        <h3 className="uu-h3">{safeT(t, "postprod.resources.title", "Ressources Post-production")}</h3>
+        <h3 className="uu-h3 uu-block-title">{safeT(t, "postprod.resources.title", "Ressources Post-production")}</h3>
         <div className="uu-row uu-gap-4">
           <button
             type="button"
@@ -203,3 +203,4 @@ function ResourcesCatalogCard({
 }
 
 export { ResourcesCatalogCard };
+

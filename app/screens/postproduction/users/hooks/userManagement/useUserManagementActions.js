@@ -1,3 +1,5 @@
+import { useCallback, useMemo, useState } from "react";
+import { useConfirmDialogState } from "../../../catalogs/hooks/useConfirmDialogState";
 import { useUserAutosave } from "../useUserAutosave";
 import { useUserEditorActions } from "../useUserEditorActions";
 import { useUserListSortController } from "../useUserListSortController";
@@ -12,6 +14,7 @@ export function useUserManagementActions({
   usersLoading = false,
   onCreateUser = null,
   onUpdateUser = null,
+  onDeleteUser = null,
   onNotify = null,
   editUserIdRequest = null,
   onEditUserIdHandled = null,
@@ -19,11 +22,6 @@ export function useUserManagementActions({
 } = {}) {
   const {
     roleOptions,
-    projectOptions,
-    selectedPermissionProjectRef,
-    setSelectedPermissionProjectRef,
-    canManageProjectPermissions = false,
-    loadUserProjectPermissions,
     loadUserActivity,
     setDraft,
     setEditorAvatarError,
@@ -31,7 +29,6 @@ export function useUserManagementActions({
     setEditingUserId,
     setEditorMode,
     resetEditorDraft,
-    resetPermissionState,
     resetActivityState,
     orderedUsers,
     listSortMode,
@@ -42,7 +39,37 @@ export function useUserManagementActions({
     editorMode,
     editingUserId,
     rolesByKey,
+    editorInputFocused,
   } = state;
+
+  const [deleteUserBusy, setDeleteUserBusy] = useState(false);
+
+  const editingEntry = useMemo(
+    () =>
+      Array.isArray(orderedUsers)
+        ? orderedUsers.find((entry) => Number(entry?.id || 0) === Number(editingUserId || 0)) || null
+        : null,
+    [orderedUsers, editingUserId]
+  );
+
+  const deleteUserTargetName = useMemo(
+    () =>
+      String(
+        editingEntry?.displayName
+        || draft?.displayName
+        || editingEntry?.username
+        || ""
+      ).trim(),
+    [editingEntry, draft?.displayName]
+  );
+
+  const deleteDialog = useConfirmDialogState({
+    canOpen: () =>
+      editorMode === "edit"
+      && Number(editingUserId || 0) > 0
+      && typeof onDeleteUser === "function"
+      && !deleteUserBusy,
+  });
 
   const {
     openCreate,
@@ -50,11 +77,6 @@ export function useUserManagementActions({
     closeEditor,
   } = useUserEditorActions({
     roleOptions,
-    projectOptions,
-    selectedPermissionProjectRef,
-    setSelectedPermissionProjectRef,
-    canManageProjectPermissions,
-    loadUserProjectPermissions,
     loadUserActivity,
     setDraft,
     setEditorAvatarError,
@@ -62,7 +84,6 @@ export function useUserManagementActions({
     setEditingUserId,
     setEditorMode,
     resetEditorDraft,
-    resetPermissionState,
     resetActivityState,
   });
 
@@ -108,6 +129,7 @@ export function useUserManagementActions({
     editorMode,
     editingUserId,
     usersLoading,
+    editorInputFocused,
     onUpdateUser,
     buildUserPayloadFromDraft,
     draft,
@@ -126,6 +148,26 @@ export function useUserManagementActions({
     rolesByKey,
   });
 
+  const requestDeleteUser = useCallback(() => {
+    if (deleteUserBusy) return;
+    deleteDialog.openDialog();
+  }, [deleteUserBusy, deleteDialog]);
+
+  const confirmDeleteUser = useCallback(async () => {
+    if (deleteUserBusy || typeof onDeleteUser !== "function") return;
+    const targetUserId = Number(editingUserId || 0);
+    if (!Number.isFinite(targetUserId) || targetUserId <= 0) return;
+    setDeleteUserBusy(true);
+    try {
+      const ok = await onDeleteUser(targetUserId);
+      if (ok === false) return;
+      deleteDialog.closeDialog();
+      closeEditor?.();
+    } finally {
+      setDeleteUserBusy(false);
+    }
+  }, [deleteUserBusy, onDeleteUser, editingUserId, deleteDialog, closeEditor]);
+
   return {
     openCreate,
     openEdit,
@@ -143,6 +185,14 @@ export function useUserManagementActions({
     editorAvatarPath,
     editorAvatarSrc,
     editorAvatarInitials,
+    canDeleteUser: editorMode === "edit" && Number(editingUserId || 0) > 0 && typeof onDeleteUser === "function",
+    deleteUserTargetName,
+    requestDeleteUser,
+    cancelDeleteUser: deleteDialog.closeDialog,
+    confirmDeleteUser,
+    deleteDialogOpen: deleteDialog.open,
+    deleteDialogConfirmRef: deleteDialog.confirmRef,
+    deleteUserBusy,
   };
 }
 

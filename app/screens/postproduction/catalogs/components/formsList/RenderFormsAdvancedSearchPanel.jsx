@@ -13,7 +13,7 @@ function RenderFormsAdvancedSearchPanel({
   return (
     <div className="uu-card uu-col uu-gap-12" style={{ marginBottom: "12px" }}>
       <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-        <strong>{safeT(t, "postprod.data.forms.search.advancedTitle", "Recherche avancee formulaires")}</strong>
+        <strong className="uu-block-title">{safeT(t, "postprod.data.forms.search.advancedTitle", "Recherche avancee formulaires")}</strong>
         <div className="uu-muted">
           {sortedForms.length
             ? `(${sortedForms.length} ${safeT(t, "postprod.data.forms.search.resultsLabel", "resultats")})`

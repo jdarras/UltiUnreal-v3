@@ -1,4 +1,4 @@
-import { safeT } from "../../../shared/helpers";
+﻿import { safeT } from "../../../shared/helpers";
 
 function TaskEditorTitleFields({
   t,
@@ -11,7 +11,7 @@ function TaskEditorTitleFields({
 }) {
   return (
     <>
-      <h4 className="uu-h3" style={{ marginBottom: "10px" }}>
+      <h4 className="uu-h3 uu-block-title" style={{ marginBottom: "10px" }}>
         {isEditingTask
           ? safeT(t, "postprod.tasks.editTitle", "Modifier tache")
           : safeT(t, "postprod.tasks.createTitle", "Nouvelle tache")}
@@ -47,3 +47,4 @@ function TaskEditorTitleFields({
 }
 
 export { TaskEditorTitleFields };
+

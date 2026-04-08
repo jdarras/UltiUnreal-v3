@@ -125,7 +125,7 @@ function RendersToolbar({
       {searchExpanded ? (
         <div className="uu-card uu-col uu-gap-12 mt-12">
           <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-            <strong>{safeT(t, "projects.search.advancedTitle", "Recherche avancee")}</strong>
+            <strong className="uu-block-title">{safeT(t, "projects.search.advancedTitle", "Recherche avancee")}</strong>
             <div className="uu-muted">
               {sortedDisplayedRendersCount > 0 ? `(${sortedDisplayedRendersCount})` : ""}
             </div>
@@ -181,4 +181,3 @@ function RendersToolbar({
 }
 
 export { RendersToolbar };
-

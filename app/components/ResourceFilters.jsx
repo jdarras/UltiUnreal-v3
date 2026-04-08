@@ -84,7 +84,7 @@ export default function ResourceFilters({
         <div className="uu-section">
           <div className="uu-card uu-col uu-gap-12">
             <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-              <strong>{t('resources.search.advancedTitle') || 'Advanced search'}</strong>
+              <strong className="uu-block-title">{t('resources.search.advancedTitle') || 'Advanced search'}</strong>
               <div className="uu-muted">
                 {filteredCount ? `(${filteredCount} ${t('resources.search.resultsLabel') || 'results'})` : ''}
               </div>

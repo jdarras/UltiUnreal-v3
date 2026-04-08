@@ -124,11 +124,14 @@ async function handlePostprodRenderTransitionRoutes({
     tx();
 
     const updated = stmts.findRenderJobById.get(renderId);
+    const updatedPayload = buildRenderJobPayload(updated);
     audit(
       auth.session.user_id,
       'render_worker_complete',
       {
         renderId,
+        taskId: Number(updatedPayload?.linkedTaskId || 0) || null,
+        taskTitle: String(updatedPayload?.linkedTaskTitle || ''),
         workerKey,
         success: isSuccess,
         toStatus,
@@ -233,11 +236,14 @@ async function handlePostprodRenderTransitionRoutes({
     tx();
 
     const updated = stmts.findRenderJobById.get(renderId);
+    const updatedPayload = buildRenderJobPayload(updated);
     audit(
       auth.session.user_id,
       'render_transition',
       {
         renderId,
+        taskId: Number(updatedPayload?.linkedTaskId || 0) || null,
+        taskTitle: String(updatedPayload?.linkedTaskTitle || ''),
         fromStatus: next.fromStatus,
         toStatus: next.toStatus,
       },

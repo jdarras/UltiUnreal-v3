@@ -44,6 +44,8 @@ function normalizeRoleKey(roleValue) {
 }
 
 export function canEditRenderReviewStatus(user) {
+  if (!user) return false;
+  if (typeof user?.permissions?.canValidate === 'boolean') return user.permissions.canValidate;
   const normalized = normalizeRoleKey(user?.role);
   if (!normalized) return false;
   return (

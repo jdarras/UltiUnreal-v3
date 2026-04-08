@@ -7,7 +7,6 @@ import {
   computeRoleUsersKey,
   createEmptyRoleDraft,
 } from "./role/roleDraftHelpers";
-import { rolePermissionsSummary } from "./role/roleSummaryHelpers";
 
 export function useRoleManagementCardController({
   t,
@@ -15,6 +14,7 @@ export function useRoleManagementCardController({
   rolesLoading = false,
   onCreateRole = null,
   onUpdateRole = null,
+  onOpenUser = null,
   users = [],
 } = {}) {
   const roleRows = useMemo(() => (
@@ -112,11 +112,22 @@ export function useRoleManagementCardController({
     return candidate !== editingRoleKey;
   });
 
-  const submitDisabled = rolesLoading || !String(draft?.displayName || "").trim();
+  const displayNameTrimmed = String(draft?.displayName || "").replace(/\s+/g, " ").trim();
+  const displayNameLower = displayNameTrimmed.toLowerCase();
+  const isDuplicateDisplayName = roleRows.some((row) => {
+    const rowKey = String(row?.key || "").trim().toLowerCase();
+    const rowDisplayName = String(row?.displayName || "").replace(/\s+/g, " ").trim().toLowerCase();
+    if (editorMode === "edit" && rowKey === editingRoleKey.toLowerCase()) return false;
+    return rowKey === displayNameLower || rowDisplayName === displayNameLower;
+  });
+  const displayNameInvalid = !displayNameTrimmed || isDuplicateDisplayName;
+
+  const submitDisabled = rolesLoading || displayNameInvalid;
   const {
     roleAutosaveBusy,
     roleAutosaveError,
     roleAutosaveInfo,
+    saveNow,
   } = useRoleAutosave({
     t,
     editorMode,
@@ -138,8 +149,11 @@ export function useRoleManagementCardController({
     toggleDraftManageable,
     roleUsersKey,
     usersForRole,
+    onOpenUser,
     submitDisabled,
     submitEditor,
+    displayNameInvalid,
+    saveNow,
     roleAutosaveBusy,
     roleAutosaveError,
     roleAutosaveInfo,
@@ -148,14 +162,15 @@ export function useRoleManagementCardController({
   const roleListPanelProps = {
     t,
     roleRows,
+    users,
     rolesLoading,
-    rolePermissionsSummary: (role) => rolePermissionsSummary(t, role),
     openEdit,
   };
 
   return {
     inEditor,
     openCreate,
+    closeEditor,
     roleEditorPanelProps,
     roleListPanelProps,
   };

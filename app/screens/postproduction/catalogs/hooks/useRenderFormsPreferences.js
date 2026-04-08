@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useDebouncedLocalStorage } from "../../shared/useDebouncedLocalStorage";
-import { readStorageJsonObject, readStorageString } from "../../shared/storage";
+import {
+  buildFormsScopeKey,
+  buildFormsStorageKeys,
+  buildInitialFormsState,
+  normalizeFormsSortSelect,
+  stringifyFormsFavorites,
+  stringifyFormsSort,
+  usePersistRenderFormsPreferences,
+} from "./renderFormsPreferencesHelpers";
 
 function useRenderFormsPreferences({ selectedProjectRef = "" } = {}) {
-  const formsScopeKey = String(selectedProjectRef || "global").trim().toLowerCase() || "global";
-  const formsViewStorageKey = `uu_postprod_forms_view_${formsScopeKey}`;
-  const formsSortStorageKey = `uu_postprod_forms_sort_${formsScopeKey}`;
-  const formsFavoritesStorageKey = `uu_postprod_forms_favorites_${formsScopeKey}`;
-  const formsFavoriteOnlyStorageKey = `uu_postprod_forms_favorite_only_${formsScopeKey}`;
+  const formsScopeKey = buildFormsScopeKey(selectedProjectRef);
+  const {
+    formsViewStorageKey,
+    formsSortStorageKey,
+    formsFavoritesStorageKey,
+    formsFavoriteOnlyStorageKey,
+  } = useMemo(() => buildFormsStorageKeys(formsScopeKey), [formsScopeKey]);
 
   const [formsViewMode, setFormsViewMode] = useState("thumbs");
   const [formsSortMode, setFormsSortMode] = useState("name");
@@ -24,83 +33,44 @@ function useRenderFormsPreferences({ selectedProjectRef = "" } = {}) {
   });
 
   useEffect(() => {
-    let nextView = "thumbs";
-    let nextSortMode = "name";
-    let nextSortDir = "asc";
-    let nextFavoriteOnly = false;
-    let nextFavorites = {};
-    try {
-      const storedView = readStorageString(formsViewStorageKey).trim().toLowerCase();
-      if (storedView === "thumbs" || storedView === "list") nextView = storedView;
-
-      const rawSort = readStorageString(formsSortStorageKey).trim();
-      if (rawSort) {
-        const parsed = JSON.parse(rawSort);
-        const mode = String(parsed?.mode || "").trim();
-        const dir = String(parsed?.dir || "").trim().toLowerCase();
-        if (
-          mode === "name"
-          || mode === "updatedAt"
-          || mode === "projectName"
-          || mode === "mapName"
-          || mode === "templateName"
-          || mode === "modeDefault"
-          || mode === "presetName"
-          || mode === "isActive"
-        ) {
-          nextSortMode = mode;
-        }
-        if (dir === "asc" || dir === "desc") nextSortDir = dir;
-      }
-      nextFavoriteOnly = readStorageString(formsFavoriteOnlyStorageKey).trim().toLowerCase() === "true";
-      nextFavorites = readStorageJsonObject(formsFavoritesStorageKey, {});
-    } catch {}
-    setFormsViewMode(nextView);
-    setFormsSortMode(nextSortMode);
-    setFormsSortDir(nextSortDir);
-    setFormsFavoriteOnly(nextFavoriteOnly);
-    setFormsFavorites(nextFavorites);
+    const nextState = buildInitialFormsState({
+      formsViewStorageKey,
+      formsSortStorageKey,
+      formsFavoritesStorageKey,
+      formsFavoriteOnlyStorageKey,
+    });
+    setFormsViewMode(nextState.formsViewMode);
+    setFormsSortMode(nextState.formsSortMode);
+    setFormsSortDir(nextState.formsSortDir);
+    setFormsFavoriteOnly(nextState.formsFavoriteOnly);
+    setFormsFavorites(nextState.formsFavorites);
   }, [formsViewStorageKey, formsSortStorageKey, formsFavoriteOnlyStorageKey, formsFavoritesStorageKey]);
 
-  const formsSortStorageValue = useMemo(() => (
-    JSON.stringify({
-      mode: formsSortMode,
-      dir: formsSortDir,
-    })
-  ), [formsSortMode, formsSortDir]);
-  const formsFavoritesStorageValue = useMemo(() => {
-    try {
-      return JSON.stringify(formsFavorites || {});
-    } catch {
-      return "{}";
-    }
-  }, [formsFavorites]);
+  const formsSortStorageValue = useMemo(
+    () => stringifyFormsSort(formsSortMode, formsSortDir),
+    [formsSortMode, formsSortDir]
+  );
+  const formsFavoritesStorageValue = useMemo(
+    () => stringifyFormsFavorites(formsFavorites),
+    [formsFavorites]
+  );
 
-  useDebouncedLocalStorage(formsViewStorageKey, String(formsViewMode || "thumbs"), 180);
-  useDebouncedLocalStorage(formsSortStorageKey, formsSortStorageValue, 220);
-  useDebouncedLocalStorage(formsFavoriteOnlyStorageKey, formsFavoriteOnly ? "true" : "false", 180);
-  useDebouncedLocalStorage(formsFavoritesStorageKey, formsFavoritesStorageValue, 280);
+  usePersistRenderFormsPreferences({
+    formsViewStorageKey,
+    formsSortStorageKey,
+    formsFavoriteOnlyStorageKey,
+    formsFavoritesStorageKey,
+    formsViewMode,
+    formsSortStorageValue,
+    formsFavoriteOnly,
+    formsFavoritesStorageValue,
+  });
 
   const setSortFromSelect = useCallback((valueRaw) => {
-    const raw = String(valueRaw || "").trim();
-    if (!raw) return;
-    const [modeCandidate, dirCandidate] = raw.split(":");
-    const mode = String(modeCandidate || "").trim();
-    const dir = String(dirCandidate || "").trim().toLowerCase();
-    if (
-      mode !== "name"
-      && mode !== "updatedAt"
-      && mode !== "projectName"
-      && mode !== "mapName"
-      && mode !== "templateName"
-      && mode !== "modeDefault"
-      && mode !== "presetName"
-      && mode !== "isActive"
-    ) {
-      return;
-    }
-    setFormsSortMode(mode);
-    setFormsSortDir(dir === "desc" ? "desc" : "asc");
+    const parsed = normalizeFormsSortSelect(valueRaw);
+    if (!parsed) return;
+    setFormsSortMode(parsed.mode);
+    setFormsSortDir(parsed.dir);
   }, []);
 
   return {

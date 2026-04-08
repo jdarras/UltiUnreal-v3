@@ -29,7 +29,7 @@ function TasksAdvancedSearchPanel({
   return (
     <div className="uu-card uu-col uu-gap-12 mt-12">
       <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-        <strong>{safeT(t, "postprod.tasks.search.advancedTitle", "Recherche avancee")}</strong>
+        <strong className="uu-block-title">{safeT(t, "postprod.tasks.search.advancedTitle", "Recherche avancee")}</strong>
         <div className="uu-muted">
           {displayedCount ? `(${displayedCount})` : ""}
         </div>
@@ -150,4 +150,3 @@ function TasksAdvancedSearchPanel({
 }
 
 export { TasksAdvancedSearchPanel };
-

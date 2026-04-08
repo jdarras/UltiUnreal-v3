@@ -1,11 +1,12 @@
-/* app/global.css */
+﻿/* app/global.css */
 
 /* Palette de base (facultatif) */
 :root{
   --border: #362b2b;
   --uu-color-text: #E5E7EB;
   --uu-color-text-muted: #9CA3AF;
-    
+  --uu-color-block-title: #a9c0db;
+
   /* Palette principale */
   --uu-color-sidebar:#1e1e20;
   --uu-color-topbar:#1e1e20;
@@ -26,6 +27,10 @@
   /* Notices */
   --uu-ok: #4ade80;
   --uu-error: #f97373;
+
+  /* Champs de formulaire invalides */
+  --uu-field-invalid-bg: rgba(180, 50, 50, 0.18);
+  --uu-field-invalid-border: rgba(200, 60, 60, 0.6);
 
   /* Scrollbars */
   --uu-scrollbar-size: 10px;
@@ -95,7 +100,7 @@ textarea::placeholder {
               border:1px solid var(--uu-color-border); }
 .uu-screen-offset-small .uu-page-compact > .uu-section:first-child { margin-top: 8px; }
 .uu-section-prod-header { margin-bottom: 8px; }
-.uu-h3 { margin-top: 0; }
+.uu-h3 { margin: 0; font-size: 16px; font-weight: 600; color: var(--uu-color-block-title); }
 
 .uu-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .uu-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
@@ -521,11 +526,7 @@ textarea::placeholder {
 .uu-item-title-spacer {
   flex: 1;
 }
-.uu-block-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #a9c0db;
-}
+.uu-block-title { font-size: 16px; font-weight: 600; color: var(--uu-color-block-title); }
 
 /* Sidebar */
 .uu-sidebar {
@@ -972,6 +973,8 @@ textarea::placeholder {
 }
 
 .uu-input-label { max-width: 220px;  /* ajuste à 180 / 200 si tu veux encore plus petit */}
+
+.uu-input-invalid { background: var(--uu-field-invalid-bg) !important; border-color: var(--uu-field-invalid-border) !important; }
 
 /* Optionnel : éviter que le champ alpha soit gigantesque */
 .uu-input-alpha { max-width: 80px; }
@@ -1618,4 +1621,5 @@ button:not(.uu-reset-btn):not(.uu-btn-delete):not(.uu-rating-btn):not(.uu-fav-bt
   .uu-render-detail-overlay { padding: 10px; }
   .uu-render-detail-layout { grid-template-columns: 1fr; }
 }
+
 

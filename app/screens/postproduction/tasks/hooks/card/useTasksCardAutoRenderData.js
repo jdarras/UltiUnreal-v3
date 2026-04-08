@@ -1,5 +1,10 @@
 import { useTaskAutoRenderController } from "../useTaskAutoRenderController";
 import { useTaskPayloadBuilder } from "../useTaskPayloadBuilder";
+import {
+  buildTaskAutoRenderControllerInput,
+  buildTaskPayloadBuilderInput,
+} from "./buildTasksCardAutoRenderInput";
+import { buildTasksCardAutoRenderOutput } from "./buildTasksCardAutoRenderOutput";
 
 export function useTasksCardAutoRenderData({
   t,
@@ -14,91 +19,34 @@ export function useTasksCardAutoRenderData({
   onLoadRenderFormFields = null,
   onLoadProjectUnrealCatalog = null,
 } = {}) {
-  const {
-    expectedRenderCountInput,
-    autoRenderWorkerKey,
-    setAutoRenderWorkerKey,
-    autoRenderFormId,
-    setAutoRenderFormId,
-    autoRenderTemplateId,
-    setAutoRenderTemplateId,
-    autoRenderFormFields,
-    autoRenderFormFieldsLoading,
-    autoRenderFormFieldsError,
-    autoRenderFormValues,
-    setAutoRenderFormValues,
-    autoRenderProjectCatalogLoading,
-    autoRenderProjectCatalogError,
-    autoRenderLaunchMode,
-    setAutoRenderLaunchMode,
-    filteredAutoRenderForms,
-    selectedAutoRenderForm,
-    visibleAutoRenderFormFields,
-    selectedAutoRenderProjectRef,
-    renderTemplatesForSelectedAutoForm,
-    selectedAutoRenderTemplate,
-    autoExpectedRenderName,
-    projectOptionByRef,
-    projectLookupByAny,
-    resetAutoRenderState,
-    hydrateAutoRenderFromTask,
-  } = useTaskAutoRenderController({
-    t,
-    title,
-    normalizedProjectOptions,
-    normalizedRenderTemplateOptions,
-    renderForms,
-    availableRenderWorkers,
-    onLoadRenderFormFields,
-    onLoadProjectUnrealCatalog,
-  });
+  const autoRender = useTaskAutoRenderController(
+    buildTaskAutoRenderControllerInput({
+      t,
+      title,
+      normalizedProjectOptions,
+      normalizedRenderTemplateOptions,
+      renderForms,
+      availableRenderWorkers,
+      onLoadRenderFormFields,
+      onLoadProjectUnrealCatalog,
+    })
+  );
 
   const { buildTaskPayloadFromCurrentForm } = useTaskPayloadBuilder({
-    t,
-    title,
-    description,
-    expectedRenderCountInput,
-    filteredAutoRenderForms,
-    autoRenderFormId,
-    autoRenderWorkerKey,
-    renderOutputDir,
-    selectedAutoRenderTemplate,
-    renderTemplatesForSelectedAutoForm,
-    autoRenderFormFields,
-    autoRenderFormValues,
-    selectedResourceRefs,
-    selectedAutoRenderForm,
-    selectedAutoRenderProjectRef,
-    projectOptionByRef,
-    projectLookupByAny,
+    ...buildTaskPayloadBuilderInput({
+      t,
+      title,
+      description,
+      renderOutputDir,
+      selectedResourceRefs,
+      autoRender,
+    }),
   });
 
-  return {
-    autoRenderWorkerKey,
-    setAutoRenderWorkerKey,
-    autoRenderFormId,
-    setAutoRenderFormId,
-    autoRenderTemplateId,
-    setAutoRenderTemplateId,
-    autoRenderFormFields,
-    autoRenderFormFieldsLoading,
-    autoRenderFormFieldsError,
-    autoRenderFormValues,
-    setAutoRenderFormValues,
-    autoRenderProjectCatalogLoading,
-    autoRenderProjectCatalogError,
-    autoRenderLaunchMode,
-    setAutoRenderLaunchMode,
-    filteredAutoRenderForms,
-    selectedAutoRenderForm,
-    visibleAutoRenderFormFields,
-    renderTemplatesForSelectedAutoForm,
-    autoExpectedRenderName,
-    resetAutoRenderState,
-    hydrateAutoRenderFromTask,
+  return buildTasksCardAutoRenderOutput({
+    autoRender,
     buildTaskPayloadFromCurrentForm,
-  };
+  });
 }
 
 export default useTasksCardAutoRenderData;
-

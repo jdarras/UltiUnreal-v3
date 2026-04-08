@@ -167,7 +167,7 @@ function UserThumbCard({
             title={!canEditRow ? safeT(t, "postprod.users.readOnly", "Lecture seule pour ce role.") : undefined}
             onClick={() => openEdit?.(entry)}
           >
-            {safeT(t, "postprod.users.action.edit", "Editer")}
+            {safeT(t, "postprod.users.action.edit", "Éditer")}
           </button>
         </div>
         <div />

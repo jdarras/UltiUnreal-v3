@@ -4,6 +4,7 @@ import { TaskRowActions } from "../components/TaskRowActions";
 function useTasksUiActions({
   t,
   tasksLoading = false,
+  canCreateTasks = false,
   showCreateForm = false,
   onDeleteTask = null,
   openTaskEditor = null,
@@ -16,6 +17,7 @@ function useTasksUiActions({
   setListRenderModeFilter = null,
   setFavoriteOnly = null,
   setSearchExpanded = null,
+  setAutoRenderProjectRef = null,
   setAutoRenderFormId = null,
   setAutoRenderTemplateId = null,
   setAutoRenderFormValues = null,
@@ -27,12 +29,12 @@ function useTasksUiActions({
     <TaskRowActions
       t={t}
       task={task}
-      disabledEdit={tasksLoading && !showCreateForm}
-      disabledDelete={tasksLoading || typeof onDeleteTask !== "function"}
+      disabledEdit={!canCreateTasks || (tasksLoading && !showCreateForm)}
+      disabledDelete={!canCreateTasks || tasksLoading || typeof onDeleteTask !== "function"}
       onEdit={openTaskEditor}
       onDelete={openDeleteTaskDialog}
     />
-  ), [t, tasksLoading, showCreateForm, onDeleteTask, openTaskEditor, openDeleteTaskDialog]);
+  ), [t, canCreateTasks, tasksLoading, showCreateForm, onDeleteTask, openTaskEditor, openDeleteTaskDialog]);
 
   const clearListFilters = useCallback(() => {
     setSearchQuery?.("");
@@ -73,6 +75,21 @@ function useTasksUiActions({
     setFormError?.("");
   }, [setAutoRenderFormId, setAutoRenderTemplateId, setAutoRenderFormValues, setFormError]);
 
+  const changeAutoRenderProject = useCallback((value) => {
+    const nextRef = String(value || "").trim();
+    setAutoRenderProjectRef?.(nextRef);
+    setAutoRenderFormId?.("");
+    setAutoRenderTemplateId?.("");
+    setAutoRenderFormValues?.({});
+    setFormError?.("");
+  }, [
+    setAutoRenderProjectRef,
+    setAutoRenderFormId,
+    setAutoRenderTemplateId,
+    setAutoRenderFormValues,
+    setFormError,
+  ]);
+
   const changeAutoRenderTemplate = useCallback((value) => {
     setAutoRenderTemplateId?.(value);
     setFormError?.("");
@@ -93,6 +110,7 @@ function useTasksUiActions({
     openAdvancedSearch,
     closeAdvancedSearch,
     toggleFavoriteOnly,
+    changeAutoRenderProject,
     changeAutoRenderForm,
     changeAutoRenderTemplate,
     changeAutoRenderWorker,

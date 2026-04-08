@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { readIdentity } from '../utils/identity';
 import { createT } from '../i18n';
 
@@ -100,7 +100,7 @@ export default function LicenseScreen({
     <div className="uu-page license-page">
       <div className="uu-section license-card">
         <div className="license-header">
-          <h3 className="uu-h3">{t('license.title')}</h3>
+          <h3 className="uu-h3 uu-block-title">{t('license.title')}</h3>
           <div className={`license-status ${licenseOk ? 'ok' : 'bad'}`}>
             {getStatusLabel()}
           </div>
@@ -156,3 +156,4 @@ export default function LicenseScreen({
     </div>
   );
 }
+

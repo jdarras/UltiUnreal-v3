@@ -1,4 +1,4 @@
-import { safeT } from "../../shared/helpers";
+﻿import { safeT } from "../../shared/helpers";
 import { RendersListTableView } from "./list/RendersListTableView";
 import { RendersThumbsView } from "./list/RendersThumbsView";
 
@@ -26,7 +26,7 @@ function RendersListPanel({
   return (
     <div className="uu-card mt-12">
       <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
-        <h4 className="uu-h3" style={{ margin: 0 }}>
+        <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
           {safeT(t, "postprod.renders.list.title", "Liste des rendus")}
         </h4>
       </div>
@@ -78,3 +78,4 @@ function RendersListPanel({
 }
 
 export { RendersListPanel };
+

@@ -2484,7 +2484,7 @@ React.useEffect(() => {
         <div className="uu-section">
           <div className="uu-card uu-col uu-gap-12">
             <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-              <strong>{t('resources.search.advancedTitle')}</strong>
+              <strong className="uu-block-title">{t('resources.search.advancedTitle')}</strong>
               <div className="uu-muted">
                 {filteredResources.length ? `(${filteredResources.length} ${t('resources.search.resultsLabel')})` : ''}
               </div>

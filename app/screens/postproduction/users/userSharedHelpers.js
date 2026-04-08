@@ -11,6 +11,8 @@ export {
   activityTypeChipLevel,
   normalizeActivityProjectRef,
   activityActionTypeFromAction,
+  mapActivityActionTypeToApi,
+  activityMatchesSelectedType,
   getActivityTypeSummary,
   activityMatchesSearchQuery,
 } from "./shared/activityHelpers";

@@ -8,6 +8,7 @@ export default function ProjectsCardsView({
   openDetails,
   activateOne,
   onToggleFavorite,
+  onCreateTaskFromProject,
   startIntegration,
   stopIntegration,
   serverHost,
@@ -17,6 +18,8 @@ export default function ProjectsCardsView({
   integrationMsgType,
   removeOne,
   canManageUnrealProjects = true,
+  canCreateTasks = false,
+  isAutoRenderUsage = null,
   showActivationControls = true,
 }) {
   const usageModeLabel = (value) => {
@@ -31,6 +34,16 @@ export default function ProjectsCardsView({
   const renderCard = (p, key, style) => {
     const isActive = !!p.isActive;
     const isFav = p?.favorite === true;
+    const canCreateTask = (
+      canCreateTasks === true
+      && typeof onCreateTaskFromProject === 'function'
+      && (
+        typeof isAutoRenderUsage === 'function'
+          ? isAutoRenderUsage(p?.metaUsageMode || p?.usageMode, p?.metaStatus || p?.status)
+          : String(p?.metaUsageMode || p?.usageMode || '').trim() === 'auto_render'
+      )
+    );
+    const showStartButton = canManageUnrealProjects && !!serverHost;
     const maps = p.maps || {};
     const gameMap = maps.defaultGame || maps.gameDefaultMap || '';
     const editorMap = maps.defaultEditor || maps.editorStartupMap || '';
@@ -185,7 +198,7 @@ export default function ProjectsCardsView({
                 </button>
               ) : null}
 
-              {canManageUnrealProjects && !showActivationControls && serverHost ? (
+              {showStartButton && !showActivationControls ? (
                 <button
                   type="button"
                   className="uu-btn"
@@ -194,6 +207,16 @@ export default function ProjectsCardsView({
                   title={t('projects.integration.hint')}
                 >
                   {integrationBusy ? '...' : t('launch.buttons.start')}
+                </button>
+              ) : null}
+
+              {canCreateTask && showStartButton ? (
+                <button
+                  type="button"
+                  className="uu-btn"
+                  onClick={() => onCreateTaskFromProject?.(p.id)}
+                >
+                  {t('projects.actions.createTask', 'Tâche')}
                 </button>
               ) : null}
 
@@ -206,6 +229,16 @@ export default function ProjectsCardsView({
                   title={t('resources.detail.labels.favorite') || 'Favoris'}
                 >
                   ★
+                </button>
+              ) : null}
+
+              {canCreateTask && !showStartButton ? (
+                <button
+                  type="button"
+                  className="uu-btn"
+                  onClick={() => onCreateTaskFromProject?.(p.id)}
+                >
+                  {t('projects.actions.createTask', 'Tâche')}
                 </button>
               ) : null}
 

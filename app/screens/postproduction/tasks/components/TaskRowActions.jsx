@@ -16,7 +16,7 @@ function TaskRowActions({
         disabled={disabledEdit}
         onClick={() => onEdit?.(task)}
       >
-        {safeT(t, "postprod.tasks.action.edit", "Editer")}
+        {safeT(t, "postprod.tasks.action.edit", "Éditer")}
       </button>
       <button
         className="uu-btn-ghost"

@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fromDateTimeLocalToIso, safeT } from "../../shared/helpers";
-import { activityMatchesSearchQuery, getActivityTypeSummary } from "../userSharedHelpers";
+import {
+  activityMatchesSearchQuery,
+  activityMatchesSelectedType,
+  getActivityTypeSummary,
+  mapActivityActionTypeToApi,
+} from "../userSharedHelpers";
 
 function useUserActivity({
   t,
@@ -53,7 +58,7 @@ function useUserActivity({
     return {
       fromAt: fromAtLocal ? fromDateTimeLocalToIso(fromAtLocal) : "",
       toAt: toAtLocal ? fromDateTimeLocalToIso(toAtLocal) : "",
-      actionType: actionType || "all",
+      actionType: mapActivityActionTypeToApi(actionType || "all"),
       projectRef: projectRef || "",
       searchQuery,
     };
@@ -84,17 +89,33 @@ function useUserActivity({
   const editingActivity = (!isCreate && editingUserId > 0)
     ? (activityByUserId?.[editingUserId] || null)
     : null;
-  const editingActivities = Array.isArray(editingActivity?.activities) ? editingActivity.activities : [];
-  const filteredEditingActivities = useMemo(
-    () => editingActivities.filter((item) => activityMatchesSearchQuery(item, activitySearchQuery)),
-    [editingActivities, activitySearchQuery]
+  const rawEditingActivities = Array.isArray(editingActivity?.activities) ? editingActivity.activities : [];
+  const typedEditingActivities = useMemo(
+    () => rawEditingActivities.filter((item) => activityMatchesSelectedType(item, "all")),
+    [rawEditingActivities]
   );
-  const editingSummary = editingActivity?.summary && typeof editingActivity.summary === "object"
-    ? editingActivity.summary
-    : { total: editingActivities.length, projects: [], byType: { auth: 0, task: 0, render: 0, sync: 0, other: 0 } };
+  const filteredEditingActivities = useMemo(
+    () => typedEditingActivities
+      .filter((item) => activityMatchesSelectedType(item, activityActionType))
+      .filter((item) => activityMatchesSearchQuery(item, activitySearchQuery)),
+    [typedEditingActivities, activityActionType, activitySearchQuery]
+  );
+  const editingSummary = useMemo(() => ({
+    total: typedEditingActivities.length,
+    projects: Array.from(
+      typedEditingActivities.reduce((acc, item) => {
+        const refs = Array.isArray(item?.projectRefs) ? item.projectRefs : [];
+        for (const ref of refs) {
+          const normalized = String(ref || "").trim();
+          if (normalized) acc.add(normalized);
+        }
+        return acc;
+      }, new Set())
+    ),
+  }), [typedEditingActivities]);
   const editingTypeSummary = useMemo(
-    () => getActivityTypeSummary(editingSummary, editingActivities),
-    [editingSummary, editingActivities]
+    () => getActivityTypeSummary(editingSummary, typedEditingActivities),
+    [editingSummary, typedEditingActivities]
   );
 
   return {
@@ -117,7 +138,7 @@ function useUserActivity({
     buildUserActivityFilters,
     loadUserActivity,
     editingActivity,
-    editingActivities,
+    editingActivities: typedEditingActivities,
     filteredEditingActivities,
     editingSummary,
     editingTypeSummary,

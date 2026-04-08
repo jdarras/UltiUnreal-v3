@@ -1,4 +1,4 @@
-import { safeT } from "../../../shared/helpers";
+﻿import { safeT } from "../../../shared/helpers";
 
 function RenderDetailHeader({
   t,
@@ -10,7 +10,7 @@ function RenderDetailHeader({
   return (
     <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
       <div style={{ minWidth: 0 }}>
-        <h4 className="uu-h3" style={{ margin: 0 }}>{renderOutputName}</h4>
+        <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>{renderOutputName}</h4>
         <div className="uu-muted mt-8" style={{ wordBreak: "break-all" }}>
           {String(render?.outputPath || "").trim() || "-"}
         </div>
@@ -34,3 +34,4 @@ function RenderDetailHeader({
 
 export { RenderDetailHeader };
 export default RenderDetailHeader;
+

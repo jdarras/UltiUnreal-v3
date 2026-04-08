@@ -69,7 +69,7 @@ function UserProjectPermissionsTable({
                       setPermissionInfo?.("");
                     }}
                   >
-                    {safeT(t, "postprod.users.action.edit", "Editer")}
+                    {safeT(t, "postprod.users.action.edit", "Éditer")}
                   </button>
                 </td>
               </tr>

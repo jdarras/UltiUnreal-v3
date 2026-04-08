@@ -6,6 +6,7 @@ function useUserAutosave({
   editorMode = "list",
   editingUserId = 0,
   usersLoading = false,
+  editorInputFocused = false,
   onUpdateUser = null,
   buildUserPayloadFromDraft,
   draft,
@@ -28,7 +29,14 @@ function useUserAutosave({
       setUserAutosaveInfo("");
       return;
     }
-    if (editingUserId <= 0 || usersLoading) return;
+    if (editingUserId <= 0 || usersLoading || editorInputFocused) {
+      if (userAutosaveTimerRef.current) {
+        clearTimeout(userAutosaveTimerRef.current);
+        userAutosaveTimerRef.current = null;
+      }
+      setUserAutosaveBusy(false);
+      return;
+    }
     if (typeof onUpdateUser !== "function") return;
     if (typeof buildUserPayloadFromDraft !== "function") return;
 
@@ -58,7 +66,7 @@ function useUserAutosave({
         }
         userAutosaveLastSignatureRef.current = signature;
         setUserAutosaveInfo(
-          safeT(t, "postprod.users.form.autosaveOk", "Modifications enregistrees automatiquement.")
+          safeT(t, "postprod.users.form.autosaveOk", "Modifications enregistrées automatiquement.")
         );
       } catch (e) {
         setUserAutosaveError(
@@ -78,7 +86,7 @@ function useUserAutosave({
         userAutosaveTimerRef.current = null;
       }
     };
-  }, [editorMode, editingUserId, usersLoading, onUpdateUser, buildUserPayloadFromDraft, draft, t]);
+  }, [editorMode, editingUserId, usersLoading, editorInputFocused, onUpdateUser, buildUserPayloadFromDraft, draft, t]);
 
   return {
     userAutosaveBusy,

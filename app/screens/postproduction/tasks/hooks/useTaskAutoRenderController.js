@@ -1,12 +1,15 @@
 import { useCallback, useMemo, useState } from "react";
 import {
-  buildTaskExpectedRenderNamesPreview,
-  normalizeTaskExpectedRenderCountInput,
-} from "../helpers";
-import {
   buildHydratedAutoRenderState,
   DEFAULT_AUTO_RENDER_STATE,
 } from "./autoRender/taskAutoRenderStateHelpers";
+import {
+  applyAutoRenderStateSetters,
+  buildExpectedRenderMeta,
+  buildVisibleAutoRenderFormFields,
+} from "./autoRender/taskAutoRenderControllerHelpers";
+import { buildTaskAutoRenderStateSetters } from "./autoRender/buildTaskAutoRenderStateSetters";
+import { buildTaskAutoRenderControllerOutput } from "./autoRender/buildTaskAutoRenderControllerOutput";
 import { useAutoRenderLookupMaps } from "./autoRender/useAutoRenderLookupMaps";
 import { useAutoRenderFormFields } from "./autoRender/useAutoRenderFormFields";
 import { useAutoRenderProjectCatalog } from "./autoRender/useAutoRenderProjectCatalog";
@@ -23,11 +26,31 @@ export function useTaskAutoRenderController({
   onLoadProjectUnrealCatalog = null,
 }) {
   const [expectedRenderCountInput, setExpectedRenderCountInput] = useState("1");
+  const [autoRenderProjectRef, setAutoRenderProjectRef] = useState("");
   const [autoRenderWorkerKey, setAutoRenderWorkerKey] = useState("");
   const [autoRenderFormId, setAutoRenderFormId] = useState("");
   const [autoRenderTemplateId, setAutoRenderTemplateId] = useState("");
   const [autoRenderFormValues, setAutoRenderFormValues] = useState({});
   const [autoRenderLaunchMode, setAutoRenderLaunchMode] = useState("scheduled");
+  const autoRenderStateSetters = useMemo(() => (
+    buildTaskAutoRenderStateSetters({
+      setExpectedRenderCountInput,
+      setAutoRenderProjectRef,
+      setAutoRenderWorkerKey,
+      setAutoRenderFormId,
+      setAutoRenderTemplateId,
+      setAutoRenderFormValues,
+      setAutoRenderLaunchMode,
+    })
+  ), [
+    setExpectedRenderCountInput,
+    setAutoRenderProjectRef,
+    setAutoRenderWorkerKey,
+    setAutoRenderFormId,
+    setAutoRenderTemplateId,
+    setAutoRenderFormValues,
+    setAutoRenderLaunchMode,
+  ]);
 
   const {
     projectOptionByRef,
@@ -39,6 +62,8 @@ export function useTaskAutoRenderController({
     normalizedProjectOptions,
     renderForms,
     availableRenderWorkers,
+    autoRenderProjectRef,
+    setAutoRenderProjectRef,
     setAutoRenderWorkerKey,
     autoRenderFormId,
     setAutoRenderFormId,
@@ -80,49 +105,33 @@ export function useTaskAutoRenderController({
     selectedAutoRenderForm,
   });
 
-  const visibleAutoRenderFormFields = useMemo(() => (
-    (Array.isArray(autoRenderFormFields) ? autoRenderFormFields : [])
-      .filter((field) => field?.isVisible !== false)
-      .sort((a, b) => Number(a?.sortOrder || 0) - Number(b?.sortOrder || 0))
-  ), [autoRenderFormFields]);
-
-  const expectedRenderCountForForm = useMemo(
-    () => normalizeTaskExpectedRenderCountInput(expectedRenderCountInput),
-    [expectedRenderCountInput]
+  const visibleAutoRenderFormFields = useMemo(
+    () => buildVisibleAutoRenderFormFields(autoRenderFormFields),
+    [autoRenderFormFields]
   );
 
-  const expectedRenderNamesPreview = useMemo(
-    () => buildTaskExpectedRenderNamesPreview(title, expectedRenderCountForForm),
-    [title, expectedRenderCountForForm]
-  );
-
-  const autoExpectedRenderName = useMemo(
-    () => String(expectedRenderNamesPreview[0] || "").trim(),
-    [expectedRenderNamesPreview]
-  );
+  const {
+    expectedRenderCountForForm,
+    expectedRenderNamesPreview,
+    autoExpectedRenderName,
+  } = useMemo(() => (
+    buildExpectedRenderMeta({ title, expectedRenderCountInput })
+  ), [title, expectedRenderCountInput]);
 
   const resetAutoRenderState = useCallback(() => {
-    setExpectedRenderCountInput(DEFAULT_AUTO_RENDER_STATE.expectedRenderCountInput);
-    setAutoRenderWorkerKey(DEFAULT_AUTO_RENDER_STATE.autoRenderWorkerKey);
-    setAutoRenderFormId(DEFAULT_AUTO_RENDER_STATE.autoRenderFormId);
-    setAutoRenderTemplateId(DEFAULT_AUTO_RENDER_STATE.autoRenderTemplateId);
-    setAutoRenderFormValues(DEFAULT_AUTO_RENDER_STATE.autoRenderFormValues);
-    setAutoRenderLaunchMode(DEFAULT_AUTO_RENDER_STATE.autoRenderLaunchMode);
-  }, []);
+    applyAutoRenderStateSetters(autoRenderStateSetters, DEFAULT_AUTO_RENDER_STATE);
+  }, [autoRenderStateSetters]);
 
   const hydrateAutoRenderFromTask = useCallback((task) => {
     const nextState = buildHydratedAutoRenderState(task, normalizedRenderTemplateOptions);
-    setExpectedRenderCountInput(nextState.expectedRenderCountInput);
-    setAutoRenderWorkerKey(nextState.autoRenderWorkerKey);
-    setAutoRenderFormId(nextState.autoRenderFormId);
-    setAutoRenderTemplateId(nextState.autoRenderTemplateId);
-    setAutoRenderFormValues(nextState.autoRenderFormValues);
-    setAutoRenderLaunchMode(nextState.autoRenderLaunchMode);
-  }, [normalizedRenderTemplateOptions]);
+    applyAutoRenderStateSetters(autoRenderStateSetters, nextState);
+  }, [autoRenderStateSetters, normalizedRenderTemplateOptions]);
 
-  return {
+  return buildTaskAutoRenderControllerOutput({
     expectedRenderCountInput,
     setExpectedRenderCountInput,
+    autoRenderProjectRef,
+    setAutoRenderProjectRef,
     autoRenderWorkerKey,
     setAutoRenderWorkerKey,
     autoRenderFormId,
@@ -151,7 +160,7 @@ export function useTaskAutoRenderController({
     projectLookupByAny,
     resetAutoRenderState,
     hydrateAutoRenderFromTask,
-  };
+  });
 }
 
 export default useTaskAutoRenderController;

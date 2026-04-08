@@ -14,7 +14,7 @@ function UserActivitySummary({
   activityActionType = "all",
   activityProjectRef = "",
   editingSummary = { projects: [], total: 0 },
-  editingTypeSummary = { auth: 0, task: 0, render: 0, sync: 0, other: 0 },
+  editingTypeSummary = { project: 0, form: 0, task: 0, validation: 0, other: 0 },
   editingActivities = [],
   filteredEditingActivities = [],
   onChooseActionType,
@@ -24,27 +24,6 @@ function UserActivitySummary({
 
   return (
     <>
-      <div className="uu-muted">
-        {safeT(t, "postprod.users.activity.summary.projects", "Projets touches: {value}", {
-          value: Array.isArray(editingSummary?.projects) && editingSummary.projects.length > 0
-            ? editingSummary.projects.join(", ")
-            : "-",
-        })}
-      </div>
-      <div className="uu-muted">
-        {safeT(
-          t,
-          "postprod.activity.summary.types",
-          "Types: Connexions {auth} | Taches {task} | Rendus {render} | Sync {sync} | Autres {other}",
-          {
-            auth: editingTypeSummary.auth,
-            task: editingTypeSummary.task,
-            render: editingTypeSummary.render,
-            sync: editingTypeSummary.sync,
-            other: editingTypeSummary.other,
-          }
-        )}
-      </div>
       <div className="uu-chip-group" style={{ marginTop: "6px", flexWrap: "wrap" }}>
         {ACTIVITY_TYPE_FILTERS.map((type) => {
           const normalizedType = String(type || "").trim().toLowerCase() || "all";

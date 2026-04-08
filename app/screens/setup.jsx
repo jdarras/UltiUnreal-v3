@@ -155,6 +155,8 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
   const role = String(id.role || 'server').trim();
   const localIp = String(id.localIp || '').trim();
   const lang = String(id.lang || 'fr').trim();
+  const appMode = String(id.mode || '').trim().toLowerCase();
+  const isRenderMode = appMode === 'postprod';
 
   const t = React.useMemo(() => createT(lang), [lang]);
 
@@ -1263,7 +1265,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
         : p.label,
     }));
 
-    const paramsOpen = !!(m.showEditor || m.showArgs);
+    const paramsOpen = !isRenderMode && !!(m.showEditor || m.showArgs);
     const toggleParams = () => {
       const next = !paramsOpen;
       updateMachine(m._idx, { showEditor: next, showArgs: next });
@@ -1323,25 +1325,27 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
             onBlur={() => handleIpBlur(m._idx)}
           />
 
-          <button onClick={toggleParams} className="uu-btn">
-            {paramsOpen
-              ? t('setup.server.toggleParams.hide')
-              : t('setup.server.toggleParams.show')}
-          </button>
+          {!isRenderMode ? (
+            <button onClick={toggleParams} className="uu-btn">
+              {paramsOpen
+                ? t('setup.server.toggleParams.hide')
+                : t('setup.server.toggleParams.show')}
+            </button>
+          ) : null}
 
           {segment === 'eligible' ? (
             <button
               onClick={() => toggleEligibility(m._idx, false)}
               className="uu-btn"
             >
-              {t('setup.launchControl.exclude')}
+              {isRenderMode ? t('setup.render.exclude') : t('setup.launchControl.exclude')}
             </button>
           ) : (
             <button
               onClick={() => toggleEligibility(m._idx, true)}
               className="uu-btn"
             >
-              {t('setup.launchControl.reinclude')}
+              {isRenderMode ? t('setup.render.reinclude') : t('setup.launchControl.reinclude')}
             </button>
           )}
 
@@ -1542,7 +1546,9 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
       </div>
 
       <div className="uu-section">
-        <h3 className="uu-h3">{t('setup.server.machinesEligible')}</h3>
+        <h3 className="uu-h3 uu-block-title">
+          {isRenderMode ? t('setup.server.machinesRenderEligible') : t('setup.server.machinesEligible')}
+        </h3>
         {eligibleList.length === 0 ? (
           <div className="uu-muted">{t('setup.server.noEligible')}</div>
         ) : (
@@ -1551,9 +1557,13 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
       </div>
 
       <div className="uu-section">
-        <h3 className="uu-h3">{t('setup.server.machinesExcluded')}</h3>
+        <h3 className="uu-h3 uu-block-title">
+          {isRenderMode ? t('setup.server.machinesRenderExcluded') : t('setup.server.machinesExcluded')}
+        </h3>
         {excludedList.length === 0 ? (
-          <div className="uu-muted">{t('setup.server.noExcluded')}</div>
+          <div className="uu-muted">
+            {isRenderMode ? t('setup.server.noRenderExcluded') : t('setup.server.noExcluded')}
+          </div>
         ) : (
           excludedList.map((m, idx) => renderCard(m, 'excluded', idx))
         )}
@@ -1574,7 +1584,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
         if (unknownDetected.length === 0) return null;
         return (
           <div className="uu-section">
-            <h3 className="uu-h3">{t('setup.server.detectedUnknown')}</h3>
+            <h3 className="uu-h3 uu-block-title">{t('setup.server.detectedUnknown')}</h3>
             <div className="uu-list">
               {unknownDetected.map((d) => (
                 <div key={d.ip} className="uu-card uu-row" style={{ alignItems: 'center' }}>
@@ -1601,3 +1611,4 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
     </div>
   );
 }
+

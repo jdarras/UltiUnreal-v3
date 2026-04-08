@@ -50,11 +50,10 @@ function UserActivityFilters({
           onChange={(e) => setActivityActionType?.(e.target.value)}
         >
           <option value="all">{safeT(t, "postprod.users.activity.filter.actionType.all", "Toutes")}</option>
-          <option value="auth">{safeT(t, "postprod.users.activity.filter.actionType.auth", "Connexions")}</option>
-          <option value="task">{safeT(t, "postprod.users.activity.filter.actionType.task", "Taches")}</option>
-          <option value="render">{safeT(t, "postprod.users.activity.filter.actionType.render", "Rendus")}</option>
-          <option value="sync">{safeT(t, "postprod.users.activity.filter.actionType.sync", "Synchronisations")}</option>
-          <option value="other">{safeT(t, "postprod.users.activity.filter.actionType.other", "Autres")}</option>
+          <option value="project">{safeT(t, "postprod.users.activity.filter.actionType.project", "Projet")}</option>
+          <option value="form">{safeT(t, "postprod.users.activity.filter.actionType.form", "Formulaire")}</option>
+          <option value="task">{safeT(t, "postprod.users.activity.filter.actionType.task", "Tache")}</option>
+          <option value="validation">{safeT(t, "postprod.users.activity.filter.actionType.validation", "Validation")}</option>
         </select>
       </div>
       <div className="uu-col" style={{ minWidth: "220px", flex: 1 }}>
@@ -108,7 +107,10 @@ function UserActivityFilters({
           )}
         />
       </div>
-      <div className="uu-row uu-align-end" style={{ marginLeft: "auto" }}>
+      <div className="uu-col" style={{ minWidth: "140px", marginLeft: "auto" }}>
+        <label className="uu-label" style={{ visibility: "hidden" }}>
+          _
+        </label>
         <button
           className="uu-btn-ghost"
           type="button"

@@ -1,4 +1,4 @@
-import { safeT } from "../../../shared/helpers";
+﻿import { safeT } from "../../../shared/helpers";
 import { taskAutoRenderStateLabel } from "../../../tasks/helpers";
 
 function RendersQueueHeader({
@@ -18,7 +18,7 @@ function RendersQueueHeader({
 }) {
   return (
     <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-      <h4 className="uu-h3" style={{ margin: 0 }}>
+      <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
         {safeT(t, "postprod.renders.queue.title", "File d'attente de rendu")}
       </h4>
       <div className="uu-row" style={{ marginLeft: "auto", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
@@ -87,3 +87,4 @@ function RendersQueueHeader({
 }
 
 export { RendersQueueHeader };
+

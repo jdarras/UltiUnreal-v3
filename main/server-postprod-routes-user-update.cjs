@@ -41,7 +41,7 @@ async function handlePostprodUserUpdateRoutes({
   const userUpdateMatch = /^\/agent\/postprod\/users\/(\d+)(?:\/profile)?$/.exec(pathname);
   if (!userUpdateMatch) return false;
 
-  if (req.method !== 'PUT' && req.method !== 'POST') {
+  if (req.method !== 'PUT' && req.method !== 'POST' && req.method !== 'DELETE') {
     sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
     return true;
   }
@@ -71,6 +71,60 @@ async function handlePostprodUserUpdateRoutes({
   const currentRoleSafe = resolveRoleInput(currentUser?.role, rolesCache, '');
   if (!allowedRolesSet.has(currentRoleSafe)) {
     sendJSON(res, 403, { ok: false, error: 'forbidden' });
+    return true;
+  }
+
+  if (req.method === 'DELETE') {
+    if (actorId === Number(userId)) {
+      sendJSON(res, 400, { ok: false, error: 'cannot_delete_self' });
+      return true;
+    }
+
+    const currentRole = resolveRoleInput(currentUser?.role, rolesCache, DEFAULT_FALLBACK_ROLE);
+    const deletingMaintenance = currentRole === SYSTEM_MAINTENANCE_ROLE;
+    if (deletingMaintenance) {
+      const remaining = Number(stmts.countActiveMaintenanceExcluding.get(userId)?.n || 0);
+      if (remaining <= 0) {
+        sendJSON(res, 400, { ok: false, error: 'last_maintenance_forbidden' });
+        return true;
+      }
+    }
+
+    try {
+      const tx = db.transaction(() => {
+        const result = stmts.deleteUserById.run(userId);
+        if (Number(result?.changes || 0) <= 0) {
+          throw Object.assign(new Error('user_not_found'), { code: 'user_not_found' });
+        }
+      });
+      tx();
+    } catch (err) {
+      if (String(err?.code || '').toLowerCase() === 'user_not_found') {
+        sendJSON(res, 404, { ok: false, error: 'user_not_found' });
+        return true;
+      }
+      const msg = String(err?.message || '');
+      if (/foreign key/i.test(msg)) {
+        sendJSON(res, 409, { ok: false, error: 'user_has_linked_data' });
+        return true;
+      }
+      throw err;
+    }
+
+    audit(
+      auth.session.user_id,
+      'user_deleted',
+      {
+        targetUserId: userId,
+        username: String(currentUser?.username || ''),
+        displayName: String(currentUser?.display_name || currentUser?.username || ''),
+        role: currentRole,
+      },
+      'user',
+      String(userId)
+    );
+
+    sendJSON(res, 200, { ok: true, deletedUserId: userId });
     return true;
   }
 

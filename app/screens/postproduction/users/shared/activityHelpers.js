@@ -1,33 +1,64 @@
 import { activityActionLabel, safeT } from "../../shared/helpers";
 
-const ACTIVITY_TYPE_FILTERS = ["all", "auth", "task", "render", "sync", "other"];
+const ACTIVITY_TYPE_FILTERS = ["all", "project", "form", "task", "validation"];
+
+const PROJECT_ACTIONS = new Set([
+  "project_usage_mode_updated",
+  "project_mode_updated",
+  "project_status_updated",
+  "project_updated",
+]);
+
+const FORM_ACTIONS = new Set([
+  "render_form_created",
+]);
+
+const TASK_ACTIONS = new Set([
+  "task_created",
+]);
+
+const VALIDATION_ACTIONS = new Set([
+  "render_transition",
+  "render_worker_complete",
+]);
+
+function activityLabelContainsModeRender(detail = "") {
+  const normalized = String(detail || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return normalized.includes("mode rendu")
+    || normalized.includes("mode d'usage")
+    || normalized.includes("usage mode")
+    || normalized.includes("rendu automatique");
+}
 
 function activityActionTypeLabel(t, type) {
   const key = String(type || "").trim().toLowerCase();
   if (!key || key === "all") {
     return safeT(t, "postprod.users.activity.filter.actionType.all", "Toutes");
   }
-  if (key === "auth") {
-    return safeT(t, "postprod.users.activity.filter.actionType.auth", "Connexions");
+  if (key === "project") {
+    return safeT(t, "postprod.users.activity.filter.actionType.project", "Projet");
+  }
+  if (key === "form") {
+    return safeT(t, "postprod.users.activity.filter.actionType.form", "Formulaire");
   }
   if (key === "task") {
-    return safeT(t, "postprod.users.activity.filter.actionType.task", "Taches");
+    return safeT(t, "postprod.users.activity.filter.actionType.task", "Tache");
   }
-  if (key === "render") {
-    return safeT(t, "postprod.users.activity.filter.actionType.render", "Rendus");
-  }
-  if (key === "sync") {
-    return safeT(t, "postprod.users.activity.filter.actionType.sync", "Synchronisations");
+  if (key === "validation") {
+    return safeT(t, "postprod.users.activity.filter.actionType.validation", "Validation");
   }
   return safeT(t, "postprod.users.activity.filter.actionType.other", "Autres");
 }
 
 function activityTypeChipLevel(type) {
   const key = String(type || "").trim().toLowerCase();
-  if (key === "auth") return "lvl-info";
-  if (key === "task") return "lvl-success";
-  if (key === "render") return "lvl-warn";
-  if (key === "sync") return "lvl-debug";
+  if (key === "project") return "lvl-info";
+  if (key === "form") return "lvl-success";
+  if (key === "task") return "lvl-debug";
+  if (key === "validation") return "lvl-warn";
   if (key === "other") return "lvl-error";
   return "lvl-info";
 }
@@ -36,57 +67,60 @@ function normalizeActivityProjectRef(ref) {
   return String(ref || "").trim().toLowerCase();
 }
 
-function activityActionTypeFromAction(action) {
+function activityActionTypeFromAction(action, activity = null) {
   const normalized = String(action || "").trim().toLowerCase();
   if (!normalized) return "other";
-  if (normalized.startsWith("auth_")) return "auth";
-  if (normalized.startsWith("task_")) return "task";
-  if (normalized.startsWith("render_") || normalized.startsWith("renders_")) return "render";
+
+  if (TASK_ACTIONS.has(normalized)) return "task";
+  if (FORM_ACTIONS.has(normalized)) return "form";
+  if (VALIDATION_ACTIONS.has(normalized)) return "validation";
+
+  if (PROJECT_ACTIONS.has(normalized)) return "project";
+
   if (
-    normalized === "project_sync" ||
-    normalized.startsWith("sync_") ||
-    normalized.endsWith("_sync") ||
-    normalized.includes("_sync_")
+    normalized.startsWith("project_")
+    && (
+      normalized.includes("_mode")
+      || normalized.includes("usage")
+      || normalized.includes("status")
+    )
   ) {
-    return "sync";
+    return "project";
   }
+
+  if (
+    normalized.startsWith("project_")
+    && activityLabelContainsModeRender(activity?.detail)
+  ) {
+    return "project";
+  }
+
+  if (
+    normalized.startsWith("render_")
+    && (
+      String(activity?.fromStatus || "").trim()
+      || String(activity?.toStatus || "").trim()
+    )
+  ) {
+    return "validation";
+  }
+
+  if (
+    normalized.startsWith("render_form_")
+    && normalized.includes("created")
+  ) {
+    return "form";
+  }
+
   return "other";
 }
 
 function getActivityTypeSummary(summary, activities = []) {
-  const result = { auth: 0, task: 0, render: 0, sync: 0, other: 0 };
-  const byType = summary?.byType && typeof summary.byType === "object"
-    ? summary.byType
-    : null;
-  if (byType) {
-    result.auth = Number.isFinite(Number(byType.auth)) ? Number(byType.auth) : 0;
-    result.task = Number.isFinite(Number(byType.task)) ? Number(byType.task) : 0;
-    result.render = Number.isFinite(Number(byType.render)) ? Number(byType.render) : 0;
-    result.sync = Number.isFinite(Number(byType.sync)) ? Number(byType.sync) : 0;
-    result.other = Number.isFinite(Number(byType.other)) ? Number(byType.other) : 0;
-    return result;
-  }
-
-  const actions = summary?.actions && typeof summary.actions === "object"
-    ? summary.actions
-    : null;
-  if (actions) {
-    for (const [action, countRaw] of Object.entries(actions)) {
-      const count = Number.isFinite(Number(countRaw)) ? Number(countRaw) : 0;
-      if (count <= 0) continue;
-      const type = activityActionTypeFromAction(action);
-      if (Object.prototype.hasOwnProperty.call(result, type)) {
-        result[type] += count;
-      } else {
-        result.other += count;
-      }
-    }
-    return result;
-  }
+  const result = { project: 0, form: 0, task: 0, validation: 0, other: 0 };
 
   const list = Array.isArray(activities) ? activities : [];
   for (const item of list) {
-    const type = activityActionTypeFromAction(item?.action);
+    const type = activityActionTypeFromAction(item?.action, item);
     if (Object.prototype.hasOwnProperty.call(result, type)) {
       result[type] += 1;
     } else {
@@ -94,6 +128,22 @@ function getActivityTypeSummary(summary, activities = []) {
     }
   }
   return result;
+}
+
+function mapActivityActionTypeToApi(actionType) {
+  const normalized = String(actionType || "").trim().toLowerCase();
+  if (!normalized || normalized === "all") return "all";
+  if (normalized === "task") return "task";
+  if (normalized === "validation") return "render";
+  return "all";
+}
+
+function activityMatchesSelectedType(activity, actionType = "all") {
+  const normalized = String(actionType || "").trim().toLowerCase();
+  if (!normalized || normalized === "all") {
+    return activityActionTypeFromAction(activity?.action, activity) !== "other";
+  }
+  return activityActionTypeFromAction(activity?.action, activity) === normalized;
 }
 
 function activityMatchesSearchQuery(activity, query) {
@@ -106,6 +156,7 @@ function activityMatchesSearchQuery(activity, query) {
     String(activity?.fromStatus || ""),
     String(activity?.toStatus || ""),
     String(activity?.comment || ""),
+    String(activity?.detail || ""),
     projectRefs,
     String(activity?.createdAt || ""),
     String(activity?.taskId || ""),
@@ -122,6 +173,8 @@ export {
   activityTypeChipLevel,
   normalizeActivityProjectRef,
   activityActionTypeFromAction,
+  mapActivityActionTypeToApi,
+  activityMatchesSelectedType,
   getActivityTypeSummary,
   activityMatchesSearchQuery,
 };
@@ -132,6 +185,8 @@ export default {
   activityTypeChipLevel,
   normalizeActivityProjectRef,
   activityActionTypeFromAction,
+  mapActivityActionTypeToApi,
+  activityMatchesSelectedType,
   getActivityTypeSummary,
   activityMatchesSearchQuery,
 };

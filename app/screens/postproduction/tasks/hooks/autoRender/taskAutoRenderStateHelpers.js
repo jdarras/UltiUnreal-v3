@@ -7,6 +7,7 @@ import {
 
 export const DEFAULT_AUTO_RENDER_STATE = Object.freeze({
   expectedRenderCountInput: "1",
+  autoRenderProjectRef: "",
   autoRenderWorkerKey: "",
   autoRenderFormId: "",
   autoRenderTemplateId: "",
@@ -81,6 +82,7 @@ export function buildHydratedAutoRenderState(task, normalizedRenderTemplateOptio
     expectedRenderCountInput: String(
       normalizeTaskExpectedRenderCountInput(task?.expectedRenderCount)
     ),
+    autoRenderProjectRef: taskProjectRef,
     autoRenderWorkerKey: resolveAutoRenderTargetWorkerKey(task),
     autoRenderFormId: (
       Number.isFinite(formIdRaw) && formIdRaw > 0

@@ -7,6 +7,7 @@ function TasksBrowseSection({
   t,
   showCreateForm = false,
   tasksLoading = false,
+  canCreateTasks = false,
   onOpenCreateForm = null,
   onCloseForm = null,
   listSortKey = "updatedAt",
@@ -56,6 +57,7 @@ function TasksBrowseSection({
           t={t}
           showCreateForm={showCreateForm}
           tasksLoading={tasksLoading}
+          canCreateTasks={canCreateTasks}
           onOpenCreateForm={onOpenCreateForm}
           onCloseForm={onCloseForm}
           listSortKey={listSortKey}

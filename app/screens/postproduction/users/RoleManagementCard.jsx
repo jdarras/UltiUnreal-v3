@@ -1,19 +1,23 @@
+import { useEffect } from "react";
 import { RoleEditorPanel } from "./role/RoleEditorPanel";
 import { RoleListPanel } from "./role/RoleListPanel";
 import { useRoleManagementCardController } from "./hooks/useRoleManagementCardController";
 
 export function RoleManagementCard({
   t,
+  tabKey = "",
   roles = [],
   rolesLoading = false,
   rolesError = "",
   onCreateRole = null,
   onUpdateRole = null,
+  onOpenUser = null,
   users = [],
 }) {
   const {
     inEditor,
     openCreate,
+    closeEditor,
     roleEditorPanelProps,
     roleListPanelProps,
   } = useRoleManagementCardController({
@@ -22,12 +26,17 @@ export function RoleManagementCard({
     rolesLoading,
     onCreateRole,
     onUpdateRole,
+    onOpenUser,
     users,
   });
 
+  useEffect(() => {
+    if (inEditor) closeEditor();
+  }, [tabKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <section className="uu-section">
-      <div className="uu-row" style={{ justifyContent: "flex-end", alignItems: "center", gap: "8px" }}>
+      <div className="uu-row" style={{ justifyContent: "flex-start", alignItems: "center", gap: "8px" }}>
         {!inEditor ? (
           <button
             className="uu-btn"
@@ -50,4 +59,3 @@ export function RoleManagementCard({
     </section>
   );
 }
-

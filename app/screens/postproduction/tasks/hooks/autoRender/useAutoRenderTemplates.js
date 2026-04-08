@@ -77,29 +77,18 @@ export function useAutoRenderTemplates({
       return;
     }
     const currentKey = String(autoRenderTemplateId || "").trim();
-    if (currentKey) {
-      const exists = options.some((entry) => String(entry?.key || "").trim() === currentKey);
-      if (exists) return;
-      const currentId = Number(currentKey);
-      if (Number.isFinite(currentId) && currentId > 0) {
-        const existsById = options.some((entry) => Number(entry?.id || 0) === Math.trunc(currentId));
-        if (existsById) return;
-      }
+    if (!currentKey) return;
+    const exists = options.some((entry) => String(entry?.key || "").trim() === currentKey);
+    if (exists) return;
+    const currentId = Number(currentKey);
+    if (Number.isFinite(currentId) && currentId > 0) {
+      const existsById = options.some((entry) => Number(entry?.id || 0) === Math.trunc(currentId));
+      if (existsById) return;
     }
-    const formTemplateName = String(selectedAutoRenderForm?.templateName || "").trim().toLowerCase();
-    const formOutputProfile = String(selectedAutoRenderForm?.outputProfile || "").trim().toLowerCase();
-    let preferred = null;
-    if (formTemplateName) {
-      preferred = options.find((entry) => String(entry?.templateName || "").trim().toLowerCase() === formTemplateName) || null;
-    }
-    if (!preferred && formOutputProfile) {
-      preferred = options.find((entry) => String(entry?.outputProfile || "").trim().toLowerCase() === formOutputProfile) || null;
-    }
-    const fallback = preferred || options[0] || null;
     if (typeof setAutoRenderTemplateId === "function") {
-      setAutoRenderTemplateId(String(fallback?.key || ""));
+      setAutoRenderTemplateId("");
     }
-  }, [renderTemplatesForSelectedAutoForm, autoRenderTemplateId, selectedAutoRenderForm, setAutoRenderTemplateId]);
+  }, [renderTemplatesForSelectedAutoForm, autoRenderTemplateId, setAutoRenderTemplateId]);
 
   return {
     renderTemplatesForSelectedAutoForm,

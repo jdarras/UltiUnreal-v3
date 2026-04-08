@@ -1,62 +1,51 @@
-function buildQueuePanelProps({
-  t,
-  tasksLoading = false,
-  rendersLoading = false,
-  renderQueueTasks = [],
-  filteredRenderQueueTasks = [],
-  sortedRenderQueueTasks = [],
-  selectedQueueEntrySet = new Set(),
-  launchableQueueTaskIdSet = new Set(),
-  selectedLaunchableQueueEntries = [],
-  queueStateSummary = null,
-  queueBatchBusyMode = "",
-  queueBatchError = "",
-  queueBatchFeedback = "",
-  queueSortIndicator = null,
-  canLaunchRenders = false,
-  busyScheduledTaskId = 0,
-  queueEntryWorkerLabel = null,
-  getQueueEntryLaunchMeta = null,
-  queueTaskPriorityLabel = null,
-  toggleSelectAllQueueEntries = null,
-  launchQueueBatch = null,
-  toggleQueueSort = null,
-  toggleQueueTaskSelection = null,
-  launchScheduledTaskRender = null,
-  openRenderDetail = null,
-} = {}) {
+import { buildProps } from "../../../shared/objectProps";
+
+const DIRECT_KEYS = [
+  "t",
+  "tasksLoading",
+  "rendersLoading",
+  "renderQueueTasks",
+  "filteredRenderQueueTasks",
+  "sortedRenderQueueTasks",
+  "selectedQueueEntrySet",
+  "launchableQueueTaskIdSet",
+  "selectedLaunchableQueueEntries",
+  "queueStateSummary",
+  "queueBatchBusyMode",
+  "queueBatchError",
+  "queueBatchFeedback",
+  "queueSortIndicator",
+  "canLaunchRenders",
+  "busyScheduledTaskId",
+  "queueEntryWorkerLabel",
+  "getQueueEntryLaunchMeta",
+  "queueTaskPriorityLabel",
+];
+
+const ALIASES = {
+  onToggleSelectAllQueueEntries: "toggleSelectAllQueueEntries",
+  onToggleQueueSort: "toggleQueueSort",
+  onToggleQueueTaskSelection: "toggleQueueTaskSelection",
+  onOpenRenderDetail: "openRenderDetail",
+};
+
+function buildQueuePanelProps(input = {}) {
+  const launchQueueBatch = input?.launchQueueBatch;
+  const launchScheduledTaskRender = input?.launchScheduledTaskRender;
+
   return {
-    t,
-    tasksLoading,
-    rendersLoading,
-    renderQueueTasks,
-    filteredRenderQueueTasks,
-    sortedRenderQueueTasks,
-    selectedQueueEntrySet,
-    launchableQueueTaskIdSet,
-    selectedLaunchableQueueEntries,
-    queueStateSummary,
-    queueBatchBusyMode,
-    queueBatchError,
-    queueBatchFeedback,
-    queueSortIndicator,
-    canLaunchRenders,
-    busyScheduledTaskId,
-    queueEntryWorkerLabel,
-    getQueueEntryLaunchMeta,
-    queueTaskPriorityLabel,
-    onToggleSelectAllQueueEntries: toggleSelectAllQueueEntries,
+    ...buildProps(input, {
+      keys: DIRECT_KEYS,
+      aliases: ALIASES,
+    }),
     onLaunchQueueBatch: (entries) => {
       if (typeof launchQueueBatch === "function") void launchQueueBatch(entries);
     },
-    onToggleQueueSort: toggleQueueSort,
-    onToggleQueueTaskSelection: toggleQueueTaskSelection,
     onLaunchScheduledTaskRender: (task, queueEntry) => {
       if (typeof launchScheduledTaskRender === "function") {
         void launchScheduledTaskRender(task, queueEntry);
       }
     },
-    onOpenRenderDetail: openRenderDetail,
   };
 }
 
@@ -65,4 +54,3 @@ export {
 };
 
 export default buildQueuePanelProps;
-
