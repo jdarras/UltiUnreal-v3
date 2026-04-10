@@ -22,7 +22,7 @@ function RenderDetailHeader({
           disabled={!String(render?.outputPath || "").trim()}
           onClick={() => onOpenOutputExternally?.(render)}
         >
-          {safeT(t, "postprod.renders.preview.openExternal", "Ouvrir")}
+          {safeT(t, "postprod.renders.preview.openExternal", "Ouvrir en externe")}
         </button>
         <button className="uu-btn-ghost" type="button" onClick={() => onClose?.()}>
           {safeT(t, "common.close", "Fermer")}

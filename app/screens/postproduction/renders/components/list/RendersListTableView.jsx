@@ -26,13 +26,14 @@ function RendersListTableView({
       <table className="uu-table" style={{ width: "100%", tableLayout: "fixed" }}>
         <colgroup>
           <col style={{ width: "8%" }} />
-          <col style={{ width: "26%" }} />
-          <col style={{ width: "15%" }} />
-          <col style={{ width: "15%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "12%" }} />
+          <col style={{ width: "20%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "14%" }} />
           <col style={{ width: "4%" }} />
-          <col style={{ width: "8%" }} />
+          <col style={{ width: "4%" }} />
         </colgroup>
         <thead>
           <tr>
@@ -59,6 +60,12 @@ function RendersListTableView({
               <button type="button" className="uu-link" onClick={() => toggleListSort?.("requester")}>
                 {safeT(t, "postprod.renders.table.requester", "Demandeur")}
                 {typeof listSortIndicator === "function" ? listSortIndicator("requester") : ""}
+              </button>
+            </th>
+            <th style={{ textAlign: "left" }}>
+              <button type="button" className="uu-link" onClick={() => toggleListSort?.("station")}>
+                {safeT(t, "postprod.renders.columns.station", "Station")}
+                {typeof listSortIndicator === "function" ? listSortIndicator("station") : ""}
               </button>
             </th>
             <th style={{ textAlign: "left" }}>

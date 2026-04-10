@@ -19,9 +19,12 @@ export function buildRendersToolbarInput({
   sortedDisplayedRenders = [],
   projectFilter = "all",
   setProjectFilter = null,
+  stationFilter = "all",
+  setStationFilter = null,
   reviewFilter = "all",
   setReviewFilter = null,
   projectFilterOptions = [],
+  stationFilterOptions = [],
 } = {}) {
   return {
     t,
@@ -44,9 +47,12 @@ export function buildRendersToolbarInput({
     sortedDisplayedRenders,
     projectFilter,
     setProjectFilter,
+    stationFilter,
+    setStationFilter,
     reviewFilter,
     setReviewFilter,
     projectFilterOptions,
+    stationFilterOptions,
   };
 }
 

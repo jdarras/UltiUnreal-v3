@@ -23,1646 +23,320 @@ const { handlePostprodAuthAndHealthRoutes } = require('./server-postprod-routes-
 const { handlePostprodAuditRoutes } = require('./server-postprod-routes-audit-export.cjs');
 const { evaluatePostprodSecurityGate } = require('./server-postprod-routes-security-gate.cjs');
 const { dispatchPostprodRouteHandlers } = require('./server-postprod-route-dispatcher.cjs');
+const {
+  selectBestStation,
+  sendJobToStation,
+} = require('./server-postprod-remote-dispatcher.cjs');
 
-const DEFAULT_BOOTSTRAP_USER = 'maintenance';
-const DEFAULT_BOOTSTRAP_PASSWORD = 'admin';
-const DEFAULT_BOOTSTRAP_ROLE = 'Maintenance';
-const DEFAULT_SESSION_TTL_SEC = 12 * 60 * 60; // 12h
-const DEFAULT_PBKDF2_ITERS = 150000;
-const PASSWORD_KEY_LEN = 32;
-const MIN_PASSWORD_LEN = 4;
-const MAX_USERNAME_LEN = 64;
-const MAX_DISPLAY_NAME_LEN = 120;
-const MAX_USER_EMAIL_LEN = 254;
-const MAX_USER_PHONE_LEN = 40;
-const MAX_EMPLOYMENT_TYPE_LEN = 24;
-const MAX_TIMEZONE_LEN = 80;
-const MAX_USER_LANGUAGE_LEN = 12;
-const MAX_USER_NOTE_LEN = 4000;
-const MAX_USER_AVATAR_PATH_LEN = 500000;
-const MAX_ROLE_KEY_LEN = 80;
-const MAX_ROLE_NOTE_LEN = 4000;
-const MAX_TASK_TITLE_LEN = 220;
-const MAX_TASK_DESCRIPTION_LEN = 8000;
-const MAX_TASK_COMMENT_LEN = 4000;
-const MAX_TASK_REF_LEN = 240;
-const MAX_TASK_REFS = 64;
-const MAX_TASK_EXPECTED_RENDER_COUNT = 50;
-const MAX_TASK_EXPECTED_RENDER_NAME_LEN = 220;
-const MAX_TASK_AUTO_RENDER_CONFIG_BYTES = 256 * 1024;
-const MAX_TASK_AUTO_RENDER_TEXT_LEN = 2000;
-const MAX_RENDER_TEMPLATE_NAME_LEN = 220;
-const MAX_RENDER_PROJECT_NAME_LEN = 220;
-const MAX_RENDER_PRESET_NAME_LEN = 160;
-const MAX_RENDER_FORM_NAME_LEN = 220;
-const MAX_RENDER_FORM_PRESET_NAME_LEN = 220;
-const MAX_RENDER_FORM_LAYOUT_BYTES = 256 * 1024;
-const MAX_RENDER_MAP_NAME_LEN = 220;
-const MAX_RENDER_SEQUENCE_NAME_LEN = 220;
-const MAX_RENDER_OUTPUT_PROFILE_LEN = 220;
-const MAX_RENDER_ALLOWED_ROLES = 64;
-const MAX_RENDER_TEMPLATE_FIELDS = 128;
-const MAX_RENDER_TEMPLATE_FIELD_KEY_LEN = 120;
-const MAX_RENDER_TEMPLATE_FIELD_LABEL_LEN = 220;
-const MAX_RENDER_TEMPLATE_FIELD_SOURCE_PATH_LEN = 400;
-const MAX_RENDER_TEMPLATE_FIELD_INPUT_KIND_LEN = 40;
-const MAX_RENDER_TEMPLATE_FIELD_VALUE_TYPE_LEN = 40;
-const MAX_RENDER_TEMPLATE_FIELD_GROUP_NAME_LEN = 120;
-const MAX_RENDER_TEMPLATE_FIELD_PAYLOAD_KEY_LEN = 120;
-const MAX_RENDER_TEMPLATE_FIELD_PLACEHOLDER_LEN = 220;
-const MAX_RENDER_TEMPLATE_FIELD_HELP_TEXT_LEN = 500;
-const MAX_RENDER_TEMPLATE_FIELD_OPTIONS_ITEMS = 200;
-const MAX_RENDER_TEMPLATE_FIELD_OPTIONS_BYTES = 128 * 1024;
-const MAX_RENDER_TEMPLATE_FIELD_VALIDATION_BYTES = 128 * 1024;
-const MAX_RENDER_TEMPLATE_FIELD_DEFAULT_VALUE_BYTES = 64 * 1024;
-const MAX_RENDER_PRESET_PAYLOAD_BYTES = 256 * 1024;
-const MAX_RENDER_OUTPUT_PATH_LEN = 4000;
-const MAX_RENDER_ERROR_LEN = 4000;
-const MAX_RENDER_COMMENT_LEN = 2000;
-const MAX_RENDER_HEALTH_EVENT_LABEL_LEN = 220;
-const MAX_RENDER_HEALTH_EVENT_DETAIL_LEN = 2000;
-const MAX_RENDER_HEALTH_EVENT_SOURCE_LEN = 120;
-const MAX_RENDER_PAYLOAD_BYTES = 512 * 1024;
-const MAX_RENDER_WORKER_KEY_LEN = 160;
-const MAX_RENDER_WORKER_NAME_LEN = 220;
-const MAX_RENDER_WORKER_CAPABILITY_KEY_LEN = 120;
-const MAX_RENDER_WORKER_CAPABILITY_VALUE_LEN = 220;
-const MAX_RENDER_WORKER_CAPABILITY_ITEMS = 64;
-const MAX_RENDER_WORKER_CAPABILITIES_BYTES = 64 * 1024;
-const RENDER_WORKER_ONLINE_TTL_SECONDS = 90;
-const DEFAULT_RENDER_DISPATCH_PRIORITY = 100;
-const DEFAULT_RENDER_DISPATCH_MAX_JOBS = 10;
-const MAX_RENDER_DISPATCH_PRIORITY = 1000;
-const MAX_RENDER_DISPATCH_QUOTA = 500;
-const MAX_RENDER_DISPATCH_PROJECT_RULES = 200;
-const MAX_RENDER_DISPATCH_FETCH_LIMIT = 500;
-const MAX_RENDER_DISPATCH_WORKER_FETCH_LIMIT = 200;
-const MAX_RENDER_DISPATCH_MAX_JOBS = 50;
-const MAX_RENDER_DISPATCH_RENDER_IDS = 200;
-const MAX_RENDER_DETECTED_SCAN_FILES = 5000;
-const DEFAULT_RENDER_DETECTED_SCAN_FILES = 1000;
-const MAX_UNREAL_PROJECT_CATALOG_FILES = 20000;
-const MIN_RENDER_DETECTED_SCAN_INTERVAL_MS = 1000;
-const MAX_RENDER_DETECTED_SCAN_INTERVAL_MS = 10 * 60 * 1000;
-const DEFAULT_RENDER_DETECTED_SCAN_INTERVAL_MS = 5000;
-const DEFAULT_RENDER_DETECTED_EXTENSIONS = new Set([
-  '.png',
-  '.jpg',
-  '.jpeg',
-  '.bmp',
-  '.exr',
-  '.mov',
-  '.mp4',
-  '.mxf',
-  '.wav',
-  '.json',
-]);
-const DEFAULT_RENDER_DETECTED_TEMPLATE_NAME = 'Imported output';
-const AUTO_RENDER_PROJECT_USAGE_MODES = new Set(['auto_render', 'live_auto_render']);
-const DEFAULT_USER_LANGUAGE = 'fr';
-const USER_LANGUAGE_ALLOWED = new Set(['fr', 'en']);
-const MAX_FAILED_LOGIN_COUNT = 5;
-const FAILED_LOGIN_LOCK_SECONDS = 15 * 60;
-const MAX_PROJECT_REF_LEN = 220;
-const MAX_DATA_TABLE_NAME_LEN = 220;
-const MAX_DATA_TABLE_SCHEMA_BYTES = 256 * 1024;
-const MAX_DATA_ROW_KEY_LEN = 220;
-const MAX_DATA_ROW_PAYLOAD_BYTES = 512 * 1024;
-const MAX_SYNC_SOURCE_LEN = 120;
-const MAX_SYNC_RESULT_LEN = 120;
-const MAX_SYNC_DETAILS_BYTES = 256 * 1024;
-const MAX_ACTIVITY_SEARCH_LEN = 240;
-const MAX_RESOURCE_CODE_LEN = 240;
-const MAX_RESOURCE_TYPE_LEN = 160;
-const MAX_RESOURCE_TITLE_LEN = 400;
-const MAX_RESOURCE_SOURCE_PATH_LEN = 4000;
-const MAX_RESOURCE_METADATA_BYTES = 512 * 1024;
-const MIN_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS = 1000;
-const MAX_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
-const MIN_POSTPROD_PROJECTS_RESYNC_TTL_MS = 250;
-const MAX_POSTPROD_PROJECTS_RESYNC_TTL_MS = 5 * 60 * 1000;
-const DEFAULT_POSTPROD_PROJECTS_RESYNC_TTL_MS = 10 * 1000;
-const MAX_BROKER_TOKEN_LEN = 4096;
-const MAX_BROKER_JWKS_URL_LEN = 2000;
-const MAX_BROKER_OIDC_DISCOVERY_URL_LEN = 2000;
-const MAX_BROKER_JWT_ISSUER_LEN = 240;
-const MAX_BROKER_JWT_AUDIENCE_LEN = 240;
-const MAX_CLIENT_CERT_DN_LEN = 2000;
-const CLIENT_CERT_SHA256_HEX_LEN = 64;
-const MIN_BROKER_JWKS_TTL_SEC = 5;
-const MAX_BROKER_JWKS_TTL_SEC = 24 * 60 * 60;
-const MIN_BROKER_JWKS_TIMEOUT_MS = 500;
-const MAX_BROKER_JWKS_TIMEOUT_MS = 30000;
-const MIN_BROKER_OIDC_DISCOVERY_TTL_SEC = 5;
-const MAX_BROKER_OIDC_DISCOVERY_TTL_SEC = 24 * 60 * 60;
-const MIN_BROKER_OIDC_DISCOVERY_TIMEOUT_MS = 500;
-const MAX_BROKER_OIDC_DISCOVERY_TIMEOUT_MS = 30000;
-const MAX_BROKER_REFRESH_LEAD_SEC = 3600;
-const MIN_BROKER_METADATA_REFRESH_INTERVAL_MS = 250;
-const MAX_BROKER_METADATA_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
-const MIN_BROKER_OFFLINE_RECOVERY_INTERVAL_MS = 1000;
-const MAX_BROKER_OFFLINE_RECOVERY_INTERVAL_MS = 60 * 60 * 1000;
-const DEFAULT_BROKER_OFFLINE_RECOVERY_INTERVAL_MS = 30 * 1000;
-const BROKER_TOKEN_HEADER = 'x-uu-broker-token';
+const {
+  DEFAULT_BOOTSTRAP_USER,
+  DEFAULT_BOOTSTRAP_PASSWORD,
+  DEFAULT_BOOTSTRAP_ROLE,
+  DEFAULT_SESSION_TTL_SEC,
+  DEFAULT_PBKDF2_ITERS,
+  PASSWORD_KEY_LEN,
+  MIN_PASSWORD_LEN,
+  MAX_USERNAME_LEN,
+  MAX_DISPLAY_NAME_LEN,
+  MAX_USER_EMAIL_LEN,
+  MAX_USER_PHONE_LEN,
+  MAX_EMPLOYMENT_TYPE_LEN,
+  MAX_TIMEZONE_LEN,
+  MAX_USER_LANGUAGE_LEN,
+  MAX_USER_NOTE_LEN,
+  MAX_USER_AVATAR_PATH_LEN,
+  MAX_ROLE_KEY_LEN,
+  MAX_ROLE_NOTE_LEN,
+  MAX_TASK_TITLE_LEN,
+  MAX_TASK_DESCRIPTION_LEN,
+  MAX_TASK_COMMENT_LEN,
+  MAX_TASK_REF_LEN,
+  MAX_TASK_REFS,
+  MAX_TASK_EXPECTED_RENDER_COUNT,
+  MAX_TASK_EXPECTED_RENDER_NAME_LEN,
+  MAX_TASK_AUTO_RENDER_CONFIG_BYTES,
+  MAX_TASK_AUTO_RENDER_TEXT_LEN,
+  MAX_RENDER_TEMPLATE_NAME_LEN,
+  MAX_RENDER_PROJECT_NAME_LEN,
+  MAX_RENDER_PRESET_NAME_LEN,
+  MAX_RENDER_FORM_NAME_LEN,
+  MAX_RENDER_FORM_PRESET_NAME_LEN,
+  MAX_RENDER_FORM_LAYOUT_BYTES,
+  MAX_RENDER_MAP_NAME_LEN,
+  MAX_RENDER_SEQUENCE_NAME_LEN,
+  MAX_RENDER_OUTPUT_PROFILE_LEN,
+  MAX_RENDER_ALLOWED_ROLES,
+  MAX_RENDER_TEMPLATE_FIELDS,
+  MAX_RENDER_TEMPLATE_FIELD_KEY_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_LABEL_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_SOURCE_PATH_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_INPUT_KIND_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_VALUE_TYPE_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_GROUP_NAME_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_PAYLOAD_KEY_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_PLACEHOLDER_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_HELP_TEXT_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_OPTIONS_ITEMS,
+  MAX_RENDER_TEMPLATE_FIELD_OPTIONS_BYTES,
+  MAX_RENDER_TEMPLATE_FIELD_VALIDATION_BYTES,
+  MAX_RENDER_TEMPLATE_FIELD_DEFAULT_VALUE_BYTES,
+  MAX_RENDER_PRESET_PAYLOAD_BYTES,
+  MAX_RENDER_OUTPUT_PATH_LEN,
+  MAX_RENDER_ERROR_LEN,
+  MAX_RENDER_COMMENT_LEN,
+  MAX_RENDER_HEALTH_EVENT_LABEL_LEN,
+  MAX_RENDER_HEALTH_EVENT_DETAIL_LEN,
+  MAX_RENDER_HEALTH_EVENT_SOURCE_LEN,
+  MAX_RENDER_PAYLOAD_BYTES,
+  MAX_RENDER_WORKER_KEY_LEN,
+  MAX_RENDER_WORKER_NAME_LEN,
+  MAX_RENDER_WORKER_CAPABILITY_KEY_LEN,
+  MAX_RENDER_WORKER_CAPABILITY_VALUE_LEN,
+  MAX_RENDER_WORKER_CAPABILITY_ITEMS,
+  MAX_RENDER_WORKER_CAPABILITIES_BYTES,
+  RENDER_WORKER_ONLINE_TTL_SECONDS,
+  DEFAULT_RENDER_DISPATCH_PRIORITY,
+  DEFAULT_RENDER_DISPATCH_MAX_JOBS,
+  MAX_RENDER_DISPATCH_PRIORITY,
+  MAX_RENDER_DISPATCH_QUOTA,
+  MAX_RENDER_DISPATCH_PROJECT_RULES,
+  MAX_RENDER_DISPATCH_FETCH_LIMIT,
+  MAX_RENDER_DISPATCH_WORKER_FETCH_LIMIT,
+  MAX_RENDER_DISPATCH_MAX_JOBS,
+  MAX_RENDER_DISPATCH_RENDER_IDS,
+  MAX_RENDER_DETECTED_SCAN_FILES,
+  DEFAULT_RENDER_DETECTED_SCAN_FILES,
+  MAX_UNREAL_PROJECT_CATALOG_FILES,
+  MIN_RENDER_DETECTED_SCAN_INTERVAL_MS,
+  MAX_RENDER_DETECTED_SCAN_INTERVAL_MS,
+  DEFAULT_RENDER_DETECTED_SCAN_INTERVAL_MS,
+  DEFAULT_RENDER_DETECTED_EXTENSIONS,
+  DEFAULT_RENDER_DETECTED_TEMPLATE_NAME,
+  AUTO_RENDER_PROJECT_USAGE_MODES,
+  DEFAULT_USER_LANGUAGE,
+  USER_LANGUAGE_ALLOWED,
+  MAX_FAILED_LOGIN_COUNT,
+  FAILED_LOGIN_LOCK_SECONDS,
+  MAX_PROJECT_REF_LEN,
+  MAX_DATA_TABLE_NAME_LEN,
+  MAX_DATA_TABLE_SCHEMA_BYTES,
+  MAX_DATA_ROW_KEY_LEN,
+  MAX_DATA_ROW_PAYLOAD_BYTES,
+  MAX_SYNC_SOURCE_LEN,
+  MAX_SYNC_RESULT_LEN,
+  MAX_SYNC_DETAILS_BYTES,
+  MAX_ACTIVITY_SEARCH_LEN,
+  MAX_RESOURCE_CODE_LEN,
+  MAX_RESOURCE_TYPE_LEN,
+  MAX_RESOURCE_TITLE_LEN,
+  MAX_RESOURCE_SOURCE_PATH_LEN,
+  MAX_RESOURCE_METADATA_BYTES,
+  MIN_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS,
+  MAX_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS,
+  DEFAULT_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS,
+  MIN_POSTPROD_PROJECTS_RESYNC_TTL_MS,
+  MAX_POSTPROD_PROJECTS_RESYNC_TTL_MS,
+  DEFAULT_POSTPROD_PROJECTS_RESYNC_TTL_MS,
+  SYSTEM_MAINTENANCE_ROLE,
+  DEFAULT_FALLBACK_ROLE,
+  TASK_STATUSES,
+  TASK_EXPECTED_RENDER_MATCH_ACTIVE_STATUSES,
+  TASK_REQUEST_TYPES,
+  DEFAULT_TASK_REQUEST_TYPE,
+  TASK_PRIORITY_DEADLINE_DAYS,
+  DEFAULT_TASK_DEADLINE_DAYS,
+  RENDER_STATUSES,
+  RENDER_REVIEW_STATUSES,
+  RENDER_HEALTH_EVENT_STATES,
+  RENDER_HEALTH_EVENT_KINDS,
+  POSTPROD_RENDER_HEALTH_AUDIT_ACTION,
+  DEFAULT_RENDER_HEALTH_EVENT_RETENTION_DAYS,
+  MIN_RENDER_HEALTH_EVENT_RETENTION_DAYS,
+  MAX_RENDER_HEALTH_EVENT_RETENTION_DAYS,
+  DEFAULT_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
+  MIN_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
+  MAX_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
+  DEFAULT_ROLE_KEYS,
+  RENDER_VALIDATION_ALLOWED_ROLES,
+  RENDER_TEMPLATE_FIELD_VALUE_TYPES,
+  RENDER_TEMPLATE_FIELD_INPUT_KINDS,
+  RENDER_FORM_SOURCE_TYPES,
+  RENDER_FORM_MODE_DEFAULTS,
+  EMPLOYMENT_TYPE_LOOKUP,
+  DEFAULT_ROLE_POLICIES,
+  ROLE_ALIAS_MAP,
+} = require('./server-postprod-auth-constants.cjs');
 
-const SYSTEM_MAINTENANCE_ROLE = 'Maintenance';
-const DEFAULT_FALLBACK_ROLE = 'Operateur';
-const TASK_STATUSES = Object.freeze([
-  'Planifiee',
-  'A faire',
-  'En cours',
-  'A valider',
-  'Validee',
-  'Rejetee',
-]);
-const TASK_EXPECTED_RENDER_MATCH_ACTIVE_STATUSES = new Set([
-  'Planifiee',
-  'A faire',
-  'En cours',
-  'A valider',
-]);
-const TASK_REQUEST_TYPES = Object.freeze(['manual', 'auto_render']);
-const DEFAULT_TASK_REQUEST_TYPE = 'manual';
-const TASK_PRIORITY_DEADLINE_DAYS = Object.freeze({
-  1: 1,
-  2: 3,
-  3: 7,
-  4: 14,
+const {
+  coercePositiveInt,
+  parseBooleanFlag,
+  parseEnvPathList,
+  normalizeRenderDetectedExtensions,
+  normalizeRenderDetectedFilePathForSignature,
+  buildRenderDetectedFileSignature,
+  nowIso,
+  normalizeAscii,
+  normalizeRoleLookupKey,
+  normalizeUsername,
+  normalizeUsernameSeed,
+  buildAutoUsername,
+  sanitizeDisplayName,
+  sanitizeFirstName,
+  sanitizeLastName,
+  sanitizeEmail,
+  sanitizePhone,
+  sanitizeEmploymentType,
+  buildPublicId,
+  normalizePublicId,
+  resolvePhoneFromBody,
+  resolveNotificationPrefsFromBody,
+  sanitizeTimezone,
+  sanitizeUserLanguage,
+  sanitizeUserNote,
+  sanitizeAvatarPath,
+  isValidAvatarPath,
+  isValidEmail,
+  normalizeNotificationPreferences,
+  parseNotificationPreferencesJson,
+  sanitizeRoleKey,
+  sanitizeRoleNote
+} = require('./server-postprod-auth-utils-core.cjs');
+
+const { createTaskRenderHelpers } = require('./server-postprod-auth-task-render-utils.cjs');
+const {
+  sanitizeTaskTitle,
+  sanitizeTaskDescription,
+  sanitizeTaskComment,
+  normalizeTaskRequestType,
+  sanitizeTaskExpectedRenderName,
+  sanitizeTaskAutoRenderText,
+  normalizeTaskExpectedRenderCount,
+  normalizeTaskExpectedRenderNamesInput,
+  buildTaskExpectedRenderNameBase,
+  generateTaskExpectedRenderNames,
+  resolveTaskExpectedRenderNames,
+  normalizeExpectedRenderLookupKey,
+  safeIsoToTs,
+  sortTaskExpectedRenderCandidates,
+  normalizeTaskRefsInput,
+  sanitizeTaskRefForStorage,
+  parseTaskRefsJson,
+  normalizeTaskRefLookup,
+  addTaskRefAlias,
+  parseTaskAutoRenderConfig,
+  normalizeTaskAutoRenderConfig,
+  buildExpectedRenderTaskMatchCatalog,
+  findExpectedRenderTaskMatch,
+} = createTaskRenderHelpers({
+  normalizeAscii,
+  MAX_TASK_TITLE_LEN,
+  MAX_TASK_DESCRIPTION_LEN,
+  MAX_TASK_COMMENT_LEN,
+  MAX_TASK_EXPECTED_RENDER_NAME_LEN,
+  MAX_TASK_AUTO_RENDER_TEXT_LEN,
+  MAX_TASK_EXPECTED_RENDER_COUNT,
+  MAX_TASK_REF_LEN,
+  MAX_TASK_REFS,
+  TASK_REQUEST_TYPES,
+  DEFAULT_TASK_REQUEST_TYPE,
+  MAX_TASK_AUTO_RENDER_CONFIG_BYTES,
+  safeParseObjectJson,
+  sanitizeRenderProjectName,
+  sanitizeRenderTemplateName,
+  sanitizeRenderWorkerKey,
+  sanitizeRenderMapName,
+  sanitizeRenderSequenceName,
+  sanitizeRenderOutputProfile,
+  sanitizeRenderOutputPath,
+  normalizeRenderPayload,
+  parseRenderPayloadJson,
+  normalizeRenderExecution,
+  parseRenderExecutionJson,
+  parseIsoDateOrNull,
+  buildTaskPayload,
+  normalizeTaskStatus,
+  TASK_EXPECTED_RENDER_MATCH_ACTIVE_STATUSES,
 });
-const DEFAULT_TASK_DEADLINE_DAYS = 7;
-const RENDER_STATUSES = Object.freeze([
-  'Queued',
-  'Running',
-  'Done',
-  'Failed',
-  'Canceled',
-]);
-const RENDER_REVIEW_STATUSES = Object.freeze([
-  'to_validate',
-  'validated',
-  'to_modify',
-  'canceled',
-]);
-const RENDER_HEALTH_EVENT_STATES = new Set(['online', 'warn', 'offline', 'loading', 'info']);
-const RENDER_HEALTH_EVENT_KINDS = new Set(['broker', 'security', 'mixed', 'worker', 'general']);
-const POSTPROD_RENDER_HEALTH_AUDIT_ACTION = 'render_health_event';
-const DEFAULT_RENDER_HEALTH_EVENT_RETENTION_DAYS = 90;
-const MIN_RENDER_HEALTH_EVENT_RETENTION_DAYS = 0;
-const MAX_RENDER_HEALTH_EVENT_RETENTION_DAYS = 3650;
-const DEFAULT_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
-const MIN_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS = 60 * 1000;
-const MAX_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
-const DEFAULT_ROLE_KEYS = [
-  'Maintenance',
-  'Responsable Fabrication',
-  'Integrateur',
-  'Operateur',
-  'Graphiste',
-  'Journaliste',
-];
-const RENDER_VALIDATION_ALLOWED_ROLES = new Set([
-  'Maintenance',
-  'Responsable Fabrication',
-  'Journaliste',
-]);
-const RENDER_TEMPLATE_FIELD_VALUE_TYPES = new Set([
-  'string',
-  'number',
-  'integer',
-  'boolean',
-  'color',
-  'image',
-  'video',
-  'enum',
-  'date',
-  'vector2',
-  'vector3',
-  'json',
-]);
-const RENDER_TEMPLATE_FIELD_INPUT_KINDS = new Set([
-  'text',
-  'multiline',
-  'number',
-  'integer',
-  'vector2',
-  'vector3',
-  'checkbox',
-  'color',
-  'image',
-  'video',
-  'select',
-  'date',
-  'json',
-]);
-const RENDER_FORM_SOURCE_TYPES = new Set([
-  'preset_property',
-  'preset_function_arg',
-  'manual',
-]);
-const RENDER_FORM_MODE_DEFAULTS = new Set(['edit', 'live']);
-
-const EMPLOYMENT_TYPE_LOOKUP = new Map([
-  ['interne', 'Interne'],
-  ['exterieur', 'Exterieur'],
-  ['externe', 'Exterieur'],
-  ['external', 'Exterieur'],
-  ['cdd', 'CDD'],
-]);
-
-const DEFAULT_ROLE_POLICIES = [
-  {
-    key: 'Maintenance',
-    displayName: 'Maintenance',
-    canUseLiveMode: true,
-    canUsePostprodMode: true,
-    canValidate: true,
-    canSyncScenes: true,
-    canManageUsers: true,
-    canManageRoles: true,
-    canManageForms: true,
-    canManageMachines: true,
-    canBanUsers: true,
-    canManageProjectPermissions: true,
-    canLaunchProjects: true,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canEditProjects: true,
-    canManageLayouts: true,
-    manageableRoles: [...DEFAULT_ROLE_KEYS],
-    isSystem: true,
-  },
-  {
-    key: 'Responsable Fabrication',
-    displayName: 'Responsable Fabrication',
-    canUseLiveMode: true,
-    canUsePostprodMode: true,
-    canValidate: true,
-    canSyncScenes: true,
-    canManageUsers: true,
-    canManageRoles: false,
-    canManageForms: true,
-    canManageMachines: true,
-    canBanUsers: true,
-    canManageProjectPermissions: true,
-    canLaunchProjects: true,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canEditProjects: true,
-    canManageLayouts: true,
-    manageableRoles: ['Graphiste', 'Journaliste'],
-    isSystem: true,
-  },
-  {
-    key: 'Integrateur',
-    displayName: 'Integrateur',
-    canUseLiveMode: true,
-    canUsePostprodMode: true,
-    canValidate: true,
-    canSyncScenes: true,
-    canManageUsers: true,
-    canManageRoles: false,
-    canManageForms: true,
-    canManageMachines: true,
-    canBanUsers: true,
-    canManageProjectPermissions: true,
-    canLaunchProjects: true,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canEditProjects: true,
-    canManageLayouts: true,
-    manageableRoles: ['Operateur', 'Journaliste'],
-    isSystem: true,
-  },
-  {
-    key: 'Operateur',
-    displayName: 'Operateur',
-    canUseLiveMode: true,
-    canUsePostprodMode: true,
-    canValidate: false,
-    canSyncScenes: false,
-    canManageUsers: false,
-    canManageRoles: false,
-    canManageForms: false,
-    canManageMachines: false,
-    canBanUsers: false,
-    canManageProjectPermissions: false,
-    canLaunchProjects: true,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canEditProjects: true,
-    canManageLayouts: true,
-    manageableRoles: [],
-    isSystem: true,
-  },
-  {
-    key: 'Graphiste',
-    displayName: 'Graphiste',
-    canUseLiveMode: false,
-    canUsePostprodMode: true,
-    canValidate: false,
-    canSyncScenes: false,
-    canManageUsers: false,
-    canManageRoles: false,
-    canManageForms: false,
-    canManageMachines: false,
-    canBanUsers: false,
-    canManageProjectPermissions: false,
-    canLaunchProjects: false,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canEditProjects: false,
-    canManageLayouts: false,
-    manageableRoles: [],
-    isSystem: true,
-  },
-  {
-    key: 'Journaliste',
-    displayName: 'Journaliste',
-    canUseLiveMode: false,
-    canUsePostprodMode: true,
-    canValidate: false,
-    canSyncScenes: false,
-    canManageUsers: false,
-    canManageRoles: false,
-    canManageForms: false,
-    canManageMachines: false,
-    canBanUsers: false,
-    canManageProjectPermissions: false,
-    canLaunchProjects: false,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canEditProjects: false,
-    canManageLayouts: false,
-    manageableRoles: [],
-    isSystem: true,
-  },
-];
-
-const ROLE_ALIAS_MAP = new Map([
-  ['maintenance', 'Maintenance'],
-  ['responsable fabrication', 'Responsable Fabrication'],
-  ['responsable_fabrication', 'Responsable Fabrication'],
-  ['responsable-fabrication', 'Responsable Fabrication'],
-  ['responsablefabrication', 'Responsable Fabrication'],
-  ['integrateur', 'Integrateur'],
-  ['integrator', 'Integrateur'],
-  ['operateur', 'Operateur'],
-  ['operator', 'Operateur'],
-  ['graphiste', 'Graphiste'],
-  ['journaliste', 'Journaliste'],
-]);
-
-function coercePositiveInt(value, fallback, min = 1) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return Math.max(min, Number(fallback) || min);
-  return Math.max(min, Math.trunc(n));
-}
-
-function parseBooleanFlag(value, fallback = false) {
-  if (value == null) return fallback === true;
-  if (value === true || value === false) return value;
-  if (value === 1 || value === 0) return value === 1;
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return fallback === true;
-  if (raw === '1' || raw === 'true' || raw === 'yes' || raw === 'oui' || raw === 'on') return true;
-  if (raw === '0' || raw === 'false' || raw === 'no' || raw === 'non' || raw === 'off') return false;
-  return fallback === true;
-}
-
-function parseEnvPathList(value) {
-  return String(value || '')
-    .split(/[;\n\r]+/g)
-    .map((item) => String(item || '').trim())
-    .filter(Boolean);
-}
-
-function normalizeRenderDetectedExtensions(value) {
-  const out = new Set();
-  const push = (entry) => {
-    const raw = String(entry || '').trim().toLowerCase();
-    if (!raw) return;
-    if (raw === '*') return;
-    const ext = raw.startsWith('.') ? raw : `.${raw}`;
-    out.add(ext);
-  };
-  if (Array.isArray(value)) {
-    for (const item of value) push(item);
-  } else {
-    String(value || '')
-      .split(/[,\s;]+/g)
-      .forEach((item) => push(item));
-  }
-  return out;
-}
-
-function normalizeRenderDetectedFilePathForSignature(value) {
-  let abs = '';
-  try {
-    abs = path.resolve(String(value || '').trim());
-  } catch {
-    abs = String(value || '').trim();
-  }
-  return abs.replace(/\\/g, '/').toLowerCase();
-}
-
-function buildRenderDetectedFileSignature(filePath, size = 0, mtimeIso = '') {
-  return crypto
-    .createHash('sha1')
-    .update(
-      `${normalizeRenderDetectedFilePathForSignature(filePath)}|${Math.max(0, Math.trunc(Number(size) || 0))}|${String(mtimeIso || '').trim()}`
-    )
-    .digest('hex');
-}
-
-function normalizeBrokerJwtAlgs(value, fallback = []) {
-  const allowed = new Set(['HS256', 'RS256']);
-  const raw = value == null ? '' : String(value || '');
-  const parts = raw
-    .split(/[,\s;]+/g)
-    .map((item) => String(item || '').trim().toUpperCase())
-    .filter(Boolean);
-  const out = [];
-  const seen = new Set();
-  for (const alg of parts) {
-    if (!allowed.has(alg) || seen.has(alg)) continue;
-    seen.add(alg);
-    out.push(alg);
-  }
-  if (out.length > 0) return out;
-
-  const fb = Array.isArray(fallback) ? fallback : [fallback];
-  for (const algRaw of fb) {
-    const alg = String(algRaw || '').trim().toUpperCase();
-    if (!allowed.has(alg) || seen.has(alg)) continue;
-    seen.add(alg);
-    out.push(alg);
-  }
-  return out;
-}
-
-function sanitizeHttpUrl(value, maxLen = 2000) {
-  const raw = String(value || '').trim().slice(0, Math.max(1, Math.trunc(Number(maxLen) || 2000)));
-  if (!raw) return '';
-  try {
-    const parsed = new URL(raw);
-    const proto = String(parsed.protocol || '').trim().toLowerCase();
-    if (proto !== 'https:' && proto !== 'http:') return '';
-    return parsed.toString();
-  } catch {
-    return '';
-  }
-}
-
-function buildOidcDiscoveryUrl({ issuer = '', explicitUrl = '' } = {}) {
-  const fromExplicit = sanitizeHttpUrl(explicitUrl, MAX_BROKER_OIDC_DISCOVERY_URL_LEN);
-  if (fromExplicit) return fromExplicit;
-  const cleanIssuer = sanitizeHttpUrl(issuer, MAX_BROKER_JWT_ISSUER_LEN);
-  if (!cleanIssuer) return '';
-  const noTrail = cleanIssuer.endsWith('/') ? cleanIssuer.slice(0, -1) : cleanIssuer;
-  return `${noTrail}/.well-known/openid-configuration`;
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function normalizeAscii(value) {
-  return String(value || '')
-    .trim()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-}
-
-function normalizeRoleLookupKey(value) {
-  return normalizeAscii(value).replace(/[\s_-]+/g, ' ').trim();
-}
-
-function normalizeUsername(value) {
-  return normalizeAscii(value).replace(/\s+/g, '');
-}
-
-function normalizeUsernameSeed(value) {
-  const raw = normalizeAscii(value);
-  if (!raw) return '';
-  const normalized = raw
-    .replace(/[^a-z0-9]+/g, '.')
-    .replace(/\.+/g, '.')
-    .replace(/^\.|\.$/g, '');
-  return normalized.slice(0, Math.min(32, MAX_USERNAME_LEN));
-}
-
-function buildAutoUsername(stmts, seeds = []) {
-  const list = Array.isArray(seeds) ? seeds : [seeds];
-  let base = '';
-  for (const seed of list) {
-    const candidate = normalizeUsernameSeed(seed);
-    if (!candidate) continue;
-    base = candidate;
-    break;
-  }
-  if (!base) base = 'user';
-
-  let username = base.slice(0, MAX_USERNAME_LEN);
-  let suffix = 2;
-  while (stmts.findUserByUsername.get(username)) {
-    const suffixLabel = `.${suffix++}`;
-    const maxBaseLen = Math.max(1, MAX_USERNAME_LEN - suffixLabel.length);
-    username = `${base.slice(0, maxBaseLen)}${suffixLabel}`;
-    if (suffix > 10000) {
-      const randomSuffix = crypto.randomBytes(3).toString('hex');
-      const hardMaxBaseLen = Math.max(1, MAX_USERNAME_LEN - (randomSuffix.length + 1));
-      username = `${base.slice(0, hardMaxBaseLen)}.${randomSuffix}`;
-      if (!stmts.findUserByUsername.get(username)) break;
-    }
-  }
-  return username;
-}
-
-function sanitizeDisplayName(value, fallback = '') {
-  const raw = String(value || '').trim();
-  const safe = raw || String(fallback || '').trim();
-  return safe.slice(0, MAX_DISPLAY_NAME_LEN);
-}
-
-function sanitizeFirstName(value) {
-  return String(value || '').trim().slice(0, MAX_DISPLAY_NAME_LEN);
-}
-
-function sanitizeLastName(value) {
-  return String(value || '').trim().slice(0, MAX_DISPLAY_NAME_LEN);
-}
-
-function sanitizeEmail(value) {
-  return String(value || '').trim().toLowerCase().slice(0, MAX_USER_EMAIL_LEN);
-}
-
-function sanitizePhone(value) {
-  return String(value || '').trim().slice(0, MAX_USER_PHONE_LEN);
-}
-
-function sanitizeEmploymentType(value) {
-  const raw = String(value || '').trim().slice(0, MAX_EMPLOYMENT_TYPE_LEN);
-  if (!raw) return '';
-  const normalized = normalizeAscii(raw).replace(/[\s_-]+/g, '');
-  return EMPLOYMENT_TYPE_LOOKUP.get(normalized) || '';
-}
-
-function buildPublicId() {
-  if (typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  const bytes = crypto.randomBytes(16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = bytes.toString('hex');
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20),
-  ].join('-');
-}
-
-function normalizePublicId(value) {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  if (!/^[0-9a-f-]{36}$/.test(raw)) return '';
-  const parts = raw.split('-');
-  if (parts.length !== 5) return '';
-  if (parts[0].length !== 8 || parts[1].length !== 4 || parts[2].length !== 4 || parts[3].length !== 4 || parts[4].length !== 12) {
-    return '';
-  }
-  return raw;
-}
-
-function resolvePhoneFromBody(body = {}, fallback = '') {
-  const hasPhone = Object.prototype.hasOwnProperty.call(body || {}, 'phone');
-  const hasMobilePhone = Object.prototype.hasOwnProperty.call(body || {}, 'mobilePhone');
-  const hasOfficePhone = Object.prototype.hasOwnProperty.call(body || {}, 'officePhone');
-  if (!hasPhone && !hasMobilePhone && !hasOfficePhone) {
-    return {
-      hasAny: false,
-      hasLegacyMobile: false,
-      hasLegacyOffice: false,
-      value: sanitizePhone(fallback),
-    };
-  }
-  const rawValue = hasPhone
-    ? body?.phone
-    : hasMobilePhone
-      ? body?.mobilePhone
-      : body?.officePhone;
-  return {
-    hasAny: true,
-    hasLegacyMobile: hasMobilePhone,
-    hasLegacyOffice: hasOfficePhone,
-    value: sanitizePhone(rawValue),
-  };
-}
-
-function resolveNotificationPrefsFromBody(body = {}, fallback = '{}') {
-  const hasNotificationPrefsJson = Object.prototype.hasOwnProperty.call(body || {}, 'notificationPrefsJson');
-  const hasNotificationPreferences = Object.prototype.hasOwnProperty.call(body || {}, 'notificationPreferences');
-  if (!hasNotificationPrefsJson && !hasNotificationPreferences) {
-    return {
-      hasAny: false,
-      hasLegacy: false,
-      value: normalizeNotificationPreferences(fallback),
-    };
-  }
-  return {
-    hasAny: true,
-    hasLegacy: hasNotificationPreferences,
-    value: normalizeNotificationPreferences(
-      hasNotificationPrefsJson ? body?.notificationPrefsJson : body?.notificationPreferences
-    ),
-  };
-}
-
-function sanitizeTimezone(value) {
-  return String(value || '').trim().slice(0, MAX_TIMEZONE_LEN);
-}
-
-function sanitizeUserLanguage(value, fallback = DEFAULT_USER_LANGUAGE) {
-  const raw = String(value || '').trim().toLowerCase().slice(0, MAX_USER_LANGUAGE_LEN);
-  if (USER_LANGUAGE_ALLOWED.has(raw)) return raw;
-  const fallbackRaw = String(fallback || DEFAULT_USER_LANGUAGE)
-    .trim()
-    .toLowerCase()
-    .slice(0, MAX_USER_LANGUAGE_LEN);
-  if (USER_LANGUAGE_ALLOWED.has(fallbackRaw)) return fallbackRaw;
-  return DEFAULT_USER_LANGUAGE;
-}
-
-function sanitizeUserNote(value) {
-  return String(value || '').trim().slice(0, MAX_USER_NOTE_LEN);
-}
-
-function sanitizeAvatarPath(value) {
-  return String(value || '').trim().slice(0, MAX_USER_AVATAR_PATH_LEN);
-}
-
-function isValidAvatarPath(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return true;
-  if (raw.length > MAX_USER_AVATAR_PATH_LEN) return false;
-  if (/[\r\n]/.test(raw)) return false;
-  if (/^data:/i.test(raw)) {
-    return /^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+$/i.test(raw);
-  }
-  return true;
-}
-
-function isValidEmail(value) {
-  const mail = String(value || '').trim();
-  if (!mail) return true;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail);
-}
-
-function normalizeNotificationPreferences(value) {
-  if (value == null || value === '') return '{}';
-  let parsed = null;
-  if (typeof value === 'string') {
-    try {
-      parsed = JSON.parse(String(value || '{}'));
-    } catch {
-      return '{}';
-    }
-  } else if (typeof value === 'object') {
-    parsed = value;
-  } else {
-    return '{}';
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return '{}';
-  try {
-    return JSON.stringify(parsed);
-  } catch {
-    return '{}';
-  }
-}
-
-function parseNotificationPreferencesJson(value) {
-  try {
-    const parsed = JSON.parse(String(value || '{}'));
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-  } catch {}
-  return {};
-}
-
-function sanitizeRoleKey(value, fallback = '') {
-  const raw = String(value || '').replace(/\s+/g, ' ').trim();
-  const safe = raw || String(fallback || '').replace(/\s+/g, ' ').trim();
-  return safe.slice(0, MAX_ROLE_KEY_LEN);
-}
-
-function sanitizeRoleNote(value) {
-  return String(value || '').trim().slice(0, MAX_ROLE_NOTE_LEN);
-}
-
-function sanitizeTaskTitle(value, fallback = '') {
-  const raw = String(value || '').replace(/\s+/g, ' ').trim();
-  const safe = raw || String(fallback || '').replace(/\s+/g, ' ').trim();
-  return safe.slice(0, MAX_TASK_TITLE_LEN);
-}
-
-function sanitizeTaskDescription(value) {
-  return String(value || '').trim().slice(0, MAX_TASK_DESCRIPTION_LEN);
-}
-
-function sanitizeTaskComment(value) {
-  return String(value || '').trim().slice(0, MAX_TASK_COMMENT_LEN);
-}
-
-function normalizeTaskRequestType(value, fallback = DEFAULT_TASK_REQUEST_TYPE) {
-  const raw = String(value || '').trim().toLowerCase();
-  if (TASK_REQUEST_TYPES.includes(raw)) return raw;
-  const fallbackRaw = String(fallback || '').trim().toLowerCase();
-  if (TASK_REQUEST_TYPES.includes(fallbackRaw)) return fallbackRaw;
-  return DEFAULT_TASK_REQUEST_TYPE;
-}
-
-function sanitizeTaskExpectedRenderName(value) {
-  return String(value || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, MAX_TASK_EXPECTED_RENDER_NAME_LEN);
-}
-
-function sanitizeTaskAutoRenderText(value) {
-  return String(value || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, MAX_TASK_AUTO_RENDER_TEXT_LEN);
-}
-
-function normalizeTaskExpectedRenderCount(value, requestType = DEFAULT_TASK_REQUEST_TYPE, fallback = 1) {
-  const normalizedRequestType = normalizeTaskRequestType(requestType, DEFAULT_TASK_REQUEST_TYPE);
-  if (normalizedRequestType === 'auto_render') return 1;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed)) {
-    return Math.max(1, Math.min(MAX_TASK_EXPECTED_RENDER_COUNT, Math.trunc(parsed)));
-  }
-  const fallbackParsed = Number(fallback);
-  if (Number.isFinite(fallbackParsed)) {
-    return Math.max(1, Math.min(MAX_TASK_EXPECTED_RENDER_COUNT, Math.trunc(fallbackParsed)));
-  }
-  return 1;
-}
-
-function normalizeTaskExpectedRenderNamesInput(value, maxItems = MAX_TASK_EXPECTED_RENDER_COUNT) {
-  let src = [];
-  if (Array.isArray(value)) {
-    src = value;
-  } else if (typeof value === 'string') {
-    const raw = String(value || '').trim();
-    if (!raw) {
-      src = [];
-    } else {
-      try {
-        const parsed = JSON.parse(raw);
-        src = Array.isArray(parsed) ? parsed : raw.split(/[,;\n]+/);
-      } catch {
-        src = raw.split(/[,;\n]+/);
-      }
-    }
-  } else {
-    src = [];
-  }
-
-  const limit = Math.max(1, Math.min(MAX_TASK_EXPECTED_RENDER_COUNT, Math.trunc(Number(maxItems) || 1)));
-  const out = [];
-  const seen = new Set();
-  for (const item of src) {
-    const normalized = sanitizeTaskExpectedRenderName(item);
-    if (!normalized) continue;
-    const key = normalizeAscii(normalized);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(normalized);
-    if (out.length >= limit) break;
-  }
-  return out;
-}
-
-function buildTaskExpectedRenderNameBase(title) {
-  const ascii = normalizeAscii(title)
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
-  return ascii || 'rendu';
-}
-
-function generateTaskExpectedRenderNames(title, expectedRenderCount) {
-  const count = Math.max(1, Math.min(MAX_TASK_EXPECTED_RENDER_COUNT, Math.trunc(Number(expectedRenderCount) || 1)));
-  const base = buildTaskExpectedRenderNameBase(title);
-  const out = [];
-  for (let idx = 1; idx <= count; idx += 1) {
-    out.push(`${base}-r${String(idx).padStart(3, '0')}`);
-  }
-  return out;
-}
-
-function resolveTaskExpectedRenderNames({
-  title = '',
-  requestType = DEFAULT_TASK_REQUEST_TYPE,
-  expectedRenderCount = 1,
-  expectedRenderNames = [],
-} = {}) {
-  const normalizedRequestType = normalizeTaskRequestType(requestType, DEFAULT_TASK_REQUEST_TYPE);
-  const count = normalizeTaskExpectedRenderCount(expectedRenderCount, normalizedRequestType, 1);
-  const provided = normalizeTaskExpectedRenderNamesInput(expectedRenderNames, count);
-  const generated = generateTaskExpectedRenderNames(title, count);
-  if (!provided.length) {
-    return generated;
-  }
-  const out = [];
-  const seen = new Set();
-  for (const item of provided) {
-    const normalized = sanitizeTaskExpectedRenderName(item);
-    if (!normalized) continue;
-    const key = normalizeAscii(normalized);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(normalized);
-    if (out.length >= count) break;
-  }
-  if (out.length >= count) {
-    return out.slice(0, count);
-  }
-  for (const generatedItem of generated) {
-    const key = normalizeAscii(generatedItem);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(generatedItem);
-    if (out.length >= count) break;
-  }
-  return out.slice(0, count);
-}
-
-function parseTaskAutoRenderConfig(value) {
-  const raw = safeParseObjectJson(value, {});
-  const projectName = sanitizeRenderProjectName(raw?.projectName);
-  const templateName = sanitizeRenderTemplateName(raw?.templateName, '');
-  if (!projectName || !templateName) return null;
-  const formId = asOptionalPositiveInt(raw?.formId);
-  const formDataRaw = raw?.formData;
-  const formData = (
-    formDataRaw && typeof formDataRaw === 'object' && !Array.isArray(formDataRaw)
-      ? formDataRaw
-      : null
-  );
-  const templateId = asOptionalPositiveInt(raw?.templateId);
-  const targetWorkerKey = sanitizeRenderWorkerKey(
-    raw?.targetWorkerKey ?? raw?.preferredWorkerKey ?? raw?.workerKey ?? ''
-  );
-  const mapName = sanitizeRenderMapName(raw?.mapName, '');
-  const sequenceName = sanitizeRenderSequenceName(raw?.sequenceName, '');
-  const outputProfile = sanitizeRenderOutputProfile(raw?.outputProfile, '');
-  const outputDir = sanitizeRenderOutputPath(raw?.outputDir ?? raw?.renderOutputDir ?? '');
-  const textValue = sanitizeTaskAutoRenderText(raw?.textValue ?? raw?.text ?? raw?.textOverride ?? '');
-  const normalizedPayload = normalizeRenderPayload(raw?.payload);
-  const payload = normalizedPayload.ok
-    ? parseRenderPayloadJson(normalizedPayload.payloadJson)
-    : {};
-  const hasExecutionInput =
-    raw?.execution && typeof raw.execution === 'object' && !Array.isArray(raw.execution);
-  let execution = null;
-  if (hasExecutionInput) {
-    const normalizedExecution = normalizeRenderExecution(raw.execution);
-    if (normalizedExecution.ok) {
-      execution = parseRenderExecutionJson(normalizedExecution.executionJson);
-    }
-  }
-  const config = {
-    projectName,
-    templateName,
-    templateId,
-    requiresValidation: raw?.requiresValidation === true,
-    payload: payload && typeof payload === 'object' && !Array.isArray(payload)
-      ? payload
-      : {},
-  };
-  if (formId != null) config.formId = formId;
-  if (formData && Object.keys(formData).length > 0) config.formData = formData;
-  if (targetWorkerKey) config.targetWorkerKey = targetWorkerKey;
-  if (mapName) config.mapName = mapName;
-  if (sequenceName) config.sequenceName = sequenceName;
-  if (outputProfile) config.outputProfile = outputProfile;
-  if (outputDir) config.outputDir = outputDir;
-  if (textValue) config.textValue = textValue;
-  if (execution && typeof execution === 'object' && !Array.isArray(execution)) {
-    config.execution = execution;
-  }
-  return config;
-}
-
-function normalizeTaskAutoRenderConfig(
-  value,
-  { requestType = DEFAULT_TASK_REQUEST_TYPE, projectRefs = [], stmts = null } = {}
-) {
-  const normalizedRequestType = normalizeTaskRequestType(requestType, DEFAULT_TASK_REQUEST_TYPE);
-  if (normalizedRequestType !== 'auto_render') {
-    return { ok: true, config: null, configJson: '{}', projectRefs: [] };
-  }
-
-  let raw = value;
-  if (typeof raw === 'string') {
-    const input = String(raw || '').trim();
-    if (!input) raw = {};
-    else {
-      try {
-        raw = JSON.parse(input);
-      } catch {
-        return { ok: false, error: 'invalid_task_auto_render_config' };
-      }
-    }
-  }
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    raw = {};
-  }
-
-  const formId = asOptionalPositiveInt(raw?.formId ?? raw?.renderFormId);
-  if (formId == null || formId <= 0) {
-    return { ok: false, error: 'missing_task_auto_render_form' };
-  }
-  if (!stmts || typeof stmts.findRenderFormById?.get !== 'function') {
-    return { ok: false, error: 'invalid_task_auto_render_form' };
-  }
-  const linkedForm = stmts.findRenderFormById.get(formId);
-  if (!linkedForm) {
-    return { ok: false, error: 'invalid_task_auto_render_form' };
-  }
-  if (Number(linkedForm?.is_active) !== 1) {
-    return { ok: false, error: 'inactive_task_auto_render_form' };
-  }
-  const formProjectName = sanitizeRenderProjectName(linkedForm?.project_name || '');
-  if (!formProjectName) {
-    return { ok: false, error: 'auto_render_project_required' };
-  }
-  const refs = normalizeTaskRefsInput(projectRefs);
-  if (refs.length > 0 && !refs.includes(formProjectName)) {
-    return { ok: false, error: 'task_form_project_mismatch' };
-  }
-  const templateNameFromForm = sanitizeRenderTemplateName(linkedForm?.template_name || '', '');
-  const outputProfileFromForm = sanitizeRenderOutputProfile(linkedForm?.output_profile || '', '');
-  const mapNameFromForm = sanitizeRenderMapName(linkedForm?.map_name || '', '');
-  const sequenceNameFromForm = sanitizeRenderSequenceName(linkedForm?.sequence_name || '', '');
-  let templateName = templateNameFromForm;
-  if (!templateName && outputProfileFromForm) {
-    const tail = outputProfileFromForm.split('/').filter(Boolean).pop() || outputProfileFromForm;
-    templateName = sanitizeRenderTemplateName(tail.replace(/\.[^/.]+$/g, ''), '');
-  }
-  if (!templateName) {
-    templateName = `Form-${Math.trunc(formId)}`;
-  }
-
-  const normalizedPayload = normalizeRenderPayload(raw?.payload);
-  if (!normalizedPayload.ok) {
-    return { ok: false, error: normalizedPayload.error || 'invalid_task_auto_render_payload' };
-  }
-  const payload = parseRenderPayloadJson(normalizedPayload.payloadJson);
-  let execution = null;
-  if (raw?.execution && typeof raw.execution === 'object' && !Array.isArray(raw.execution)) {
-    const normalizedExecution = normalizeRenderExecution(raw.execution);
-    if (!normalizedExecution.ok) {
-      return { ok: false, error: 'invalid_task_auto_render_config' };
-    }
-    execution = parseRenderExecutionJson(normalizedExecution.executionJson);
-  }
-  const templateId = asOptionalPositiveInt(raw?.templateId);
-  const targetWorkerKey = sanitizeRenderWorkerKey(
-    raw?.targetWorkerKey ?? raw?.preferredWorkerKey ?? raw?.workerKey ?? ''
-  );
-  const mapName = sanitizeRenderMapName(raw?.mapName, '');
-  const sequenceName = sanitizeRenderSequenceName(raw?.sequenceName, '');
-  const outputProfile = sanitizeRenderOutputProfile(raw?.outputProfile, '');
-  const outputDir = sanitizeRenderOutputPath(raw?.outputDir ?? raw?.renderOutputDir ?? '');
-  const textValue = sanitizeTaskAutoRenderText(raw?.textValue ?? raw?.text ?? raw?.textOverride ?? '');
-  const formDataRaw = raw?.formData;
-  const formData = (
-    formDataRaw && typeof formDataRaw === 'object' && !Array.isArray(formDataRaw)
-      ? formDataRaw
-      : null
-  );
-  const config = {
-    projectName: formProjectName,
-    templateName,
-    templateId,
-    formId: Math.trunc(formId),
-    requiresValidation: raw?.requiresValidation === true,
-    payload: payload && typeof payload === 'object' && !Array.isArray(payload)
-      ? payload
-      : {},
-  };
-  if (formData && Object.keys(formData).length > 0) {
-    config.formData = formData;
-  }
-  if (targetWorkerKey) config.targetWorkerKey = targetWorkerKey;
-  if (mapNameFromForm || mapName) config.mapName = mapNameFromForm || mapName;
-  if (sequenceNameFromForm || sequenceName) config.sequenceName = sequenceNameFromForm || sequenceName;
-  if (outputProfileFromForm || outputProfile) config.outputProfile = outputProfileFromForm || outputProfile;
-  if (outputDir) config.outputDir = outputDir;
-  if (textValue) config.textValue = textValue;
-  if (execution && typeof execution === 'object' && !Array.isArray(execution)) {
-    config.execution = execution;
-  }
-  let configJson = '{}';
-  try {
-    configJson = JSON.stringify(config);
-  } catch {
-    return { ok: false, error: 'invalid_task_auto_render_config' };
-  }
-  if (Buffer.byteLength(configJson, 'utf8') > MAX_TASK_AUTO_RENDER_CONFIG_BYTES) {
-    return { ok: false, error: 'task_auto_render_config_too_large' };
-  }
-  return { ok: true, config, configJson, projectRefs: [formProjectName] };
-}
-
-function normalizeExpectedRenderLookupKey(value, stripExtension = true) {
-  let raw = String(value || '').replace(/\s+/g, ' ').trim();
-  if (!raw) return '';
-  if (stripExtension) {
-    raw = raw.replace(/\.[^/.\\]+$/g, '').trim();
-  }
-  if (!raw) return '';
-  return normalizeAscii(raw)
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function safeIsoToTs(value) {
-  const iso = parseIsoDateOrNull(value);
-  if (!iso) return 0;
-  const ts = Date.parse(iso);
-  return Number.isFinite(ts) ? ts : 0;
-}
-
-function sortTaskExpectedRenderCandidates(list = []) {
-  const src = Array.isArray(list) ? list : [];
-  return src
-    .slice()
-    .sort((a, b) => {
-      const aTs = Number(a?.rankTs || 0);
-      const bTs = Number(b?.rankTs || 0);
-      if (aTs !== bTs) return bTs - aTs;
-      const aId = Number(a?.taskId || 0);
-      const bId = Number(b?.taskId || 0);
-      return bId - aId;
-    });
-}
-
-function buildExpectedRenderTaskMatchCatalog(stmts) {
-  const activeByKey = new Map();
-  const allByKey = new Map();
-  if (!stmts || typeof stmts.listTasks?.all !== 'function') {
-    return { activeByKey, allByKey };
-  }
-  let rows = [];
-  try {
-    rows = stmts.listTasks.all();
-  } catch {
-    rows = [];
-  }
-  for (const row of rows) {
-    const task = buildTaskPayload(row);
-    const taskId = Number(task?.id || 0);
-    if (!Number.isFinite(taskId) || taskId <= 0) continue;
-    const status = normalizeTaskStatus(task?.status, 'A faire');
-    const requestType = normalizeTaskRequestType(task?.requestType, DEFAULT_TASK_REQUEST_TYPE);
-    const expectedRenderCount = normalizeTaskExpectedRenderCount(
-      task?.expectedRenderCount,
-      requestType,
-      1
-    );
-    const expectedRenderNames = resolveTaskExpectedRenderNames({
-      title: task?.title,
-      requestType,
-      expectedRenderCount,
-      expectedRenderNames: task?.expectedRenderNames,
-    });
-    if (!Array.isArray(expectedRenderNames) || expectedRenderNames.length <= 0) continue;
-    const rankTs = Math.max(
-      safeIsoToTs(task?.updatedAt),
-      safeIsoToTs(task?.createdAt)
-    );
-    const candidateBase = {
-      taskId,
-      taskTitle: sanitizeTaskTitle(task?.title, ''),
-      taskStatus: status,
-      requestType,
-      expectedRenderCount,
-      rankTs,
-    };
-    const isActive = TASK_EXPECTED_RENDER_MATCH_ACTIVE_STATUSES.has(status);
-    for (const expectedRenderNameRaw of expectedRenderNames) {
-      const expectedRenderName = sanitizeTaskExpectedRenderName(expectedRenderNameRaw);
-      const key = normalizeExpectedRenderLookupKey(expectedRenderName, true);
-      if (!key) continue;
-      const candidate = {
-        ...candidateBase,
-        expectedRenderName,
-      };
-      const allList = allByKey.get(key) || [];
-      allList.push(candidate);
-      allByKey.set(key, allList);
-      if (isActive) {
-        const activeList = activeByKey.get(key) || [];
-        activeList.push(candidate);
-        activeByKey.set(key, activeList);
-      }
-    }
-  }
-
-  for (const [key, list] of allByKey.entries()) {
-    allByKey.set(key, sortTaskExpectedRenderCandidates(list));
-  }
-  for (const [key, list] of activeByKey.entries()) {
-    activeByKey.set(key, sortTaskExpectedRenderCandidates(list));
-  }
-  return { activeByKey, allByKey };
-}
-
-function findExpectedRenderTaskMatch(catalog, detectedRenderName = '') {
-  const key = normalizeExpectedRenderLookupKey(detectedRenderName, true);
-  if (!key) return null;
-  const active = Array.isArray(catalog?.activeByKey?.get(key))
-    ? catalog.activeByKey.get(key)
-    : [];
-  if (active.length > 0) return active[0];
-  const all = Array.isArray(catalog?.allByKey?.get(key))
-    ? catalog.allByKey.get(key)
-    : [];
-  if (all.length > 0) return all[0];
-  return null;
-}
-
-function normalizeTaskRefsInput(value) {
-  let src = [];
-  if (Array.isArray(value)) {
-    src = value;
-  } else if (typeof value === 'string') {
-    src = String(value || '').split(/[,;\n]+/);
-  } else {
-    src = [];
-  }
-
-  const seen = new Set();
-  const out = [];
-  for (const raw of src) {
-    const normalized = String(raw || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TASK_REF_LEN);
-    if (!normalized) continue;
-    const key = normalizeAscii(normalized).toLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(normalized);
-    if (out.length >= MAX_TASK_REFS) break;
-  }
-  return out;
-}
-
-function sanitizeTaskRefForStorage(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TASK_REF_LEN);
-}
-
-function parseTaskRefsJson(value) {
-  try {
-    const parsed = JSON.parse(String(value || '[]'));
-    return normalizeTaskRefsInput(parsed);
-  } catch {
-    return [];
-  }
-}
-
-function normalizeTaskRefLookup(value) {
-  return normalizeAscii(value).replace(/\s+/g, ' ').trim();
-}
-
-function addTaskRefAlias(aliasToCanonical, alias, canonical) {
-  const key = normalizeTaskRefLookup(alias);
-  const target = String(canonical || '').trim();
-  if (!key || !target) return;
-  if (!aliasToCanonical.has(key)) {
-    aliasToCanonical.set(key, target);
-  }
-}
-
-function normalizePostprodProjectsResyncTtlMs(value) {
-  const raw = Number(value);
-  if (!Number.isFinite(raw)) return DEFAULT_POSTPROD_PROJECTS_RESYNC_TTL_MS;
-  return Math.max(
-    MIN_POSTPROD_PROJECTS_RESYNC_TTL_MS,
-    Math.min(MAX_POSTPROD_PROJECTS_RESYNC_TTL_MS, Math.trunc(raw))
-  );
-}
-
-function resetPostprodProjectsCatalogCache(cacheState) {
-  if (!cacheState || typeof cacheState !== 'object') return;
-  cacheState.sharedStore = null;
-  cacheState.stmts = null;
-  cacheState.items = [];
-  cacheState.expiresAtMs = 0;
-  cacheState.lastBuiltAtMs = 0;
-}
-
-const postprodProjectsCatalogCacheState = {
-  sharedStore: null,
-  stmts: null,
-  items: [],
-  expiresAtMs: 0,
-  lastBuiltAtMs: 0,
-  ttlMs: normalizePostprodProjectsResyncTtlMs(process.env.UU_POSTPROD_PROJECTS_RESYNC_TTL_MS),
-};
-
-function syncProjectsIndexFromSharedStore(sharedStore, stmts) {
-  if (!stmts || typeof stmts.upsertProjectById?.run !== 'function') return;
-  if (!sharedStore || typeof sharedStore.loadProjectsDoc !== 'function') return;
-  let projectsDoc = null;
-  try {
-    projectsDoc = sharedStore.loadProjectsDoc();
-  } catch {
-    projectsDoc = null;
-  }
-  const projects = Array.isArray(projectsDoc?.projects) ? projectsDoc.projects : [];
-  if (projects.length <= 0) return;
-  const now = nowIso();
-  for (const project of projects) {
-    const id = String(project?.id || '').trim();
-    const name = String(project?.name || '').trim();
-    const code = String(project?.code || project?.projectCode || '').trim();
-    const projectId = id || name || code;
-    if (!projectId) continue;
-    let meta = {};
-    if (id && typeof sharedStore.readProjectMeta === 'function') {
-      try {
-        meta = sharedStore.readProjectMeta(id) || {};
-      } catch {
-        meta = {};
-      }
-    }
-    const modeDefault = String(meta?.modeDefault || project?.modeDefault || '').trim().slice(0, 32);
-    const usageMode = normalizeProjectUsageMode(meta?.usageMode) || 'other';
-    const referentUserId = Number(meta?.referentUserId);
-    stmts.upsertProjectById.run(
-      projectId,
-      code,
-      name || projectId,
-      modeDefault,
-      usageMode,
-      Number.isFinite(referentUserId) && referentUserId > 0 ? Math.trunc(referentUserId) : null,
-      now,
-      now
-    );
-  }
-}
-
-function buildSharedStoreProjectPathIndex(sharedStore) {
-  if (!sharedStore || typeof sharedStore.loadProjectsDoc !== 'function') {
-    return new Map();
-  }
-  let projectsDoc = null;
-  try {
-    projectsDoc = sharedStore.loadProjectsDoc();
-  } catch {
-    projectsDoc = null;
-  }
-  const projects = Array.isArray(projectsDoc?.projects) ? projectsDoc.projects : [];
-  const out = new Map();
-  for (const project of projects) {
-    const id = String(project?.id || '').trim();
-    const name = String(project?.name || '').trim();
-    const code = String(project?.code || project?.projectCode || '').trim();
-    const uprojectPath = String(project?.uproject || project?.uprojectPath || '').trim();
-    if (!uprojectPath) continue;
-    if (id) out.set(id, uprojectPath);
-    if (name) out.set(name, uprojectPath);
-    if (code) out.set(code, uprojectPath);
-  }
-  return out;
-}
-
-function normalizeProjectMetaStatus(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  if (raw === 'PAS') return 'PAD';
-  return raw;
-}
-
-function isValidatedPostprodProjectStatus(value) {
-  const lookup = normalizeRoleLookupKey(value);
-  if (!lookup) return false;
-  return lookup === 'pad'
-    || lookup === 'valide'
-    || lookup === 'validee'
-    || lookup === 'validated'
-    || lookup === 'ready'
-    || lookup === 'approved';
-}
-
-function getPostprodProjectVisibilityPolicy(roleRaw) {
-  const role = normalizeRole(roleRaw, DEFAULT_FALLBACK_ROLE);
-  if (role === 'Graphiste') return 'postprod_only';
-  if (
-    role === 'Maintenance'
-    || role === 'Responsable Fabrication'
-    || role === 'Integrateur'
-  ) {
-    return 'all';
-  }
-  return 'validated_only';
-}
-
-function buildSharedStoreProjectMetaIndex(sharedStore) {
-  const out = new Map();
-  if (!sharedStore || typeof sharedStore.loadProjectsDoc !== 'function') {
-    return out;
-  }
-  let projectsDoc = null;
-  try {
-    projectsDoc = sharedStore.loadProjectsDoc();
-  } catch {
-    projectsDoc = null;
-  }
-  const projects = Array.isArray(projectsDoc?.projects) ? projectsDoc.projects : [];
-  for (const project of projects) {
-    const id = String(project?.id || '').trim();
-    const name = String(project?.name || '').trim();
-    const code = String(project?.code || project?.projectCode || '').trim();
-    const canonical = id || name || code;
-    if (!canonical) continue;
-
-    let meta = {};
-    if (id && typeof sharedStore.readProjectMeta === 'function') {
-      try {
-        meta = sharedStore.readProjectMeta(id) || {};
-      } catch {
-        meta = {};
-      }
-    }
-
-    const normalized = {
-      status: normalizeProjectMetaStatus(meta?.status),
-      usageMode: normalizeProjectUsageMode(meta?.usageMode),
-    };
-
-    const aliases = [canonical, id, name, code].filter(Boolean);
-    for (const alias of aliases) {
-      if (!out.has(alias)) {
-        out.set(alias, normalized);
-        continue;
-      }
-      const prev = out.get(alias) || {};
-      out.set(alias, {
-        status: String(prev?.status || '').trim() || normalized.status,
-        usageMode: normalizeProjectUsageMode(prev?.usageMode) || normalized.usageMode,
-      });
-    }
-  }
-  return out;
-}
-
-function loadPostprodProjectsCatalog(sharedStore, stmts, options = null) {
-  const opts = options && typeof options === 'object' ? options : {};
-  const cacheState = opts.cacheState && typeof opts.cacheState === 'object'
-    ? opts.cacheState
-    : postprodProjectsCatalogCacheState;
-  const ttlMs = normalizePostprodProjectsResyncTtlMs(
-    opts.ttlMs != null
-      ? opts.ttlMs
-      : (
-        process.env.UU_POSTPROD_PROJECTS_RESYNC_TTL_MS != null
-          ? process.env.UU_POSTPROD_PROJECTS_RESYNC_TTL_MS
-          : cacheState.ttlMs
-      )
-  );
-  const forceRefresh = opts.force === true || opts.forceRefresh === true;
-  const nowMs = Date.now();
-
-  if (cacheState.sharedStore !== sharedStore || cacheState.stmts !== stmts || cacheState.ttlMs !== ttlMs) {
-    resetPostprodProjectsCatalogCache(cacheState);
-    cacheState.sharedStore = sharedStore;
-    cacheState.stmts = stmts;
-    cacheState.ttlMs = ttlMs;
-  }
-
-  if (!forceRefresh && nowMs < Number(cacheState.expiresAtMs || 0)) {
-    return Array.isArray(cacheState.items) ? cacheState.items : [];
-  }
-
-  let computed = [];
-  const sharedStoreProjectPathByRef = buildSharedStoreProjectPathIndex(sharedStore);
-  const sharedStoreProjectMetaByRef = buildSharedStoreProjectMetaIndex(sharedStore);
-  if (stmts && typeof stmts.listProjectsSql?.all === 'function') {
-    syncProjectsIndexFromSharedStore(sharedStore, stmts);
-    let sqlRows = [];
-    try {
-      sqlRows = stmts.listProjectsSql.all();
-    } catch {
-      sqlRows = [];
-    }
-    const mappedSql = (Array.isArray(sqlRows) ? sqlRows : [])
-      .map((row) => {
-        const id = String(row?.id || '').trim();
-        const name = String(row?.name || '').trim();
-        const code = String(row?.code || '').trim();
-        if (!id && !name && !code) return null;
-        const canonicalId = id || name || code;
-        const metaEntry = sharedStoreProjectMetaByRef.get(canonicalId)
-          || sharedStoreProjectMetaByRef.get(id)
-          || sharedStoreProjectMetaByRef.get(name)
-          || sharedStoreProjectMetaByRef.get(code)
-          || {};
-        const usageMode = normalizeProjectUsageMode(row?.usage_mode)
-          || normalizeProjectUsageMode(metaEntry?.usageMode)
-          || 'other';
-        const status = normalizeProjectMetaStatus(metaEntry?.status);
-        return {
-          id: canonicalId,
-          name: name || canonicalId,
-          code,
-          uprojectPath: String(
-            sharedStoreProjectPathByRef.get(canonicalId)
-            || sharedStoreProjectPathByRef.get(id)
-            || sharedStoreProjectPathByRef.get(name)
-            || sharedStoreProjectPathByRef.get(code)
-            || ''
-          ).trim(),
-          status,
-          metaStatus: status,
-          usageMode,
-          metaUsageMode: usageMode,
-        };
-      })
-      .filter(Boolean);
-    if (mappedSql.length > 0) {
-      computed = mappedSql;
-    }
-  }
-
-  if (computed.length <= 0) {
-    if (!sharedStore || typeof sharedStore.loadProjectsDoc !== 'function') {
-      computed = [];
-    } else {
-      let projectsDoc = null;
-      try {
-        projectsDoc = sharedStore.loadProjectsDoc();
-      } catch {
-        projectsDoc = null;
-      }
-      const projects = Array.isArray(projectsDoc?.projects) ? projectsDoc.projects : [];
-      const out = [];
-      for (const project of projects) {
-        const id = String(project?.id || '').trim();
-        const name = String(project?.name || '').trim();
-        const code = String(project?.code || project?.projectCode || '').trim();
-        const canonicalId = id || name || code;
-        if (!canonicalId) continue;
-        let meta = {};
-        if (id && typeof sharedStore.readProjectMeta === 'function') {
-          try {
-            meta = sharedStore.readProjectMeta(id) || {};
-          } catch {
-            meta = {};
-          }
-        }
-        const usageMode = normalizeProjectUsageMode(meta?.usageMode) || 'other';
-        const status = normalizeProjectMetaStatus(meta?.status);
-        out.push({
-          id: canonicalId,
-          name: name || canonicalId,
-          code,
-          uprojectPath: String(project?.uproject || project?.uprojectPath || '').trim(),
-          status,
-          metaStatus: status,
-          usageMode,
-          metaUsageMode: usageMode,
-        });
-      }
-      computed = out;
-    }
-  }
-
-  cacheState.items = Array.isArray(computed) ? computed : [];
-  cacheState.lastBuiltAtMs = nowMs;
-  cacheState.expiresAtMs = nowMs + ttlMs;
-  return cacheState.items;
-}
-
-function buildProjectTaskRefCatalog(sharedStore, stmts = null) {
-  const aliasToCanonical = new Map();
-  const projects = loadPostprodProjectsCatalog(sharedStore, stmts);
-  for (const project of projects) {
-    const id = String(project?.id || '').trim();
-    const name = String(project?.name || '').trim();
-    const code = String(project?.code || '').trim();
-    const canonical = id || name || code;
-    if (!canonical) continue;
-    addTaskRefAlias(aliasToCanonical, canonical, canonical);
-    addTaskRefAlias(aliasToCanonical, id, canonical);
-    addTaskRefAlias(aliasToCanonical, name, canonical);
-    addTaskRefAlias(aliasToCanonical, code, canonical);
-  }
-  return aliasToCanonical;
-}
-
-function parseProjectUsageModeFilters(searchParams) {
-  if (!searchParams || typeof searchParams.getAll !== 'function') return [];
-  const rawList = [
-    ...searchParams.getAll('usageMode'),
-    ...searchParams.getAll('usageModes'),
-  ];
-  const out = [];
-  const seen = new Set();
-  for (const raw of rawList) {
-    const parts = String(raw || '').split(/[,\n;]+/g);
-    for (const part of parts) {
-      const normalized = normalizeProjectUsageMode(part);
-      if (!normalized || seen.has(normalized)) continue;
-      seen.add(normalized);
-      out.push(normalized);
-    }
-  }
-  return out;
-}
-
-function listPostprodProjects(sharedStore, usageModeFilters = [], stmts = null, actorRole = '') {
-  const usageFilterSet = new Set(
-    (Array.isArray(usageModeFilters) ? usageModeFilters : [])
-      .map((mode) => normalizeProjectUsageMode(mode))
-      .filter(Boolean)
-  );
-
-  const roleVisibilityPolicy = getPostprodProjectVisibilityPolicy(actorRole);
-  const projects = loadPostprodProjectsCatalog(sharedStore, stmts);
-  const out = projects.filter((project) => {
-    const usageMode = normalizeProjectUsageMode(project?.usageMode) || 'other';
-    if (usageFilterSet.size > 0 && !usageFilterSet.has(usageMode)) return false;
-    if (roleVisibilityPolicy === 'postprod_only') {
-      if (!AUTO_RENDER_PROJECT_USAGE_MODES.has(usageMode)) return false;
-      const status = normalizeProjectMetaStatus(project?.status || project?.metaStatus || '');
-      if (status !== 'PAD') return false;
-    }
-    if (roleVisibilityPolicy === 'validated_only') {
-      const status = normalizeProjectMetaStatus(project?.status || project?.metaStatus || '');
-      if (status !== 'PAD') return false;
-    }
-    return true;
-  }).map((project) => {
-    const usageMode = normalizeProjectUsageMode(project?.usageMode) || 'other';
-    const status = normalizeProjectMetaStatus(project?.status || project?.metaStatus || '');
-    return {
-      id: String(project?.id || '').trim(),
-      name: String(project?.name || '').trim(),
-      code: String(project?.code || '').trim(),
-      uprojectPath: String(project?.uprojectPath || '').trim(),
-      status,
-      metaStatus: status,
-      usageMode,
-      metaUsageMode: usageMode,
-    };
-  });
-
-  out.sort((a, b) => {
-    const aKey = String(a?.name || a?.id || '').toLowerCase();
-    const bKey = String(b?.name || b?.id || '').toLowerCase();
-    return aKey.localeCompare(bKey);
-  });
-
-  return out;
-}
-
-function sanitizeResourceIndexCode(value, fallback = '') {
-  const raw = String(value || '').trim();
-  const safe = raw || String(fallback || '').trim();
-  return safe.slice(0, MAX_RESOURCE_CODE_LEN);
-}
-
-function sanitizeResourceIndexType(value, fallback = '') {
-  const raw = String(value || '').trim();
-  const safe = raw || String(fallback || '').trim();
-  return safe.slice(0, MAX_RESOURCE_TYPE_LEN);
-}
-
-function sanitizeResourceIndexTitle(value, fallback = '') {
-  const raw = String(value || '').trim();
-  const safe = raw || String(fallback || '').trim();
-  return safe.slice(0, MAX_RESOURCE_TITLE_LEN);
-}
-
-function sanitizeResourceIndexSourcePath(value) {
-  return String(value || '').trim().slice(0, MAX_RESOURCE_SOURCE_PATH_LEN);
-}
+const { createProjectsCatalogHelpers } = require('./server-postprod-auth-projects-catalog.cjs');
+const {
+  normalizePostprodProjectsResyncTtlMs,
+  resetPostprodProjectsCatalogCache,
+  syncProjectsIndexFromSharedStore,
+  buildSharedStoreProjectPathIndex,
+  normalizeProjectMetaStatus,
+  isValidatedPostprodProjectStatus,
+  getPostprodProjectVisibilityPolicy,
+  buildSharedStoreProjectMetaIndex,
+  loadPostprodProjectsCatalog,
+  buildProjectTaskRefCatalog,
+  parseProjectUsageModeFilters,
+  listPostprodProjects,
+} = createProjectsCatalogHelpers({
+  nowIso,
+  normalizeProjectUsageMode,
+  normalizeRoleLookupKey,
+  normalizeRole,
+  addTaskRefAlias,
+  DEFAULT_FALLBACK_ROLE,
+  AUTO_RENDER_PROJECT_USAGE_MODES,
+  MIN_POSTPROD_PROJECTS_RESYNC_TTL_MS,
+  MAX_POSTPROD_PROJECTS_RESYNC_TTL_MS,
+  DEFAULT_POSTPROD_PROJECTS_RESYNC_TTL_MS,
+});
+
+const { createActivityAuditHelpers } = require('./server-postprod-auth-activity-audit.cjs');
+const {
+  parseAuditPayloadJson,
+  asOptionalPositiveInt,
+  normalizeActivityProjectRefs,
+  normalizeActivityDetailValue,
+  buildUserActivityDetail,
+  buildUserActivityPayload,
+  buildAuditEntryPayload,
+  escapeCsvCell,
+  buildAuditCsvLine,
+  matchesAuditSearch,
+  summarizeUserActivity,
+  parseActivityProjectRefsFilter,
+  parseActivityFilters,
+  activityMatchesProjectRefs,
+  classifyActivityActionType,
+  activityMatchesActionType,
+  activityMatchesSearchQuery,
+} = createActivityAuditHelpers({
+  normalizeTaskRefsInput,
+  normalizeAscii,
+  coercePositiveInt,
+  parseIsoDateOrNull,
+  MAX_TASK_REFS,
+  MAX_TASK_COMMENT_LEN,
+  MAX_ACTIVITY_SEARCH_LEN,
+});
+
+const { createResourcesCatalogHelpers } = require('./server-postprod-auth-resources-catalog.cjs');
+const {
+  sanitizeResourceIndexCode,
+  sanitizeResourceIndexType,
+  sanitizeResourceIndexTitle,
+  sanitizeResourceIndexSourcePath,
+  normalizeResourceIndexMetadataForStorage,
+  buildPostprodResourcePayload,
+  syncResourcesIndexFromLibrary,
+  buildResourceTaskRefCatalog,
+  listPostprodResources,
+  resolvePostprodResourceByRef,
+} = createResourcesCatalogHelpers({
+  safeParseObjectJson,
+  normalizeJsonValueWithSize,
+  nowIso,
+  addTaskRefAlias,
+  MAX_RESOURCE_CODE_LEN,
+  MAX_RESOURCE_TYPE_LEN,
+  MAX_RESOURCE_TITLE_LEN,
+  MAX_RESOURCE_SOURCE_PATH_LEN,
+  MAX_RESOURCE_METADATA_BYTES,
+});
 
 function safeParseObjectJson(value, fallback = {}) {
   const raw = String(value || '').trim();
@@ -1673,181 +347,6 @@ function safeParseObjectJson(value, fallback = {}) {
   } catch {
     return fallback;
   }
-}
-
-function normalizeResourceIndexMetadataForStorage(item) {
-  const source = item && typeof item === 'object' ? item : {};
-  const uid = sanitizeResourceIndexCode(source.uid || source.listingUid || '', '');
-  const title = sanitizeResourceIndexTitle(
-    source.title || source.name || source.displayName || uid || '',
-    uid
-  );
-  const type = sanitizeResourceIndexType(source.type || source.listingType || source.kind || '');
-  const sourcePath = sanitizeResourceIndexSourcePath(source.sourcePath || source.path || '');
-  const metadata = {
-    uid: uid || title,
-    listingUid: uid || title,
-    title: title || uid,
-    name: title || uid,
-    displayName: title || uid,
-    type,
-    listingType: type,
-    sourcePath,
-    path: sourcePath,
-    seller: String(source.seller || '').trim(),
-    listingUrl: String(source.listingUrl || '').trim(),
-    thumbLocal: String(source.thumbLocal || source.thumbnailLocal || '').trim(),
-    thumbnailUrl: String(source.thumbnailUrl || source.thumbUrl || '').trim(),
-    thumbUrl: String(source.thumbUrl || source.thumbnailUrl || '').trim(),
-    thumbnails: Array.isArray(source.thumbnails) ? source.thumbnails : [],
-    ueVersions: Array.isArray(source.ueVersions) ? source.ueVersions : [],
-    targetPlatforms: Array.isArray(source.targetPlatforms) ? source.targetPlatforms : [],
-    assetFormats: Array.isArray(source.assetFormats) ? source.assetFormats : [],
-    distribution: String(source.distribution || '').trim(),
-  };
-  if (source.user && typeof source.user === 'object') {
-    metadata.user = source.user;
-  }
-  const normalizedMeta = normalizeJsonValueWithSize(metadata, {
-    fallbackValue: {},
-    maxBytes: MAX_RESOURCE_METADATA_BYTES,
-    invalidError: 'invalid_resource_metadata',
-    tooLargeError: 'resource_metadata_too_large',
-  });
-  if (!normalizedMeta.ok) {
-    const fallback = {
-      uid: uid || title,
-      listingUid: uid || title,
-      title: title || uid,
-      name: title || uid,
-      displayName: title || uid,
-      type,
-      listingType: type,
-      sourcePath,
-      path: sourcePath,
-    };
-    return { metadata: fallback, metadataJson: JSON.stringify(fallback) };
-  }
-  return {
-    metadata,
-    metadataJson: normalizedMeta.json,
-  };
-}
-
-function buildPostprodResourcePayload(row) {
-  const metadata = safeParseObjectJson(row?.metadata_json, {});
-  const code = sanitizeResourceIndexCode(row?.code || '');
-  const title = sanitizeResourceIndexTitle(metadata?.title || row?.title || code, code);
-  const uid = sanitizeResourceIndexCode(metadata?.uid || metadata?.listingUid || code, title);
-  const type = sanitizeResourceIndexType(metadata?.type || metadata?.listingType || row?.type || '');
-  const sourcePath = sanitizeResourceIndexSourcePath(
-    metadata?.sourcePath || metadata?.path || row?.source_path || ''
-  );
-  return {
-    ...metadata,
-    uid: uid || title,
-    listingUid: uid || title,
-    code: code || uid || title,
-    title: title || uid,
-    name: title || uid,
-    displayName: title || uid,
-    type,
-    listingType: type,
-    sourcePath,
-    path: sourcePath,
-    thumbLocal: String(metadata?.thumbLocal || '').trim(),
-    thumbnailUrl: String(metadata?.thumbnailUrl || metadata?.thumbUrl || '').trim(),
-    thumbUrl: String(metadata?.thumbUrl || metadata?.thumbnailUrl || '').trim(),
-    thumbnails: Array.isArray(metadata?.thumbnails) ? metadata.thumbnails : [],
-    seller: String(metadata?.seller || '').trim(),
-    listingUrl: String(metadata?.listingUrl || '').trim(),
-    createdAt: String(row?.created_at || '').trim(),
-    updatedAt: String(row?.updated_at || '').trim(),
-  };
-}
-
-function syncResourcesIndexFromLibrary(stmts, sharedStore, { now = nowIso() } = {}) {
-  if (!stmts || typeof stmts.upsertResourceIndexByCode?.run !== 'function') {
-    return { ok: false, error: 'resources_index_unavailable', processed: 0, inserted: 0, updated: 0 };
-  }
-  if (!sharedStore || typeof sharedStore.loadLibraryIndexDoc !== 'function') {
-    return { ok: false, error: 'library_unavailable', processed: 0, inserted: 0, updated: 0 };
-  }
-  let libraryDoc = null;
-  try {
-    libraryDoc = sharedStore.loadLibraryIndexDoc();
-  } catch {
-    libraryDoc = null;
-  }
-  const items = Array.isArray(libraryDoc?.items) ? libraryDoc.items : [];
-  let processed = 0;
-  let inserted = 0;
-  let updated = 0;
-  for (const item of items) {
-    const normalized = normalizeResourceIndexMetadataForStorage(item);
-    const code = sanitizeResourceIndexCode(
-      item?.uid || item?.listingUid || normalized?.metadata?.uid || normalized?.metadata?.title || '',
-      normalized?.metadata?.title || ''
-    );
-    const title = sanitizeResourceIndexTitle(
-      normalized?.metadata?.title || item?.title || item?.name || '',
-      code
-    );
-    if (!code || !title) continue;
-    const type = sanitizeResourceIndexType(normalized?.metadata?.type || item?.type || item?.listingType || '');
-    const sourcePath = sanitizeResourceIndexSourcePath(
-      normalized?.metadata?.sourcePath || item?.sourcePath || item?.path || ''
-    );
-    const existing = stmts.findResourceIndexByCode.get(code);
-    stmts.upsertResourceIndexByCode.run(
-      code,
-      type,
-      title,
-      sourcePath,
-      normalized.metadataJson,
-      String(existing?.created_at || now),
-      now
-    );
-    processed += 1;
-    if (existing) updated += 1;
-    else inserted += 1;
-  }
-  return { ok: true, processed, inserted, updated, totalSource: items.length };
-}
-
-function buildResourceTaskRefCatalog(stmts) {
-  const aliasToCanonical = new Map();
-  const rows = Array.isArray(stmts?.listResourceIndexTaskRefs?.all?.())
-    ? stmts.listResourceIndexTaskRefs.all()
-    : [];
-  for (const row of rows) {
-    const code = sanitizeResourceIndexCode(row?.code || '');
-    const title = sanitizeResourceIndexTitle(row?.title || '', code);
-    const canonical = code || title;
-    if (!canonical) continue;
-    addTaskRefAlias(aliasToCanonical, canonical, canonical);
-    addTaskRefAlias(aliasToCanonical, code, canonical);
-    addTaskRefAlias(aliasToCanonical, title, canonical);
-  }
-  return aliasToCanonical;
-}
-
-function listPostprodResources(stmts) {
-  if (!stmts || typeof stmts.listResourcesIndex?.all !== 'function') return [];
-  const rows = stmts.listResourcesIndex.all();
-  return (Array.isArray(rows) ? rows : []).map(buildPostprodResourcePayload);
-}
-
-function resolvePostprodResourceByRef(stmts, value) {
-  const resourceRef = String(value || '').trim();
-  if (!resourceRef) return { ok: false, error: 'invalid_resource_id' };
-  if (!stmts || typeof stmts.findResourceIndexByRef?.get !== 'function') {
-    return { ok: false, error: 'resource_not_found' };
-  }
-
-  const row = stmts.findResourceIndexByRef.get(resourceRef, resourceRef);
-  if (row) return { ok: true, item: buildPostprodResourcePayload(row) };
-  return { ok: false, error: 'resource_not_found' };
 }
 
 function normalizeProjectUsageMode(value) {
@@ -5092,234 +3591,6 @@ function getRequestIp(req) {
   return String(req?.socket?.remoteAddress || '').trim();
 }
 
-function isSecureRequestTransport(req) {
-  if (req?.socket?.encrypted === true) return true;
-  const forwardedProtoRaw = String(req?.headers?.['x-forwarded-proto'] || '').trim();
-  if (forwardedProtoRaw) {
-    const protos = forwardedProtoRaw
-      .split(',')
-      .map((v) => String(v || '').trim().toLowerCase())
-      .filter(Boolean);
-    if (protos.includes('https') || protos.includes('wss')) return true;
-  }
-  const forwardedScheme = String(
-    req?.headers?.['x-forwarded-scheme'] ||
-    req?.headers?.['x-forwarded-protocol'] ||
-    req?.headers?.['x-url-scheme'] ||
-    ''
-  )
-    .trim()
-    .toLowerCase();
-  if (forwardedScheme === 'https' || forwardedScheme === 'wss') return true;
-  const frontEndHttps = String(req?.headers?.['front-end-https'] || '')
-    .trim()
-    .toLowerCase();
-  if (frontEndHttps === 'on' || frontEndHttps === '1' || frontEndHttps === 'true') return true;
-  if (req?.headers?.['x-arr-ssl']) return true;
-  return false;
-}
-
-function normalizeDistinguishedName(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  return raw.slice(0, MAX_CLIENT_CERT_DN_LEN);
-}
-
-function normalizeDistinguishedNameKey(value) {
-  const normalized = normalizeAscii(normalizeDistinguishedName(value))
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-  return normalized.slice(0, MAX_CLIENT_CERT_DN_LEN);
-}
-
-function normalizeClientCertFingerprintSha256(value) {
-  let raw = String(value || '').trim();
-  if (!raw) return '';
-  raw = raw.replace(/^sha[\s_-]?256[:=]/i, '');
-  const normalized = raw.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
-  if (normalized.length !== CLIENT_CERT_SHA256_HEX_LEN) return '';
-  return normalized;
-}
-
-function splitEnvList(value) {
-  return String(value || '')
-    .split(/[,;\n]+/g)
-    .map((item) => String(item || '').trim())
-    .filter(Boolean);
-}
-
-function parseNormalizedEnvSet(value, normalizeFn = (v) => String(v || '').trim()) {
-  const out = new Set();
-  const list = splitEnvList(value);
-  for (const item of list) {
-    const normalized = String(normalizeFn(item) || '').trim();
-    if (!normalized) continue;
-    out.add(normalized);
-  }
-  return out;
-}
-
-function formatDistinguishedNameFromObject(value) {
-  if (!value || typeof value !== 'object') return '';
-  const fields = [
-    ['CN', value.CN || value.commonName],
-    ['O', value.O || value.organizationName],
-    ['OU', value.OU || value.organizationalUnitName],
-    ['L', value.L || value.localityName],
-    ['ST', value.ST || value.stateOrProvinceName],
-    ['C', value.C || value.countryName],
-  ];
-  const parts = [];
-  for (const [label, raw] of fields) {
-    const clean = String(raw || '').trim();
-    if (!clean) continue;
-    parts.push(`${label}=${clean}`);
-  }
-  return normalizeDistinguishedName(parts.join(', '));
-}
-
-function inspectSocketCertificate(cert) {
-  const out = {
-    subject: '',
-    issuer: '',
-    fingerprintSha256: '',
-  };
-  if (!cert || typeof cert !== 'object') return out;
-  if (cert.raw) {
-    try {
-      const x509 = new crypto.X509Certificate(cert.raw);
-      out.subject = normalizeDistinguishedName(x509.subject || '');
-      out.issuer = normalizeDistinguishedName(x509.issuer || '');
-      out.fingerprintSha256 = normalizeClientCertFingerprintSha256(x509.fingerprint256 || '');
-    } catch {}
-  }
-  if (!out.subject) {
-    out.subject = normalizeDistinguishedName(
-      cert.subject?.CN ||
-      cert.subject?.commonName ||
-      formatDistinguishedNameFromObject(cert.subject) ||
-      (typeof cert.subject === 'string' ? cert.subject : '') ||
-      ''
-    );
-  }
-  if (!out.issuer) {
-    out.issuer = normalizeDistinguishedName(
-      cert.issuer?.CN ||
-      cert.issuer?.commonName ||
-      formatDistinguishedNameFromObject(cert.issuer) ||
-      (typeof cert.issuer === 'string' ? cert.issuer : '') ||
-      ''
-    );
-  }
-  if (!out.fingerprintSha256) {
-    out.fingerprintSha256 = normalizeClientCertFingerprintSha256(
-      cert.fingerprint256 ||
-      cert.fingerprintSHA256 ||
-      cert.fingerprint_sha256 ||
-      ''
-    );
-  }
-  return out;
-}
-
-function evaluateClientCertificatePolicy(certInfo, {
-  allowedSubjects = null,
-  allowedIssuers = null,
-  allowedFingerprints = null,
-} = {}) {
-  const verified = certInfo?.verified === true;
-  if (!verified) {
-    return { ok: false, reason: 'not_verified' };
-  }
-  const subjectKey = normalizeDistinguishedNameKey(certInfo?.subject || '');
-  const issuerKey = normalizeDistinguishedNameKey(certInfo?.issuer || '');
-  const fingerprintKey = normalizeClientCertFingerprintSha256(certInfo?.fingerprintSha256 || '');
-
-  if (allowedSubjects instanceof Set && allowedSubjects.size > 0 && !allowedSubjects.has(subjectKey)) {
-    return { ok: false, reason: 'subject_not_allowed' };
-  }
-  if (allowedIssuers instanceof Set && allowedIssuers.size > 0 && !allowedIssuers.has(issuerKey)) {
-    return { ok: false, reason: 'issuer_not_allowed' };
-  }
-  if (allowedFingerprints instanceof Set && allowedFingerprints.size > 0 && !allowedFingerprints.has(fingerprintKey)) {
-    return { ok: false, reason: 'fingerprint_not_allowed' };
-  }
-
-  return { ok: true, reason: 'ok' };
-}
-
-function inspectClientCertificate(req, { trustProxyHeaders = true } = {}) {
-  try {
-    const socketAuthorized = req?.socket?.authorized === true || req?.client?.authorized === true;
-    if (socketAuthorized && typeof req?.socket?.getPeerCertificate === 'function') {
-      const cert = req.socket.getPeerCertificate(true);
-      const certInfo = inspectSocketCertificate(cert);
-      return {
-        verified: true,
-        source: 'socket',
-        subject: certInfo.subject,
-        issuer: certInfo.issuer,
-        fingerprintSha256: certInfo.fingerprintSha256,
-      };
-    }
-  } catch {}
-
-  if (trustProxyHeaders) {
-    const verifyHeader = String(
-      req?.headers?.['x-ssl-client-verify'] ||
-      req?.headers?.['ssl-client-verify'] ||
-      req?.headers?.['x-client-verify'] ||
-      ''
-    )
-      .trim()
-      .toLowerCase();
-    const isVerified = (
-      verifyHeader === 'success' ||
-      verifyHeader === 'ok' ||
-      verifyHeader === 'true' ||
-      verifyHeader === '1' ||
-      verifyHeader === 'verified'
-    );
-    if (isVerified) {
-      const subject = normalizeDistinguishedName(
-        req?.headers?.['x-ssl-client-s-dn'] ||
-        req?.headers?.['ssl-client-s-dn'] ||
-        req?.headers?.['x-client-cert-subject'] ||
-        ''
-      );
-      const issuer = normalizeDistinguishedName(
-        req?.headers?.['x-ssl-client-i-dn'] ||
-        req?.headers?.['ssl-client-i-dn'] ||
-        req?.headers?.['x-client-cert-issuer'] ||
-        ''
-      );
-      const fingerprintSha256 = normalizeClientCertFingerprintSha256(
-        req?.headers?.['x-ssl-client-fingerprint'] ||
-        req?.headers?.['ssl-client-fingerprint'] ||
-        req?.headers?.['x-client-cert-fingerprint-sha256'] ||
-        req?.headers?.['x-client-cert-fingerprint'] ||
-        ''
-      );
-      return {
-        verified: true,
-        source: 'proxy_header',
-        subject,
-        issuer,
-        fingerprintSha256,
-      };
-    }
-  }
-
-  return {
-    verified: false,
-    source: '',
-    subject: '',
-    issuer: '',
-    fingerprintSha256: '',
-  };
-}
-
 function getAuthToken(req, fallback = '') {
   const auth = String(req?.headers?.authorization || '').trim();
   if (auth) {
@@ -5329,261 +3600,6 @@ function getAuthToken(req, fallback = '') {
   const fromHeader = String(req?.headers?.['x-uu-auth'] || '').trim();
   if (fromHeader) return fromHeader;
   return String(fallback || '').trim();
-}
-
-function getBrokerToken(req) {
-  return String(req?.headers?.[BROKER_TOKEN_HEADER] || '').trim().slice(0, MAX_BROKER_TOKEN_LEN);
-}
-
-function verifyBrokerToken(expectedToken, requestToken) {
-  const expected = String(expectedToken || '').trim();
-  if (!expected) return true;
-  const request = String(requestToken || '').trim();
-  if (!request) return false;
-  const expectedBuf = Buffer.from(expected, 'utf8');
-  const requestBuf = Buffer.from(request, 'utf8');
-  if (expectedBuf.length <= 0 || expectedBuf.length !== requestBuf.length) return false;
-  return crypto.timingSafeEqual(expectedBuf, requestBuf);
-}
-
-function decodeJwtPart(part) {
-  const raw = String(part || '').trim();
-  if (!raw) return null;
-  try {
-    const normalized = raw
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-    const padLen = normalized.length % 4 === 0 ? 0 : (4 - (normalized.length % 4));
-    const padded = normalized + '='.repeat(padLen);
-    const text = Buffer.from(padded, 'base64').toString('utf8');
-    if (!text) return null;
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function toBase64Url(input) {
-  const buf = Buffer.isBuffer(input) ? input : Buffer.from(input || '');
-  return String(buf.toString('base64'))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
-}
-
-function fromBase64Url(input) {
-  const raw = String(input || '').trim();
-  if (!raw) return null;
-  try {
-    const normalized = raw
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-    const padLen = normalized.length % 4 === 0 ? 0 : (4 - (normalized.length % 4));
-    const padded = normalized + '='.repeat(padLen);
-    return Buffer.from(padded, 'base64');
-  } catch {
-    return null;
-  }
-}
-
-function parseNumericDateClaim(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  return Math.trunc(n);
-}
-
-function normalizeAudienceClaim(aud) {
-  if (Array.isArray(aud)) {
-    return aud
-      .map((item) => String(item || '').trim())
-      .filter(Boolean);
-  }
-  const one = String(aud || '').trim();
-  return one ? [one] : [];
-}
-
-function verifyJwtSignatureHS256(parts, signedInput, jwtConfig) {
-  if (!jwtConfig?.secret) {
-    return { ok: false, reason: 'jwt_secret_missing' };
-  }
-  const expectedSig = toBase64Url(
-    crypto.createHmac('sha256', jwtConfig.secret).update(signedInput).digest()
-  );
-  const requestSig = String(parts?.[2] || '').trim();
-  const expectedBuf = Buffer.from(expectedSig, 'utf8');
-  const requestBuf = Buffer.from(requestSig, 'utf8');
-  if (expectedBuf.length <= 0 || expectedBuf.length !== requestBuf.length) {
-    return { ok: false, reason: 'jwt_signature_invalid' };
-  }
-  if (!crypto.timingSafeEqual(expectedBuf, requestBuf)) {
-    return { ok: false, reason: 'jwt_signature_invalid' };
-  }
-  return { ok: true, reason: 'jwt_signature_ok' };
-}
-
-function normalizeJwkUse(value) {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  return raw;
-}
-
-function selectBrokerJwkCandidates(jwksKeys, { kid = '', alg = 'RS256' } = {}) {
-  const keys = Array.isArray(jwksKeys) ? jwksKeys : [];
-  const wantedKid = String(kid || '').trim();
-  const wantedAlg = String(alg || '').trim().toUpperCase() || 'RS256';
-  const candidates = [];
-  for (const key of keys) {
-    if (!key || typeof key !== 'object') continue;
-    if (String(key.kty || '').trim().toUpperCase() !== 'RSA') continue;
-    if (wantedKid && String(key.kid || '').trim() !== wantedKid) continue;
-    const use = normalizeJwkUse(key.use);
-    if (use && use !== 'sig') continue;
-    const keyAlg = String(key.alg || '').trim().toUpperCase();
-    if (keyAlg && keyAlg !== wantedAlg) continue;
-    candidates.push(key);
-  }
-  return candidates;
-}
-
-function verifyJwtSignatureRS256(parts, signedInput, jwksKeys, header = {}) {
-  const signatureBuf = fromBase64Url(parts?.[2]);
-  if (!signatureBuf || signatureBuf.length <= 0) {
-    return { ok: false, reason: 'jwt_signature_invalid' };
-  }
-  const headerKid = String(header?.kid || '').trim();
-  const primaryCandidates = selectBrokerJwkCandidates(jwksKeys, {
-    kid: headerKid,
-    alg: 'RS256',
-  });
-  const fallbackCandidates = headerKid
-    ? []
-    : selectBrokerJwkCandidates(jwksKeys, {
-        kid: '',
-        alg: 'RS256',
-      });
-  const candidates = primaryCandidates.length > 0
-    ? primaryCandidates
-    : fallbackCandidates;
-
-  if (!Array.isArray(candidates) || candidates.length <= 0) {
-    return { ok: false, reason: 'jwt_kid_not_found' };
-  }
-
-  for (const jwk of candidates) {
-    try {
-      const verifier = crypto.createVerify('RSA-SHA256');
-      verifier.update(signedInput, 'utf8');
-      verifier.end();
-      const pubKey = crypto.createPublicKey({
-        key: jwk,
-        format: 'jwk',
-      });
-      if (verifier.verify(pubKey, signatureBuf)) {
-        return { ok: true, reason: 'jwt_signature_ok', kid: String(jwk?.kid || '').trim() };
-      }
-    } catch {}
-  }
-  return { ok: false, reason: 'jwt_signature_invalid' };
-}
-
-async function verifyBrokerJwt(requestToken, jwtConfig, nowMs = Date.now()) {
-  const token = String(requestToken || '').trim();
-  if (!token) return { ok: false, reason: 'missing_token' };
-  if (!jwtConfig || jwtConfig.enabled !== true) return { ok: false, reason: 'jwt_disabled' };
-
-  const parts = token.split('.');
-  if (parts.length !== 3) return { ok: false, reason: 'jwt_malformed' };
-
-  const header = decodeJwtPart(parts[0]);
-  const payload = decodeJwtPart(parts[1]);
-  if (!header || typeof header !== 'object') return { ok: false, reason: 'jwt_header_invalid' };
-  if (!payload || typeof payload !== 'object') return { ok: false, reason: 'jwt_payload_invalid' };
-  const alg = String(header.alg || '').trim().toUpperCase();
-  if (!alg) return { ok: false, reason: 'jwt_alg_missing' };
-  const allowedAlgs = jwtConfig.allowedAlgs instanceof Set
-    ? jwtConfig.allowedAlgs
-    : new Set(Array.isArray(jwtConfig.allowedAlgs) ? jwtConfig.allowedAlgs : []);
-  if (!allowedAlgs.has(alg)) return { ok: false, reason: 'jwt_alg_unsupported' };
-
-  const signedInput = `${parts[0]}.${parts[1]}`;
-  if (alg === 'HS256') {
-    const hsResult = verifyJwtSignatureHS256(parts, signedInput, jwtConfig);
-    if (!hsResult.ok) return hsResult;
-  } else if (alg === 'RS256') {
-    if (typeof jwtConfig.getJwks !== 'function') {
-      return { ok: false, reason: 'jwt_jwks_unavailable' };
-    }
-    const jwksResult = await jwtConfig.getJwks();
-    if (!jwksResult || jwksResult.ok !== true) {
-      return { ok: false, reason: String(jwksResult?.reason || 'jwt_jwks_fetch_failed') };
-    }
-    let rsResult = verifyJwtSignatureRS256(parts, signedInput, jwksResult.keys, header);
-    if (!rsResult.ok && rsResult.reason === 'jwt_kid_not_found') {
-      const refreshedJwks = await jwtConfig.getJwks({ forceRefresh: true });
-      if (!refreshedJwks || refreshedJwks.ok !== true) {
-        return { ok: false, reason: String(refreshedJwks?.reason || 'jwt_jwks_refresh_failed') };
-      }
-      rsResult = verifyJwtSignatureRS256(parts, signedInput, refreshedJwks.keys, header);
-    }
-    if (!rsResult.ok) return rsResult;
-  } else {
-    return { ok: false, reason: 'jwt_alg_unsupported' };
-  }
-
-  const nowSec = Math.trunc(nowMs / 1000);
-  const skew = Math.max(0, Math.trunc(Number(jwtConfig.clockSkewSec || 0)));
-  const exp = parseNumericDateClaim(payload.exp);
-  const nbf = parseNumericDateClaim(payload.nbf);
-  if (exp != null && nowSec > exp + skew) return { ok: false, reason: 'jwt_expired' };
-  if (nbf != null && nowSec + skew < nbf) return { ok: false, reason: 'jwt_not_before' };
-
-  if (jwtConfig.issuer) {
-    const iss = String(payload.iss || '').trim();
-    if (!iss || iss !== jwtConfig.issuer) return { ok: false, reason: 'jwt_issuer_invalid' };
-  }
-  if (jwtConfig.audience) {
-    const audiences = normalizeAudienceClaim(payload.aud);
-    if (!audiences.includes(jwtConfig.audience)) return { ok: false, reason: 'jwt_audience_invalid' };
-  }
-
-  return {
-    ok: true,
-    reason: 'jwt_ok',
-    alg,
-    payload,
-  };
-}
-
-async function verifyBrokerAuth(requestToken, {
-  expectedToken = '',
-  jwtConfig = null,
-} = {}) {
-  const request = String(requestToken || '').trim();
-  const hasStatic = String(expectedToken || '').trim().length > 0;
-  const hasJwt = jwtConfig && jwtConfig.enabled === true;
-
-  if (!hasStatic && !hasJwt) {
-    return { ok: true, reason: 'auth_disabled', matchedBy: 'none' };
-  }
-  if (!request) {
-    return { ok: false, reason: 'missing_broker_token', matchedBy: '' };
-  }
-  if (hasStatic && verifyBrokerToken(expectedToken, request)) {
-    return { ok: true, reason: 'static_ok', matchedBy: 'static' };
-  }
-  if (hasJwt) {
-    const jwtResult = await verifyBrokerJwt(request, jwtConfig);
-    if (jwtResult.ok) {
-      return {
-        ok: true,
-        reason: 'jwt_ok',
-        matchedBy: 'jwt',
-        jwtAlg: String(jwtResult.alg || '').trim(),
-      };
-    }
-    return { ok: false, reason: jwtResult.reason || 'jwt_invalid', matchedBy: '' };
-  }
-  return { ok: false, reason: 'static_invalid', matchedBy: '' };
 }
 
 function ensureDefaultRoles(db, logLine = () => {}) {
@@ -7337,6 +5353,60 @@ function ensureSchema(db, logLine = () => {}) {
     });
   }
 
+  const hasV39 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 39 LIMIT 1')
+    .get();
+  if (!hasV39) {
+    const renderJobCols = db.prepare('PRAGMA table_info(render_jobs)').all();
+    const renderJobColNames = new Set(renderJobCols.map((c) => String(c?.name || '').trim()));
+    if (!renderJobColNames.has('scheduled_at')) {
+      db.exec('ALTER TABLE render_jobs ADD COLUMN scheduled_at TEXT DEFAULT NULL');
+    }
+    if (!renderJobColNames.has('queue_order')) {
+      db.exec('ALTER TABLE render_jobs ADD COLUMN queue_order INTEGER NOT NULL DEFAULT 0');
+    }
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(39, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v39',
+      message: 'Migration SQLite postprod v39 appliquee (scheduled_at et queue_order sur render_jobs)',
+    });
+  }
+
+  const hasV40 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 40 LIMIT 1')
+    .get();
+  if (!hasV40) {
+    const renderJobCols = db.prepare('PRAGMA table_info(render_jobs)').all();
+    const renderJobColNames = new Set(renderJobCols.map((c) => String(c?.name || '').trim()));
+    if (!renderJobColNames.has('render_station')) {
+      db.exec("ALTER TABLE render_jobs ADD COLUMN render_station TEXT NOT NULL DEFAULT 'local'");
+    }
+    if (!renderJobColNames.has('render_station_name')) {
+      db.exec("ALTER TABLE render_jobs ADD COLUMN render_station_name TEXT NOT NULL DEFAULT ''");
+    }
+    if (!renderJobColNames.has('origin_station_ip')) {
+      db.exec("ALTER TABLE render_jobs ADD COLUMN origin_station_ip TEXT NOT NULL DEFAULT ''");
+    }
+    if (!renderJobColNames.has('origin_station_name')) {
+      db.exec("ALTER TABLE render_jobs ADD COLUMN origin_station_name TEXT NOT NULL DEFAULT ''");
+    }
+    if (!renderJobColNames.has('remote_job_id')) {
+      db.exec('ALTER TABLE render_jobs ADD COLUMN remote_job_id INTEGER DEFAULT NULL');
+    }
+    if (!renderJobColNames.has('station_status')) {
+      db.exec("ALTER TABLE render_jobs ADD COLUMN station_status TEXT NOT NULL DEFAULT ''");
+    }
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(40, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v40',
+      message: 'Migration SQLite postprod v40 appliquee (render_station, origin_station, remote_job_id, station_status)',
+    });
+  }
+
   ensureDefaultRoles(db, logLine);
 }
 
@@ -8305,6 +6375,14 @@ function createStatements(db) {
         r.attempt_count,
         r.max_attempts,
         r.last_attempt_at,
+        r.scheduled_at,
+        r.queue_order,
+        r.render_station,
+        r.render_station_name,
+        r.origin_station_ip,
+        r.origin_station_name,
+        r.remote_job_id,
+        r.station_status,
         r.created_at,
         r.updated_at,
         req.username AS requested_by_username,
@@ -8336,6 +6414,14 @@ function createStatements(db) {
         r.attempt_count,
         r.max_attempts,
         r.last_attempt_at,
+        r.scheduled_at,
+        r.queue_order,
+        r.render_station,
+        r.render_station_name,
+        r.origin_station_ip,
+        r.origin_station_name,
+        r.remote_job_id,
+        r.station_status,
         r.created_at,
         r.updated_at,
         req.username AS requested_by_username,
@@ -8363,10 +6449,12 @@ function createStatements(db) {
         error_message,
         started_at,
         finished_at,
+        scheduled_at,
+        queue_order,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     updateRenderJobTransition: db.prepare(`
       UPDATE render_jobs
@@ -8585,6 +6673,79 @@ function createStatements(db) {
         )
       ORDER BY created_at ASC, id ASC
       LIMIT ?
+    `),
+    listDispatchableRenderJobsScheduled: db.prepare(`
+      SELECT
+        id,
+        project_name,
+        payload_json,
+        status,
+        requires_validation,
+        validated_by_user_id,
+        created_at,
+        scheduled_at,
+        queue_order
+      FROM render_jobs
+      WHERE status = 'Queued'
+        AND assigned_worker_id IS NULL
+        AND (
+          requires_validation = 0
+          OR validated_by_user_id IS NOT NULL
+        )
+        AND (scheduled_at IS NULL OR scheduled_at <= ?)
+      ORDER BY queue_order ASC, created_at ASC, id ASC
+      LIMIT ?
+    `),
+    listQueuedRenderJobs: db.prepare(`
+      SELECT *
+      FROM render_jobs
+      WHERE status = 'Queued'
+      ORDER BY queue_order ASC, created_at ASC
+    `),
+    countActiveRenderJobs: db.prepare(`
+      SELECT COUNT(*) AS n
+      FROM render_jobs
+      WHERE status IN ('Queued', 'Running')
+    `),
+    updateRenderJobRemoteOrigin: db.prepare(`
+      UPDATE render_jobs
+      SET
+        origin_station_ip   = ?,
+        origin_station_name = ?,
+        remote_job_id       = ?,
+        render_station      = ?,
+        render_station_name = ?,
+        station_status      = ?,
+        updated_at          = ?
+      WHERE id = ?
+    `),
+    updateRenderJobSchedule: db.prepare(`
+      UPDATE render_jobs
+      SET scheduled_at = ?, updated_at = ?
+      WHERE id = ?
+        AND status IN ('Queued')
+    `),
+    updateRenderJobQueueOrder: db.prepare(`
+      UPDATE render_jobs
+      SET queue_order = ?, updated_at = ?
+      WHERE id = ?
+    `),
+    listAllRenderJobsForExport: db.prepare(`
+      SELECT *
+      FROM render_jobs
+      ORDER BY queue_order ASC, created_at ASC
+    `),
+    updateRenderJobStationStatus: db.prepare(`
+      UPDATE render_jobs
+      SET station_status = ?, updated_at = ?
+      WHERE id = ?
+    `),
+    findRenderJobByRemoteId: db.prepare(`
+      SELECT *
+      FROM render_jobs
+      WHERE origin_station_ip = ?
+        AND remote_job_id = ?
+      LIMIT 1
     `),
     listRunningRenderLoadByProject: db.prepare(`
       SELECT
@@ -9098,408 +7259,6 @@ function buildRolePayload(row) {
   };
 }
 
-function parseAuditPayloadJson(value) {
-  try {
-    const parsed = JSON.parse(String(value || '{}'));
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-  } catch {}
-  return {};
-}
-
-function asOptionalPositiveInt(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.trunc(n);
-}
-
-function normalizeActivityProjectRefs(payload) {
-  const refs = [];
-  const seen = new Set();
-  const pushRef = (value) => {
-    const normalized = normalizeTaskRefsInput([value])[0] || '';
-    if (!normalized) return;
-    const key = normalizeAscii(normalized);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    refs.push(normalized);
-  };
-
-  const payloadObj = payload && typeof payload === 'object' ? payload : {};
-  const rawRefs = Array.isArray(payloadObj.projectRefs) ? payloadObj.projectRefs : [];
-  for (const ref of rawRefs) {
-    pushRef(ref);
-    if (refs.length >= MAX_TASK_REFS) break;
-  }
-  if (refs.length < MAX_TASK_REFS) pushRef(payloadObj.projectRef);
-  if (refs.length < MAX_TASK_REFS) pushRef(payloadObj.projectId);
-  if (refs.length < MAX_TASK_REFS) pushRef(payloadObj.projectName);
-  return refs.slice(0, MAX_TASK_REFS);
-}
-
-function normalizeActivityDetailValue(value, maxLen = 180) {
-  if (value == null) return '';
-  if (typeof value === 'string') return value.trim().slice(0, maxLen);
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value).trim().slice(0, maxLen);
-  if (Array.isArray(value)) {
-    const compact = value
-      .map((item) => (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean')
-        ? String(item).trim()
-        : '')
-      .filter(Boolean)
-      .join(', ');
-    return compact.slice(0, maxLen);
-  }
-  if (typeof value === 'object') {
-    const candidate = String(
-      value?.displayName
-      || value?.name
-      || value?.title
-      || value?.label
-      || value?.id
-      || ''
-    ).trim();
-    return candidate.slice(0, maxLen);
-  }
-  return '';
-}
-
-function buildUserActivityDetail({
-  payload = {},
-  scopeType = '',
-  scopeId = '',
-  fromStatus = '',
-  toStatus = '',
-  comment = '',
-  projectRefs = [],
-}) {
-  const parts = [];
-  const pushPart = (value) => {
-    const normalized = normalizeActivityDetailValue(value, 220);
-    if (!normalized) return;
-    if (parts.includes(normalized)) return;
-    parts.push(normalized);
-  };
-  const pushLabeled = (label, value) => {
-    const normalized = normalizeActivityDetailValue(value, 180);
-    if (!normalized) return;
-    pushPart(`${label}: ${normalized}`);
-  };
-
-  if (fromStatus || toStatus) {
-    if (fromStatus && toStatus) pushPart(`${fromStatus} -> ${toStatus}`);
-    else pushPart(toStatus || fromStatus);
-  }
-  if (comment) pushPart(comment);
-
-  pushPart(payload?.message);
-  pushLabeled('Erreur', payload?.error || payload?.errorMessage || payload?.reason);
-  pushLabeled('Resultat', payload?.result);
-  pushLabeled('Utilisateur', payload?.username || payload?.targetUsername || payload?.displayName);
-  pushLabeled('Role', payload?.role);
-  pushLabeled('IP', payload?.ip || payload?.sourceIp);
-  pushLabeled('Tache', payload?.taskTitle || payload?.taskName);
-  pushLabeled('Rendu', payload?.renderName || payload?.expectedRenderName || payload?.matchedRenderName);
-  pushLabeled('Formulaire', payload?.formName);
-  pushLabeled('Preset', payload?.presetName || payload?.templateName || payload?.outputProfile);
-  pushLabeled('Projet', payload?.projectName || payload?.projectId || payload?.projectRef);
-
-  const scopeTypeText = normalizeActivityDetailValue(scopeType, 80);
-  const scopeIdText = normalizeActivityDetailValue(scopeId, 80);
-  if (scopeTypeText || scopeIdText) {
-    pushPart(`Scope: ${scopeTypeText}${scopeIdText ? `#${scopeIdText}` : ''}`);
-  }
-  if (Array.isArray(projectRefs) && projectRefs.length > 0) {
-    pushPart(`Projets: ${projectRefs.join(', ')}`);
-  }
-
-  const joined = parts.join(' | ').trim();
-  return joined.slice(0, 500);
-}
-
-function buildUserActivityPayload(row) {
-  const payload = parseAuditPayloadJson(row?.payload_json);
-  const scopeType = String(row?.scope_type || '');
-  const scopeId = String(row?.scope_id || '');
-  const fromStatus = String(payload?.fromStatus || '').trim().slice(0, 120);
-  const toStatus = String(payload?.toStatus || '').trim().slice(0, 120);
-  const comment = String(payload?.comment || '').trim().slice(0, MAX_TASK_COMMENT_LEN);
-  const projectRefs = normalizeActivityProjectRefs(payload);
-  return {
-    id: Number(row?.id || 0),
-    actorUserId: Number(row?.actor_user_id || 0),
-    action: String(row?.action || ''),
-    scopeType,
-    scopeId,
-    createdAt: row?.created_at || null,
-    taskId: asOptionalPositiveInt(payload?.taskId),
-    renderId: asOptionalPositiveInt(payload?.renderId),
-    fromStatus,
-    toStatus,
-    projectRefs,
-    comment,
-    detail: buildUserActivityDetail({
-      payload,
-      scopeType,
-      scopeId,
-      fromStatus,
-      toStatus,
-      comment,
-      projectRefs,
-    }),
-  };
-}
-
-function buildAuditEntryPayload(row) {
-  const activity = buildUserActivityPayload(row);
-  return {
-    ...activity,
-    actorUsername: String(row?.actor_username || '').trim(),
-    payload: parseAuditPayloadJson(row?.payload_json),
-  };
-}
-
-function escapeCsvCell(value) {
-  const raw = String(value == null ? '' : value);
-  if (!/[",\r\n]/.test(raw)) return raw;
-  return `"${raw.replace(/"/g, '""')}"`;
-}
-
-function buildAuditCsvLine(entry) {
-  const payload = entry?.payload && typeof entry.payload === 'object' ? entry.payload : {};
-  let payloadJson = '{}';
-  try {
-    payloadJson = JSON.stringify(payload);
-  } catch {
-    payloadJson = '{}';
-  }
-  const projectRefs = Array.isArray(entry?.projectRefs) ? entry.projectRefs.join('|') : '';
-  return [
-    Number(entry?.id || 0),
-    String(entry?.createdAt || ''),
-    Number(entry?.actorUserId || 0),
-    String(entry?.actorUsername || ''),
-    String(entry?.action || ''),
-    String(entry?.scopeType || ''),
-    String(entry?.scopeId || ''),
-    String(entry?.fromStatus || ''),
-    String(entry?.toStatus || ''),
-    projectRefs,
-    String(entry?.comment || ''),
-    payloadJson,
-  ]
-    .map(escapeCsvCell)
-    .join(',');
-}
-
-function matchesAuditSearch(entry, searchValue = '') {
-  const search = String(searchValue || '').trim().toLowerCase();
-  if (!search) return true;
-
-  const action = String(entry?.action || '').trim();
-  const scopeType = String(entry?.scopeType || '').trim();
-  const scopeId = String(entry?.scopeId || '').trim();
-  const actorUsername = String(entry?.actorUsername || '').trim();
-  const actorUserId = Number(entry?.actorUserId || 0);
-  const fromStatus = String(entry?.fromStatus || '').trim();
-  const toStatus = String(entry?.toStatus || '').trim();
-  const comment = String(entry?.comment || '').trim();
-  const refs = Array.isArray(entry?.projectRefs) ? entry.projectRefs.join(' ') : '';
-  const payloadText = (() => {
-    try {
-      const payload = entry?.payload && typeof entry.payload === 'object' ? entry.payload : {};
-      return JSON.stringify(payload);
-    } catch {
-      return '';
-    }
-  })();
-
-  const haystack = [
-    action,
-    scopeType,
-    scopeId,
-    actorUsername,
-    actorUserId > 0 ? String(actorUserId) : '',
-    fromStatus,
-    toStatus,
-    comment,
-    refs,
-    payloadText,
-  ]
-    .join(' ')
-    .toLowerCase();
-  return haystack.includes(search);
-}
-
-function summarizeUserActivity(activities = []) {
-  const list = Array.isArray(activities) ? activities : [];
-  const actions = {};
-  const byType = {
-    auth: 0,
-    task: 0,
-    render: 0,
-    sync: 0,
-    other: 0,
-  };
-  const projectSet = new Set();
-  const WORKED_PROJECT_ACTIVITY_TYPES = new Set(['task', 'render', 'sync']);
-  for (const item of list) {
-    const action = String(item?.action || '').trim();
-    if (action) actions[action] = Number(actions[action] || 0) + 1;
-    const typeKey = classifyActivityActionType(action);
-    if (Object.prototype.hasOwnProperty.call(byType, typeKey)) {
-      byType[typeKey] = Number(byType[typeKey] || 0) + 1;
-    } else {
-      byType.other = Number(byType.other || 0) + 1;
-    }
-    if (!WORKED_PROJECT_ACTIVITY_TYPES.has(typeKey)) continue;
-    const refs = Array.isArray(item?.projectRefs) ? item.projectRefs : [];
-    for (const ref of refs) {
-      const normalized = normalizeTaskRefsInput([ref])[0];
-      if (!normalized) continue;
-      projectSet.add(normalized);
-    }
-  }
-  return {
-    total: list.length,
-    actions,
-    byType,
-    projects: Array.from(projectSet).sort((a, b) => a.localeCompare(b)),
-  };
-}
-
-function parseActivityProjectRefsFilter(searchParams) {
-  const values = [
-    ...searchParams.getAll('projectRef'),
-    ...searchParams.getAll('projectRefs'),
-    ...searchParams.getAll('projectId'),
-    ...searchParams.getAll('project'),
-  ];
-  if (!Array.isArray(values) || values.length === 0) return [];
-  const merged = values
-    .map((value) => String(value || '').trim())
-    .filter(Boolean)
-    .join(',');
-  return normalizeTaskRefsInput(merged).slice(0, MAX_TASK_REFS);
-}
-
-function parseActivityFilters(searchParams) {
-  const rawLimit = Number(searchParams.get('limit') || 50);
-  const limit = Math.min(200, coercePositiveInt(rawLimit, 50, 1));
-  const fromAtRaw = String(searchParams.get('fromAt') || '').trim();
-  const toAtRaw = String(searchParams.get('toAt') || '').trim();
-  const fromAt = fromAtRaw ? parseIsoDateOrNull(fromAtRaw) : '';
-  const toAt = toAtRaw ? parseIsoDateOrNull(toAtRaw) : '';
-  if (fromAtRaw && !fromAt) return { ok: false, error: 'invalid_from_at' };
-  if (toAtRaw && !toAt) return { ok: false, error: 'invalid_to_at' };
-  if (fromAt && toAt && Date.parse(fromAt) > Date.parse(toAt)) {
-    return { ok: false, error: 'invalid_activity_range' };
-  }
-  const actionTypeRaw = String(
-    searchParams.get('actionType') ||
-    searchParams.get('activityType') ||
-    ''
-  )
-    .trim()
-    .toLowerCase();
-  const actionType = (() => {
-    if (!actionTypeRaw || actionTypeRaw === 'all') return 'all';
-    if (['auth', 'task', 'render', 'sync', 'other'].includes(actionTypeRaw)) {
-      return actionTypeRaw;
-    }
-    return '';
-  })();
-  if (!actionType) return { ok: false, error: 'invalid_activity_action_type' };
-  const projectRefs = parseActivityProjectRefsFilter(searchParams);
-  const searchQuery = String(
-    searchParams.get('search') ||
-    searchParams.get('query') ||
-    searchParams.get('q') ||
-    ''
-  )
-    .trim()
-    .slice(0, MAX_ACTIVITY_SEARCH_LEN);
-  return {
-    ok: true,
-    limit,
-    fromAt,
-    toAt,
-    actionType,
-    projectRefs,
-    searchQuery,
-  };
-}
-
-function activityMatchesProjectRefs(activity, projectRefs = []) {
-  const filters = Array.isArray(projectRefs) ? projectRefs : [];
-  if (filters.length === 0) return true;
-  const activityRefs = Array.isArray(activity?.projectRefs) ? activity.projectRefs : [];
-  if (activityRefs.length === 0) return false;
-  const filterSet = new Set(
-    filters
-      .map((ref) => normalizeAscii(ref).toLowerCase())
-      .filter(Boolean)
-  );
-  if (filterSet.size === 0) return true;
-  for (const ref of activityRefs) {
-    const key = normalizeAscii(ref).toLowerCase();
-    if (key && filterSet.has(key)) return true;
-  }
-  return false;
-}
-
-function classifyActivityActionType(action) {
-  const normalized = String(action || '').trim().toLowerCase();
-  if (!normalized) return 'other';
-  if (normalized.startsWith('auth_')) return 'auth';
-  if (normalized.startsWith('task_')) return 'task';
-  if (normalized.startsWith('render_') || normalized.startsWith('renders_')) return 'render';
-  if (
-    normalized === 'project_sync' ||
-    normalized.startsWith('sync_') ||
-    normalized.endsWith('_sync') ||
-    normalized.includes('_sync_')
-  ) {
-    return 'sync';
-  }
-  return 'other';
-}
-
-function activityMatchesActionType(activity, actionType = 'all') {
-  const normalized = String(actionType || '').trim().toLowerCase();
-  if (!normalized || normalized === 'all') return true;
-  return classifyActivityActionType(activity?.action) === normalized;
-}
-
-function activityMatchesSearchQuery(activity, searchQuery = '') {
-  const needle = normalizeAscii(String(searchQuery || '').trim()).toLowerCase();
-  if (!needle) return true;
-
-  const projectRefs = Array.isArray(activity?.projectRefs) ? activity.projectRefs.join(' ') : '';
-  const taskId = Number.isFinite(Number(activity?.taskId)) && Number(activity?.taskId) > 0
-    ? String(activity.taskId)
-    : '';
-  const renderId = Number.isFinite(Number(activity?.renderId)) && Number(activity?.renderId) > 0
-    ? String(activity.renderId)
-    : '';
-
-  const haystack = [
-    String(activity?.action || ''),
-    String(activity?.scopeType || ''),
-    String(activity?.scopeId || ''),
-    String(activity?.fromStatus || ''),
-    String(activity?.toStatus || ''),
-    String(activity?.comment || ''),
-    projectRefs,
-    taskId,
-    renderId,
-    String(activity?.createdAt || ''),
-  ]
-    .map((value) => normalizeAscii(String(value || '')).toLowerCase())
-    .join(' ');
-
-  return haystack.includes(needle);
-}
-
 function buildTaskPayload(row) {
   const requestType = normalizeTaskRequestType(row?.request_type, DEFAULT_TASK_REQUEST_TYPE);
   const expectedRenderCount = normalizeTaskExpectedRenderCount(
@@ -9717,6 +7476,14 @@ function buildRenderJobPayload(row) {
       ? Math.max(1, Math.trunc(Number(row?.max_attempts)))
       : 3,
     lastAttemptAt: row?.last_attempt_at || null,
+    scheduledAt: row?.scheduled_at || null,
+    queueOrder: Number.isFinite(Number(row?.queue_order)) ? Math.trunc(Number(row?.queue_order)) : 0,
+    renderStation: String(row?.render_station || 'local'),
+    renderStationName: String(row?.render_station_name || ''),
+    originStationIp: String(row?.origin_station_ip || ''),
+    originStationName: String(row?.origin_station_name || ''),
+    remoteJobId: row?.remote_job_id != null ? Number(row.remote_job_id) : null,
+    stationStatus: String(row?.station_status || ''),
     createdAt: row?.created_at || null,
     updatedAt: row?.updated_at || null,
   };
@@ -9820,6 +7587,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
       available: false,
       dbPath: '',
       handleRoutes: buildUnavailableHandler(reason),
+      remoteBridge: null,
     };
   }
 
@@ -9836,6 +7604,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
       available: false,
       dbPath: '',
       handleRoutes: buildUnavailableHandler(reason),
+      remoteBridge: null,
     };
   }
   let sharedStore = null;
@@ -10044,701 +7813,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     }
     return true;
   }
-  const brokerToken = String(process.env.UU_POSTPROD_BROKER_TOKEN || '')
-    .trim()
-    .slice(0, MAX_BROKER_TOKEN_LEN);
-  const brokerJwtSecret = String(process.env.UU_POSTPROD_BROKER_JWT_SECRET || '')
-    .trim()
-    .slice(0, MAX_BROKER_TOKEN_LEN);
-  const brokerJwtJwksUrl = sanitizeHttpUrl(
-    process.env.UU_POSTPROD_BROKER_JWKS_URL,
-    MAX_BROKER_JWKS_URL_LEN
-  );
-  const brokerJwtIssuer = String(process.env.UU_POSTPROD_BROKER_JWT_ISSUER || '')
-    .trim()
-    .slice(0, MAX_BROKER_JWT_ISSUER_LEN);
-  const brokerJwtAudience = String(process.env.UU_POSTPROD_BROKER_JWT_AUDIENCE || '')
-    .trim()
-    .slice(0, MAX_BROKER_JWT_AUDIENCE_LEN);
-  const brokerJwtClockSkewRaw = Number(process.env.UU_POSTPROD_BROKER_JWT_CLOCK_SKEW_SEC);
-  const brokerJwtClockSkewSec = Number.isFinite(brokerJwtClockSkewRaw) && brokerJwtClockSkewRaw >= 0
-    ? Math.min(300, Math.trunc(brokerJwtClockSkewRaw))
-    : 30;
-  const brokerJwtJwksTtlRaw = Number(process.env.UU_POSTPROD_BROKER_JWKS_TTL_SEC);
-  const brokerJwtJwksTtlSec = Number.isFinite(brokerJwtJwksTtlRaw) && brokerJwtJwksTtlRaw >= MIN_BROKER_JWKS_TTL_SEC
-    ? Math.min(MAX_BROKER_JWKS_TTL_SEC, Math.trunc(brokerJwtJwksTtlRaw))
-    : 300;
-  const brokerJwtJwksTimeoutRaw = Number(process.env.UU_POSTPROD_BROKER_JWKS_TIMEOUT_MS);
-  const brokerJwtJwksTimeoutMs = Number.isFinite(brokerJwtJwksTimeoutRaw) && brokerJwtJwksTimeoutRaw >= MIN_BROKER_JWKS_TIMEOUT_MS
-    ? Math.min(MAX_BROKER_JWKS_TIMEOUT_MS, Math.trunc(brokerJwtJwksTimeoutRaw))
-    : 5000;
-  const brokerOidcDiscoveryEnabled = parseBooleanFlag(
-    process.env.UU_POSTPROD_BROKER_OIDC_DISCOVERY_ENABLED,
-    true
-  );
-  const brokerOidcDiscoveryUrl = brokerOidcDiscoveryEnabled
-    ? buildOidcDiscoveryUrl({
-        issuer: brokerJwtIssuer,
-        explicitUrl: String(process.env.UU_POSTPROD_BROKER_OIDC_DISCOVERY_URL || '')
-          .trim()
-          .slice(0, MAX_BROKER_OIDC_DISCOVERY_URL_LEN),
-      })
-    : '';
-  const brokerOidcDiscoveryTtlRaw = Number(process.env.UU_POSTPROD_BROKER_OIDC_DISCOVERY_TTL_SEC);
-  const brokerOidcDiscoveryTtlSec =
-    Number.isFinite(brokerOidcDiscoveryTtlRaw) && brokerOidcDiscoveryTtlRaw >= MIN_BROKER_OIDC_DISCOVERY_TTL_SEC
-      ? Math.min(MAX_BROKER_OIDC_DISCOVERY_TTL_SEC, Math.trunc(brokerOidcDiscoveryTtlRaw))
-      : brokerJwtJwksTtlSec;
-  const brokerOidcDiscoveryTimeoutRaw = Number(process.env.UU_POSTPROD_BROKER_OIDC_DISCOVERY_TIMEOUT_MS);
-  const brokerOidcDiscoveryTimeoutMs =
-    Number.isFinite(brokerOidcDiscoveryTimeoutRaw) && brokerOidcDiscoveryTimeoutRaw >= MIN_BROKER_OIDC_DISCOVERY_TIMEOUT_MS
-      ? Math.min(MAX_BROKER_OIDC_DISCOVERY_TIMEOUT_MS, Math.trunc(brokerOidcDiscoveryTimeoutRaw))
-      : brokerJwtJwksTimeoutMs;
-  const brokerJwksRefreshLeadRaw = Number(process.env.UU_POSTPROD_BROKER_JWKS_REFRESH_LEAD_SEC);
-  const brokerJwksRefreshLeadSec =
-    Number.isFinite(brokerJwksRefreshLeadRaw) && brokerJwksRefreshLeadRaw >= 0
-      ? Math.min(MAX_BROKER_REFRESH_LEAD_SEC, Math.trunc(brokerJwksRefreshLeadRaw))
-      : 45;
-  const brokerOidcRefreshLeadRaw = Number(process.env.UU_POSTPROD_BROKER_OIDC_DISCOVERY_REFRESH_LEAD_SEC);
-  const brokerOidcRefreshLeadSec =
-    Number.isFinite(brokerOidcRefreshLeadRaw) && brokerOidcRefreshLeadRaw >= 0
-      ? Math.min(MAX_BROKER_REFRESH_LEAD_SEC, Math.trunc(brokerOidcRefreshLeadRaw))
-      : 45;
-  const brokerMetadataRefreshMinIntervalRaw = Number(process.env.UU_POSTPROD_BROKER_METADATA_REFRESH_MIN_INTERVAL_MS);
-  const brokerMetadataRefreshMinIntervalMs =
-    Number.isFinite(brokerMetadataRefreshMinIntervalRaw) &&
-    brokerMetadataRefreshMinIntervalRaw >= MIN_BROKER_METADATA_REFRESH_INTERVAL_MS
-      ? Math.min(MAX_BROKER_METADATA_REFRESH_INTERVAL_MS, Math.trunc(brokerMetadataRefreshMinIntervalRaw))
-      : 5000;
-  const brokerOfflineRecoveryIntervalRaw = Number(process.env.UU_POSTPROD_BROKER_OFFLINE_RECOVERY_INTERVAL_MS);
-  const brokerOfflineRecoveryIntervalMs =
-    Number.isFinite(brokerOfflineRecoveryIntervalRaw) &&
-    brokerOfflineRecoveryIntervalRaw >= MIN_BROKER_OFFLINE_RECOVERY_INTERVAL_MS
-      ? Math.min(MAX_BROKER_OFFLINE_RECOVERY_INTERVAL_MS, Math.trunc(brokerOfflineRecoveryIntervalRaw))
-      : DEFAULT_BROKER_OFFLINE_RECOVERY_INTERVAL_MS;
-  const brokerJwtAlgsFallback = [];
-  if (brokerJwtSecret) brokerJwtAlgsFallback.push('HS256');
-  if (brokerJwtJwksUrl || brokerOidcDiscoveryUrl) brokerJwtAlgsFallback.push('RS256');
-  const brokerJwtAlgsRequested = normalizeBrokerJwtAlgs(
-    process.env.UU_POSTPROD_BROKER_JWT_ALGS,
-    brokerJwtAlgsFallback
-  );
-  const brokerJwtAllowedAlgs = brokerJwtAlgsRequested.filter((alg) => {
-    if (alg === 'HS256') return brokerJwtSecret.length > 0;
-    if (alg === 'RS256') return brokerJwtJwksUrl.length > 0 || brokerOidcDiscoveryUrl.length > 0;
-    return false;
-  });
-  const brokerOidcCache = {
-    jwksUri: '',
-    issuer: '',
-    expiresAtMs: 0,
-    fetchedAtMs: 0,
-    etag: '',
-    lastError: '',
-  };
-  const brokerJwksCache = {
-    keys: [],
-    expiresAtMs: 0,
-    fetchedAtMs: 0,
-    sourceUrl: '',
-    etag: '',
-    lastError: '',
-  };
-  const brokerFetchMetrics = {
-    oidc: {
-      attempts: 0,
-      success: 0,
-      failure: 0,
-      cacheHits: 0,
-      staleFallbacks: 0,
-      proactiveKicks: 0,
-      lastAttemptAt: '',
-      lastSuccessAt: '',
-      lastFailureAt: '',
-      lastFailureReason: '',
-    },
-    jwks: {
-      attempts: 0,
-      success: 0,
-      failure: 0,
-      cacheHits: 0,
-      staleFallbacks: 0,
-      proactiveKicks: 0,
-      lastAttemptAt: '',
-      lastSuccessAt: '',
-      lastFailureAt: '',
-      lastFailureReason: '',
-    },
-  };
-  const brokerRefreshState = {
-    oidcInFlight: false,
-    jwksInFlight: false,
-    lastOidcKickMs: 0,
-    lastJwksKickMs: 0,
-  };
-  const brokerRecoveryState = {
-    offline: false,
-    offlineSinceAt: '',
-    lastFailureAt: '',
-    lastFailureReason: '',
-    lastSuccessAt: '',
-    lastRecoveredAt: '',
-    consecutiveFailures: 0,
-    attempts: 0,
-    success: 0,
-    failure: 0,
-    inFlight: false,
-    lastKickMs: 0,
-    lastKickAt: '',
-  };
-  function getBrokerMetricSlot(kind) {
-    return kind === 'oidc' || kind === 'jwks'
-      ? brokerFetchMetrics[kind]
-      : null;
-  }
-  function markBrokerFetchAttempt(kind) {
-    const slot = getBrokerMetricSlot(kind);
-    if (!slot) return;
-    slot.attempts += 1;
-    slot.lastAttemptAt = nowIso();
-  }
-  function markBrokerFetchSuccess(kind, { cacheHit = false, staleFallback = false, network = false } = {}) {
-    const slot = getBrokerMetricSlot(kind);
-    if (!slot) return;
-    slot.success += 1;
-    slot.lastSuccessAt = nowIso();
-    if (cacheHit) slot.cacheHits += 1;
-    if (staleFallback) slot.staleFallbacks += 1;
-    if (network) {
-      const at = nowIso();
-      brokerRecoveryState.lastSuccessAt = at;
-      brokerRecoveryState.consecutiveFailures = 0;
-      if (brokerRecoveryState.offline) {
-        brokerRecoveryState.offline = false;
-        brokerRecoveryState.lastRecoveredAt = at;
-        brokerRecoveryState.offlineSinceAt = '';
-      }
-    }
-  }
-  function markBrokerFetchFailure(kind, reason = '') {
-    const slot = getBrokerMetricSlot(kind);
-    if (!slot) return;
-    const reasonText = String(reason || '').trim().slice(0, 200);
-    slot.failure += 1;
-    slot.lastFailureAt = nowIso();
-    slot.lastFailureReason = reasonText;
-    const at = nowIso();
-    brokerRecoveryState.consecutiveFailures += 1;
-    brokerRecoveryState.lastFailureAt = at;
-    brokerRecoveryState.lastFailureReason = reasonText;
-    if (!brokerRecoveryState.offline) {
-      brokerRecoveryState.offline = true;
-      brokerRecoveryState.offlineSinceAt = at;
-    }
-  }
-  function markBrokerProactiveKick(kind) {
-    const slot = getBrokerMetricSlot(kind);
-    if (!slot) return;
-    slot.proactiveKicks += 1;
-  }
-  function snapshotBrokerFetchMetrics(kind, inFlight = false) {
-    const slot = getBrokerMetricSlot(kind);
-    return {
-      attempts: Number(slot?.attempts || 0),
-      success: Number(slot?.success || 0),
-      failure: Number(slot?.failure || 0),
-      cacheHits: Number(slot?.cacheHits || 0),
-      staleFallbacks: Number(slot?.staleFallbacks || 0),
-      proactiveKicks: Number(slot?.proactiveKicks || 0),
-      inFlight: inFlight === true,
-      lastAttemptAt: String(slot?.lastAttemptAt || ''),
-      lastSuccessAt: String(slot?.lastSuccessAt || ''),
-      lastFailureAt: String(slot?.lastFailureAt || ''),
-      lastFailureReason: String(slot?.lastFailureReason || ''),
-    };
-  }
-  async function fetchBrokerOidcDiscovery({ forceRefresh = false } = {}) {
-    const forced = forceRefresh === true;
-    if (!brokerOidcDiscoveryEnabled || !brokerOidcDiscoveryUrl) {
-      return { ok: false, reason: 'oidc_discovery_unavailable' };
-    }
-    const nowMs = Date.now();
-    if (!forced && brokerOidcCache.jwksUri && brokerOidcCache.expiresAtMs > nowMs) {
-      markBrokerFetchSuccess('oidc', { cacheHit: true });
-      return {
-        ok: true,
-        reason: 'oidc_cache_hit',
-        fromCache: true,
-        jwksUri: brokerOidcCache.jwksUri,
-        issuer: brokerOidcCache.issuer,
-      };
-    }
-    if (typeof fetch !== 'function') {
-      markBrokerFetchFailure('oidc', 'fetch_unavailable');
-      return { ok: false, reason: 'fetch_unavailable' };
-    }
-    let timeoutId = null;
-    let controller = null;
-    try {
-      markBrokerFetchAttempt('oidc');
-      if (typeof AbortController === 'function') {
-        controller = new AbortController();
-        timeoutId = setTimeout(() => {
-          try {
-            controller.abort();
-          } catch {}
-        }, brokerOidcDiscoveryTimeoutMs);
-      }
-      const headers = { Accept: 'application/json' };
-      if (forced) {
-        headers['Cache-Control'] = 'no-cache';
-      }
-      if (!forced && brokerOidcCache.etag) {
-        headers['If-None-Match'] = brokerOidcCache.etag;
-      }
-      const response = await fetch(brokerOidcDiscoveryUrl, {
-        method: 'GET',
-        headers,
-        signal: controller?.signal,
-      });
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-
-      if (response.status === 304 && brokerOidcCache.jwksUri) {
-        brokerOidcCache.expiresAtMs = nowMs + brokerOidcDiscoveryTtlSec * 1000;
-        brokerOidcCache.fetchedAtMs = nowMs;
-        brokerOidcCache.lastError = '';
-        markBrokerFetchSuccess('oidc', { cacheHit: true, network: true });
-        return {
-          ok: true,
-          reason: 'oidc_not_modified',
-          fromCache: true,
-          jwksUri: brokerOidcCache.jwksUri,
-          issuer: brokerOidcCache.issuer,
-        };
-      }
-      if (!response.ok) {
-        throw new Error(`oidc_http_${response.status}`);
-      }
-      const body = await response.json();
-      const jwksUri = sanitizeHttpUrl(body?.jwks_uri, MAX_BROKER_JWKS_URL_LEN);
-      if (!jwksUri) {
-        throw new Error('oidc_jwks_uri_missing');
-      }
-      const issuerInDoc = String(body?.issuer || '').trim().slice(0, MAX_BROKER_JWT_ISSUER_LEN);
-      if (brokerJwtIssuer && issuerInDoc && issuerInDoc !== brokerJwtIssuer) {
-        throw new Error('oidc_issuer_mismatch');
-      }
-      const etag = String(response.headers?.get?.('etag') || '').trim();
-      brokerOidcCache.jwksUri = jwksUri;
-      brokerOidcCache.issuer = issuerInDoc || brokerJwtIssuer || '';
-      brokerOidcCache.expiresAtMs = nowMs + brokerOidcDiscoveryTtlSec * 1000;
-      brokerOidcCache.fetchedAtMs = nowMs;
-      brokerOidcCache.etag = etag || brokerOidcCache.etag;
-      brokerOidcCache.lastError = '';
-      markBrokerFetchSuccess('oidc', { network: true });
-      return {
-        ok: true,
-        reason: 'oidc_ok',
-        fromCache: false,
-        jwksUri: brokerOidcCache.jwksUri,
-        issuer: brokerOidcCache.issuer,
-      };
-    } catch (err) {
-      if (timeoutId) clearTimeout(timeoutId);
-      const discoverReason = err?.name === 'AbortError'
-        ? 'oidc_timeout'
-        : String(err?.message || err || 'oidc_fetch_failed').slice(0, 160);
-      brokerOidcCache.lastError = discoverReason;
-      markBrokerFetchFailure('oidc', discoverReason);
-      if (brokerOidcCache.jwksUri) {
-        markBrokerFetchSuccess('oidc', { staleFallback: true });
-        return {
-          ok: true,
-          reason: 'oidc_stale_cache',
-          fromCache: true,
-          stale: true,
-          jwksUri: brokerOidcCache.jwksUri,
-          issuer: brokerOidcCache.issuer,
-        };
-      }
-      return { ok: false, reason: 'oidc_fetch_failed', detail: discoverReason };
-    }
-  }
-  async function resolveBrokerJwksUrl({ forceOidcRefresh = false } = {}) {
-    if (brokerJwtJwksUrl) {
-      return { ok: true, source: 'static', url: brokerJwtJwksUrl };
-    }
-    const discovery = await fetchBrokerOidcDiscovery({ forceRefresh: forceOidcRefresh === true });
-    if (discovery?.ok === true && discovery?.jwksUri) {
-      return {
-        ok: true,
-        source: 'oidc_discovery',
-        url: String(discovery.jwksUri || ''),
-      };
-    }
-    return {
-      ok: false,
-      source: 'oidc_discovery',
-      reason: String(discovery?.reason || 'jwks_url_missing'),
-      detail: String(discovery?.detail || ''),
-    };
-  }
-  async function fetchBrokerJwks({ forceRefresh = false } = {}) {
-    const forced = forceRefresh === true;
-    const jwksUrlResult = await resolveBrokerJwksUrl({ forceOidcRefresh: forced });
-    if (!jwksUrlResult?.ok || !jwksUrlResult?.url) {
-      const resolveReason = String(jwksUrlResult?.reason || 'jwks_url_missing');
-      brokerJwksCache.lastError = resolveReason;
-      markBrokerFetchFailure('jwks', resolveReason);
-      if (Array.isArray(brokerJwksCache.keys) && brokerJwksCache.keys.length > 0) {
-        markBrokerFetchSuccess('jwks', { staleFallback: true });
-        return {
-          ok: true,
-          reason: 'jwks_stale_cache',
-          keys: brokerJwksCache.keys,
-          fromCache: true,
-          stale: true,
-        };
-      }
-      return { ok: false, reason: resolveReason, keys: [] };
-    }
-    const activeJwksUrl = String(jwksUrlResult.url || '').trim();
-    if (!activeJwksUrl) {
-      return { ok: false, reason: 'jwks_url_missing', keys: [] };
-    }
-    if (brokerJwksCache.sourceUrl !== activeJwksUrl) {
-      brokerJwksCache.keys = [];
-      brokerJwksCache.expiresAtMs = 0;
-      brokerJwksCache.fetchedAtMs = 0;
-      brokerJwksCache.etag = '';
-      brokerJwksCache.sourceUrl = activeJwksUrl;
-    }
-    const nowMs = Date.now();
-    if (
-      !forced &&
-      Array.isArray(brokerJwksCache.keys) &&
-      brokerJwksCache.keys.length > 0 &&
-      brokerJwksCache.expiresAtMs > nowMs
-    ) {
-      markBrokerFetchSuccess('jwks', { cacheHit: true });
-      return { ok: true, reason: 'jwks_cache_hit', keys: brokerJwksCache.keys, fromCache: true };
-    }
-    if (typeof fetch !== 'function') {
-      markBrokerFetchFailure('jwks', 'fetch_unavailable');
-      return { ok: false, reason: 'fetch_unavailable', keys: [] };
-    }
-    let timeoutId = null;
-    let controller = null;
-    try {
-      markBrokerFetchAttempt('jwks');
-      if (typeof AbortController === 'function') {
-        controller = new AbortController();
-        timeoutId = setTimeout(() => {
-          try {
-            controller.abort();
-          } catch {}
-        }, brokerJwtJwksTimeoutMs);
-      }
-      const headers = { Accept: 'application/json' };
-      if (forced) {
-        headers['Cache-Control'] = 'no-cache';
-      }
-      if (!forced && brokerJwksCache.etag) {
-        headers['If-None-Match'] = brokerJwksCache.etag;
-      }
-      const response = await fetch(activeJwksUrl, {
-        method: 'GET',
-        headers,
-        signal: controller?.signal,
-      });
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-
-      if (response.status === 304 && Array.isArray(brokerJwksCache.keys) && brokerJwksCache.keys.length > 0) {
-        brokerJwksCache.expiresAtMs = nowMs + brokerJwtJwksTtlSec * 1000;
-        brokerJwksCache.fetchedAtMs = nowMs;
-        brokerJwksCache.lastError = '';
-        markBrokerFetchSuccess('jwks', { cacheHit: true, network: true });
-        return { ok: true, reason: 'jwks_not_modified', keys: brokerJwksCache.keys, fromCache: true };
-      }
-      if (!response.ok) {
-        throw new Error(`jwks_http_${response.status}`);
-      }
-
-      const body = await response.json();
-      const keys = Array.isArray(body?.keys)
-        ? body.keys.filter((key) => key && typeof key === 'object')
-        : [];
-      if (keys.length <= 0) {
-        throw new Error('jwks_empty');
-      }
-      const etag = String(response.headers?.get?.('etag') || '').trim();
-      brokerJwksCache.keys = keys;
-      brokerJwksCache.expiresAtMs = nowMs + brokerJwtJwksTtlSec * 1000;
-      brokerJwksCache.fetchedAtMs = nowMs;
-      brokerJwksCache.sourceUrl = activeJwksUrl;
-      brokerJwksCache.etag = etag || brokerJwksCache.etag;
-      brokerJwksCache.lastError = '';
-      markBrokerFetchSuccess('jwks', { network: true });
-      return { ok: true, reason: 'jwks_ok', keys, fromCache: false };
-    } catch (err) {
-      if (timeoutId) clearTimeout(timeoutId);
-      const fetchReason = err?.name === 'AbortError'
-        ? 'jwks_timeout'
-        : String(err?.message || err || 'jwks_fetch_failed').slice(0, 160);
-      brokerJwksCache.lastError = fetchReason;
-      markBrokerFetchFailure('jwks', fetchReason);
-      if (Array.isArray(brokerJwksCache.keys) && brokerJwksCache.keys.length > 0) {
-        markBrokerFetchSuccess('jwks', { staleFallback: true });
-        return {
-          ok: true,
-          reason: 'jwks_stale_cache',
-          keys: brokerJwksCache.keys,
-          fromCache: true,
-          stale: true,
-        };
-      }
-      return { ok: false, reason: 'jwks_fetch_failed', detail: fetchReason, keys: [] };
-    }
-  }
-  const brokerJwtConfig = {
-    enabled: brokerJwtAllowedAlgs.length > 0,
-    secret: brokerJwtSecret,
-    jwksUrl: brokerJwtJwksUrl,
-    jwksTtlSec: brokerJwtJwksTtlSec,
-    jwksTimeoutMs: brokerJwtJwksTimeoutMs,
-    oidcDiscoveryEnabled: brokerOidcDiscoveryEnabled,
-    oidcDiscoveryUrl: brokerOidcDiscoveryUrl,
-    oidcDiscoveryTtlSec: brokerOidcDiscoveryTtlSec,
-    oidcDiscoveryTimeoutMs: brokerOidcDiscoveryTimeoutMs,
-    allowedAlgs: new Set(brokerJwtAllowedAlgs),
-    getJwks: brokerJwtAllowedAlgs.includes('RS256') ? fetchBrokerJwks : null,
-    issuer: brokerJwtIssuer,
-    audience: brokerJwtAudience,
-    clockSkewSec: brokerJwtClockSkewSec,
-  };
-  const brokerAuthMode = brokerToken && brokerJwtConfig.enabled
-    ? 'static_or_jwt'
-    : (brokerToken
-      ? 'static'
-      : (brokerJwtConfig.enabled ? 'jwt' : 'none'));
-  function getBrokerEffectiveJwksUrl() {
-    return String(
-      brokerJwksCache.sourceUrl ||
-      brokerJwtConfig.jwksUrl ||
-      brokerOidcCache.jwksUri ||
-      ''
-    ).trim();
-  }
-  function getBrokerJwksSource() {
-    const effective = getBrokerEffectiveJwksUrl();
-    if (!effective) return '';
-    if (brokerJwtConfig.jwksUrl && effective === brokerJwtConfig.jwksUrl) return 'static';
-    return 'oidc_discovery';
-  }
-  function shouldBrokerRefreshCache(cacheExpiresAtMs, leadSec, nowMs) {
-    const expiryMs = Number(cacheExpiresAtMs);
-    const safeLeadSec = Number.isFinite(Number(leadSec))
-      ? Math.max(0, Math.trunc(Number(leadSec)))
-      : 0;
-    if (!Number.isFinite(expiryMs) || expiryMs <= 0) return true;
-    return expiryMs <= (nowMs + safeLeadSec * 1000);
-  }
-  async function runBrokerOfflineRecovery(nowMs = Date.now()) {
-    if (!brokerJwtConfig.allowedAlgs.has('RS256')) return;
-    const nowValue = Number.isFinite(Number(nowMs)) ? Number(nowMs) : Date.now();
-    brokerRecoveryState.inFlight = true;
-    brokerRecoveryState.lastKickMs = nowValue;
-    brokerRecoveryState.lastKickAt = nowIso();
-    brokerRecoveryState.attempts += 1;
-    const startedOffline = brokerRecoveryState.offline === true;
-    try {
-      if (brokerOidcDiscoveryEnabled && !brokerJwtJwksUrl) {
-        await fetchBrokerOidcDiscovery({ forceRefresh: true });
-      }
-      await fetchBrokerJwks({ forceRefresh: true });
-      if (startedOffline && brokerRecoveryState.offline !== true) {
-        brokerRecoveryState.success += 1;
-      } else if (brokerRecoveryState.offline === true) {
-        brokerRecoveryState.failure += 1;
-      }
-    } catch (err) {
-      brokerRecoveryState.failure += 1;
-      const reason = String(err?.message || err || '').trim().slice(0, 200);
-      if (reason) {
-        brokerRecoveryState.lastFailureReason = reason;
-      }
-    } finally {
-      brokerRecoveryState.inFlight = false;
-    }
-  }
-  function maybeStartBrokerProactiveRefresh(nowMs = Date.now()) {
-    if (!brokerJwtConfig.allowedAlgs.has('RS256')) return;
-    const nowValue = Number.isFinite(Number(nowMs)) ? Number(nowMs) : Date.now();
-
-    const canKickOidc = (
-      brokerOidcDiscoveryEnabled &&
-      !!brokerOidcDiscoveryUrl &&
-      shouldBrokerRefreshCache(brokerOidcCache.expiresAtMs, brokerOidcRefreshLeadSec, nowValue) &&
-      !brokerRefreshState.oidcInFlight &&
-      (nowValue - brokerRefreshState.lastOidcKickMs) >= brokerMetadataRefreshMinIntervalMs
-    );
-    if (canKickOidc) {
-      brokerRefreshState.oidcInFlight = true;
-      brokerRefreshState.lastOidcKickMs = nowValue;
-      markBrokerProactiveKick('oidc');
-      fetchBrokerOidcDiscovery()
-        .catch(() => {})
-        .finally(() => {
-          brokerRefreshState.oidcInFlight = false;
-        });
-    }
-
-    const hasJwksCandidate = !!brokerJwtJwksUrl || !!brokerOidcCache.jwksUri || !!brokerOidcDiscoveryUrl;
-    const needsJwksRefresh = (
-      !Array.isArray(brokerJwksCache.keys) ||
-      brokerJwksCache.keys.length <= 0 ||
-      shouldBrokerRefreshCache(brokerJwksCache.expiresAtMs, brokerJwksRefreshLeadSec, nowValue)
-    );
-    const canKickJwks = (
-      hasJwksCandidate &&
-      needsJwksRefresh &&
-      !brokerRefreshState.jwksInFlight &&
-      (nowValue - brokerRefreshState.lastJwksKickMs) >= brokerMetadataRefreshMinIntervalMs
-    );
-    if (canKickJwks) {
-      brokerRefreshState.jwksInFlight = true;
-      brokerRefreshState.lastJwksKickMs = nowValue;
-      markBrokerProactiveKick('jwks');
-      fetchBrokerJwks()
-        .catch(() => {})
-        .finally(() => {
-          brokerRefreshState.jwksInFlight = false;
-        });
-    }
-
-    const canKickOfflineRecovery = (
-      brokerRecoveryState.offline === true &&
-      !brokerRecoveryState.inFlight &&
-      (nowValue - brokerRecoveryState.lastKickMs) >= brokerOfflineRecoveryIntervalMs
-    );
-    if (canKickOfflineRecovery) {
-      runBrokerOfflineRecovery(nowValue).catch(() => {});
-    }
-  }
-  function buildBrokerConnectivitySnapshot({
-    requestTransportSecure = false,
-    clientCertVerified = false,
-    clientCertAccepted = false,
-    clientCertSource = '',
-    clientCertSubject = '',
-    clientCertIssuer = '',
-    clientCertFingerprintSha256 = '',
-    clientCertPolicyReason = '',
-  } = {}) {
-    return {
-      brokerTokenRequired,
-      brokerAuthMode,
-      brokerTokenHeader: BROKER_TOKEN_HEADER,
-      brokerJwtEnabled: brokerJwtConfig.enabled === true,
-      brokerJwtAlgs: Array.from(brokerJwtConfig.allowedAlgs || []),
-      brokerJwtIssuer: brokerJwtConfig.issuer || '',
-      brokerJwtAudience: brokerJwtConfig.audience || '',
-      brokerJwtClockSkewSec: brokerJwtConfig.clockSkewSec,
-      brokerJwtJwksUrl: brokerJwtConfig.jwksUrl || '',
-      brokerJwtJwksEffectiveUrl: getBrokerEffectiveJwksUrl(),
-      brokerJwtJwksSource: getBrokerJwksSource(),
-      brokerJwtJwksTtlSec: brokerJwtConfig.jwksTtlSec,
-      brokerJwtJwksTimeoutMs: brokerJwtConfig.jwksTimeoutMs,
-      brokerJwtJwksRefreshLeadSec: brokerJwksRefreshLeadSec,
-      brokerJwtJwksCachedKeys: Array.isArray(brokerJwksCache.keys) ? brokerJwksCache.keys.length : 0,
-      brokerJwtJwksCacheExpiresAt: brokerJwksCache.expiresAtMs > 0
-        ? new Date(brokerJwksCache.expiresAtMs).toISOString()
-        : '',
-      brokerJwtJwksLastError: String(brokerJwksCache.lastError || ''),
-      brokerOidcDiscoveryEnabled: brokerJwtConfig.oidcDiscoveryEnabled === true,
-      brokerOidcDiscoveryUrl: brokerJwtConfig.oidcDiscoveryUrl || '',
-      brokerOidcDiscoveryTtlSec: brokerJwtConfig.oidcDiscoveryTtlSec,
-      brokerOidcDiscoveryTimeoutMs: brokerJwtConfig.oidcDiscoveryTimeoutMs,
-      brokerOidcDiscoveryRefreshLeadSec: brokerOidcRefreshLeadSec,
-      brokerOidcDiscoveryResolvedJwksUrl: String(brokerOidcCache.jwksUri || ''),
-      brokerOidcDiscoveryCacheExpiresAt: brokerOidcCache.expiresAtMs > 0
-        ? new Date(brokerOidcCache.expiresAtMs).toISOString()
-        : '',
-      brokerOidcDiscoveryLastError: String(brokerOidcCache.lastError || ''),
-      brokerMetadataRefreshMinIntervalMs,
-      brokerOfflineRecoveryIntervalMs,
-      brokerFetchMetrics: {
-        jwks: snapshotBrokerFetchMetrics('jwks', brokerRefreshState.jwksInFlight),
-        oidc: snapshotBrokerFetchMetrics('oidc', brokerRefreshState.oidcInFlight),
-      },
-      brokerRecovery: {
-        offline: brokerRecoveryState.offline === true,
-        offlineSinceAt: String(brokerRecoveryState.offlineSinceAt || ''),
-        lastFailureAt: String(brokerRecoveryState.lastFailureAt || ''),
-        lastFailureReason: String(brokerRecoveryState.lastFailureReason || ''),
-        lastSuccessAt: String(brokerRecoveryState.lastSuccessAt || ''),
-        lastRecoveredAt: String(brokerRecoveryState.lastRecoveredAt || ''),
-        consecutiveFailures: Math.max(0, Math.trunc(Number(brokerRecoveryState.consecutiveFailures) || 0)),
-        attempts: Math.max(0, Math.trunc(Number(brokerRecoveryState.attempts) || 0)),
-        success: Math.max(0, Math.trunc(Number(brokerRecoveryState.success) || 0)),
-        failure: Math.max(0, Math.trunc(Number(brokerRecoveryState.failure) || 0)),
-        inFlight: brokerRecoveryState.inFlight === true,
-        lastKickAt: String(brokerRecoveryState.lastKickAt || ''),
-      },
-      secureTransportRequired: brokerRequireSecureTransport,
-      secureTransportDetected: requestTransportSecure,
-      clientCertRequired: requireClientCert,
-      clientCertVerified,
-      clientCertAccepted,
-      clientCertSource,
-      clientCertSubject,
-      clientCertIssuer,
-      clientCertFingerprintSha256,
-      clientCertPolicyReason: String(clientCertPolicyReason || ''),
-      clientCertHeaderTrusted: trustProxyClientCertHeaders,
-      clientCertPolicyConfigured: (
-        allowedClientCertSubjects.size > 0 ||
-        allowedClientCertIssuers.size > 0 ||
-        allowedClientCertFingerprintsSha256.size > 0
-      ),
-      clientCertAllowedSubjectsCount: allowedClientCertSubjects.size,
-      clientCertAllowedIssuersCount: allowedClientCertIssuers.size,
-      clientCertAllowedFingerprintsCount: allowedClientCertFingerprintsSha256.size,
-    };
-  }
-  const brokerTokenRequired = brokerAuthMode !== 'none';
-  const brokerRequireSecureTransport = parseBooleanFlag(
-    process.env.UU_POSTPROD_BROKER_REQUIRE_SECURE_TRANSPORT,
-    brokerTokenRequired
-  );
-  const requireClientCert = parseBooleanFlag(
-    process.env.UU_POSTPROD_REQUIRE_CLIENT_CERT,
-    false
-  );
-  const trustProxyClientCertHeaders = parseBooleanFlag(
-    process.env.UU_POSTPROD_TRUST_PROXY_CLIENT_CERT_HEADERS,
-    true
-  );
-  const allowedClientCertSubjects = parseNormalizedEnvSet(
-    process.env.UU_POSTPROD_ALLOWED_CLIENT_CERT_SUBJECTS,
-    normalizeDistinguishedNameKey
-  );
-  const allowedClientCertIssuers = parseNormalizedEnvSet(
-    process.env.UU_POSTPROD_ALLOWED_CLIENT_CERT_ISSUERS,
-    normalizeDistinguishedNameKey
-  );
-  const allowedClientCertFingerprintsSha256 = parseNormalizedEnvSet(
-    process.env.UU_POSTPROD_ALLOWED_CLIENT_CERT_FINGERPRINTS_SHA256,
-    normalizeClientCertFingerprintSha256
-  );
-  maybeStartBrokerProactiveRefresh(Date.now());
-
   const dbPath = path.join(rootDataDir, 'postprod.sqlite');
   let db;
   try {
@@ -10759,6 +7833,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
       available: false,
       dbPath,
       handleRoutes: buildUnavailableHandler(reason),
+      remoteBridge: null,
     };
   }
 
@@ -11351,12 +8426,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
   maybeSyncResourcesIndexFromLibrary({ force: true });
   startRenderDetectedAutoScanLoop();
 
-  const hubHealthAuditState = {
-    signature: '',
-    state: '',
-    kind: '',
-    changedAt: '',
-  };
   const renderHealthAuditCleanupState = {
     nextAtMs: 0,
     lastRunAt: '',
@@ -11447,53 +8516,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     const n = Number(value);
     if (!Number.isFinite(n)) return 0;
     return Math.max(0, Math.trunc(n));
-  }
-
-  function computeHubConnectivityStatus(connectivitySnapshot = {}) {
-    const recovery = connectivitySnapshot?.brokerRecovery && typeof connectivitySnapshot.brokerRecovery === 'object'
-      ? connectivitySnapshot.brokerRecovery
-      : {};
-    const brokerOffline = recovery?.offline === true;
-    const brokerDegradedCount = brokerOffline
-      ? Math.max(1, asCount(recovery?.consecutiveFailures))
-      : 0;
-    const securityDegradedCount =
-      ((connectivitySnapshot?.secureTransportRequired === true && connectivitySnapshot?.secureTransportDetected !== true) ? 1 : 0) +
-      ((connectivitySnapshot?.clientCertRequired === true && connectivitySnapshot?.clientCertAccepted !== true) ? 1 : 0);
-    const degradedCount = brokerDegradedCount + securityDegradedCount;
-    let state = 'online';
-    let kind = '';
-    if (degradedCount > 0) {
-      state = 'warn';
-      if (brokerDegradedCount > 0 && securityDegradedCount > 0) kind = 'mixed';
-      else if (securityDegradedCount > 0) kind = 'security';
-      else kind = 'broker';
-    }
-    const reason = String(
-      recovery?.lastFailureReason ||
-      connectivitySnapshot?.clientCertPolicyReason ||
-      ''
-    ).trim();
-    const signature = [
-      state,
-      kind,
-      String(brokerOffline ? 1 : 0),
-      String(asCount(recovery?.consecutiveFailures)),
-      String(connectivitySnapshot?.secureTransportRequired === true ? 1 : 0),
-      String(connectivitySnapshot?.secureTransportDetected === true ? 1 : 0),
-      String(connectivitySnapshot?.clientCertRequired === true ? 1 : 0),
-      String(connectivitySnapshot?.clientCertAccepted === true ? 1 : 0),
-      String(reason),
-    ].join('|');
-    return {
-      state,
-      kind,
-      signature,
-      degradedCount,
-      brokerDegradedCount,
-      securityDegradedCount,
-      reason,
-    };
   }
 
   function requireSession(req, res, sendJSON, { tokenFallback = '' } = {}) {
@@ -12005,7 +9027,6 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     requireSession,
     dbPath,
     sessionTtlSec,
-    buildBrokerConnectivitySnapshot,
     nowIso,
     addSeconds,
     RENDER_WORKER_ONLINE_TTL_SECONDS,
@@ -12013,8 +9034,6 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     stmts,
     resolveRenderDispatchConfig,
     buildRenderDispatchPolicyPayload,
-    computeHubConnectivityStatus,
-    hubHealthAuditState,
     audit,
     asCount,
     renderDetectedAutoScanBusy,
@@ -12189,6 +9208,8 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     toDispatchableRenderRow,
     selectRenderJobsForDispatch,
     buildRenderDispatchPairs,
+    selectBestStation,
+    sendJobToStation,
     normalizeRenderHealthEventState,
     normalizeRenderHealthEventKind,
     sanitizeRenderHealthEventLabel,
@@ -12222,38 +9243,15 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     if (!pathname.startsWith('/agent/postprod')) return false;
     const requestNow = nowIso();
     maybePurgeRenderHealthAuditEvents(requestNow);
-    maybeStartBrokerProactiveRefresh(Date.now());
     const securityGate = await evaluatePostprodSecurityGate({
       req,
       res,
       pathname,
       sendJSON,
-      isSecureRequestTransport,
-      inspectClientCertificate,
-      evaluateClientCertificatePolicy,
-      trustProxyClientCertHeaders,
-      allowedClientCertSubjects,
-      allowedClientCertIssuers,
-      allowedClientCertFingerprintsSha256,
-      brokerRequireSecureTransport,
-      requireClientCert,
-      brokerTokenRequired,
-      getBrokerToken,
-      verifyBrokerAuth,
-      brokerToken,
-      brokerJwtConfig,
     });
     if (securityGate.handled) return true;
 
     const isAuthHealthRoute = securityGate.isAuthHealthRoute === true;
-    const requestTransportSecure = securityGate.requestTransportSecure === true;
-    const clientCertVerified = securityGate.clientCertVerified === true;
-    const clientCertAccepted = securityGate.clientCertAccepted === true;
-    const clientCertSource = String(securityGate.clientCertSource || '');
-    const clientCertSubject = String(securityGate.clientCertSubject || '');
-    const clientCertIssuer = String(securityGate.clientCertIssuer || '');
-    const clientCertFingerprintSha256 = String(securityGate.clientCertFingerprintSha256 || '');
-    const clientCertPolicyReason = String(securityGate.clientCertPolicyReason || '');
     const routesHandled = await dispatchPostprodRouteHandlers({
       req,
       res,
@@ -12263,14 +9261,6 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
       sendJSON,
       security: {
         isAuthHealthRoute,
-        requestTransportSecure,
-        clientCertVerified,
-        clientCertAccepted,
-        clientCertSource,
-        clientCertSubject,
-        clientCertIssuer,
-        clientCertFingerprintSha256,
-        clientCertPolicyReason,
       },
       deps: postprodRouteDispatchDeps,
     });
@@ -12291,6 +9281,18 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     available: true,
     dbPath,
     handleRoutes,
+    remoteBridge: {
+      stmts,
+      nowIso,
+      buildRenderJobPayload,
+      ensureProjectCanAutoRender,
+      sanitizeRenderTemplateName,
+      sanitizeRenderProjectName,
+      normalizeRenderPayload,
+      sharedStore,
+      commonServerFile,
+      readCommonServerConfigFile,
+    },
   };
 }
 
@@ -12298,9 +9300,6 @@ module.exports = {
   createPostprodAuth,
   normalizeRole,
 };
-
-
-
 
 
 

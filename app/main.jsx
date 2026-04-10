@@ -75,6 +75,7 @@ import {
   postprodDeleteTask,
   postprodTransitionTask,
   postprodListRenders,
+  postprodListRemoteJobsByStation,
   postprodGetRenderJob,
   postprodListRenderTemplates,
   postprodCreateRenderTemplate,
@@ -88,10 +89,11 @@ import {
   postprodReplaceRenderFormFields,
   postprodGetHealth,
   postprodCreateRender,
+  postprodScheduleRenderJob,
+  postprodReorderRenderJobs,
   postprodTransitionRender,
   postprodDispatchRenders,
   postprodSaveDispatchPolicy,
-  postprodCreateRenderHealthEvent,
   postprodListRenderWorkers,
   postprodUpsertRenderWorker,
   postprodCompleteRenderWorkerJob,
@@ -111,18 +113,13 @@ const LS_POSTPROD_OFFLINE_OUTBOX_KEY = 'uu_postprod_offline_outbox_v1';
 const LS_POSTPROD_WORKER_COMPLETION_OUTBOX_KEY = 'uu_postprod_worker_completion_outbox_v1';
 const MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS = 100;
 const MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS = 200;
-const MAX_POSTPROD_HUB_EVENT_ITEMS = 60;
 const POSTPROD_OFFLINE_REPLAY_MIN_INTERVAL_MS = 15000;
 const POSTPROD_WORKER_COMPLETION_REPLAY_MIN_INTERVAL_MS = 5000;
-const POSTPROD_RENDER_HEALTH_AUDIT_ACTION = 'render_health_event';
 const ScreenFallback = <div className="uu-loading" style={{ padding: '24px' }}>…</div>;
 const APP_MODE_LIVE = 'live';
 const APP_MODE_POSTPROD = 'postprod';
-const POSTPROD_NET_LAN = 'lan';
-const POSTPROD_NET_VPN = 'vpn';
-const POSTPROD_NET_BROKER = 'broker';
 const POSTPROD_TAB_USERS = "Utilisateurs";
-const POSTPROD_TABS_BASE = [POSTPROD_TAB_USERS, "Projets", "Ressources", "Datas", "Taches", "Rendus", "Synchronisation"];
+const POSTPROD_TABS_BASE = [POSTPROD_TAB_USERS, "Projets", "Synchronisation", "Ressources", "Datas", "Taches", "Rendus"];
 const POSTPROD_TAB_PROFILES = "Profils";
 const LIVE_MODE_BLOCKED_FALLBACK_ROLES = new Set([
   "Graphiste",
@@ -395,73 +392,6 @@ function writePostprodWorkerCompletionOutbox(entries = []) {
   } catch {}
 }
 
-function normalizePostprodHubEvents(entries = []) {
-  const list = Array.isArray(entries) ? entries : [];
-  const prepared = [];
-  for (const raw of list) {
-    if (!raw || typeof raw !== 'object') continue;
-    const rawAt = String(raw?.at || raw?.eventAt || raw?.createdAt || '').trim();
-    const ts = Date.parse(rawAt);
-    const at = Number.isFinite(ts) ? new Date(ts).toISOString() : new Date().toISOString();
-    const state = String(raw?.state || '').trim().toLowerCase() || 'info';
-    const kind = String(raw?.kind || '').trim().toLowerCase() || 'general';
-    const label = String(raw?.label || '').trim() || state;
-    const detail = String(raw?.detail || '').trim();
-    const source = String(raw?.source || '').trim();
-    const id = String(raw?.id || raw?.eventId || '').trim();
-    prepared.push({
-      id,
-      at,
-      state,
-      kind,
-      label,
-      detail,
-      source,
-      __sortTs: Number.isFinite(ts) ? ts : Date.parse(at),
-    });
-  }
-
-  prepared.sort((a, b) => Number(b.__sortTs || 0) - Number(a.__sortTs || 0));
-  const seen = new Set();
-  const out = [];
-  for (const item of prepared) {
-    const key = item.id || `${item.at}|${item.kind}|${item.state}|${item.label}|${item.detail}`;
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push({
-      id: item.id || `hub-${item.at}-${item.kind}-${item.state}-${seen.size}`,
-      at: item.at,
-      state: item.state,
-      kind: item.kind,
-      label: item.label,
-      detail: item.detail,
-      source: item.source,
-    });
-    if (out.length >= MAX_POSTPROD_HUB_EVENT_ITEMS) break;
-  }
-  return out;
-}
-
-function mapAuditEntriesToPostprodHubEvents(entries = []) {
-  const list = Array.isArray(entries) ? entries : [];
-  return normalizePostprodHubEvents(
-    list
-      .filter((entry) => String(entry?.action || '').trim().toLowerCase() === POSTPROD_RENDER_HEALTH_AUDIT_ACTION)
-      .map((entry) => {
-        const payload = entry?.payload && typeof entry.payload === 'object' ? entry.payload : {};
-        return {
-          id: String(payload?.eventId || payload?.id || '').trim() || `audit-hub-${Number(entry?.id || 0)}`,
-          at: String(payload?.eventAt || entry?.createdAt || '').trim(),
-          state: String(payload?.state || '').trim().toLowerCase(),
-          kind: String(payload?.kind || '').trim().toLowerCase(),
-          label: String(payload?.label || '').trim(),
-          detail: String(payload?.detail || '').trim(),
-          source: String(payload?.source || '').trim(),
-        };
-      })
-  );
-}
-
 function isPostprodRecoverableOfflineError(err) {
   const status = Number(err?.status || 0);
   if (!Number.isFinite(status) || status === 0) return true;
@@ -485,9 +415,6 @@ function resolvePostprodAuthError(err, t) {
   if (code === 'missing_credentials') return t('postprod.auth.error.missingCredentials');
   if (code === 'invalid_credentials') return t('postprod.auth.error.invalidCredentials');
   if (code === 'account_locked') return t('postprod.auth.error.accountLocked');
-  if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
-  if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
-  if (code === 'client_cert_required') return t('postprod.auth.error.clientCertRequired');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   if (code === 'postprod_unavailable' || code === 'not_found' || code === 'method_not_allowed') {
     return t('postprod.auth.error.unavailable');
@@ -530,18 +457,12 @@ function resolvePostprodUsersError(err, t) {
   if (code === 'cannot_delete_self') return t('postprod.users.error.cannotDeleteSelf');
   if (code === 'last_maintenance_forbidden') return t('postprod.users.error.lastMaintenanceForbidden');
   if (code === 'user_has_linked_data') return t('postprod.users.error.userHasLinkedData');
-  if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
-  if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
-  if (code === 'client_cert_required') return t('postprod.auth.error.clientCertRequired');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   return t('postprod.users.error.generic');
 }
 
 function resolvePostprodActivityError(err, t) {
   const code = String(err?.code || '').trim().toLowerCase();
-  if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
-  if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
-  if (code === 'client_cert_required') return t('postprod.auth.error.clientCertRequired');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   if (code === 'invalid_from_at') return t('postprod.activity.error.invalidFromAt');
   if (code === 'invalid_to_at') return t('postprod.activity.error.invalidToAt');
@@ -552,9 +473,6 @@ function resolvePostprodActivityError(err, t) {
 
 function resolvePostprodAuditError(err, t) {
   const code = String(err?.code || '').trim().toLowerCase();
-  if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
-  if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
-  if (code === 'client_cert_required') return t('postprod.auth.error.clientCertRequired');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   return t('postprod.audit.error.generic');
 }
@@ -567,9 +485,6 @@ function resolvePostprodRolesError(err, t) {
   if (code === 'invalid_manageable_roles') return t('postprod.roles.error.invalidManageableRoles');
   if (code === 'invalid_mode_access') return t('postprod.roles.error.invalidModeAccess');
   if (code === 'last_manage_roles_forbidden') return t('postprod.roles.error.lastManageRolesForbidden');
-  if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
-  if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
-  if (code === 'client_cert_required') return t('postprod.auth.error.clientCertRequired');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   return t('postprod.roles.error.generic');
 }
@@ -598,9 +513,6 @@ function resolvePostprodTasksError(err, t) {
   if (code === 'task_auto_render_config_too_large') return t('postprod.tasks.error.autoRenderConfigTooLarge');
   if (code === 'invalid_project_refs') return t('postprod.tasks.error.invalidProjectRefs');
   if (code === 'invalid_resource_refs') return t('postprod.tasks.error.invalidResourceRefs');
-  if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
-  if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
-  if (code === 'client_cert_required') return t('postprod.auth.error.clientCertRequired');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   return t('postprod.tasks.error.generic');
 }
@@ -638,9 +550,6 @@ function resolvePostprodRendersError(err, t) {
   if (code === 'invalid_render_payload') return t('postprod.renders.error.invalidPayload');
   if (code === 'render_payload_too_large') return t('postprod.renders.error.payloadTooLarge');
   if (code === 'no_changes') return t('postprod.renders.error.noChanges');
-  if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
-  if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
-  if (code === 'client_cert_required') return t('postprod.auth.error.clientCertRequired');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   return t('postprod.renders.error.generic');
 }
@@ -651,9 +560,6 @@ function resolvePostprodResourcesError(err, t) {
   if (code === 'resource_not_found') return t('postprod.resources.error.notFound');
   if (code === 'forbidden_dispatch') return t('postprod.resources.error.forbiddenReindex');
   if (code === 'resources_reindex_failed' || code === 'library_unavailable') return t('postprod.resources.error.reindexFailed');
-  if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
-  if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
-  if (code === 'client_cert_required') return t('postprod.auth.error.clientCertRequired');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   return t('postprod.resources.error.generic');
 }
@@ -675,9 +581,6 @@ function resolvePostprodProjectsError(err, t) {
   if (code === 'forbidden_sync' || code === 'forbidden_project_sync_not_referent') {
     return 'Synchronisation projet non autorisee.';
   }
-  if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
-  if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
-  if (code === 'client_cert_required') return t('postprod.auth.error.clientCertRequired');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   const message = String(err?.message || '').toLowerCase();
   if (message.includes('fetch failed')) {
@@ -696,9 +599,6 @@ function resolvePostprodDataError(err, t) {
   if (code === 'data_table_schema_too_large') return 'Schema de table trop volumineux.';
   if (code === 'invalid_data_row_key') return 'Cle de ligne invalide.';
   if (code === 'invalid_data_row_payload') return 'Payload de ligne invalide.';
-  if (code === 'invalid_broker_token') return t('postprod.auth.error.invalidBrokerToken');
-  if (code === 'insecure_transport') return t('postprod.auth.error.insecureTransport');
-  if (code === 'client_cert_required') return t('postprod.auth.error.clientCertRequired');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   return 'Erreur datas post-production.';
 }
@@ -707,13 +607,6 @@ function normalizeAppMode(mode) {
   return String(mode || '').trim().toLowerCase() === APP_MODE_POSTPROD
     ? APP_MODE_POSTPROD
     : APP_MODE_LIVE;
-}
-
-function normalizePostprodNetworkMode(value) {
-  const raw = String(value || '').trim().toLowerCase();
-  if (raw === POSTPROD_NET_VPN) return POSTPROD_NET_VPN;
-  if (raw === POSTPROD_NET_BROKER) return POSTPROD_NET_BROKER;
-  return POSTPROD_NET_LAN;
 }
 
 function waitMs(ms = 0) {
@@ -1535,7 +1428,6 @@ function App() {
   });
   const [postprodOfflineOutbox, setPostprodOfflineOutbox] = useState(() => readPostprodOfflineOutbox());
   const [postprodWorkerCompletionOutbox, setPostprodWorkerCompletionOutbox] = useState(() => readPostprodWorkerCompletionOutbox());
-  const [postprodHubEvents, setPostprodHubEvents] = useState([]);
   const [postprodRenderWorkers, setPostprodRenderWorkers] = useState({
     items: [],
     loading: false,
@@ -1589,6 +1481,10 @@ function App() {
   const [showLicense, setShowLicense] = useState(false);
   const [licenseOrigin, setLicenseOrigin] = useState('welcome');
   const [current, setCurrent] = useState("Projets");
+  const [userTabKey, setUserTabKey] = useState(0);
+  const [roleTabKey, setRoleTabKey] = useState(0);
+  const [taskTabKey, setTaskTabKey] = useState(0);
+  const [datasTabKey, setDatasTabKey] = useState(0);
   const [quitDialogOpen, setQuitDialogOpen] = useState(false);
   const [resourcesRefreshKey, setResourcesRefreshKey] = useState(0);
   const [postprodTaskFormOpen, setPostprodTaskFormOpen] = useState(false);
@@ -1610,12 +1506,10 @@ function App() {
   const [logsStorageSummary, setLogsStorageSummary] = useState(null);
   const [initialClientNavDone, setInitialClientNavDone] = useState(false);
   const logsAlertPrevRef = useRef({ initialized: false, byIp: {} });
-  const postprodHubAlertPrevRef = useRef({ initialized: false, state: '', degradedCount: 0, alertKind: '' });
   const postprodOfflineReplayInFlightRef = useRef(false);
   const postprodWorkerCompletionReplayInFlightRef = useRef(false);
   const postprodOfflineReplayLastKickRef = useRef(0);
   const postprodWorkerCompletionReplayLastKickRef = useRef(0);
-  const postprodHubEventsHydratedRef = useRef(false);
   const postprodAgentBootRef = useRef({ started: false, port: '' });
   const handleCommonUpdated = React.useCallback((next) => {
     if (!next || typeof next !== 'object') return;
@@ -1732,34 +1626,6 @@ function App() {
     clearNotice: noticeApi.clearNotice,
     notice: noticeApi.notice,
   }), [noticeApi.notice, noticeApi.showNotice, noticeApi.clearNotice]);
-  const appendPostprodHubEvent = useCallback((entry = {}) => {
-    const at = String(entry?.at || '').trim() || new Date().toISOString();
-    const stateRaw = String(entry?.state || '').trim().toLowerCase();
-    const state = stateRaw || 'unknown';
-    const kindRaw = String(entry?.kind || '').trim().toLowerCase();
-    const kind = kindRaw || 'general';
-    const label = String(entry?.label || '').trim() || state;
-    const detail = String(entry?.detail || '').trim();
-    const id = String(entry?.id || '').trim()
-      || `hub-${at}-${kind}-${state}-${Math.random().toString(36).slice(2, 8)}`;
-    const normalizedEvent = { id, at, state, kind, label, detail };
-    setPostprodHubEvents((current) => normalizePostprodHubEvents([
-      normalizedEvent,
-      ...(Array.isArray(current) ? current : []),
-    ]));
-    const token = String(postprodAuth?.token || '').trim();
-    if (appMode === APP_MODE_POSTPROD && postprodAuthenticated && token) {
-      void postprodCreateRenderHealthEvent(token, {
-        id,
-        eventAt: at,
-        state,
-        kind,
-        label,
-        detail,
-        source: 'ui_hub_event',
-      }).catch(() => {});
-    }
-  }, [appMode, postprodAuthenticated, postprodAuth?.token]);
   const updatePostprodOfflineOutbox = useCallback((updater) => {
     setPostprodOfflineOutbox((current) => {
       const base = normalizePostprodOfflineOutbox(current);
@@ -1958,212 +1824,6 @@ function App() {
       offlineWorkerCompletionOutboxPending: postprodWorkerCompletionOutboxCount,
     };
   }, [postprodRenderHealth.data, postprodOfflineOutboxCount, postprodWorkerCompletionOutboxCount]);
-  const postprodHubBadge = useMemo(() => {
-    if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return null;
-    const hasData = !!(postprodRenderHealth.data && typeof postprodRenderHealth.data === 'object');
-    const hasError = String(postprodRenderHealth.error || '').trim().length > 0;
-    const rendersStats = postprodRenderHealth.data?.renders && typeof postprodRenderHealth.data.renders === 'object'
-      ? postprodRenderHealth.data.renders
-      : null;
-    const queuedCount = Number.isFinite(Number(rendersStats?.queued))
-      ? Math.max(0, Math.trunc(Number(rendersStats.queued)))
-      : 0;
-    const runningCount = Number.isFinite(Number(rendersStats?.running))
-      ? Math.max(0, Math.trunc(Number(rendersStats.running)))
-      : 0;
-    const failedCount = Number.isFinite(Number(rendersStats?.failed))
-      ? Math.max(0, Math.trunc(Number(rendersStats.failed)))
-      : 0;
-    const hasRenderCounters = !!rendersStats;
-    const countersLabel = hasRenderCounters
-      ? t('postprod.topbar.hubQueueCounters', {
-        queued: queuedCount,
-        running: runningCount,
-        failed: failedCount,
-      })
-      : '';
-    if (hasError) {
-      return {
-        state: 'offline',
-        label: t('postprod.topbar.hubOffline'),
-        title: String(postprodRenderHealth.error || '').trim(),
-        degradedCount: 0,
-        alertKind: 'offline',
-      };
-    }
-    if (postprodRenderHealth.loading && !hasData) {
-      return {
-        state: 'loading',
-        label: t('postprod.topbar.hubLoading'),
-        title: t('postprod.topbar.hubRefreshHint'),
-        degradedCount: 0,
-        alertKind: 'loading',
-      };
-    }
-    const online = postprodRenderHealth.data?.hubOnline !== false;
-    if (online) {
-      const connectivity = postprodRenderHealth.data?.connectivity && typeof postprodRenderHealth.data.connectivity === 'object'
-        ? postprodRenderHealth.data.connectivity
-        : null;
-      const metrics = connectivity?.brokerFetchMetrics;
-      const brokerRecovery = connectivity?.brokerRecovery && typeof connectivity.brokerRecovery === 'object'
-        ? connectivity.brokerRecovery
-        : null;
-      const toMetricCount = (value) => (
-        Number.isFinite(Number(value))
-          ? Math.max(0, Math.trunc(Number(value)))
-          : 0
-      );
-      const brokerDegradedCount = brokerRecovery
-        ? (
-          brokerRecovery.offline === true
-            ? Math.max(1, toMetricCount(brokerRecovery.consecutiveFailures))
-            : 0
-        )
-        : (
-          toMetricCount(metrics?.jwks?.failure) +
-          toMetricCount(metrics?.jwks?.staleFallbacks) +
-          toMetricCount(metrics?.oidc?.failure) +
-          toMetricCount(metrics?.oidc?.staleFallbacks)
-        );
-      const secureTransportRequired = connectivity?.secureTransportRequired === true;
-      const secureTransportDetected = connectivity?.secureTransportDetected === true;
-      const clientCertRequired = connectivity?.clientCertRequired === true;
-      const clientCertAccepted = connectivity?.clientCertAccepted === true;
-      const mtlsDegradedCount = (
-        (secureTransportRequired && !secureTransportDetected ? 1 : 0) +
-        (clientCertRequired && !clientCertAccepted ? 1 : 0)
-      );
-      const degradedCount = brokerDegradedCount + mtlsDegradedCount;
-      if (degradedCount > 0) {
-        let title = '';
-        let alertKind = 'broker';
-        if (brokerDegradedCount > 0 && mtlsDegradedCount > 0) {
-          title = t('postprod.topbar.hubDegradedHintMixed', {
-            broker: brokerDegradedCount,
-            security: mtlsDegradedCount,
-            count: degradedCount,
-          });
-          alertKind = 'mixed';
-        } else if (mtlsDegradedCount > 0) {
-          title = t('postprod.topbar.hubDegradedHintSecurity', { count: mtlsDegradedCount });
-          alertKind = 'security';
-        } else {
-          title = t('postprod.topbar.hubDegradedHint', { count: brokerDegradedCount });
-        }
-        return {
-          state: 'warn',
-          label: countersLabel
-            ? `${t('postprod.topbar.hubDegraded')} · ${countersLabel}`
-            : t('postprod.topbar.hubDegraded'),
-          title,
-          degradedCount,
-          alertKind,
-        };
-      }
-    }
-    return {
-      state: online ? 'online' : 'offline',
-      label: countersLabel
-        ? `${online ? t('postprod.topbar.hubOnline') : t('postprod.topbar.hubOffline')} · ${countersLabel}`
-        : (online ? t('postprod.topbar.hubOnline') : t('postprod.topbar.hubOffline')),
-      title: t('postprod.topbar.hubRefreshHint'),
-      degradedCount: 0,
-      alertKind: online ? 'online' : 'offline',
-    };
-  }, [
-    appMode,
-    postprodAuthenticated,
-    postprodRenderHealth.data,
-    postprodRenderHealth.loading,
-    postprodRenderHealth.error,
-    t,
-  ]);
-  const loadPostprodHubEventsFromAudit = useCallback(async () => {
-    const token = String(postprodAuth.token || '').trim();
-    if (!token) {
-      setPostprodHubEvents([]);
-      return [];
-    }
-    try {
-      const res = await postprodListAudit(token, {
-        page: 1,
-        pageSize: MAX_POSTPROD_HUB_EVENT_ITEMS,
-        action: POSTPROD_RENDER_HEALTH_AUDIT_ACTION,
-      });
-      const entries = mapAuditEntriesToPostprodHubEvents(res?.entries);
-      setPostprodHubEvents((current) => normalizePostprodHubEvents([
-        ...entries,
-        ...(Array.isArray(current) ? current : []),
-      ]));
-      return entries;
-    } catch {
-      return [];
-    }
-  }, [postprodAuth.token]);
-  useEffect(() => {
-    if (postprodAuthenticated) return;
-    setPostprodHubEvents([]);
-  }, [postprodAuthenticated]);
-  useEffect(() => {
-    if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) {
-      postprodHubEventsHydratedRef.current = false;
-      return;
-    }
-    if (postprodHubEventsHydratedRef.current) return;
-    postprodHubEventsHydratedRef.current = true;
-    loadPostprodHubEventsFromAudit().catch(() => {});
-  }, [appMode, postprodAuthenticated, loadPostprodHubEventsFromAudit]);
-  useEffect(() => {
-    const prev = postprodHubAlertPrevRef.current;
-    if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated || !postprodHubBadge) {
-      prev.initialized = false;
-      prev.state = '';
-      prev.degradedCount = 0;
-      prev.alertKind = '';
-      return;
-    }
-
-    const state = String(postprodHubBadge.state || '').trim().toLowerCase();
-    const alertKind = String(postprodHubBadge.alertKind || '').trim().toLowerCase();
-    const degradedCount = Number.isFinite(Number(postprodHubBadge.degradedCount))
-      ? Math.max(0, Math.trunc(Number(postprodHubBadge.degradedCount)))
-      : 0;
-    const shouldLogEvent = (
-      !prev.initialized
-      || prev.state !== state
-      || (state === 'warn' && prev.degradedCount !== degradedCount)
-      || (state === 'warn' && prev.alertKind !== alertKind)
-    );
-    if (shouldLogEvent) {
-      const nowIso = new Date().toISOString();
-      const label = String(postprodHubBadge.label || '').trim() || state || '-';
-      const detail = String(postprodHubBadge.title || '').trim();
-      appendPostprodHubEvent({
-        at: nowIso,
-        state: state || 'unknown',
-        kind: alertKind || 'general',
-        label,
-        detail,
-      });
-    }
-
-    if (prev.initialized) {
-      if (state === 'warn' && prev.state !== 'warn') {
-        showNotice(
-          t('postprod.topbar.notice.hubDegraded', { count: degradedCount }),
-          'warn'
-        );
-      } else if (prev.state === 'warn' && state === 'online') {
-        showNotice(t('postprod.topbar.notice.hubRecovered'), 'ok');
-      }
-    }
-
-    prev.initialized = true;
-    prev.state = state;
-    prev.degradedCount = degradedCount;
-    prev.alertKind = alertKind;
-  }, [appMode, postprodAuthenticated, postprodHubBadge, showNotice, t, appendPostprodHubEvent]);
   const [licenseStatus, setLicenseStatus] = useState({ ok: false, status: 'loading' });
   const licenseOk = licenseStatus && licenseStatus.ok === true;
 
@@ -2368,6 +2028,18 @@ function App() {
         : resourcesTabAvailable;
       if (!canOpenResources && !force) return;
       setResourcesRefreshKey((prev) => prev + 1);
+    }
+    if (item === POSTPROD_TAB_USERS) {
+      setUserTabKey((prev) => prev + 1);
+    }
+    if (item === POSTPROD_TAB_PROFILES) {
+      setRoleTabKey((prev) => prev + 1);
+    }
+    if (item === "Taches") {
+      setTaskTabKey((prev) => prev + 1);
+    }
+    if (item === "Datas") {
+      setDatasTabKey((prev) => prev + 1);
     }
     setCurrent(item);
   }, [appMode, postprodCanAccessResources, resourcesTabAvailable]);
@@ -2603,7 +2275,6 @@ function App() {
     const mode = postprodModeAccess?.forcedMode
       ? normalizeAppMode(postprodModeAccess.forcedMode)
       : requestedMode;
-    const postprodNetworkMode = normalizePostprodNetworkMode(newIdentity?.postprodNetworkMode);
     const nextIdentity = {
       ...(newIdentity || {}),
       mode,
@@ -2613,13 +2284,6 @@ function App() {
       serverIp: mode === APP_MODE_POSTPROD
         ? ''
         : String(newIdentity?.serverIp || '').trim(),
-      postprodNetworkMode: mode === APP_MODE_POSTPROD ? postprodNetworkMode : POSTPROD_NET_LAN,
-      postprodHubHost: mode === APP_MODE_POSTPROD
-        ? String(newIdentity?.postprodHubHost || '').trim()
-        : '',
-      postprodHubUrl: mode === APP_MODE_POSTPROD
-        ? String(newIdentity?.postprodHubUrl || '').trim()
-        : '',
     };
     writeIdentity(nextIdentity);
     setIdentity(nextIdentity);
@@ -2670,7 +2334,6 @@ function App() {
     postprodOfflineReplayLastKickRef.current = 0;
     postprodWorkerCompletionReplayInFlightRef.current = false;
     postprodWorkerCompletionReplayLastKickRef.current = 0;
-    postprodHubEventsHydratedRef.current = false;
     writePostprodAuth(null);
     setPostprodAuth({
       token: '',
@@ -2689,7 +2352,6 @@ function App() {
     setPostprodRenderProjectCatalog({ items: [], loading: false, error: '' });
     setPostprodRenders({ items: [], loading: false, error: '', detectedScan: null });
     setPostprodRenderHealth({ data: null, loading: false, error: '' });
-    setPostprodHubEvents([]);
     setPostprodRenderWorkers({ items: [], loading: false, error: '' });
     setPostprodRenderTemplates({ items: [], loading: false, error: '' });
     setPostprodRenderForms({ items: [], loading: false, error: '' });
@@ -3096,8 +2758,8 @@ function App() {
       const deletedCount = Math.max(0, Math.trunc(Number(purge?.deleted || 0)));
       showNotice(
         deletedCount > 0
-          ? `Purge audit Hub: ${deletedCount} evenement(s) supprime(s)`
-          : 'Purge audit Hub: aucune entree supprimee',
+          ? `Purge audit: ${deletedCount} evenement(s) supprime(s)`
+          : 'Purge audit: aucune entree supprimee',
         deletedCount > 0 ? 'ok' : 'info'
       );
       return res;
@@ -3727,6 +3389,8 @@ function App() {
     const forceScan = options?.forceScan === true;
     const showDetectedNotice = options?.showDetectedNotice === true;
     const silent = options?.silent === true;
+    const includeRemote = options?.includeRemote === true
+      || (options?.includeRemote !== false && current === 'Rendus');
     if (!token) {
       setPostprodRenders({ items: [], loading: false, error: '', detectedScan: null });
       return;
@@ -3738,11 +3402,92 @@ function App() {
     }
     try {
       const res = await postprodListRenders(token, 8000, { scan: forceScan });
-      const items = Array.isArray(res?.renders) ? res.renders : [];
+      const localItemsRaw = Array.isArray(res?.renders) ? res.renders : [];
       const detectedScan = res?.detectedScan && typeof res.detectedScan === 'object'
         ? res.detectedScan
         : null;
-      setPostprodRenders({ items, loading: false, error: '', detectedScan });
+      const localIpNormalized = String(localIp || '').trim().toLowerCase();
+      const localIdentityIpNormalized = String(safeIdentity.localIp || '').trim().toLowerCase();
+      const localAgentPortRaw = Number(safeIdentity.agentPort);
+      const localAgentPort = Number.isFinite(localAgentPortRaw) && localAgentPortRaw > 0
+        ? Math.max(1, Math.min(65535, Math.trunc(localAgentPortRaw)))
+        : 4000;
+      const normalizeStationIp = (value) => String(value || '').trim().toLowerCase();
+      const isSameStationIp = (left, right) => normalizeStationIp(left) === normalizeStationIp(right);
+      const localHostName = (Array.isArray(hostsCfg)
+        ? hostsCfg.find((host) => isSameStationIp(host?.ip, localIpNormalized))
+        : null)?.name || '';
+      const localStationName = String(localHostName || safeIdentity.localIp || 'Local').trim() || 'Local';
+      const localStationIp = String(safeIdentity.localIp || '127.0.0.1').trim() || '127.0.0.1';
+
+      const localItems = localItemsRaw.map((item) => ({
+        ...item,
+        stationIp: String(item?.stationIp || item?.originStationIp || localStationIp).trim() || localStationIp,
+        stationName: String(
+          item?.stationName
+          || item?.originStationName
+          || item?.renderStationName
+          || localStationName
+        ).trim() || localStationName,
+        stationIsLocal: true,
+        stationIsRemote: false,
+      }));
+
+      let remoteItems = [];
+      if (includeRemote) {
+        let remoteHosts = [];
+        try {
+          const hosts = await getHosts();
+          const hostsList = Array.isArray(hosts) ? hosts : [];
+          remoteHosts = hostsList.filter((host) => {
+            const ip = normalizeStationIp(host?.ip);
+            if (!ip) return false;
+            if (ip === '127.0.0.1' || ip === 'localhost') return false;
+            if (isSameStationIp(ip, localIpNormalized)) return false;
+            if (isSameStationIp(ip, localIdentityIpNormalized)) return false;
+            return true;
+          });
+        } catch {
+          remoteHosts = [];
+        }
+
+        if (remoteHosts.length > 0) {
+          const remoteSettled = await Promise.allSettled(
+            remoteHosts.map(async (host) => {
+              const hostIp = String(host?.ip || '').trim();
+              const hostPortRaw = Number(host?.agentPort || host?.port || localAgentPort);
+              const hostPort = Number.isFinite(hostPortRaw) && hostPortRaw > 0
+                ? Math.max(1, Math.min(65535, Math.trunc(hostPortRaw)))
+                : localAgentPort;
+              const remoteRes = await postprodListRemoteJobsByStation(hostIp, hostPort, 3000);
+              if (!remoteRes?.ok) return [];
+              const stationIp = String(remoteRes.stationIp || hostIp).trim() || hostIp;
+              const stationName = String(remoteRes.stationName || host?.name || stationIp).trim() || stationIp;
+              const jobs = Array.isArray(remoteRes.jobs) ? remoteRes.jobs : [];
+              return jobs.map((job) => ({
+                ...job,
+                stationIp,
+                stationName,
+                stationIsLocal: false,
+                stationIsRemote: true,
+              }));
+            })
+          );
+          remoteItems = remoteSettled
+            .filter((entry) => entry?.status === 'fulfilled' && Array.isArray(entry.value))
+            .flatMap((entry) => entry.value);
+        }
+      }
+
+      const mergedItems = [...localItems, ...remoteItems].sort((a, b) => {
+        const leftRaw = Date.parse(String(a?.createdAt || a?.created_at || '').trim());
+        const rightRaw = Date.parse(String(b?.createdAt || b?.created_at || '').trim());
+        const leftTs = Number.isFinite(leftRaw) ? leftRaw : 0;
+        const rightTs = Number.isFinite(rightRaw) ? rightRaw : 0;
+        return rightTs - leftTs;
+      });
+
+      setPostprodRenders({ items: mergedItems, loading: false, error: '', detectedScan });
       if (showDetectedNotice && detectedScan) {
         showNotice(
           t('postprod.renders.msg.detectedScanSummary', {
@@ -3763,7 +3508,7 @@ function App() {
         error: resolvePostprodRendersError(e, t),
       }));
     }
-  }, [postprodAuth.token, showNotice, t]);
+  }, [postprodAuth.token, current, hostsCfg, localIp, safeIdentity.agentPort, safeIdentity.localIp, showNotice, t]);
 
   const handlePostprodScanDetectedRenders = useCallback(async () => {
     await loadPostprodRenders({ forceScan: true, showDetectedNotice: true });
@@ -3992,23 +3737,11 @@ function App() {
           loadPostprodRenderHealth(),
         ]);
         showNotice(t('postprod.renders.msg.workerOfflineReplaySent', { count: replayed }), 'ok');
-        appendPostprodHubEvent({
-          state: 'online',
-          kind: 'worker',
-          label: t('postprod.renders.health.events.kind.worker'),
-          detail: t('postprod.renders.msg.workerOfflineReplaySent', { count: replayed }),
-        });
       } else if (notifyIfNone && dropped <= 0 && !stoppedOnRecoverableError) {
         showNotice(t('postprod.renders.msg.workerOfflineReplayNone'), 'info');
       }
       if (dropped > 0) {
         showNotice(t('postprod.renders.msg.workerOfflineReplayDropped', { count: dropped }), 'warn');
-        appendPostprodHubEvent({
-          state: 'warn',
-          kind: 'worker',
-          label: t('postprod.renders.health.events.kind.worker'),
-          detail: t('postprod.renders.msg.workerOfflineReplayDropped', { count: dropped }),
-        });
       }
     } finally {
       postprodWorkerCompletionReplayInFlightRef.current = false;
@@ -4030,7 +3763,6 @@ function App() {
     loadPostprodRenderHealth,
     showNotice,
     t,
-    appendPostprodHubEvent,
   ]);
   useEffect(() => {
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
@@ -4038,8 +3770,6 @@ function App() {
     if (postprodRenderHealth.loading) return;
     const hasError = String(postprodRenderHealth.error || '').trim().length > 0;
     if (hasError) return;
-    const online = postprodRenderHealth.data?.hubOnline !== false;
-    if (!online) return;
     const nowMs = Date.now();
     if ((nowMs - Number(postprodOfflineReplayLastKickRef.current || 0)) < POSTPROD_OFFLINE_REPLAY_MIN_INTERVAL_MS) {
       return;
@@ -4061,8 +3791,6 @@ function App() {
     if (postprodRenderHealth.loading) return;
     const hasError = String(postprodRenderHealth.error || '').trim().length > 0;
     if (hasError) return;
-    const online = postprodRenderHealth.data?.hubOnline !== false;
-    if (!online) return;
     const nowMs = Date.now();
     if ((nowMs - Number(postprodWorkerCompletionReplayLastKickRef.current || 0)) < POSTPROD_WORKER_COMPLETION_REPLAY_MIN_INTERVAL_MS) {
       return;
@@ -4647,6 +4375,9 @@ function App() {
     setPostprodRenders((prev) => ({ ...prev, loading: true, error: '' }));
     try {
       const createRes = await postprodCreateRender(token, normalizedPayload);
+      const remoteDispatch = createRes?.remoteDispatch && typeof createRes.remoteDispatch === 'object'
+        ? createRes.remoteDispatch
+        : null;
       const createdRenderIdRaw = Number(createRes?.render?.id || createRes?.renderJob?.id || 0);
       const createdRenderId = Number.isFinite(createdRenderIdRaw) && createdRenderIdRaw > 0
         ? Math.trunc(createdRenderIdRaw)
@@ -4658,7 +4389,10 @@ function App() {
         || launchModeTag === "now"
         || normalizedPayload?.launchNow === true
       );
-      if (launchNowRequested) {
+      const remoteDispatchMode = String(remoteDispatch?.mode || '').trim().toLowerCase();
+      const remoteDispatchOk = remoteDispatch?.ok === true
+        && (remoteDispatchMode === 'auto' || remoteDispatchMode === 'manual');
+      if (launchNowRequested && !remoteDispatchOk) {
         try {
           await ensureLocalRenderWorkerOnline();
           const dispatchRes = await postprodDispatchRenders(token, {
@@ -4686,6 +4420,25 @@ function App() {
               "warn"
             );
           }
+        }
+      }
+      if (launchNowRequested && remoteDispatchOk) {
+        showNotice(
+          `Rendu transmis a ${remoteDispatch?.stationName || remoteDispatch?.stationIp || 'la station distante'}.`,
+          'info'
+        );
+      }
+      if (remoteDispatch && remoteDispatch.ok === false) {
+        if (String(remoteDispatch.mode || '').trim().toLowerCase() === 'manual') {
+          showNotice(
+            `Station cible indisponible (${remoteDispatch.stationName || remoteDispatch.stationIp || 'inconnue'}). Le rendu reste en attente.`,
+            'warn'
+          );
+        } else if (String(remoteDispatch.mode || '').trim().toLowerCase() === 'auto') {
+          showNotice(
+            'Aucune station distante joignable: bascule automatique en rendu local.',
+            'warn'
+          );
         }
       }
       await Promise.all([
@@ -4738,6 +4491,28 @@ function App() {
     ensureLocalRenderWorkerOnline,
     t,
   ]);
+
+  const handlePostprodScheduleRender = useCallback(async (renderId, scheduledAt) => {
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return;
+    try {
+      await postprodScheduleRenderJob(token, renderId, { scheduledAt: scheduledAt ?? null });
+      await loadPostprodRenders();
+    } catch (e) {
+      showNotice(String(e?.message || e?.code || 'schedule_error'), 'error');
+    }
+  }, [postprodAuth.token, loadPostprodRenders, showNotice]);
+
+  const handlePostprodReorderRenders = useCallback(async (order = []) => {
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return;
+    try {
+      await postprodReorderRenderJobs(token, { order });
+      await loadPostprodRenders();
+    } catch (e) {
+      showNotice(String(e?.message || e?.code || 'reorder_error'), 'error');
+    }
+  }, [postprodAuth.token, loadPostprodRenders, showNotice]);
 
   const handlePostprodTransitionRender = useCallback(async (renderId, payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -4851,17 +4626,10 @@ function App() {
           hydrated: true,
         });
         applyUserLanguageToIdentity(user);
-      } catch (err) {
+      } catch {
         if (cancelled) return;
-        const code = String(err?.code || '').trim().toLowerCase();
         const isInitialHydration = !postprodAuth.hydrated;
-        const message = code === 'invalid_broker_token'
-          ? t('postprod.auth.error.invalidBrokerToken')
-          : (code === 'insecure_transport'
-            ? t('postprod.auth.error.insecureTransport')
-            : (code === 'client_cert_required'
-              ? t('postprod.auth.error.clientCertRequired')
-              : (isInitialHydration ? '' : t('postprod.auth.error.invalidSession'))));
+        const message = isInitialHydration ? '' : t('postprod.auth.error.invalidSession');
         clearPostprodAuth(message);
       }
     })();
@@ -5013,10 +4781,6 @@ function App() {
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
     if (current !== 'Logs') return;
     loadPostprodAudit();
-    if (postprodCanManageRoles) {
-      loadPostprodRenderHealthAuditMaintenance();
-      return;
-    }
     setPostprodRenderHealthAuditMaintenance({
       data: null,
       loading: false,
@@ -5029,9 +4793,7 @@ function App() {
     appMode,
     postprodAuthenticated,
     current,
-    postprodCanManageRoles,
     loadPostprodAudit,
-    loadPostprodRenderHealthAuditMaintenance,
   ]);
 
   const refreshPostprodCurrentTab = useCallback(async () => {
@@ -5088,9 +4850,6 @@ function App() {
       }
     } else if (current === 'Logs') {
       queue(loadPostprodAudit);
-      if (postprodCanManageRoles) {
-        queue(loadPostprodRenderHealthAuditMaintenance);
-      }
     }
 
     await Promise.all(
@@ -5154,14 +4913,13 @@ function App() {
     loadPostprodRenderProjectCatalog,
     loadPostprodRenders,
     loadPostprodAudit,
-    loadPostprodRenderHealthAuditMaintenance,
     loadPostprodRenderHealth,
     postprodUserEditorOpen,
   ]);
 
   useEffect(() => {
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
-    if (current === 'Datas') return;
+    if (current === 'Datas' || current === 'Logs' || current === 'Rendus') return;
 
     let stopped = false;
     let timer = null;
@@ -5184,6 +4942,39 @@ function App() {
     postprodAuthenticated,
     current,
     postprodRefreshMs,
+    refreshPostprodCurrentTab,
+  ]);
+
+  useEffect(() => {
+    if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
+    if (current !== 'Rendus') return;
+
+    let stopped = false;
+    let timer = null;
+    const intervalMs = 10000;
+
+    const tick = async () => {
+      const isVisible = typeof document === 'undefined'
+        ? true
+        : document.visibilityState === 'visible';
+      if (isVisible) {
+        await refreshPostprodCurrentTab();
+      }
+      if (!stopped) {
+        timer = setTimeout(tick, intervalMs);
+      }
+    };
+
+    timer = setTimeout(tick, intervalMs);
+
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [
+    appMode,
+    postprodAuthenticated,
+    current,
     refreshPostprodCurrentTab,
   ]);
 
@@ -5498,12 +5289,6 @@ function App() {
                 return next;
               });
               showNotice(t('postprod.renders.msg.workerQueuedOffline', { count: pendingCount }), 'warn');
-              appendPostprodHubEvent({
-                state: 'warn',
-                kind: 'worker',
-                label: t('postprod.renders.health.events.kind.worker'),
-                detail: t('postprod.renders.msg.workerQueuedOffline', { count: pendingCount }),
-              });
               loadPostprodRenderHealth().catch(() => ({}));
             }
           }
@@ -5537,7 +5322,6 @@ function App() {
     loadPostprodRenderHealth,
     showNotice,
     t,
-    appendPostprodHubEvent,
   ]);
 
   // Garde un onglet valide quand le rôle change
@@ -5853,17 +5637,6 @@ function App() {
           <div className="ml-auto uu-row uu-align-center uu-row-gap0">
             {postprodAuthenticated ? (
               <>
-                {postprodHubBadge ? (
-                  <button
-                    className={`uu-topbar-hub ${postprodHubBadge.state || ''}`}
-                    type="button"
-                    onClick={loadPostprodRenderHealth}
-                    disabled={postprodRenderHealth.loading}
-                    title={[postprodHubBadge.label, postprodHubBadge.title].filter(Boolean).join('\n')}
-                  >
-                    <span className="uu-hub-dot" aria-hidden="true" />
-                  </button>
-                ) : null}
                 <button
                   className="uu-btn-ghost"
                   onClick={handlePostprodLogout}
@@ -5910,7 +5683,7 @@ function App() {
           )}
           {role === "server" && appMode === APP_MODE_LIVE && current === "Projets" && (
             <Suspense fallback={ScreenFallback}>
-              <ProjectsScreen showProjectActivation={true} />
+              <ProjectsScreen showProjectActivation={true} appMode={appMode} />
             </Suspense>
           )}
           {role === "server" && appMode === APP_MODE_LIVE && resourcesTabAvailable && current === "Ressources" && (
@@ -5951,6 +5724,7 @@ function App() {
                 canCreateTasks={postprodCanCreateTasks}
                 canBypassPadForTasks={postprodCanBypassPadForTasks}
                 showProjectActivation={false}
+                appMode={appMode}
                 onCreateTaskFromProject={(projectRef) => {
                   const ref = String(projectRef || "").trim();
                   if (!ref) return;
@@ -5977,6 +5751,10 @@ function App() {
             <Suspense fallback={ScreenFallback}>
               <PostProductionScreen
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}
+                userTabKey={userTabKey}
+                roleTabKey={roleTabKey}
+                taskTabKey={taskTabKey}
+                datasTabKey={datasTabKey}
                 titleOverride={current === POSTPROD_TAB_USERS ? t('nav.users') : ''}
                 hideStubNotice={true}
                 t={t}
@@ -6043,7 +5821,7 @@ function App() {
                 rendersDetectedScan={postprodRenders.detectedScan}
                 renderHealth={postprodRenderHealthView}
                 renderHealthLoading={postprodRenderHealth.loading}
-                renderHealthError={postprodRenderHealth.error}                renderHealthEvents={postprodHubEvents}
+                renderHealthError={postprodRenderHealth.error}
                 offlineRenderCreateOutboxItems={postprodOfflineOutbox}
                 offlineWorkerCompletionOutboxItems={postprodWorkerCompletionOutbox}
                 renderHealthAuditMaintenance={postprodRenderHealthAuditMaintenance.data}
@@ -6108,6 +5886,8 @@ function App() {
                 onLoadRenderTransitions={handlePostprodLoadRenderTransitions}
                 onDispatchRenders={handlePostprodDispatchRenders}
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
+                onScheduleRender={handlePostprodScheduleRender}
+                onReorderRenders={handlePostprodReorderRenders}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
                 onCreateRenderForm={handlePostprodCreateRenderForm}
@@ -6132,6 +5912,10 @@ function App() {
             <Suspense fallback={ScreenFallback}>
               <PostProductionScreen
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}
+                userTabKey={userTabKey}
+                roleTabKey={roleTabKey}
+                taskTabKey={taskTabKey}
+                datasTabKey={datasTabKey}
                 titleOverride={current === POSTPROD_TAB_USERS ? t('nav.users') : ''}
                 hideStubNotice={true}
                 t={t}
@@ -6198,7 +5982,7 @@ function App() {
                 rendersDetectedScan={postprodRenders.detectedScan}
                 renderHealth={postprodRenderHealthView}
                 renderHealthLoading={postprodRenderHealth.loading}
-                renderHealthError={postprodRenderHealth.error}                renderHealthEvents={postprodHubEvents}
+                renderHealthError={postprodRenderHealth.error}
                 offlineRenderCreateOutboxItems={postprodOfflineOutbox}
                 offlineWorkerCompletionOutboxItems={postprodWorkerCompletionOutbox}
                 renderHealthAuditMaintenance={postprodRenderHealthAuditMaintenance.data}
@@ -6263,6 +6047,8 @@ function App() {
                 onLoadRenderTransitions={handlePostprodLoadRenderTransitions}
                 onDispatchRenders={handlePostprodDispatchRenders}
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
+                onScheduleRender={handlePostprodScheduleRender}
+                onReorderRenders={handlePostprodReorderRenders}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
                 onCreateRenderForm={handlePostprodCreateRenderForm}
@@ -6292,7 +6078,7 @@ function App() {
           )}
           {role === "client" && appMode === APP_MODE_LIVE && current === "Projets" && (
             <Suspense fallback={ScreenFallback}>
-              <ProjectsScreen showProjectActivation={true} />
+              <ProjectsScreen showProjectActivation={true} appMode={appMode} />
             </Suspense>
           )}
           {role === "client" && appMode === APP_MODE_LIVE && current === "Synchronisation" && (
@@ -6314,6 +6100,10 @@ function App() {
             <Suspense fallback={ScreenFallback}>
               <PostProductionScreen
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}
+                userTabKey={userTabKey}
+                roleTabKey={roleTabKey}
+                taskTabKey={taskTabKey}
+                datasTabKey={datasTabKey}
                 hideStubNotice={true}
                 t={t}
                 isAuthenticated={postprodAuthenticated}
@@ -6375,7 +6165,7 @@ function App() {
                 rendersDetectedScan={postprodRenders.detectedScan}
                 renderHealth={postprodRenderHealthView}
                 renderHealthLoading={postprodRenderHealth.loading}
-                renderHealthError={postprodRenderHealth.error}                renderHealthEvents={postprodHubEvents}
+                renderHealthError={postprodRenderHealth.error}
                 offlineRenderCreateOutboxItems={postprodOfflineOutbox}
                 offlineWorkerCompletionOutboxItems={postprodWorkerCompletionOutbox}
                 renderHealthAuditMaintenance={postprodRenderHealthAuditMaintenance.data}
@@ -6440,6 +6230,8 @@ function App() {
                 onLoadRenderTransitions={handlePostprodLoadRenderTransitions}
                 onDispatchRenders={handlePostprodDispatchRenders}
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
+                onScheduleRender={handlePostprodScheduleRender}
+                onReorderRenders={handlePostprodReorderRenders}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
                 onCreateRenderForm={handlePostprodCreateRenderForm}
@@ -6464,6 +6256,10 @@ function App() {
             <Suspense fallback={ScreenFallback}>
               <PostProductionScreen
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}
+                userTabKey={userTabKey}
+                roleTabKey={roleTabKey}
+                taskTabKey={taskTabKey}
+                datasTabKey={datasTabKey}
                 hideStubNotice={true}
                 t={t}
                 isAuthenticated={postprodAuthenticated}
@@ -6525,7 +6321,7 @@ function App() {
                 rendersDetectedScan={postprodRenders.detectedScan}
                 renderHealth={postprodRenderHealthView}
                 renderHealthLoading={postprodRenderHealth.loading}
-                renderHealthError={postprodRenderHealth.error}                renderHealthEvents={postprodHubEvents}
+                renderHealthError={postprodRenderHealth.error}
                 offlineRenderCreateOutboxItems={postprodOfflineOutbox}
                 offlineWorkerCompletionOutboxItems={postprodWorkerCompletionOutbox}
                 renderHealthAuditMaintenance={postprodRenderHealthAuditMaintenance.data}
@@ -6590,6 +6386,8 @@ function App() {
                 onLoadRenderTransitions={handlePostprodLoadRenderTransitions}
                 onDispatchRenders={handlePostprodDispatchRenders}
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
+                onScheduleRender={handlePostprodScheduleRender}
+                onReorderRenders={handlePostprodReorderRenders}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
                 onCreateRenderForm={handlePostprodCreateRenderForm}

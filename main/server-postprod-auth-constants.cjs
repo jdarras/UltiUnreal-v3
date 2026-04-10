@@ -1,0 +1,515 @@
+/* Extracted constants for postprod auth */
+
+const DEFAULT_BOOTSTRAP_USER = 'maintenance';
+const DEFAULT_BOOTSTRAP_PASSWORD = 'admin';
+const DEFAULT_BOOTSTRAP_ROLE = 'Maintenance';
+const DEFAULT_SESSION_TTL_SEC = 12 * 60 * 60; // 12h
+const DEFAULT_PBKDF2_ITERS = 150000;
+const PASSWORD_KEY_LEN = 32;
+const MIN_PASSWORD_LEN = 4;
+const MAX_USERNAME_LEN = 64;
+const MAX_DISPLAY_NAME_LEN = 120;
+const MAX_USER_EMAIL_LEN = 254;
+const MAX_USER_PHONE_LEN = 40;
+const MAX_EMPLOYMENT_TYPE_LEN = 24;
+const MAX_TIMEZONE_LEN = 80;
+const MAX_USER_LANGUAGE_LEN = 12;
+const MAX_USER_NOTE_LEN = 4000;
+const MAX_USER_AVATAR_PATH_LEN = 500000;
+const MAX_ROLE_KEY_LEN = 80;
+const MAX_ROLE_NOTE_LEN = 4000;
+const MAX_TASK_TITLE_LEN = 220;
+const MAX_TASK_DESCRIPTION_LEN = 8000;
+const MAX_TASK_COMMENT_LEN = 4000;
+const MAX_TASK_REF_LEN = 240;
+const MAX_TASK_REFS = 64;
+const MAX_TASK_EXPECTED_RENDER_COUNT = 50;
+const MAX_TASK_EXPECTED_RENDER_NAME_LEN = 220;
+const MAX_TASK_AUTO_RENDER_CONFIG_BYTES = 256 * 1024;
+const MAX_TASK_AUTO_RENDER_TEXT_LEN = 2000;
+const MAX_RENDER_TEMPLATE_NAME_LEN = 220;
+const MAX_RENDER_PROJECT_NAME_LEN = 220;
+const MAX_RENDER_PRESET_NAME_LEN = 160;
+const MAX_RENDER_FORM_NAME_LEN = 220;
+const MAX_RENDER_FORM_PRESET_NAME_LEN = 220;
+const MAX_RENDER_FORM_LAYOUT_BYTES = 256 * 1024;
+const MAX_RENDER_MAP_NAME_LEN = 220;
+const MAX_RENDER_SEQUENCE_NAME_LEN = 220;
+const MAX_RENDER_OUTPUT_PROFILE_LEN = 220;
+const MAX_RENDER_ALLOWED_ROLES = 64;
+const MAX_RENDER_TEMPLATE_FIELDS = 128;
+const MAX_RENDER_TEMPLATE_FIELD_KEY_LEN = 120;
+const MAX_RENDER_TEMPLATE_FIELD_LABEL_LEN = 220;
+const MAX_RENDER_TEMPLATE_FIELD_SOURCE_PATH_LEN = 400;
+const MAX_RENDER_TEMPLATE_FIELD_INPUT_KIND_LEN = 40;
+const MAX_RENDER_TEMPLATE_FIELD_VALUE_TYPE_LEN = 40;
+const MAX_RENDER_TEMPLATE_FIELD_GROUP_NAME_LEN = 120;
+const MAX_RENDER_TEMPLATE_FIELD_PAYLOAD_KEY_LEN = 120;
+const MAX_RENDER_TEMPLATE_FIELD_PLACEHOLDER_LEN = 220;
+const MAX_RENDER_TEMPLATE_FIELD_HELP_TEXT_LEN = 500;
+const MAX_RENDER_TEMPLATE_FIELD_OPTIONS_ITEMS = 200;
+const MAX_RENDER_TEMPLATE_FIELD_OPTIONS_BYTES = 128 * 1024;
+const MAX_RENDER_TEMPLATE_FIELD_VALIDATION_BYTES = 128 * 1024;
+const MAX_RENDER_TEMPLATE_FIELD_DEFAULT_VALUE_BYTES = 64 * 1024;
+const MAX_RENDER_PRESET_PAYLOAD_BYTES = 256 * 1024;
+const MAX_RENDER_OUTPUT_PATH_LEN = 4000;
+const MAX_RENDER_ERROR_LEN = 4000;
+const MAX_RENDER_COMMENT_LEN = 2000;
+const MAX_RENDER_HEALTH_EVENT_LABEL_LEN = 220;
+const MAX_RENDER_HEALTH_EVENT_DETAIL_LEN = 2000;
+const MAX_RENDER_HEALTH_EVENT_SOURCE_LEN = 120;
+const MAX_RENDER_PAYLOAD_BYTES = 512 * 1024;
+const MAX_RENDER_WORKER_KEY_LEN = 160;
+const MAX_RENDER_WORKER_NAME_LEN = 220;
+const MAX_RENDER_WORKER_CAPABILITY_KEY_LEN = 120;
+const MAX_RENDER_WORKER_CAPABILITY_VALUE_LEN = 220;
+const MAX_RENDER_WORKER_CAPABILITY_ITEMS = 64;
+const MAX_RENDER_WORKER_CAPABILITIES_BYTES = 64 * 1024;
+const RENDER_WORKER_ONLINE_TTL_SECONDS = 90;
+const DEFAULT_RENDER_DISPATCH_PRIORITY = 100;
+const DEFAULT_RENDER_DISPATCH_MAX_JOBS = 10;
+const MAX_RENDER_DISPATCH_PRIORITY = 1000;
+const MAX_RENDER_DISPATCH_QUOTA = 500;
+const MAX_RENDER_DISPATCH_PROJECT_RULES = 200;
+const MAX_RENDER_DISPATCH_FETCH_LIMIT = 500;
+const MAX_RENDER_DISPATCH_WORKER_FETCH_LIMIT = 200;
+const MAX_RENDER_DISPATCH_MAX_JOBS = 50;
+const MAX_RENDER_DISPATCH_RENDER_IDS = 200;
+const MAX_RENDER_DETECTED_SCAN_FILES = 5000;
+const DEFAULT_RENDER_DETECTED_SCAN_FILES = 1000;
+const MAX_UNREAL_PROJECT_CATALOG_FILES = 20000;
+const MIN_RENDER_DETECTED_SCAN_INTERVAL_MS = 1000;
+const MAX_RENDER_DETECTED_SCAN_INTERVAL_MS = 10 * 60 * 1000;
+const DEFAULT_RENDER_DETECTED_SCAN_INTERVAL_MS = 5000;
+const DEFAULT_RENDER_DETECTED_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.bmp',
+  '.exr',
+  '.mov',
+  '.mp4',
+  '.mxf',
+  '.wav',
+  '.json',
+]);
+const DEFAULT_RENDER_DETECTED_TEMPLATE_NAME = 'Imported output';
+const AUTO_RENDER_PROJECT_USAGE_MODES = new Set(['auto_render', 'live_auto_render']);
+const DEFAULT_USER_LANGUAGE = 'fr';
+const USER_LANGUAGE_ALLOWED = new Set(['fr', 'en']);
+const MAX_FAILED_LOGIN_COUNT = 5;
+const FAILED_LOGIN_LOCK_SECONDS = 15 * 60;
+const MAX_PROJECT_REF_LEN = 220;
+const MAX_DATA_TABLE_NAME_LEN = 220;
+const MAX_DATA_TABLE_SCHEMA_BYTES = 256 * 1024;
+const MAX_DATA_ROW_KEY_LEN = 220;
+const MAX_DATA_ROW_PAYLOAD_BYTES = 512 * 1024;
+const MAX_SYNC_SOURCE_LEN = 120;
+const MAX_SYNC_RESULT_LEN = 120;
+const MAX_SYNC_DETAILS_BYTES = 256 * 1024;
+const MAX_ACTIVITY_SEARCH_LEN = 240;
+const MAX_RESOURCE_CODE_LEN = 240;
+const MAX_RESOURCE_TYPE_LEN = 160;
+const MAX_RESOURCE_TITLE_LEN = 400;
+const MAX_RESOURCE_SOURCE_PATH_LEN = 4000;
+const MAX_RESOURCE_METADATA_BYTES = 512 * 1024;
+const MIN_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS = 1000;
+const MAX_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+const MIN_POSTPROD_PROJECTS_RESYNC_TTL_MS = 250;
+const MAX_POSTPROD_PROJECTS_RESYNC_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_POSTPROD_PROJECTS_RESYNC_TTL_MS = 10 * 1000;
+
+const SYSTEM_MAINTENANCE_ROLE = 'Maintenance';
+const DEFAULT_FALLBACK_ROLE = 'Operateur';
+const TASK_STATUSES = Object.freeze([
+  'Planifiee',
+  'A faire',
+  'En cours',
+  'A valider',
+  'Validee',
+  'Rejetee',
+]);
+const TASK_EXPECTED_RENDER_MATCH_ACTIVE_STATUSES = new Set([
+  'Planifiee',
+  'A faire',
+  'En cours',
+  'A valider',
+]);
+const TASK_REQUEST_TYPES = Object.freeze(['manual', 'auto_render']);
+const DEFAULT_TASK_REQUEST_TYPE = 'manual';
+const TASK_PRIORITY_DEADLINE_DAYS = Object.freeze({
+  1: 1,
+  2: 3,
+  3: 7,
+  4: 14,
+});
+const DEFAULT_TASK_DEADLINE_DAYS = 7;
+const RENDER_STATUSES = Object.freeze([
+  'Queued',
+  'Running',
+  'Done',
+  'Failed',
+  'Canceled',
+]);
+const RENDER_REVIEW_STATUSES = Object.freeze([
+  'to_validate',
+  'validated',
+  'to_modify',
+  'canceled',
+]);
+const RENDER_HEALTH_EVENT_STATES = new Set(['online', 'warn', 'offline', 'loading', 'info']);
+const RENDER_HEALTH_EVENT_KINDS = new Set(['worker', 'general']);
+const POSTPROD_RENDER_HEALTH_AUDIT_ACTION = 'render_health_event';
+const DEFAULT_RENDER_HEALTH_EVENT_RETENTION_DAYS = 90;
+const MIN_RENDER_HEALTH_EVENT_RETENTION_DAYS = 0;
+const MAX_RENDER_HEALTH_EVENT_RETENTION_DAYS = 3650;
+const DEFAULT_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
+const MIN_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS = 60 * 1000;
+const MAX_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+const DEFAULT_ROLE_KEYS = [
+  'Maintenance',
+  'Responsable Fabrication',
+  'Integrateur',
+  'Operateur',
+  'Graphiste',
+  'Journaliste',
+];
+const RENDER_VALIDATION_ALLOWED_ROLES = new Set([
+  'Maintenance',
+  'Responsable Fabrication',
+  'Journaliste',
+]);
+const RENDER_TEMPLATE_FIELD_VALUE_TYPES = new Set([
+  'string',
+  'number',
+  'integer',
+  'boolean',
+  'color',
+  'image',
+  'video',
+  'enum',
+  'date',
+  'vector2',
+  'vector3',
+  'json',
+]);
+const RENDER_TEMPLATE_FIELD_INPUT_KINDS = new Set([
+  'text',
+  'multiline',
+  'number',
+  'integer',
+  'vector2',
+  'vector3',
+  'checkbox',
+  'color',
+  'image',
+  'video',
+  'select',
+  'date',
+  'json',
+]);
+const RENDER_FORM_SOURCE_TYPES = new Set([
+  'preset_property',
+  'preset_function_arg',
+  'manual',
+]);
+const RENDER_FORM_MODE_DEFAULTS = new Set(['edit', 'live']);
+
+const EMPLOYMENT_TYPE_LOOKUP = new Map([
+  ['interne', 'Interne'],
+  ['exterieur', 'Exterieur'],
+  ['externe', 'Exterieur'],
+  ['external', 'Exterieur'],
+  ['cdd', 'CDD'],
+]);
+
+const DEFAULT_ROLE_POLICIES = [
+  {
+    key: 'Maintenance',
+    displayName: 'Maintenance',
+    canUseLiveMode: true,
+    canUsePostprodMode: true,
+    canValidate: true,
+    canSyncScenes: true,
+    canManageUsers: true,
+    canManageRoles: true,
+    canManageForms: true,
+    canManageMachines: true,
+    canBanUsers: true,
+    canManageProjectPermissions: true,
+    canLaunchProjects: true,
+    canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: true,
+    canManageLayouts: true,
+    manageableRoles: [...DEFAULT_ROLE_KEYS],
+    isSystem: true,
+  },
+  {
+    key: 'Responsable Fabrication',
+    displayName: 'Responsable Fabrication',
+    canUseLiveMode: true,
+    canUsePostprodMode: true,
+    canValidate: true,
+    canSyncScenes: true,
+    canManageUsers: true,
+    canManageRoles: false,
+    canManageForms: true,
+    canManageMachines: true,
+    canBanUsers: true,
+    canManageProjectPermissions: true,
+    canLaunchProjects: true,
+    canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: true,
+    canManageLayouts: true,
+    manageableRoles: ['Graphiste', 'Journaliste'],
+    isSystem: true,
+  },
+  {
+    key: 'Integrateur',
+    displayName: 'Integrateur',
+    canUseLiveMode: true,
+    canUsePostprodMode: true,
+    canValidate: true,
+    canSyncScenes: true,
+    canManageUsers: true,
+    canManageRoles: false,
+    canManageForms: true,
+    canManageMachines: true,
+    canBanUsers: true,
+    canManageProjectPermissions: true,
+    canLaunchProjects: true,
+    canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: true,
+    canManageLayouts: true,
+    manageableRoles: ['Operateur', 'Journaliste'],
+    isSystem: true,
+  },
+  {
+    key: 'Operateur',
+    displayName: 'Operateur',
+    canUseLiveMode: true,
+    canUsePostprodMode: true,
+    canValidate: false,
+    canSyncScenes: false,
+    canManageUsers: false,
+    canManageRoles: false,
+    canManageForms: false,
+    canManageMachines: false,
+    canBanUsers: false,
+    canManageProjectPermissions: false,
+    canLaunchProjects: true,
+    canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: true,
+    canManageLayouts: true,
+    manageableRoles: [],
+    isSystem: true,
+  },
+  {
+    key: 'Graphiste',
+    displayName: 'Graphiste',
+    canUseLiveMode: false,
+    canUsePostprodMode: true,
+    canValidate: false,
+    canSyncScenes: false,
+    canManageUsers: false,
+    canManageRoles: false,
+    canManageForms: false,
+    canManageMachines: false,
+    canBanUsers: false,
+    canManageProjectPermissions: false,
+    canLaunchProjects: false,
+    canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: false,
+    canManageLayouts: false,
+    manageableRoles: [],
+    isSystem: true,
+  },
+  {
+    key: 'Journaliste',
+    displayName: 'Journaliste',
+    canUseLiveMode: false,
+    canUsePostprodMode: true,
+    canValidate: false,
+    canSyncScenes: false,
+    canManageUsers: false,
+    canManageRoles: false,
+    canManageForms: false,
+    canManageMachines: false,
+    canBanUsers: false,
+    canManageProjectPermissions: false,
+    canLaunchProjects: false,
+    canLaunchRenders: true,
+    canViewResources: true,
+    canCreateTasks: true,
+    canEditProjects: false,
+    canManageLayouts: false,
+    manageableRoles: [],
+    isSystem: true,
+  },
+];
+
+const ROLE_ALIAS_MAP = new Map([
+  ['maintenance', 'Maintenance'],
+  ['responsable fabrication', 'Responsable Fabrication'],
+  ['responsable_fabrication', 'Responsable Fabrication'],
+  ['responsable-fabrication', 'Responsable Fabrication'],
+  ['responsablefabrication', 'Responsable Fabrication'],
+  ['integrateur', 'Integrateur'],
+  ['integrator', 'Integrateur'],
+  ['operateur', 'Operateur'],
+  ['operator', 'Operateur'],
+  ['graphiste', 'Graphiste'],
+  ['journaliste', 'Journaliste'],
+]);
+
+
+module.exports = {
+  DEFAULT_BOOTSTRAP_USER,
+  DEFAULT_BOOTSTRAP_PASSWORD,
+  DEFAULT_BOOTSTRAP_ROLE,
+  DEFAULT_SESSION_TTL_SEC,
+  DEFAULT_PBKDF2_ITERS,
+  PASSWORD_KEY_LEN,
+  MIN_PASSWORD_LEN,
+  MAX_USERNAME_LEN,
+  MAX_DISPLAY_NAME_LEN,
+  MAX_USER_EMAIL_LEN,
+  MAX_USER_PHONE_LEN,
+  MAX_EMPLOYMENT_TYPE_LEN,
+  MAX_TIMEZONE_LEN,
+  MAX_USER_LANGUAGE_LEN,
+  MAX_USER_NOTE_LEN,
+  MAX_USER_AVATAR_PATH_LEN,
+  MAX_ROLE_KEY_LEN,
+  MAX_ROLE_NOTE_LEN,
+  MAX_TASK_TITLE_LEN,
+  MAX_TASK_DESCRIPTION_LEN,
+  MAX_TASK_COMMENT_LEN,
+  MAX_TASK_REF_LEN,
+  MAX_TASK_REFS,
+  MAX_TASK_EXPECTED_RENDER_COUNT,
+  MAX_TASK_EXPECTED_RENDER_NAME_LEN,
+  MAX_TASK_AUTO_RENDER_CONFIG_BYTES,
+  MAX_TASK_AUTO_RENDER_TEXT_LEN,
+  MAX_RENDER_TEMPLATE_NAME_LEN,
+  MAX_RENDER_PROJECT_NAME_LEN,
+  MAX_RENDER_PRESET_NAME_LEN,
+  MAX_RENDER_FORM_NAME_LEN,
+  MAX_RENDER_FORM_PRESET_NAME_LEN,
+  MAX_RENDER_FORM_LAYOUT_BYTES,
+  MAX_RENDER_MAP_NAME_LEN,
+  MAX_RENDER_SEQUENCE_NAME_LEN,
+  MAX_RENDER_OUTPUT_PROFILE_LEN,
+  MAX_RENDER_ALLOWED_ROLES,
+  MAX_RENDER_TEMPLATE_FIELDS,
+  MAX_RENDER_TEMPLATE_FIELD_KEY_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_LABEL_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_SOURCE_PATH_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_INPUT_KIND_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_VALUE_TYPE_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_GROUP_NAME_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_PAYLOAD_KEY_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_PLACEHOLDER_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_HELP_TEXT_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_OPTIONS_ITEMS,
+  MAX_RENDER_TEMPLATE_FIELD_OPTIONS_BYTES,
+  MAX_RENDER_TEMPLATE_FIELD_VALIDATION_BYTES,
+  MAX_RENDER_TEMPLATE_FIELD_DEFAULT_VALUE_BYTES,
+  MAX_RENDER_PRESET_PAYLOAD_BYTES,
+  MAX_RENDER_OUTPUT_PATH_LEN,
+  MAX_RENDER_ERROR_LEN,
+  MAX_RENDER_COMMENT_LEN,
+  MAX_RENDER_HEALTH_EVENT_LABEL_LEN,
+  MAX_RENDER_HEALTH_EVENT_DETAIL_LEN,
+  MAX_RENDER_HEALTH_EVENT_SOURCE_LEN,
+  MAX_RENDER_PAYLOAD_BYTES,
+  MAX_RENDER_WORKER_KEY_LEN,
+  MAX_RENDER_WORKER_NAME_LEN,
+  MAX_RENDER_WORKER_CAPABILITY_KEY_LEN,
+  MAX_RENDER_WORKER_CAPABILITY_VALUE_LEN,
+  MAX_RENDER_WORKER_CAPABILITY_ITEMS,
+  MAX_RENDER_WORKER_CAPABILITIES_BYTES,
+  RENDER_WORKER_ONLINE_TTL_SECONDS,
+  DEFAULT_RENDER_DISPATCH_PRIORITY,
+  DEFAULT_RENDER_DISPATCH_MAX_JOBS,
+  MAX_RENDER_DISPATCH_PRIORITY,
+  MAX_RENDER_DISPATCH_QUOTA,
+  MAX_RENDER_DISPATCH_PROJECT_RULES,
+  MAX_RENDER_DISPATCH_FETCH_LIMIT,
+  MAX_RENDER_DISPATCH_WORKER_FETCH_LIMIT,
+  MAX_RENDER_DISPATCH_MAX_JOBS,
+  MAX_RENDER_DISPATCH_RENDER_IDS,
+  MAX_RENDER_DETECTED_SCAN_FILES,
+  DEFAULT_RENDER_DETECTED_SCAN_FILES,
+  MAX_UNREAL_PROJECT_CATALOG_FILES,
+  MIN_RENDER_DETECTED_SCAN_INTERVAL_MS,
+  MAX_RENDER_DETECTED_SCAN_INTERVAL_MS,
+  DEFAULT_RENDER_DETECTED_SCAN_INTERVAL_MS,
+  DEFAULT_RENDER_DETECTED_EXTENSIONS,
+  DEFAULT_RENDER_DETECTED_TEMPLATE_NAME,
+  AUTO_RENDER_PROJECT_USAGE_MODES,
+  DEFAULT_USER_LANGUAGE,
+  USER_LANGUAGE_ALLOWED,
+  MAX_FAILED_LOGIN_COUNT,
+  FAILED_LOGIN_LOCK_SECONDS,
+  MAX_PROJECT_REF_LEN,
+  MAX_DATA_TABLE_NAME_LEN,
+  MAX_DATA_TABLE_SCHEMA_BYTES,
+  MAX_DATA_ROW_KEY_LEN,
+  MAX_DATA_ROW_PAYLOAD_BYTES,
+  MAX_SYNC_SOURCE_LEN,
+  MAX_SYNC_RESULT_LEN,
+  MAX_SYNC_DETAILS_BYTES,
+  MAX_ACTIVITY_SEARCH_LEN,
+  MAX_RESOURCE_CODE_LEN,
+  MAX_RESOURCE_TYPE_LEN,
+  MAX_RESOURCE_TITLE_LEN,
+  MAX_RESOURCE_SOURCE_PATH_LEN,
+  MAX_RESOURCE_METADATA_BYTES,
+  MIN_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS,
+  MAX_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS,
+  DEFAULT_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS,
+  MIN_POSTPROD_PROJECTS_RESYNC_TTL_MS,
+  MAX_POSTPROD_PROJECTS_RESYNC_TTL_MS,
+  DEFAULT_POSTPROD_PROJECTS_RESYNC_TTL_MS,
+  SYSTEM_MAINTENANCE_ROLE,
+  DEFAULT_FALLBACK_ROLE,
+  TASK_STATUSES,
+  TASK_EXPECTED_RENDER_MATCH_ACTIVE_STATUSES,
+  TASK_REQUEST_TYPES,
+  DEFAULT_TASK_REQUEST_TYPE,
+  TASK_PRIORITY_DEADLINE_DAYS,
+  DEFAULT_TASK_DEADLINE_DAYS,
+  RENDER_STATUSES,
+  RENDER_REVIEW_STATUSES,
+  RENDER_HEALTH_EVENT_STATES,
+  RENDER_HEALTH_EVENT_KINDS,
+  POSTPROD_RENDER_HEALTH_AUDIT_ACTION,
+  DEFAULT_RENDER_HEALTH_EVENT_RETENTION_DAYS,
+  MIN_RENDER_HEALTH_EVENT_RETENTION_DAYS,
+  MAX_RENDER_HEALTH_EVENT_RETENTION_DAYS,
+  DEFAULT_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
+  MIN_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
+  MAX_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
+  DEFAULT_ROLE_KEYS,
+  RENDER_VALIDATION_ALLOWED_ROLES,
+  RENDER_TEMPLATE_FIELD_VALUE_TYPES,
+  RENDER_TEMPLATE_FIELD_INPUT_KINDS,
+  RENDER_FORM_SOURCE_TYPES,
+  RENDER_FORM_MODE_DEFAULTS,
+  EMPLOYMENT_TYPE_LOOKUP,
+  DEFAULT_ROLE_POLICIES,
+  ROLE_ALIAS_MAP,
+};

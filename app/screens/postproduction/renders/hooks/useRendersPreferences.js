@@ -4,6 +4,7 @@ import {
   getInitialListSortDir,
   getInitialListSortKey,
   getInitialProjectFilter,
+  getInitialStationFilter,
   getInitialQueueSortDir,
   getInitialQueueSortKey,
   getInitialRenderFavorites,
@@ -17,6 +18,7 @@ export function useRendersPreferences() {
   const [searchQuery, setSearchQuery] = useState(getInitialSearchQuery);
   const [reviewFilter, setReviewFilter] = useState(getInitialReviewFilter);
   const [projectFilter, setProjectFilter] = useState(getInitialProjectFilter);
+  const [stationFilter, setStationFilter] = useState(getInitialStationFilter);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [favoriteOnly, setFavoriteOnly] = useState(getInitialFavoriteOnly);
   const [renderFavorites, setRenderFavorites] = useState(getInitialRenderFavorites);
@@ -31,6 +33,7 @@ export function useRendersPreferences() {
     viewMode,
     reviewFilter,
     projectFilter,
+    stationFilter,
     favoriteOnly,
     renderFavorites,
     listSortKey,
@@ -46,6 +49,8 @@ export function useRendersPreferences() {
     setReviewFilter,
     projectFilter,
     setProjectFilter,
+    stationFilter,
+    setStationFilter,
     searchExpanded,
     setSearchExpanded,
     favoriteOnly,

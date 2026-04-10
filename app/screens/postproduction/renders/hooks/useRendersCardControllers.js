@@ -22,11 +22,14 @@ export function useRendersCardControllers({
   });
 
   const list = useRendersListController({
+    t,
     renders,
     searchQuery: preferences.searchQuery,
     reviewFilter: preferences.reviewFilter,
     projectFilter: preferences.projectFilter,
     setProjectFilter: preferences.setProjectFilter,
+    stationFilter: preferences.stationFilter,
+    setStationFilter: preferences.setStationFilter,
     favoriteOnly: preferences.favoriteOnly,
     renderFavorites: preferences.renderFavorites,
     setRenderFavorites: preferences.setRenderFavorites,
@@ -35,6 +38,10 @@ export function useRendersCardControllers({
     setListSortKey: preferences.setListSortKey,
     setListSortDir: preferences.setListSortDir,
   });
+
+  const localRenders = Array.isArray(renders)
+    ? renders.filter((render) => render?.stationIsRemote !== true)
+    : [];
 
   const detail = useRenderDetailController({
     t,
@@ -45,7 +52,7 @@ export function useRendersCardControllers({
   const queue = useRenderQueueController({
     t,
     tasks,
-    renders,
+    renders: localRenders,
     renderWorkers,
     searchQuery: preferences.searchQuery,
     queueSortKey: preferences.queueSortKey,
@@ -59,6 +66,7 @@ export function useRendersCardControllers({
   const toolbar = useRendersToolbarActions({
     setSearchQuery: preferences.setSearchQuery,
     setProjectFilter: preferences.setProjectFilter,
+    setStationFilter: preferences.setStationFilter,
     setReviewFilter: preferences.setReviewFilter,
     setFavoriteOnly: preferences.setFavoriteOnly,
     setSearchExpanded: preferences.setSearchExpanded,
@@ -74,4 +82,3 @@ export function useRendersCardControllers({
 }
 
 export default useRendersCardControllers;
-

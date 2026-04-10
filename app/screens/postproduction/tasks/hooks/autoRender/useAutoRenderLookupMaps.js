@@ -89,9 +89,18 @@ export function useAutoRenderLookupMaps({
   }, [projectOptionByRef, projectLookupByAny, setAutoRenderProjectRef]);
 
   useEffect(() => {
-    const allowedWorkers = new Set(availableRenderWorkers.map((entry) => String(entry?.workerKey || "").trim()));
+    const allowedWorkers = new Set(["local", "auto"]);
+    for (const entry of availableRenderWorkers) {
+      const key = String(entry?.workerKey || entry?.ip || "").trim();
+      if (!key) continue;
+      allowedWorkers.add(key);
+    }
     if (typeof setAutoRenderWorkerKey === "function") {
-      setAutoRenderWorkerKey((prev) => (allowedWorkers.has(String(prev || "").trim()) ? String(prev || "").trim() : ""));
+      setAutoRenderWorkerKey((prev) => {
+        const current = String(prev || "").trim();
+        if (allowedWorkers.has(current)) return current;
+        return "auto";
+      });
     }
   }, [availableRenderWorkers, setAutoRenderWorkerKey]);
 

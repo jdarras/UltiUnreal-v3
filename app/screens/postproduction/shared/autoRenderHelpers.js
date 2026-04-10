@@ -21,12 +21,20 @@ export function resolveAutoRenderPayload(source) {
 export function resolveAutoRenderTargetWorkerKey(source) {
   const config = resolveAutoRenderConfig(source);
   const payload = resolveAutoRenderPayload(source);
+  const explicitStation = String(
+    config?.renderStation
+    || config?.render_station
+    || payload?.renderStation
+    || payload?.render_station
+    || ""
+  ).trim();
+  if (explicitStation) return explicitStation;
   return String(
     config?.targetWorkerKey
     || config?.preferredWorkerKey
     || payload?.targetWorkerKey
     || payload?.preferredWorkerKey
-    || ""
+    || "auto"
   ).trim();
 }
 

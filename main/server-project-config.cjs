@@ -20,6 +20,16 @@ const {
   buildSmoothedFrameRateRange,
 } = require('./server-ini.cjs');
 
+const RENDER_BRIDGE_PLUGIN_NAME = 'UltiUnrealRenderBridge';
+const RENDER_BRIDGE_PLUGIN_FILE = `${RENDER_BRIDGE_PLUGIN_NAME}.uplugin`;
+
+function readJsonFileSafe(filePath = '') {
+  const p = path.resolve(String(filePath || '').trim());
+  const raw = fs.readFileSync(p, 'utf8');
+  const sanitized = String(raw || '').replace(/^\uFEFF/, '');
+  return JSON.parse(sanitized || '{}');
+}
+
 function ensureHttpServerBindAddress(uprojectPath, bindAddress = '0.0.0.0') {
   const up = String(uprojectPath || '').trim();
   if (!up) return { ok: false, error: 'missing_uproject' };
@@ -64,6 +74,188 @@ function normalizeProjectUsageMode(value) {
     ['autre', 'other'],
   ]);
   return aliases.get(key) || '';
+}
+
+function copyDirectoryRecursive(srcDir, destDir) {
+  const src = path.resolve(String(srcDir || '').trim());
+  const dest = path.resolve(String(destDir || '').trim());
+  if (!src || !dest) throw new Error('missing_source_or_destination');
+  const stat = fs.statSync(src);
+  if (!stat.isDirectory()) throw new Error('source_not_directory');
+
+  fs.mkdirSync(dest, { recursive: true });
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const from = path.join(src, entry.name);
+    const to = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectoryRecursive(from, to);
+      continue;
+    }
+    if (entry.isFile()) {
+      fs.copyFileSync(from, to);
+    }
+  }
+}
+
+function resolveEngineVersionTag(rawVersion = '') {
+  const match = String(rawVersion || '').match(/(\d+\.\d+)/);
+  if (!match || !match[1]) return '';
+  return `UE${match[1]}`;
+}
+
+function listRenderBridgePackageCandidates(engineVersion = '') {
+  const repoRoot = path.resolve(__dirname, '..');
+  const cwdRoot = path.resolve(process.cwd() || '.');
+  const rootCandidates = Array.from(new Set([repoRoot, cwdRoot]));
+  const out = [];
+  const versionTag = resolveEngineVersionTag(engineVersion);
+  for (const root of rootCandidates) {
+    const pluginsRoot = path.join(root, 'plugins');
+    const toolsRoot = path.join(root, 'tools');
+    const toolsPluginsRoot = path.join(toolsRoot, 'plugins');
+
+    if (versionTag) {
+      out.push({
+        versionTag,
+        packageDir: path.join(pluginsRoot, versionTag, RENDER_BRIDGE_PLUGIN_NAME),
+      });
+      out.push({
+        versionTag,
+        packageDir: path.join(toolsPluginsRoot, versionTag, RENDER_BRIDGE_PLUGIN_NAME),
+      });
+    }
+
+    out.push({
+      versionTag: 'UE5.6',
+      packageDir: path.join(pluginsRoot, 'UE5.6', RENDER_BRIDGE_PLUGIN_NAME),
+    });
+    out.push({
+      versionTag: 'UE5.6',
+      packageDir: path.join(toolsPluginsRoot, 'UE5.6', RENDER_BRIDGE_PLUGIN_NAME),
+    });
+    out.push({
+      versionTag: '',
+      packageDir: path.join(pluginsRoot, RENDER_BRIDGE_PLUGIN_NAME),
+    });
+    out.push({
+      versionTag: '',
+      packageDir: path.join(toolsRoot, RENDER_BRIDGE_PLUGIN_NAME),
+    });
+    out.push({
+      versionTag: 'UE5.6',
+      packageDir: path.join(toolsRoot, `${RENDER_BRIDGE_PLUGIN_NAME}56`),
+    });
+  }
+  return out;
+}
+
+function resolveRenderBridgePackage(engineVersion = '') {
+  const candidates = listRenderBridgePackageCandidates(engineVersion);
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const packageDir = path.resolve(candidate.packageDir);
+    if (seen.has(packageDir)) continue;
+    seen.add(packageDir);
+    const upluginPath = path.join(packageDir, RENDER_BRIDGE_PLUGIN_FILE);
+    if (fs.existsSync(packageDir) && fs.existsSync(upluginPath)) {
+      return {
+        packageAvailable: true,
+        packageDir,
+        packageUpluginPath: upluginPath,
+        packageVersionTag: candidate.versionTag || '',
+      };
+    }
+  }
+  return {
+    packageAvailable: false,
+    packageDir: '',
+    packageUpluginPath: '',
+    packageVersionTag: '',
+  };
+}
+
+function resolveRenderBridgeProjectStatus(proj = {}) {
+  const up = String(proj?.uproject || proj?.projectPath || proj?.path || '').trim();
+  if (!up) {
+    return {
+      ok: false,
+      error: 'missing_uproject',
+      installedInProject: false,
+      enabledInProject: false,
+      ready: false,
+    };
+  }
+
+  const projectDir = path.resolve(path.dirname(up));
+  const projectPluginsRoot = path.join(projectDir, 'Plugins');
+  const projectPluginDir = path.join(projectPluginsRoot, RENDER_BRIDGE_PLUGIN_NAME);
+  const projectPluginUpluginPath = path.join(projectPluginDir, RENDER_BRIDGE_PLUGIN_FILE);
+  const installedInProject = fs.existsSync(projectPluginUpluginPath);
+
+  let enabledInProject = false;
+  let uprojectReadError = '';
+  try {
+    const parsed = readJsonFileSafe(up);
+    if (Array.isArray(parsed?.Plugins)) {
+      const row = parsed.Plugins.find(
+        (entry) => String(entry?.Name || '').trim().toLowerCase() === RENDER_BRIDGE_PLUGIN_NAME.toLowerCase()
+      );
+      enabledInProject = row?.Enabled === true;
+    }
+  } catch (e) {
+    uprojectReadError = String(e?.message || e || '');
+  }
+
+  const packageInfo = resolveRenderBridgePackage(proj?.engineVersion || '');
+  return {
+    ok: true,
+    projectPath: up,
+    projectPluginDir,
+    projectPluginUpluginPath,
+    installedInProject,
+    enabledInProject,
+    ready: installedInProject && enabledInProject,
+    packageAvailable: packageInfo.packageAvailable === true,
+    packageDir: packageInfo.packageDir || '',
+    packageUpluginPath: packageInfo.packageUpluginPath || '',
+    packageVersionTag: packageInfo.packageVersionTag || '',
+    uprojectReadError,
+  };
+}
+
+function enableRenderBridgeInUproject(uprojectPath = '') {
+  const up = path.resolve(String(uprojectPath || '').trim());
+  if (!up) return { ok: false, error: 'missing_uproject' };
+  if (!fs.existsSync(up)) return { ok: false, error: 'missing_uproject' };
+
+  let parsed = null;
+  try {
+    parsed = readJsonFileSafe(up);
+  } catch (e) {
+    return { ok: false, error: 'invalid_uproject_json', message: String(e?.message || e || '') };
+  }
+  if (!parsed || typeof parsed !== 'object') parsed = {};
+  if (!Array.isArray(parsed.Plugins)) parsed.Plugins = [];
+
+  let changed = false;
+  const index = parsed.Plugins.findIndex(
+    (entry) => String(entry?.Name || '').trim().toLowerCase() === RENDER_BRIDGE_PLUGIN_NAME.toLowerCase()
+  );
+  if (index >= 0) {
+    if (parsed.Plugins[index]?.Enabled !== true) {
+      parsed.Plugins[index] = { ...(parsed.Plugins[index] || {}), Name: RENDER_BRIDGE_PLUGIN_NAME, Enabled: true };
+      changed = true;
+    }
+  } else {
+    parsed.Plugins.push({ Name: RENDER_BRIDGE_PLUGIN_NAME, Enabled: true });
+    changed = true;
+  }
+
+  if (changed) {
+    fs.writeFileSync(up, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+  }
+  return { ok: true, changed };
 }
 
 
@@ -194,6 +386,85 @@ async function handleProjectConfigRoutes(req, res, url, ctx = {}) {
       return sendJSON(res, 200, { ok: true, projectId: pid, meta });
     }
     return sendJSON(res, 405, { ok: false, error: 'method not allowed' });
+  }
+
+  // ---- Render Bridge plugin status ----
+  // GET /agent/project-render-bridge-status?projectId=<id|name>
+  if (url.pathname === '/agent/project-render-bridge-status') {
+    if (req.method !== 'GET') {
+      return sendJSON(res, 405, { ok: false, error: 'method not allowed' });
+    }
+    const pj = loadProjects();
+    const q = String(url.searchParams.get('projectId') || '').trim();
+    const pid = findProjectId(pj, q) || '';
+    if (!pid) return sendJSON(res, 400, { ok: false, error: 'unknown_project' });
+    const proj = (pj.projects || []).find((p) => String(p?.id || '').trim() === pid) || null;
+    const status = resolveRenderBridgeProjectStatus(proj || {});
+    if (!status.ok) {
+      return sendJSON(res, 400, { ok: false, error: status.error || 'invalid_project' });
+    }
+    return sendJSON(res, 200, { ok: true, projectId: pid, pluginName: RENDER_BRIDGE_PLUGIN_NAME, ...status });
+  }
+
+  // ---- Render Bridge plugin install/update ----
+  // POST /agent/project-render-bridge-install { projectId }
+  if (url.pathname === '/agent/project-render-bridge-install') {
+    if (req.method !== 'POST') {
+      return sendJSON(res, 405, { ok: false, error: 'method not allowed' });
+    }
+    const body = await parseBody(req);
+    const pj = loadProjects();
+    const pid = findProjectId(pj, body?.projectId || '') || '';
+    if (!pid) return sendJSON(res, 400, { ok: false, error: 'unknown_project' });
+    const proj = (pj.projects || []).find((p) => String(p?.id || '').trim() === pid) || null;
+    const baseStatus = resolveRenderBridgeProjectStatus(proj || {});
+    if (!baseStatus.ok) {
+      return sendJSON(res, 400, { ok: false, error: baseStatus.error || 'invalid_project' });
+    }
+    if (!baseStatus.packageAvailable || !baseStatus.packageDir) {
+      return sendJSON(res, 404, { ok: false, error: 'missing_render_bridge_package' });
+    }
+
+    const projectPluginDir = path.resolve(baseStatus.projectPluginDir || '');
+    const projectPluginsRoot = path.resolve(path.join(path.dirname(baseStatus.projectPath), 'Plugins'));
+    if (!projectPluginDir.startsWith(projectPluginsRoot + path.sep)) {
+      return sendJSON(res, 400, { ok: false, error: 'invalid_plugin_destination' });
+    }
+
+    try {
+      fs.mkdirSync(projectPluginsRoot, { recursive: true });
+      fs.rmSync(projectPluginDir, { recursive: true, force: true });
+      copyDirectoryRecursive(baseStatus.packageDir, projectPluginDir);
+      const enableRes = enableRenderBridgeInUproject(baseStatus.projectPath);
+      if (!enableRes.ok) {
+        return sendJSON(res, 500, { ok: false, error: enableRes.error || 'enable_plugin_failed' });
+      }
+      if (typeof invalidateProjectsCache === 'function') invalidateProjectsCache();
+      const finalStatus = resolveRenderBridgeProjectStatus(proj || {});
+      logLine?.({
+        level: 'success',
+        action: 'project_render_bridge_install',
+        message: 'Plugin UltiUnrealRenderBridge installe/mis a jour',
+        data: {
+          projectId: pid,
+          packageDir: baseStatus.packageDir,
+          projectPluginDir,
+        },
+      });
+      return sendJSON(res, 200, {
+        ok: true,
+        projectId: pid,
+        pluginName: RENDER_BRIDGE_PLUGIN_NAME,
+        restartRequired: true,
+        ...finalStatus,
+      });
+    } catch (e) {
+      return sendJSON(res, 500, {
+        ok: false,
+        error: 'render_bridge_install_failed',
+        message: String(e?.message || e || ''),
+      });
+    }
   }
 
   // ---- Project DefaultEngine.ini : set HTTPServer.Listeners bind address ----

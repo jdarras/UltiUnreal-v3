@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { AuditHistoryCard } from "./tasks/components/AuditHistoryCard";
 import { TaskDeleteDialog } from "./tasks/components/TaskDeleteDialog";
 import { TasksStatusMessages } from "./tasks/components/TasksStatusMessages";
@@ -7,6 +8,7 @@ import { useTasksCardController } from "./tasks/hooks/useTasksCardController";
 
 function TasksCard({
   t,
+  tabKey = 0,
   tasks = [],
   renders = [],
   projectOptions = [],
@@ -38,6 +40,7 @@ function TasksCard({
     editorSectionProps,
     statusMessagesProps,
     deleteDialogProps,
+    closeTaskForm,
   } = useTasksCardController({
     t,
     tasks,
@@ -66,6 +69,10 @@ function TasksCard({
     onLoadProjectUnrealCatalog,
     onFormModeChange,
   });
+
+  useEffect(() => {
+    closeTaskForm?.();
+  }, [tabKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <section className="uu-section">

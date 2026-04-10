@@ -1,78 +1,18 @@
+import { useState } from "react";
 import { formatDate, safeT } from "../../../shared/helpers";
 
-function RenderTransitionsSection({
-  t,
-  transitionsLoading = false,
-  transitionsError = "",
-  detailTransitions = [],
-} = {}) {
-  return (
-    <div className="uu-grid-field mt-12">
-      <label className="uu-label">{safeT(t, "postprod.renders.logs.title", "Logs d'execution")}</label>
-      {transitionsLoading ? (
-        <div className="uu-muted">
-          {safeT(t, "postprod.renders.logs.loading", "Chargement des logs...")}
-        </div>
-      ) : null}
-      {!transitionsLoading && transitionsError ? (
-        <div className="uu-msg warn">{transitionsError}</div>
-      ) : null}
-      {!transitionsLoading && !transitionsError && detailTransitions.length <= 0 ? (
-        <div className="uu-muted">
-          {safeT(t, "postprod.renders.logs.empty", "Aucun log d'execution pour ce rendu.")}
-        </div>
-      ) : null}
-      {!transitionsLoading && !transitionsError && detailTransitions.length > 0 ? (
-        <div
-          className="uu-card"
-          style={{
-            marginTop: "8px",
-            maxHeight: "260px",
-            overflow: "auto",
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-          }}
-        >
-          {detailTransitions.map((entry, index) => {
-            const fromStatus = String(entry?.fromStatus || "").trim();
-            const toStatus = String(entry?.toStatus || "").trim();
-            const byUser = String(entry?.byUsername || "").trim();
-            const statusLabel = fromStatus || toStatus
-              ? `${fromStatus || "-"} → ${toStatus || "-"}`
-              : "-";
-            const comment = String(entry?.comment || "").trim();
-            const key = `render-detail-log-${Number(entry?.id || 0)}-${index}`;
-            return (
-              <div key={key} style={{ borderBottom: "1px solid var(--uu-line, #2d3546)", paddingBottom: "8px" }}>
-                <div className="uu-row" style={{ justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
-                  <strong>{statusLabel}</strong>
-                  <span className="uu-muted">{formatDate(entry?.createdAt)}</span>
-                </div>
-                <div className="uu-muted mt-4">
-                  {safeT(t, "postprod.renders.logs.by", "Par: {value}", {
-                    value: byUser || "-",
-                  })}
-                </div>
-                {comment ? (
-                  <pre
-                    style={{
-                      margin: "6px 0 0 0",
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    {comment}
-                  </pre>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
-  );
+function nowDatetimeLocalValue() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+function toDatetimeLocalValue(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function RenderDetailInfoPanel({
@@ -87,16 +27,47 @@ function RenderDetailInfoPanel({
   rendersLoading = false,
   busyRenderId = 0,
   onApplyReviewStatus = null,
-  transitionsLoading = false,
-  transitionsError = "",
-  detailTransitions = [],
+  onScheduleRender = null,
 } = {}) {
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [scheduleValue, setScheduleValue] = useState("");
+
   if (!render) return null;
   const renderId = Number(render?.id || 0);
   const reviewItems = Array.isArray(reviewFlow) ? reviewFlow : [];
+  const isQueued = String(render?.status || "") === "Queued";
+  const scheduledAt = render?.scheduledAt || null;
+  const minDatetimeLocal = nowDatetimeLocalValue();
+
+  const handleStartEditSchedule = () => {
+    setScheduleValue(toDatetimeLocalValue(scheduledAt));
+    setEditingSchedule(true);
+  };
+
+  const handleSaveSchedule = async () => {
+    if (typeof onScheduleRender !== "function") { setEditingSchedule(false); return; }
+    let resolvedScheduledAt = null;
+    if (scheduleValue) {
+      const d = new Date(scheduleValue);
+      if (!isNaN(d.getTime()) && d.getTime() > Date.now()) {
+        resolvedScheduledAt = d.toISOString();
+      }
+    }
+    await onScheduleRender(renderId, resolvedScheduledAt);
+    setEditingSchedule(false);
+  };
+
+  const handleCancelSchedule = () => {
+    setEditingSchedule(false);
+  };
+
+  const handleScheduleKeyDown = (e) => {
+    if (e.key === "Enter") handleSaveSchedule();
+    if (e.key === "Escape") handleCancelSchedule();
+  };
 
   return (
-    <div className="uu-card">
+    <section className="uu-render-detail-info-block">
       <div className="uu-grid-field">
         <label className="uu-label">{safeT(t, "postprod.renders.table.project", "Projet")}</label>
         <div>{String(render?.projectName || "-")}</div>
@@ -136,6 +107,58 @@ function RenderDetailInfoPanel({
           })}
         </div>
       </div>
+      {isQueued ? (
+        <div className="uu-grid-field mt-8">
+          <label className="uu-label">{safeT(t, "postprod.renders.scheduledAt.label", "Date et heure de début")}</label>
+          <div>
+            {editingSchedule ? (
+              <div className="uu-row" style={{ gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                <input
+                  type="datetime-local"
+                  className="uu-input"
+                  style={{ height: "30px", fontSize: "0.9em" }}
+                  min={minDatetimeLocal}
+                  value={scheduleValue}
+                  autoFocus
+                  disabled={rendersLoading}
+                  onChange={(e) => setScheduleValue(e.target.value)}
+                  onKeyDown={handleScheduleKeyDown}
+                  onBlur={handleSaveSchedule}
+                />
+                <button
+                  className="uu-btn"
+                  type="button"
+                  style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
+                  onMouseDown={(e) => { e.preventDefault(); handleSaveSchedule(); }}
+                >
+                  {safeT(t, "postprod.renders.queue.jobs.save", "Valider")}
+                </button>
+                <button
+                  className="uu-btn-ghost"
+                  type="button"
+                  style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
+                  onMouseDown={(e) => { e.preventDefault(); handleCancelSchedule(); }}
+                >
+                  {safeT(t, "postprod.renders.queue.jobs.cancel", "Annuler")}
+                </button>
+              </div>
+            ) : (
+              <button
+                className="uu-btn-ghost"
+                type="button"
+                style={{ padding: "2px 6px", fontSize: "0.9em", textAlign: "left" }}
+                disabled={!isQueued || typeof onScheduleRender !== "function"}
+                onClick={handleStartEditSchedule}
+              >
+                {scheduledAt
+                  ? formatDate(scheduledAt)
+                  : <span className="uu-muted">{safeT(t, "postprod.renders.queue.immediate", "Immédiat")}</span>
+                }
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
       <div className="uu-grid-field mt-8">
         <label className="uu-label">{safeT(t, "postprod.renders.table.reviewStatus", "Validation")}</label>
         <select
@@ -160,13 +183,7 @@ function RenderDetailInfoPanel({
           ))}
         </select>
       </div>
-      <RenderTransitionsSection
-        t={t}
-        transitionsLoading={transitionsLoading}
-        transitionsError={transitionsError}
-        detailTransitions={detailTransitions}
-      />
-    </div>
+    </section>
   );
 }
 

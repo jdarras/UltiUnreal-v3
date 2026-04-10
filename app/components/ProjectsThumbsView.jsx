@@ -21,12 +21,12 @@ export default function ProjectsThumbsView({
 }) {
   const THRESHOLD = 120;
   const COLS = 4;
-  const ROW_HEIGHT = 300; // approx thumb + actions
+  const ROW_HEIGHT = 308; // base card height (virtualized rows add bottom spacing)
   const usageModeLabel = (value) => {
     const v = String(value || '').trim();
-    if (v === 'live') return t('projects.detail.usageMode.live');
-    if (v === 'auto_render') return t('projects.detail.usageMode.auto_render');
-    if (v === 'live_auto_render') return t('projects.detail.usageMode.live_auto_render');
+    if (v === 'live') return t('projects.thumb.usage.live', 'Live');
+    if (v === 'auto_render') return t('projects.thumb.usage.auto_render', 'Rendu Auto');
+    if (v === 'live_auto_render') return t('projects.thumb.usage.live_auto_render', 'Rendu Auto + Live');
     if (v === 'other') return t('projects.detail.usageMode.other');
     return '—';
   };
@@ -50,7 +50,7 @@ export default function ProjectsThumbsView({
       <div
         key={key}
         className={`uu-card ${showActiveState ? 'is-active' : ''}`}
-        style={{ padding: '8px', gap: '8px', ...activeStyle, ...style }}
+        style={{ padding: '8px', gap: '6px', display: 'flex', flexDirection: 'column', ...activeStyle, ...style }}
       >
         <div
           className="uu-item-title"
@@ -85,72 +85,73 @@ export default function ProjectsThumbsView({
             </span>
           )}
         </div>
-        <div className="uu-col mt-6" style={{ gap: '4px' }}>
+        <div className="uu-col" style={{ gap: '1px', flex: 1, minHeight: 0 }}>
           <div className="uu-row uu-gap-4 uu-align-center">
             <span className="uu-id-tag uu-muted">[{p.id || '----'}]</span>
             <span>{t('projects.detail.labels.engineVersionShort')} {versionEl(p.engineVersion)}</span>
           </div>
-          <div className="uu-row uu-gap-4 uu-align-center uu-muted">
-            <span>{t('projects.detail.labels.usageMode')}:</span>
+          <div className="uu-row uu-gap-4 uu-project-usage-line">
             <span>{usageModeLabel(p.metaUsageMode)}</span>
           </div>
-          <div className="uu-row uu-gap-4 mt-4">
-            {canManageUnrealProjects ? (
-              <>
+          <div className="uu-project-thumb-actions" style={{ marginTop: '4px', paddingTop: '0px' }}>
+            <div className="uu-project-thumb-actions-main">
+              {canManageUnrealProjects ? (
+                <>
+                  <button
+                    type="button"
+                    className="uu-btn"
+                    onClick={() => openDetails(p.id)}
+                  >
+                    {t('projects.actions.edit')}
+                  </button>
+                  {showActivationControls ? (
+                    <button
+                      type="button"
+                      className={`uu-btn ${isActive ? 'prod-toggle-active' : ''}`}
+                      onClick={() => activateOne(p.id)}
+                      disabled={isActive}
+                    >
+                      {isActive ? t('projects.server.card.active') : t('projects.server.card.setActive')}
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
+              {showStartButton && showActivationControls && isActive ? (
+                <button
+                  type="button"
+                  className={`uu-btn ${serverRunning ? 'uu-btn-danger' : 'prod-toggle-active'}`}
+                  onClick={serverRunning ? stopIntegration : startIntegration}
+                  disabled={integrationBusy}
+                  title={t('projects.integration.hint')}
+                >
+                  {integrationBusy
+                    ? '...'
+                    : serverRunning
+                      ? t('launch.buttons.stop')
+                      : t('launch.buttons.start')}
+                </button>
+              ) : null}
+              {showStartButton && !showActivationControls ? (
                 <button
                   type="button"
                   className="uu-btn"
-                  onClick={() => openDetails(p.id)}
+                  onClick={() => startIntegration?.(p.id)}
+                  disabled={integrationBusy}
+                  title={t('projects.integration.hint')}
                 >
-                  {t('projects.actions.edit')}
+                  {integrationBusy ? '...' : t('launch.buttons.start')}
                 </button>
-                {showActivationControls ? (
-                  <button
-                    type="button"
-                    className={`uu-btn ${isActive ? 'prod-toggle-active' : ''}`}
-                    onClick={() => activateOne(p.id)}
-                    disabled={isActive}
-                  >
-                    {isActive ? t('projects.server.card.active') : t('projects.server.card.setActive')}
-                  </button>
-                ) : null}
-              </>
-            ) : null}
-            {showStartButton && showActivationControls && isActive ? (
-              <button
-                type="button"
-                className={`uu-btn ${serverRunning ? 'uu-btn-danger' : 'prod-toggle-active'}`}
-                onClick={serverRunning ? stopIntegration : startIntegration}
-                disabled={integrationBusy}
-                title={t('projects.integration.hint')}
-              >
-                {integrationBusy
-                  ? '...'
-                  : serverRunning
-                    ? t('launch.buttons.stop')
-                    : t('launch.buttons.start')}
-              </button>
-            ) : null}
-            {showStartButton && !showActivationControls ? (
-              <button
-                type="button"
-                className="uu-btn"
-                onClick={() => startIntegration?.(p.id)}
-                disabled={integrationBusy}
-                title={t('projects.integration.hint')}
-              >
-                {integrationBusy ? '...' : t('launch.buttons.start')}
-              </button>
-            ) : null}
-            {canCreateTask && showStartButton ? (
-              <button
-                type="button"
-                className="uu-btn"
-                onClick={() => onCreateTaskFromProject?.(p.id)}
-              >
-                {t('projects.actions.createTask', 'Tâche')}
-              </button>
-            ) : null}
+              ) : null}
+              {canCreateTask ? (
+                <button
+                  type="button"
+                  className="uu-btn"
+                  onClick={() => onCreateTaskFromProject?.(p.id)}
+                >
+                  {t('projects.actions.createTask', 'Tâche')}
+                </button>
+              ) : null}
+            </div>
             {typeof onToggleFavorite === 'function' ? (
               <button
                 type="button"
@@ -160,15 +161,6 @@ export default function ProjectsThumbsView({
                 title={t('resources.detail.labels.favorite') || 'Favoris'}
               >
                 ★
-              </button>
-            ) : null}
-            {canCreateTask && !showStartButton ? (
-              <button
-                type="button"
-                className="uu-btn"
-                onClick={() => onCreateTaskFromProject?.(p.id)}
-              >
-                {t('projects.actions.createTask', 'Tâche')}
               </button>
             ) : null}
           </div>
@@ -207,8 +199,10 @@ export default function ProjectsThumbsView({
                 ...style,
                 display: 'grid',
                 gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`,
-                gap: '16px',
-                padding: '8px 0',
+                columnGap: '12px',
+                alignItems: 'start',
+                padding: '0 0 12px 0',
+                boxSizing: 'border-box',
               }}
             >
               {rowItems}
@@ -224,8 +218,10 @@ export default function ProjectsThumbsView({
       className="uu-thumbs-grid"
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-        gap: '16px'
+        gridTemplateColumns: 'repeat(auto-fill, minmax(252px, 1fr))',
+        columnGap: '12px',
+        rowGap: '12px',
+        alignItems: 'start',
       }}
     >
       {projects.map((p, idx) => renderCard(p, p.id || p.name || idx))}

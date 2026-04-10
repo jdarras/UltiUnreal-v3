@@ -40,6 +40,7 @@ function buildTaskAutoRenderStateByTaskId(renders = []) {
   const out = new Map();
   const list = Array.isArray(renders) ? renders : [];
   for (const render of list) {
+    if (render?.stationIsRemote === true) continue;
     const taskIdRaw = Number(render?.linkedTaskId || 0);
     const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
     if (taskId <= 0) continue;

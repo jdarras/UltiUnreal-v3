@@ -6,8 +6,10 @@ import { createT } from '../i18n';
 import { normalizeThumbnailPath } from '../utils/projects-helpers';
 import useFilteredResources from '../utils/useFilteredResources';
 import ResourceList from '../components/ResourceList.jsx';
+import MultiSelectDropdown from '../components/MultiSelectDropdown.jsx';
 
 const VIEW_STORAGE_KEY = 'uu_resources_view';
+const PAGE_SIZE_STORAGE_KEY = 'uu_resources_page_size';
 const VIEW_OPTIONS = new Set(['thumbs', 'cards']);
 const FAVORITE_FILTER_KEY = 'uu_resources_fav';
 const RESOURCE_FAVORITES_STORAGE_KEY = 'uu_resources_favorites';
@@ -526,90 +528,6 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
     return stripped.charAt(0).toUpperCase() + stripped.slice(1);
   }, [t]);
 
-  function MultiSelectDropdown({ options = [], values = [], onChange, placeholder, popupStyle = {}, showReset = true, style = {} }) {
-    const [open, setOpen] = React.useState(false);
-    const ref = React.useRef(null);
-    React.useEffect(() => {
-      const onClick = (e) => {
-        if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-      };
-      document.addEventListener('mousedown', onClick);
-      return () => document.removeEventListener('mousedown', onClick);
-    }, []);
-    const toggle = (val) => {
-      const set = new Set(Array.isArray(values) ? values : []);
-      if (set.has(val)) set.delete(val);
-      else set.add(val);
-      onChange(Array.from(set));
-    };
-    const title = Array.isArray(values) && values.length
-      ? values.join(', ')
-      : (placeholder || noneLabel);
-    const containerStyle = {
-      position: 'relative',
-      flex: style.flex || (style.width || style.minWidth || style.maxWidth ? '0 0 auto' : '1 1 220px'),
-      minWidth: style.minWidth || '200px',
-      ...style,
-    };
-    return (
-      <div
-        ref={ref}
-        className="uu-multi-select"
-        style={containerStyle}
-      >
-        <button
-          type="button"
-          className="uu-select"
-          onClick={() => setOpen((v) => !v)}
-          style={{ width: '100%', height: '36px', textAlign: 'left', paddingRight: '28px' }}
-        >
-          <span>{title || t('common.selectPlaceholder')}</span>
-          <span style={{ position: 'absolute', right: '10px' }}>▾</span>
-        </button>
-        {open ? (
-          <div
-            className="uu-card"
-            style={{
-              position: 'absolute',
-              zIndex: 30,
-              top: 'calc(100% + 4px)',
-              left: 0,
-              right: 0,
-              maxHeight: '230px',
-              overflowY: 'auto',
-              padding: '8px',
-              gap: '4px',
-              display: 'flex',
-              flexDirection: 'column',
-              ...popupStyle,
-            }}
-          >
-            {showReset ? (
-              <label className="uu-check" style={{ margin: '2px 0', fontWeight: 600 }}>
-                <input
-                  type="checkbox"
-                  checked={Array.isArray(values) ? values.length === 0 : true}
-                  onChange={() => onChange([])}
-                />
-                {noneLabel}
-              </label>
-            ) : null}
-            {options.map((opt) => (
-              <label key={opt.value} className="uu-check" style={{ margin: '2px 0' }}>
-                <input
-                  type="checkbox"
-                  checked={Array.isArray(values) ? values.includes(opt.value) : false}
-                  onChange={() => toggle(opt.value)}
-                />
-                {opt.label}
-              </label>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
   const [items, setItems] = React.useState([]);
   const [meta, setMeta] = React.useState({});
   const [query, setQuery] = React.useState('');
@@ -625,6 +543,15 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
     };
   });
   const [busy, setBusy] = React.useState(false);
+  const [page, setPage] = React.useState(0);
+  const [pageSize, setPageSize] = React.useState(() => {
+    try {
+      const raw = localStorage.getItem(PAGE_SIZE_STORAGE_KEY);
+      const n = Number(raw);
+      if (Number.isFinite(n) && n >= 10) return Math.trunc(n);
+    } catch {}
+    return 25;
+  });
   const [viewMode, setViewMode] = React.useState(() => {
     try {
       const stored = localStorage.getItem(VIEW_STORAGE_KEY);
@@ -878,6 +805,19 @@ const deleteConfirmOkRef = React.useRef(null);
   }, [userUeVersionSet]);
   const isUeCompatible = React.useCallback((item) => !isUeIncompatible(item), [isUeIncompatible]);
   const { filteredResources } = useFilteredResources(items, query, searchAdvanced, quickFilters, { isCompatible: isUeCompatible });
+  React.useEffect(() => {
+    setPage(0);
+    try {
+      localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(pageSize));
+    } catch {}
+  }, [filteredResources.length, pageSize]);
+  const totalResources = filteredResources.length;
+  const totalPages = Math.max(1, Math.ceil(totalResources / pageSize));
+  const currentPage = Math.min(page, totalPages - 1);
+  const pageStart = currentPage * pageSize;
+  const visibleResources = filteredResources.slice(pageStart, pageStart + pageSize);
+  const canPrevPage = currentPage > 0;
+  const canNextPage = currentPage < totalPages - 1;
   const compatLabel = userUeVersions.length > 1 ? 'Versions compatibles' : 'Version compatible';
   const compatDisabled = userUeVersions.length === 0;
 const detailItem = React.useMemo(() => {
@@ -922,8 +862,6 @@ const detailForumUrl = React.useMemo(
   }, [detailList, detailUid]);
   const detailHasNav = detailList.length > 1 && detailIndex >= 0;
 
-  const lastImport = formatDate(meta?.lastImportAt || meta?.lastImportDate, lang);
-  const countLabel = t('resources.count', { count: filteredResources.length });
   const hasMore = !!meta?.lastImportHasMore;
   const importCount = Number(meta?.lastImportFound || items.length || 0);
   const incompleteMsg = hasMore
@@ -2498,7 +2436,7 @@ React.useEffect(() => {
                     options={usageOptions}
                     values={searchAdvanced.usage}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, usage: vals }))}
-                    popupStyle={{ maxHeight: 'none', overflowY: 'visible', flexWrap: 'wrap' }}
+                    noneLabel={noneLabel}
                     style={{ width: '480px', minWidth: '480px', maxWidth: '480px' }}
                   />
                 </div>
@@ -2508,6 +2446,7 @@ React.useEffect(() => {
                     options={styleOptions}
                     values={searchAdvanced.style}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, style: vals }))}
+                    noneLabel={noneLabel}
                     style={{}}
                   />
                 </div>
@@ -2520,6 +2459,7 @@ React.useEffect(() => {
                     options={ambianceOptions}
                     values={searchAdvanced.ambiance}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, ambiance: vals }))}
+                    noneLabel={noneLabel}
                     style={{ width: '480px', minWidth: '480px', maxWidth: '480px' }}
                   />
                 </div>
@@ -2529,6 +2469,7 @@ React.useEffect(() => {
                     options={licenseOptions}
                     values={searchAdvanced.license}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, license: vals }))}
+                    noneLabel={noneLabel}
                     style={{}}
                   />
                 </div>
@@ -2541,7 +2482,7 @@ React.useEffect(() => {
                     options={typeOptions.map((val) => ({ value: val, label: val }))}
                     values={searchAdvanced.type}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, type: vals }))}
-                    popupStyle={{ maxHeight: 'none', overflowY: 'visible', flexWrap: 'wrap' }}
+                    noneLabel={noneLabel}
                     style={{ width: '480px', minWidth: '480px', maxWidth: '480px' }}
                   />
                 </div>
@@ -2551,6 +2492,7 @@ React.useEffect(() => {
                     options={distributionOptions.map((val) => ({ value: val, label: val }))}
                     values={searchAdvanced.distribution}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, distribution: vals }))}
+                    noneLabel={noneLabel}
                   />
                 </div>
               </div>
@@ -2562,6 +2504,7 @@ React.useEffect(() => {
                     options={ueOptions.map((val) => ({ value: val, label: val }))}
                     values={searchAdvanced.ueVersion}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, ueVersion: vals }))}
+                    noneLabel={noneLabel}
                     style={{ width: '480px', minWidth: '480px', maxWidth: '480px' }}
                   />
                   </div>
@@ -2688,19 +2631,53 @@ React.useEffect(() => {
       ) : null}
 
       <div className={`uu-section mt-16 ${viewMode === 'thumbs' ? 'resources-thumbs-section' : ''}`}>
-        <div className="uu-row uu-align-center uu-gap-8" style={{ marginBottom: '8px' }}>
-          <div className="uu-muted">{countLabel}</div>
-          {lastImport ? (
-            <div className="uu-muted">{t('resources.lastImport', { date: lastImport })}</div>
-          ) : null}
-        </div>
+        {filteredResources.length > 0 ? (
+          <div className="uu-row uu-gap-12 uu-align-center" style={{ marginBottom: '8px' }}>
+            <div className="uu-row uu-gap-6 uu-align-center">
+              {canPrevPage ? (
+                <button
+                  type="button"
+                  className="uu-btn"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  aria-label={t('projects.pagination.prevAria')}
+                >
+                  ‹
+                </button>
+              ) : null}
+              <span className="uu-muted">
+                {`Page ${currentPage + 1}/${totalPages}`}
+              </span>
+              {canNextPage ? (
+                <button
+                  type="button"
+                  className="uu-btn"
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  aria-label={t('projects.pagination.nextAria')}
+                >
+                  ›
+                </button>
+              ) : null}
+              <select
+                className="uu-select"
+                value={pageSize}
+                onChange={(e) => setPageSize(Math.max(10, Number(e.target.value) || 25))}
+                style={{ width: '80px' }}
+                aria-label={t('projects.pagination.pageSizeAria')}
+              >
+                {[25, 50, 100, 200].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ) : null}
         {filteredResources.length === 0 ? (
           <div className="uu-muted mt-8">
             {busy ? t('common.loading') : t('resources.empty')}
           </div>
         ) : (
           <ResourceList
-            items={filteredResources}
+            items={visibleResources}
             viewMode={viewMode}
             onOpenDetail={openDetail}
             onOpenExternal={handleOpen}

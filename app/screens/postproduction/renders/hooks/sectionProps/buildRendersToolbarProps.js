@@ -12,8 +12,10 @@ const DIRECT_KEYS = [
   "viewMode",
   "searchExpanded",
   "projectFilter",
+  "stationFilter",
   "reviewFilter",
   "projectFilterOptions",
+  "stationFilterOptions",
 ];
 
 const ALIASES = {
@@ -24,6 +26,7 @@ const ALIASES = {
   onToggleFavoriteOnly: "toggleFavoriteOnly",
   onSetViewMode: "setViewMode",
   onSetProjectFilter: "setProjectFilter",
+  onSetStationFilter: "setStationFilter",
   onSetReviewFilter: "setReviewFilter",
 };
 

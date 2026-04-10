@@ -8,7 +8,7 @@ import {
 export const DEFAULT_AUTO_RENDER_STATE = Object.freeze({
   expectedRenderCountInput: "1",
   autoRenderProjectRef: "",
-  autoRenderWorkerKey: "",
+  autoRenderWorkerKey: "auto",
   autoRenderFormId: "",
   autoRenderTemplateId: "",
   autoRenderFormValues: {},

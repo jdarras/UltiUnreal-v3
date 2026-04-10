@@ -14,6 +14,8 @@ import {
   postStop,
   postCommon,
   getOnlineMap,
+  getProjectRenderBridgeStatus,
+  installProjectRenderBridge,
 } from '../utils/agent';
 import { createT } from '../i18n';
 import {
@@ -41,6 +43,7 @@ import ProjectsCardsView from '../components/ProjectsCardsView';
 import ProjectForm from '../components/ProjectForm';
 import ProjectsThumbsView from '../components/ProjectsThumbsView';
 import HttpBindBlock from '../components/HttpBindBlock';
+import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import useFilteredProjects from '../utils/useFilteredProjects';
 import { readIdentity } from '../utils/identity';
 import { useSnapshots } from './hooks/useSnapshots';
@@ -149,6 +152,7 @@ export default function ProjectsScreen({
   canBypassPadForTasks = false,
   showProjectActivation = true,
   onCreateTaskFromProject = null,
+  appMode = '',
 }) {
   // canEditProjectFields defaults to canManageUnrealProjects when not explicitly set
   const canEditFields = canEditProjectFields !== null ? canEditProjectFields : canManageUnrealProjects;
@@ -167,6 +171,8 @@ export default function ProjectsScreen({
 
   const lang = String(id.lang || 'fr').trim();
   const t = React.useMemo(() => createT(lang), [lang]);
+  const currentMode = String(appMode || id.mode || '').trim().toLowerCase();
+  const isPostprodMode = currentMode === 'postprod';
   const noticeApi = React.useContext(NoticeContext);
   // Serveur
   const [projects, setProjects] = React.useState([]);            // [{id,name,uproject}]
@@ -224,6 +230,11 @@ export default function ProjectsScreen({
   const [projectVersionBusy, setProjectVersionBusy] = React.useState(false);
   const [indexationMsg, setIndexationMsg] = React.useState('');
   const [indexationMsgType, setIndexationMsgType] = React.useState(''); // ok | error
+  const [renderBridgeStatus, setRenderBridgeStatus] = React.useState(null);
+  const [renderBridgeBusy, setRenderBridgeBusy] = React.useState(false);
+  const [renderBridgeMsg, setRenderBridgeMsg] = React.useState('');
+  const [renderBridgeMsgType, setRenderBridgeMsgType] = React.useState(''); // ok | error
+  const renderBridgeAutoInstallAttemptRef = React.useRef(new Set());
   const [intervenantsMsg, setIntervenantsMsg] = React.useState('');
   const [intervenantsMsgType, setIntervenantsMsgType] = React.useState(''); // ok | error
   const detailNoteRef = React.useRef(null);
@@ -269,6 +280,7 @@ export default function ProjectsScreen({
       detailMsg ? { text: detailMsg, type: 'error' } : null,
       projectVersionMsg ? { text: projectVersionMsg, type: projectVersionMsgType } : null,
       indexationMsg ? { text: indexationMsg, type: indexationMsgType } : null,
+      renderBridgeMsg ? { text: renderBridgeMsg, type: renderBridgeMsgType } : null,
       intervenantsMsg ? { text: intervenantsMsg, type: intervenantsMsgType } : null,
       snapshotMsg ? { text: snapshotMsg, type: snapshotMsgType } : null,
       mapsMsg ? { text: mapsMsg, type: mapsMsgType } : null,
@@ -289,6 +301,8 @@ export default function ProjectsScreen({
     projectVersionMsgType,
     indexationMsg,
     indexationMsgType,
+    renderBridgeMsg,
+    renderBridgeMsgType,
     intervenantsMsg,
     intervenantsMsgType,
     snapshotMsg,
@@ -499,6 +513,7 @@ export default function ProjectsScreen({
     status: [],
     type: [],
     usageMode: [],
+    engineVersion: [],
     director: '',
     technician: '',
     operator: '',
@@ -520,6 +535,65 @@ export default function ProjectsScreen({
     if (canBypassPadForTasks) return status === 'PAD' || status === 'Test';
     return status === 'PAD';
   }, [canBypassPadForTasks]);
+  const isRenderBridgeUsage = React.useCallback((usageMode) => {
+    const mode = String(usageMode || '').trim();
+    return mode === 'auto_render' || mode === 'live_auto_render';
+  }, []);
+  const loadRenderBridgeStatus = React.useCallback(async (projectId) => {
+    const pid = String(projectId || '').trim();
+    if (!pid) {
+      setRenderBridgeStatus(null);
+      return { ok: false, error: 'missing projectId' };
+    }
+    setRenderBridgeBusy(true);
+    setRenderBridgeMsg('');
+    setRenderBridgeMsgType('');
+    try {
+      const res = await getProjectRenderBridgeStatus(pid);
+      if (res && res.ok) {
+        setRenderBridgeStatus(res);
+        return res;
+      }
+      setRenderBridgeStatus(null);
+      setRenderBridgeMsg(t('projects.detail.renderBridge.statusError'));
+      setRenderBridgeMsgType('error');
+      return res || { ok: false, error: 'status_failed' };
+    } catch {
+      setRenderBridgeStatus(null);
+      setRenderBridgeMsg(t('projects.detail.renderBridge.statusError'));
+      setRenderBridgeMsgType('error');
+      return { ok: false, error: 'status_failed' };
+    } finally {
+      setRenderBridgeBusy(false);
+    }
+  }, [t]);
+  const installRenderBridgeForDetail = React.useCallback(async (projectIdOverride = '', options = {}) => {
+    const pid = String(projectIdOverride || detailId || '').trim();
+    const silentSuccess = options?.silentSuccess === true;
+    if (!pid) return;
+    setRenderBridgeBusy(true);
+    setRenderBridgeMsg('');
+    setRenderBridgeMsgType('');
+    try {
+      const res = await installProjectRenderBridge(pid);
+      if (res && res.ok) {
+        setRenderBridgeStatus(res);
+        if (!silentSuccess) {
+          setRenderBridgeMsg(t('projects.detail.renderBridge.installOk'));
+          setRenderBridgeMsgType('ok');
+        }
+      } else {
+        setRenderBridgeMsg(t('projects.detail.renderBridge.installError'));
+        setRenderBridgeMsgType('error');
+      }
+    } catch {
+      setRenderBridgeMsg(t('projects.detail.renderBridge.installError'));
+      setRenderBridgeMsgType('error');
+    } finally {
+      setRenderBridgeBusy(false);
+      await loadRenderBridgeStatus(pid);
+    }
+  }, [detailId, loadRenderBridgeStatus, t]);
   const createTaskFromProject = React.useCallback((projectRef) => {
     if (!canCreateTaskFromProject) return;
     const ref = String(projectRef || '').trim();
@@ -533,79 +607,6 @@ export default function ProjectsScreen({
     const base = stripped || 'Aucun';
     return base.charAt(0).toUpperCase() + base.slice(1);
   }, [t]);
-
-  function MultiSelectDropdown({ options = [], values = [], onChange, placeholder, style }) {
-    const [open, setOpen] = React.useState(false);
-    const ref = React.useRef(null);
-    React.useEffect(() => {
-      const onClick = (e) => {
-        if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-      };
-      document.addEventListener('mousedown', onClick);
-      return () => document.removeEventListener('mousedown', onClick);
-    }, []);
-    const toggle = (val) => {
-      const set = new Set(Array.isArray(values) ? values : []);
-      if (set.has(val)) set.delete(val);
-      else set.add(val);
-      onChange(Array.from(set));
-    };
-    const title = Array.isArray(values) && values.length
-      ? values.join(', ')
-      : (placeholder || noneLabel);
-    return (
-      <div
-        ref={ref}
-        className="uu-multi-select"
-        style={{ position: 'relative', flex: '1 1 220px', minWidth: '200px', ...(style || {}) }}
-      >
-        <button
-          type="button"
-          className="uu-select"
-          onClick={() => setOpen((v) => !v)}
-          style={{ width: '100%', height: '36px', textAlign: 'left', paddingRight: '28px' }}
-        >
-          <span>{title}</span>
-          <span style={{ position: 'absolute', right: '10px' }}>▾</span>
-        </button>
-        {open ? (
-          <div
-            className="uu-card"
-            style={{
-              position: 'absolute',
-              zIndex: 30,
-              top: 'calc(100% + 4px)',
-              left: 0,
-              right: 0,
-              padding: '8px',
-              gap: '4px',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-              <label className="uu-check" style={{ margin: '2px 0', fontWeight: 600 }}>
-                <input
-                  type="checkbox"
-                  checked={Array.isArray(values) ? values.length === 0 : true}
-                  onChange={() => onChange([])}
-                />
-                {noneLabel}
-              </label>
-            {options.map((opt) => (
-              <label key={opt.value} className="uu-check" style={{ margin: '2px 0' }}>
-                <input
-                  type="checkbox"
-                  checked={Array.isArray(values) ? values.includes(opt.value) : false}
-                  onChange={() => toggle(opt.value)}
-                />
-                {opt.label}
-              </label>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
 
   const { filteredProjects } = useFilteredProjects(
     projects,
@@ -631,6 +632,18 @@ export default function ProjectsScreen({
     () => collectReferentOptions(projects, 'journalist'),
     [projects]
   );
+  const engineVersionOptions = React.useMemo(() => {
+    const known = (Array.isArray(knownVersions) ? knownVersions : [])
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
+    const fromProjects = (Array.isArray(projects) ? projects : [])
+      .map((p) => String(p?.engineVersion || '').trim())
+      .filter(Boolean);
+    const merged = Array.from(new Set([...known, ...fromProjects]));
+    return merged
+      .sort((a, b) => a.localeCompare(b, 'fr', { numeric: true, sensitivity: 'base' }))
+      .map((v) => ({ value: v, label: v }));
+  }, [knownVersions, projects]);
   const detailKeywordsList = React.useMemo(
     () => normalizeKeywordsList(detailMeta?.keywords),
     [detailMeta?.keywords]
@@ -721,7 +734,6 @@ export default function ProjectsScreen({
   const currentPage = Math.min(page, totalPages - 1);
   const pageStart = currentPage * pageSize;
   const visibleProjects = projectsWithActive.slice(pageStart, pageStart + pageSize);
-  const pageEnd = Math.min(totalProjects, pageStart + visibleProjects.length);
   const canPrevPage = currentPage > 0;
   const canNextPage = currentPage < totalPages - 1;
 
@@ -867,6 +879,10 @@ export default function ProjectsScreen({
     resetHttpBind();
     setIndexationMsg('');
     setIndexationMsgType('');
+    setRenderBridgeStatus(null);
+    setRenderBridgeMsg('');
+    setRenderBridgeMsgType('');
+    setRenderBridgeBusy(false);
     setIntervenantsMsg('');
     setIntervenantsMsgType('');
     if (projectVersionTimer.current) clearTimeout(projectVersionTimer.current);
@@ -951,6 +967,40 @@ export default function ProjectsScreen({
     const pv = String(detailInsights?.projectVersion ?? detailMeta?.fileVersion ?? '').trim();
     setProjectVersion(pv);
   }, [detailId, detailIsNew, detailInsights?.projectVersion, detailMeta?.fileVersion]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const pid = String(detailId || '').trim();
+    const usageMode = String(detailMeta?.usageMode || '').trim();
+    if (!pid || detailIsNew || !isRenderBridgeUsage(usageMode)) {
+      setRenderBridgeStatus(null);
+      setRenderBridgeMsg('');
+      setRenderBridgeMsgType('');
+      setRenderBridgeBusy(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    (async () => {
+      const res = await loadRenderBridgeStatus(pid);
+      if (cancelled) return;
+      if (res && res.ok === false) {
+        setRenderBridgeStatus(null);
+        return;
+      }
+      // Auto-install/update once per project open to keep the bridge transparent.
+      const isReady = res?.ready === true;
+      const packageAvailable = res?.packageAvailable === true;
+      const alreadyAttempted = renderBridgeAutoInstallAttemptRef.current.has(pid);
+      if (!isReady && packageAvailable && !alreadyAttempted) {
+        renderBridgeAutoInstallAttemptRef.current.add(pid);
+        await installRenderBridgeForDetail(pid, { silentSuccess: true });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [detailId, detailIsNew, detailMeta?.usageMode, isRenderBridgeUsage, loadRenderBridgeStatus, installRenderBridgeForDetail]);
 
   // Fermer la page détail avec Échap
   React.useEffect(() => {
@@ -1215,8 +1265,7 @@ export default function ProjectsScreen({
       setIntervenantsMsgType('');
     }
     const metaSnapshot = nextMeta || detailMetaRef.current || detailMeta || {};
-    const noteSnapshot = detailNoteDirtyRef.current ? detailSavedNoteRef.current : metaSnapshot.note;
-    const metaForSave = noteSnapshot !== undefined ? { ...metaSnapshot, note: noteSnapshot } : metaSnapshot;
+    const metaForSave = { ...metaSnapshot };
     const pathSnapshot = overrides.path !== undefined ? overrides.path : detailPath;
     const wrcSnapshot = overrides.wrc !== undefined ? overrides.wrc : detailWrcName;
     const pvSnapshot = overrides.pv !== undefined ? overrides.pv : projectVersion;
@@ -1564,6 +1613,10 @@ export default function ProjectsScreen({
     resetHttpBind();
     setIndexationMsg('');
     setIndexationMsgType('');
+    setRenderBridgeStatus(null);
+    setRenderBridgeMsg('');
+    setRenderBridgeMsgType('');
+    setRenderBridgeBusy(false);
     setIntervenantsMsg('');
     setIntervenantsMsgType('');
     if (projectVersionTimer.current) clearTimeout(projectVersionTimer.current);
@@ -2082,6 +2135,20 @@ async function activateOne(projectKey) {
     const wrcPresetsList = Array.isArray(detailInsights?.wrcPresets?.list)
       ? detailInsights.wrcPresets.list
       : [];
+    const renderBridgeEligible = isPostprodMode && isRenderBridgeUsage(meta?.usageMode);
+    const renderBridgeInstalled = renderBridgeStatus?.installedInProject === true;
+    const renderBridgeEnabled = renderBridgeStatus?.enabledInProject === true;
+    const renderBridgeReady = renderBridgeStatus?.ready === true;
+    const renderBridgePackageAvailable = renderBridgeStatus?.packageAvailable === true;
+    const renderBridgeStateLabel = renderBridgeReady
+      ? t('projects.detail.renderBridge.state.ready')
+      : (
+          renderBridgeInstalled
+            ? (renderBridgeEnabled
+              ? t('projects.detail.renderBridge.state.ready')
+              : t('projects.detail.renderBridge.state.notEnabled'))
+            : t('projects.detail.renderBridge.state.notInstalled')
+        );
     const hasWrcPresets = wrcPresetsList.length > 0;
     const setupUnreal = (detailInsights && typeof detailInsights === 'object') ? detailInsights.setupUnreal : null;
     const suRenderer = Array.isArray(setupUnreal?.renderer) ? setupUnreal.renderer : [];
@@ -2165,7 +2232,18 @@ async function activateOne(projectKey) {
           {detailLoading ? (
             <div className="uu-muted">{t('projects.detail.loading')}</div>
           ) : (
-            <fieldset disabled={!canEditFields} style={{ border: 'none', padding: 0, margin: 0 }}>
+            <fieldset
+              className="uu-project-detail-stack"
+              disabled={!canEditFields}
+              style={{
+                border: 'none',
+                padding: 0,
+                margin: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}
+            >
               {/* Bloc : Chemin (sans titre) */}
               <div className="uu-card">
                 <div className="uu-row wrap">
@@ -2373,6 +2451,67 @@ async function activateOne(projectKey) {
                   </div>
                 </div>
               </div>
+
+              {/* Bloc : Plugin Rendu (Bridge) */}
+              {!detailIsNew && renderBridgeEligible ? (
+                <div className="uu-card">
+                  <div className="uu-row uu-align-center uu-gap-8" style={{ marginBottom: '12px' }}>
+                    <strong className="uu-block-title">{t('projects.detail.blocks.renderBridge')}</strong>
+                  </div>
+                  <div className="uu-col uu-gap-10">
+                    <div className="uu-row wrap uu-align-center uu-gap-8">
+                      <div className="uu-label w-160">{t('projects.detail.renderBridge.stateLabel')}</div>
+                      <div
+                        className="uu-value"
+                        style={{ color: renderBridgeReady ? 'var(--uu-ok)' : 'var(--uu-color-text)' }}
+                      >
+                        {renderBridgeStateLabel}
+                      </div>
+                    </div>
+                    {!renderBridgePackageAvailable ? (
+                      <div className="uu-row wrap uu-align-center uu-gap-8">
+                        <div className="uu-label w-160">{t('projects.detail.renderBridge.packageLabel')}</div>
+                        <div className="uu-value" style={{ color: 'var(--uu-error)' }}>
+                          {t('projects.detail.renderBridge.compatibilityHint')}
+                        </div>
+                      </div>
+                    ) : null}
+                    {renderBridgeStatus?.packageDir ? (
+                      <div className="uu-row wrap uu-align-center uu-gap-8">
+                        <div className="uu-label w-160">{t('projects.detail.renderBridge.packagePathLabel')}</div>
+                        <div className="uu-value uu-muted" style={{ wordBreak: 'break-all' }}>
+                          {String(renderBridgeStatus.packageDir || '')}
+                        </div>
+                      </div>
+                    ) : null}
+                    {!renderBridgeReady ? (
+                      <div className="uu-row wrap uu-align-center uu-gap-8">
+                        <div className="uu-label w-160">{t('projects.detail.renderBridge.actionsLabel')}</div>
+                        <div className="uu-row uu-gap-8">
+                          <button
+                            type="button"
+                            className="uu-btn"
+                            disabled={renderBridgeBusy}
+                            onClick={() => { loadRenderBridgeStatus(detailId); }}
+                          >
+                            {t('projects.detail.renderBridge.refresh')}
+                          </button>
+                          <button
+                            type="button"
+                            className="uu-btn"
+                            disabled={renderBridgeBusy || !renderBridgePackageAvailable}
+                            onClick={() => { installRenderBridgeForDetail(); }}
+                          >
+                            {renderBridgeInstalled
+                              ? t('projects.detail.renderBridge.update')
+                              : t('projects.detail.renderBridge.install')}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Bloc : Maps (si info) */}
               {hasMaps ? (
@@ -3221,6 +3360,7 @@ async function activateOne(projectKey) {
                       values={searchAdvanced.status}
                       onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, status: vals }))}
                       placeholder={noneLabel}
+                      noneLabel={noneLabel}
                       style={{ width: '500px', minWidth: '500px', maxWidth: '500px' }}
                     />
                   </div>
@@ -3240,6 +3380,7 @@ async function activateOne(projectKey) {
                       values={searchAdvanced.type}
                       onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, type: vals }))}
                       placeholder={noneLabel}
+                      noneLabel={noneLabel}
                       style={{ width: '520px', minWidth: '520px', maxWidth: '520px' }}
                     />
                   </div>
@@ -3258,7 +3399,19 @@ async function activateOne(projectKey) {
                       values={searchAdvanced.usageMode}
                       onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, usageMode: vals }))}
                       placeholder={noneLabel}
+                      noneLabel={noneLabel}
                       style={{ width: '500px', minWidth: '500px', maxWidth: '500px' }}
+                    />
+                  </div>
+                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
+                    <label className="uu-label" style={{ width: '90px' }}>{t('projects.table.engineVersion')}</label>
+                    <MultiSelectDropdown
+                      options={engineVersionOptions}
+                      values={searchAdvanced.engineVersion}
+                      onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, engineVersion: vals }))}
+                      placeholder={noneLabel}
+                      noneLabel={noneLabel}
+                      style={{ width: '520px', minWidth: '520px', maxWidth: '520px' }}
                     />
                   </div>
                 </div>
@@ -3358,31 +3511,30 @@ async function activateOne(projectKey) {
 
             {projectsWithActive.length > 0 && (
               <div className="uu-row uu-gap-12 uu-align-center" style={{ margin: '12px 0' }}>
-                <div className="uu-muted">
-                  {`${Math.min(pageStart + 1, totalProjects)}-${pageEnd} / ${totalProjects}`}
-                </div>
                 <div className="uu-row uu-gap-6 uu-align-center">
-                  <button
-                    type="button"
-                    className="uu-btn"
-                    onClick={() => setPage((p) => Math.max(0, p - 1))}
-                    disabled={!canPrevPage}
-                    aria-label={t('projects.pagination.prevAria')}
-                  >
-                    ‹
-                  </button>
+                  {canPrevPage && (
+                    <button
+                      type="button"
+                      className="uu-btn"
+                      onClick={() => setPage((p) => Math.max(0, p - 1))}
+                      aria-label={t('projects.pagination.prevAria')}
+                    >
+                      ‹
+                    </button>
+                  )}
                   <span className="uu-muted">
                     {`Page ${currentPage + 1}/${totalPages}`}
                   </span>
-                  <button
-                    type="button"
-                    className="uu-btn"
-                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                    disabled={!canNextPage}
-                    aria-label={t('projects.pagination.nextAria')}
-                  >
-                    ›
-                  </button>
+                  {canNextPage && (
+                    <button
+                      type="button"
+                      className="uu-btn"
+                      onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                      aria-label={t('projects.pagination.nextAria')}
+                    >
+                      ›
+                    </button>
+                  )}
                   <select
                     className="uu-select"
                     value={pageSize}
@@ -3527,5 +3679,3 @@ async function activateOne(projectKey) {
 }
 
 // MultiSelectDropdown moved to component file
-
-

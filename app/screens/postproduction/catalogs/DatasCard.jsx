@@ -4,6 +4,7 @@ import { RenderFormsEditorCard } from "./RenderFormsEditorCard";
 
 function DatasCard({
   t,
+  tabKey = 0,
   projects = [],
   projectsLoading = false,
   projectsError = "",
@@ -56,6 +57,7 @@ function DatasCard({
     <section className="uu-section">
       <RenderFormsEditorCard
         t={t}
+        tabKey={tabKey}
         selectedProjectRef={selectedProjectRef}
         projectOptions={normalizedProjects}
         onSelectProjectRef={(value) => setSelectedProjectRef(String(value || ""))}

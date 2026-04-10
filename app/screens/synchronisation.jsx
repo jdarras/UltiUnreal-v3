@@ -37,12 +37,67 @@ function normalizeKey(rel) {
   return normalizeRel(rel).toLowerCase();
 }
 
+function normalizeRenderScopeProjects(res) {
+  const rows = Array.isArray(res?.projects) ? res.projects : [];
+  return rows.map((row) => {
+    const addedList = Array.isArray(row?.effectiveAdded)
+      ? row.effectiveAdded
+      : (Array.isArray(row?.added) ? row.added : []);
+    const modifiedList = Array.isArray(row?.effectiveModified)
+      ? row.effectiveModified
+      : (Array.isArray(row?.modified) ? row.modified : []);
+    const removedList = Array.isArray(row?.effectiveRemoved)
+      ? row.effectiveRemoved
+      : (Array.isArray(row?.removed) ? row.removed : []);
+    return {
+      projectId: String(row?.projectId || '').trim(),
+      projectName: String(row?.projectName || row?.projectId || 'Projet').trim(),
+      status: String(row?.status || '').trim(),
+      sourceHostName: String(row?.sourceHostName || '').trim(),
+      sourceHostIp: String(row?.sourceHostIp || '').trim(),
+      sourceDir: String(row?.sourceDir || '').trim(),
+      destDir: String(row?.destDir || '').trim(),
+      message: String(row?.message || '').trim(),
+      addedCount: addedList.length,
+      modifiedCount: modifiedList.length,
+      removedCount: removedList.length,
+      diffCount:
+        typeof row?.diffCount === 'number'
+          ? row.diffCount
+          : (addedList.length + modifiedList.length + removedList.length),
+    };
+  });
+}
+
+function normalizeRenderCopyProjects(res) {
+  const rows = Array.isArray(res?.projects) ? res.projects : [];
+  return rows.map((row) => ({
+    projectId: String(row?.projectId || '').trim(),
+    projectName: String(row?.projectName || row?.projectId || 'Projet').trim(),
+    status: String(row?.status || '').trim(),
+    message: String(row?.message || '').trim(),
+    copied: Number(row?.copied || 0),
+    deleted: Number(row?.deleted || 0),
+    copyErrors: Number(row?.copyErrors || 0),
+    deleteErrors: Number(row?.deleteErrors || 0),
+    addedCount: Number(row?.addedCount || 0),
+    modifiedCount: Number(row?.modifiedCount || 0),
+    removedCount: Number(row?.removedCount || 0),
+  }));
+}
+
 export default function SynchronisationScreen() {
   const identity = readIdentity();
   const role = identity?.role || 'server';
+  const appMode = String(identity?.mode || '').trim().toLowerCase();
+  const isRenderMode = appMode === 'postprod' || appMode === 'render';
   const localIp = String(identity?.localIp || '').trim();
   const lang = identity?.lang || 'fr';
   const t = React.useMemo(() => createT(lang), [lang]);
+  const syncScopeOptions = React.useMemo(
+    () => (isRenderMode ? { scope: 'render_auto', direction: 'auto' } : null),
+    [isRenderMode]
+  );
   const LS_SYNC_ROOT = 'uu_client_syncRoot';
 
   const readCachedRoot = React.useCallback(() => {
@@ -101,6 +156,7 @@ export default function SynchronisationScreen() {
 
   const [syncStatus, setSyncStatus] = React.useState({});
   const [syncDetails, setSyncDetails] = React.useState({});
+  const [syncCopyProjects, setSyncCopyProjects] = React.useState({});
   const [serverAutoCheckDone, setServerAutoCheckDone] = React.useState(false);
   const [quietMode, setQuietMode] = React.useState(false);
 
@@ -567,7 +623,7 @@ export default function SynchronisationScreen() {
         text: t('sync.client.msg.testRunning'),
       });
 
-      const res = await checkSync(localIp);
+      const res = await checkSync(localIp, syncScopeOptions || undefined);
 
       if (
         res &&
@@ -651,7 +707,7 @@ export default function SynchronisationScreen() {
     setSyncDetails((prev) => ({ ...prev, [ip]: '' }));
     setSyncDiffs((prev) => ({
       ...prev,
-      [ip]: { added: [], modified: [], removed: [] },
+      [ip]: { added: [], modified: [], removed: [], renderProjects: [] },
     }));
     setSyncSelection((prev) => ({
       ...prev,
@@ -659,9 +715,14 @@ export default function SynchronisationScreen() {
     }));
 
     try {
+      const checkPromise = isRenderMode
+        ? checkSync(ip, syncScopeOptions || undefined)
+        : checkSync(ip);
       const [res, ignoredList] = await Promise.all([
-        checkSync(ip),
-        getSyncIgnoreForHost(ip).catch(() => []),
+        checkPromise,
+        isRenderMode
+          ? Promise.resolve([])
+          : getSyncIgnoreForHost(ip).catch(() => []),
       ]);
       const status = res && (res.status || res.state);
       const diffEffective =
@@ -676,17 +737,22 @@ export default function SynchronisationScreen() {
           : typeof res?.diffCount === 'number'
           ? res.diffCount
           : null;
-      const added = Array.isArray(res?.added) ? res.added : [];
-      const modified = Array.isArray(res?.modified)
-        ? res.modified
+      const renderProjects = isRenderMode
+        ? normalizeRenderScopeProjects(res)
         : [];
-      const removed = Array.isArray(res?.removed)
-        ? res.removed
-        : [];
+      const added = isRenderMode
+        ? []
+        : (Array.isArray(res?.added) ? res.added : []);
+      const modified = isRenderMode
+        ? []
+        : (Array.isArray(res?.modified) ? res.modified : []);
+      const removed = isRenderMode
+        ? []
+        : (Array.isArray(res?.removed) ? res.removed : []);
 
       setSyncDiffs((prev) => ({
         ...prev,
-        [ip]: { added, modified, removed },
+        [ip]: { added, modified, removed, renderProjects },
       }));
 
       const ignoreSet = new Set(
@@ -699,7 +765,9 @@ export default function SynchronisationScreen() {
         list.reduce(
           (m, rel) => ({
             ...m,
-            [rel]: ignoreSet.has(normalizeKey(rel)) ? false : true,
+            [rel]: isRenderMode
+              ? true
+              : (ignoreSet.has(normalizeKey(rel)) ? false : true),
           }),
           {}
         );
@@ -727,7 +795,9 @@ export default function SynchronisationScreen() {
             : t('sync.server.msg.checkResult');
         setSyncDetails((prev) => ({
           ...prev,
-          [ip]: diffText,
+          [ip]: isRenderMode && Number(res?.projectCount || 0) > 0
+            ? `${diffText} (${Number(res?.projectCount || 0)} projet(s))`
+            : diffText,
         }));
       } else if (status === 'desync') {
         setSyncStatus((prev) => ({ ...prev, [ip]: 'desync' }));
@@ -740,7 +810,9 @@ export default function SynchronisationScreen() {
             : t('sync.server.msg.checkDesyncGeneric');
         setSyncDetails((prev) => ({
           ...prev,
-          [ip]: diffText,
+          [ip]: isRenderMode && Number(res?.projectCount || 0) > 0
+            ? `${diffText} (${Number(res?.projectCount || 0)} projet(s))`
+            : diffText,
         }));
       } else if (status === 'no_root') {
         setSyncStatus((prev) => ({ ...prev, [ip]: 'no_root' }));
@@ -749,6 +821,24 @@ export default function SynchronisationScreen() {
           [ip]:
             res?.message ||
             t('sync.server.msg.checkNoRoot'),
+        }));
+      } else if (status === 'no_projects') {
+        setSyncStatus((prev) => ({ ...prev, [ip]: 'in_sync' }));
+        setSyncDetails((prev) => ({
+          ...prev,
+          [ip]: res?.message || 'Aucun projet en rendu automatique.',
+        }));
+      } else if (status === 'no_source') {
+        setSyncStatus((prev) => ({ ...prev, [ip]: 'desync' }));
+        setSyncDetails((prev) => ({
+          ...prev,
+          [ip]: res?.message || 'Source de verite absente pour au moins un projet.',
+        }));
+      } else if (status === 'error') {
+        setSyncStatus((prev) => ({ ...prev, [ip]: 'error' }));
+        setSyncDetails((prev) => ({
+          ...prev,
+          [ip]: res?.message || t('sync.server.msg.checkErrorGeneric'),
         }));
       } else {
         setSyncStatus((prev) => ({ ...prev, [ip]: 'unknown' }));
@@ -769,7 +859,7 @@ export default function SynchronisationScreen() {
       }));
       setSyncDiffs((prev) => ({
         ...prev,
-        [ip]: { added: [], modified: [], removed: [] },
+        [ip]: { added: [], modified: [], removed: [], renderProjects: [] },
       }));
       setSyncSelection((prev) => ({
         ...prev,
@@ -780,6 +870,7 @@ export default function SynchronisationScreen() {
 
   // -------- Gestion des sélections de fichiers (serveur) --------
   async function toggleFileSelection(ip, type, rel) {
+    if (isRenderMode) return;
     if (!ip || !type || !rel) return;
 
     const current = syncSelection[ip] || {
@@ -857,6 +948,7 @@ export default function SynchronisationScreen() {
   }
 
   async function bulkSelectDiff(ip, type, check) {
+    if (isRenderMode) return;
     if (!ip || !type) return;
 
     const current = syncSelection[ip] || {
@@ -934,6 +1026,50 @@ export default function SynchronisationScreen() {
   // -------- Action côté serveur : Copier le projet vers une machine --------
   async function handleCopyHost(ip) {
     if (!ip) return;
+    if (isRenderMode) {
+      setSyncStatus((prev) => ({ ...prev, [ip]: 'copying' }));
+      setSyncDetails((prev) => ({ ...prev, [ip]: '' }));
+      setMessage({
+        type: 'info',
+        text: t('sync.server.msg.copyStart').replace('{ip}', String(ip)),
+      });
+      try {
+        const res = await copySync(ip, null, syncScopeOptions || undefined);
+        if (!res || res.ok === false) {
+          const msg =
+            (res && (res.message || res.error)) ||
+            t('sync.server.msg.copyError');
+          setSyncStatus((prev) => ({ ...prev, [ip]: 'error' }));
+          setSyncDetails((prev) => ({ ...prev, [ip]: msg }));
+          setMessage({ type: 'error', text: msg });
+          setTimeout(() => setMessage(null), 4000);
+          return;
+        }
+        const copyRows = normalizeRenderCopyProjects(res);
+        setSyncCopyProjects((prev) => ({
+          ...prev,
+          [ip]: {
+            at: new Date().toISOString(),
+            rows: copyRows,
+          },
+        }));
+        const projectCount = Number(res?.projectCount || 0);
+        const summary = `Sync rendu OK: ${projectCount} projet(s), ${Number(res?.addedCount ?? 0)} nouveaux, ${Number(res?.modifiedCount ?? 0)} modifies, ${Number(res?.deletedCount ?? 0)} supprimes.`;
+        setMessage({ type: 'ok', text: summary });
+        setTimeout(() => setMessage(null), 3500);
+        await handleCheckHost(ip);
+      } catch (e) {
+        const detail = String(e?.message || t('sync.server.msg.copyErrorGeneric'));
+        setSyncStatus((prev) => ({ ...prev, [ip]: 'error' }));
+        setSyncDetails((prev) => ({ ...prev, [ip]: detail }));
+        setMessage({
+          type: 'error',
+          text: `${t('sync.server.msg.copyErrorPrefix')}${detail}`,
+        });
+        setTimeout(() => setMessage(null), 4000);
+      }
+      return;
+    }
 
     const diffs = syncDiffs[ip] || {};
     const sel = syncSelection[ip] || {};
@@ -1354,46 +1490,50 @@ export default function SynchronisationScreen() {
 
     return (
       <div className="uu-page uu-page-compact">
-        <div className="uu-section">
-          <div className="uu-kv">
-            {projectsData?.activeId ? (
-              <button className="uu-btn" onClick={editActiveProject}>
-                {t('projects.actions.edit')}
-              </button>
-            ) : null}
-            <span className="uu-k">
-              {t('sync.server.activeProjectLabel')}
-            </span>
-            <span className="uu-v">
-              {displayProjectName ? (
-                <>
-                  {displayProjectName}{' '}
-                  {projectsData?.activeId ? (
-                    <span className="uu-id-tag uu-muted">
-                      [{projectsData.activeId}]
-                    </span>
-                  ) : null}
-                </>
-              ) : (
-                t('sync.server.activeProjectUnknown')
-              )}
-            </span>
+        {!isRenderMode && (
+          <div className="uu-section">
+            <div className="uu-kv">
+              {projectsData?.activeId ? (
+                <button className="uu-btn" onClick={editActiveProject}>
+                  {t('projects.actions.edit')}
+                </button>
+              ) : null}
+              <span className="uu-k">
+                {t('sync.server.activeProjectLabel')}
+              </span>
+              <span className="uu-v">
+                {displayProjectName ? (
+                  <>
+                    {displayProjectName}{' '}
+                    {projectsData?.activeId ? (
+                      <span className="uu-id-tag uu-muted">
+                        [{projectsData.activeId}]
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  t('sync.server.activeProjectUnknown')
+                )}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="uu-card">
-          <p>
-            <strong>
-              {t('sync.server.sourceDirLabel')}&nbsp;
-            </strong>{' '}
-            {sourceDir ? (
-              <code>{sourceDir}</code>
-            ) : (
-              <span>
-                {t('sync.server.sourceDirUnknown')}
-              </span>
-            )}
-          </p>
+          {!isRenderMode && (
+            <p>
+              <strong>
+                {t('sync.server.sourceDirLabel')}&nbsp;
+              </strong>{' '}
+              {sourceDir ? (
+                <code>{sourceDir}</code>
+              ) : (
+                <span>
+                  {t('sync.server.sourceDirUnknown')}
+                </span>
+              )}
+            </p>
+          )}
 
           {hostsLoading && (
             <p className="uu-hint">
@@ -1443,17 +1583,23 @@ export default function SynchronisationScreen() {
               const ip = safeStr(h.ip || h.address, `#${idx + 1}`);
               const syncRoot = typeof h.syncRoot === 'string' ? h.syncRoot : '';
               const uproject = typeof h.uproject === 'string' ? h.uproject : '';
-              const destBase = displayProjectName || sourceProjectName;
               let destInfo;
 
-              if (syncRoot) {
-                destInfo = destBase ? `${syncRoot}\\${destBase}` : syncRoot;
-              } else if (uproject) {
-                const norm = uproject.replace(/\//g, '\\');
-                const idx2 = norm.lastIndexOf('\\');
-                destInfo = idx2 > 0 ? norm.slice(0, idx2) : norm;
+              if (isRenderMode) {
+                destInfo = syncRoot
+                  ? `${syncRoot}\\<projets rendu automatique>`
+                  : t('sync.server.destMissing');
               } else {
-                destInfo = t('sync.server.destMissing');
+                const destBase = displayProjectName || sourceProjectName;
+                if (syncRoot) {
+                  destInfo = destBase ? `${syncRoot}\\${destBase}` : syncRoot;
+                } else if (uproject) {
+                  const norm = uproject.replace(/\//g, '\\');
+                  const idx2 = norm.lastIndexOf('\\');
+                  destInfo = idx2 > 0 ? norm.slice(0, idx2) : norm;
+                } else {
+                  destInfo = t('sync.server.destMissing');
+                }
               }
 
               const st = syncStatus[ip] || 'unknown';
@@ -1481,9 +1627,17 @@ export default function SynchronisationScreen() {
               const added = Array.isArray(diffs.added) ? diffs.added : [];
               const modified = Array.isArray(diffs.modified) ? diffs.modified : [];
               const removed = Array.isArray(diffs.removed) ? diffs.removed : [];
+              const renderProjects = Array.isArray(diffs.renderProjects)
+                ? diffs.renderProjects
+                : [];
+              const copyState = syncCopyProjects[ip] && typeof syncCopyProjects[ip] === 'object'
+                ? syncCopyProjects[ip]
+                : null;
+              const renderCopyRows = Array.isArray(copyState?.rows) ? copyState.rows : [];
 
               const hasAnyDiffs =
-                added.length > 0 || modified.length > 0 || removed.length > 0;
+                !isRenderMode &&
+                (added.length > 0 || modified.length > 0 || removed.length > 0);
 
               const sel = syncSelection[ip] || {};
               const selAdded = sel.added || {};
@@ -1498,6 +1652,42 @@ export default function SynchronisationScreen() {
                 if (type === 'modified') return selModified[rel] !== false;
                 if (type === 'removed') return selRemoved[rel] !== false;
                 return true;
+              };
+
+              const getRenderProjectStatusLabel = (value) => {
+                const statusValue = String(value || '').trim().toLowerCase();
+                if (statusValue === 'in_sync') return 'A jour';
+                if (statusValue === 'desync') return 'Desynchronise';
+                if (statusValue === 'no_source') return 'Pas de source';
+                if (statusValue === 'no_root') return 'Pas de dossier';
+                if (statusValue === 'error') return 'Erreur';
+                return statusValue || 'Inconnu';
+              };
+
+              const getRenderProjectStatusClass = (value) => {
+                const statusValue = String(value || '').trim().toLowerCase();
+                if (statusValue === 'in_sync') return 'uu-sync-status-ok';
+                if (statusValue === 'desync' || statusValue === 'error' || statusValue === 'no_source') {
+                  return 'uu-sync-status-bad';
+                }
+                return 'uu-sync-status-neutral';
+              };
+
+              const getRenderCopyStatusLabel = (value) => {
+                const statusValue = String(value || '').trim().toLowerCase();
+                if (statusValue === 'ok') return 'OK';
+                if (statusValue === 'partial') return 'Partiel';
+                if (statusValue === 'error') return 'Erreur';
+                if (statusValue === 'no_source') return 'Pas de source';
+                return statusValue || '-';
+              };
+
+              const getRenderCopyStatusClass = (value) => {
+                const statusValue = String(value || '').trim().toLowerCase();
+                if (statusValue === 'ok') return 'uu-sync-status-ok';
+                if (statusValue === 'partial') return 'uu-sync-status-neutral';
+                if (statusValue === 'error' || statusValue === 'no_source') return 'uu-sync-status-bad';
+                return 'uu-sync-status-neutral';
               };
 
               return (
@@ -1533,6 +1723,71 @@ export default function SynchronisationScreen() {
                     {statusLine}
                   </div>
 
+                  {isRenderMode && renderProjects.length > 0 && (
+                    <div className="uu-sync-diffs mt-8">
+                      <div className="uu-sync-diff-block">
+                        {copyState?.at ? (
+                          <div className="uu-hint" style={{ marginBottom: '8px' }}>
+                            Derniere synchro: {new Date(copyState.at).toLocaleString('fr-FR')}
+                          </div>
+                        ) : null}
+                        <div
+                          className="uu-sync-diff-list"
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'minmax(180px,1.4fr) minmax(120px,0.9fr) minmax(90px,0.8fr) minmax(120px,1fr) 56px 56px 56px minmax(220px,1.8fr)',
+                            columnGap: '10px',
+                            rowGap: '8px',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <strong>Projet</strong>
+                          <strong>Source</strong>
+                          <strong>Statut</strong>
+                          <strong>Derniere synchro</strong>
+                          <strong>+</strong>
+                          <strong>~</strong>
+                          <strong>-</strong>
+                          <strong>Dossier cible</strong>
+                          {renderProjects.map((row, rowIndex) => {
+                            const key = `${row.projectId || row.projectName || 'p'}-${rowIndex}`;
+                            const sourceText = row.sourceHostName || row.sourceHostIp || '-';
+                            const projectText = `${row.projectName}${row.projectId ? ` [${row.projectId}]` : ''}`;
+                            const statusText = getRenderProjectStatusLabel(row.status);
+                            const copyRow = renderCopyRows.find((item) => {
+                              const byId = String(item?.projectId || '').trim();
+                              if (byId && byId === row.projectId) return true;
+                              const byName = String(item?.projectName || '').trim().toLowerCase();
+                              return !!byName && byName === String(row.projectName || '').trim().toLowerCase();
+                            });
+                            const copyStatusText = copyRow
+                              ? getRenderCopyStatusLabel(copyRow.status)
+                              : '-';
+                            return (
+                              <React.Fragment key={key}>
+                                <span>{projectText}</span>
+                                <span className="uu-hint">{sourceText}</span>
+                                <span className={getRenderProjectStatusClass(row.status)}>{statusText}</span>
+                                <span
+                                  className={copyRow ? getRenderCopyStatusClass(copyRow.status) : 'uu-hint'}
+                                  title={copyRow?.message || ''}
+                                >
+                                  {copyStatusText}
+                                </span>
+                                <span>{Number(row.addedCount || 0)}</span>
+                                <span>{Number(row.modifiedCount || 0)}</span>
+                                <span>{Number(row.removedCount || 0)}</span>
+                                <span className="uu-hint" title={row.message || row.destDir || ''}>
+                                  {row.message || row.destDir || '-'}
+                                </span>
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {hasAnyDiffs && (
                     <div className="uu-sync-diffs mt-8">
                       {added.length > 0 && (
@@ -1548,33 +1803,39 @@ export default function SynchronisationScreen() {
                             <span className="uu-sync-diff-label">
                               {t('sync.diff.added', { count: added.length })}
                             </span>
-                            <button
-                              type="button"
-                              className="uu-sync-diff-bulk"
-                              onClick={() => bulkSelectDiff(ip, 'added', true)}
-                              disabled={isBusy}
-                            >
-                              Tout
-                            </button>
-                            <button
-                              type="button"
-                              className="uu-sync-diff-bulk"
-                              onClick={() => bulkSelectDiff(ip, 'added', false)}
-                              disabled={isBusy}
-                            >
-                              Aucun
-                            </button>
+                            {!isRenderMode && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="uu-sync-diff-bulk"
+                                  onClick={() => bulkSelectDiff(ip, 'added', true)}
+                                  disabled={isBusy}
+                                >
+                                  Tout
+                                </button>
+                                <button
+                                  type="button"
+                                  className="uu-sync-diff-bulk"
+                                  onClick={() => bulkSelectDiff(ip, 'added', false)}
+                                  disabled={isBusy}
+                                >
+                                  Aucun
+                                </button>
+                              </>
+                            )}
                           </div>
                           {isOpen('added') && (
                             <div className="uu-sync-diff-list">
                               {added.map((rel) => (
                                 <label key={rel} className="uu-sync-diff-item">
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked('added', rel)}
-                                    disabled={isBusy}
-                                    onChange={() => toggleFileSelection(ip, 'added', rel)}
-                                  />{' '}
+                                  {!isRenderMode ? (
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked('added', rel)}
+                                      disabled={isBusy}
+                                      onChange={() => toggleFileSelection(ip, 'added', rel)}
+                                    />
+                                  ) : null}{' '}
                                   <span className="uu-sync-diff-path">{rel}</span>
                                 </label>
                               ))}
@@ -1596,33 +1857,39 @@ export default function SynchronisationScreen() {
                             <span className="uu-sync-diff-label">
                               {t('sync.diff.modified', { count: modified.length })}
                             </span>
-                            <button
-                              type="button"
-                              className="uu-sync-diff-bulk"
-                              onClick={() => bulkSelectDiff(ip, 'modified', true)}
-                              disabled={isBusy}
-                            >
-                              Tout
-                            </button>
-                            <button
-                              type="button"
-                              className="uu-sync-diff-bulk"
-                              onClick={() => bulkSelectDiff(ip, 'modified', false)}
-                              disabled={isBusy}
-                            >
-                              Aucun
-                            </button>
+                            {!isRenderMode && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="uu-sync-diff-bulk"
+                                  onClick={() => bulkSelectDiff(ip, 'modified', true)}
+                                  disabled={isBusy}
+                                >
+                                  Tout
+                                </button>
+                                <button
+                                  type="button"
+                                  className="uu-sync-diff-bulk"
+                                  onClick={() => bulkSelectDiff(ip, 'modified', false)}
+                                  disabled={isBusy}
+                                >
+                                  Aucun
+                                </button>
+                              </>
+                            )}
                           </div>
                           {isOpen('modified') && (
                             <div className="uu-sync-diff-list">
                               {modified.map((rel) => (
                                 <label key={rel} className="uu-sync-diff-item">
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked('modified', rel)}
-                                    disabled={isBusy}
-                                    onChange={() => toggleFileSelection(ip, 'modified', rel)}
-                                  />{' '}
+                                  {!isRenderMode ? (
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked('modified', rel)}
+                                      disabled={isBusy}
+                                      onChange={() => toggleFileSelection(ip, 'modified', rel)}
+                                    />
+                                  ) : null}{' '}
                                   <span className="uu-sync-diff-path">{rel}</span>
                                 </label>
                               ))}
@@ -1644,33 +1911,39 @@ export default function SynchronisationScreen() {
                             <span className="uu-sync-diff-label">
                               {t('sync.diff.removed', { count: removed.length })}
                             </span>
-                            <button
-                              type="button"
-                              className="uu-sync-diff-bulk"
-                              onClick={() => bulkSelectDiff(ip, 'removed', true)}
-                              disabled={isBusy}
-                            >
-                              Tout
-                            </button>
-                            <button
-                              type="button"
-                              className="uu-sync-diff-bulk"
-                              onClick={() => bulkSelectDiff(ip, 'removed', false)}
-                              disabled={isBusy}
-                            >
-                              Aucun
-                            </button>
+                            {!isRenderMode && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="uu-sync-diff-bulk"
+                                  onClick={() => bulkSelectDiff(ip, 'removed', true)}
+                                  disabled={isBusy}
+                                >
+                                  Tout
+                                </button>
+                                <button
+                                  type="button"
+                                  className="uu-sync-diff-bulk"
+                                  onClick={() => bulkSelectDiff(ip, 'removed', false)}
+                                  disabled={isBusy}
+                                >
+                                  Aucun
+                                </button>
+                              </>
+                            )}
                           </div>
                           {isOpen('removed') && (
                             <div className="uu-sync-diff-list">
                               {removed.map((rel) => (
                                 <label key={rel} className="uu-sync-diff-item">
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked('removed', rel)}
-                                    disabled={isBusy}
-                                    onChange={() => toggleFileSelection(ip, 'removed', rel)}
-                                  />{' '}
+                                  {!isRenderMode ? (
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked('removed', rel)}
+                                      disabled={isBusy}
+                                      onChange={() => toggleFileSelection(ip, 'removed', rel)}
+                                    />
+                                  ) : null}{' '}
                                   <span className="uu-sync-diff-path">{rel}</span>
                                 </label>
                               ))}
@@ -1716,14 +1989,18 @@ export default function SynchronisationScreen() {
                 {localProjectHosts.length > 0 && (
                   <div className="uu-section">
                     <h3 className="uu-h3 uu-block-title">
-                      {t('sync.server.section.localProject')}
+                      {isRenderMode
+                        ? 'Stations non configurees pour la synchronisation'
+                        : t('sync.server.section.localProject')}
                     </h3>
                     <div className="uu-list">
                       {localProjectHosts.map((h, idx) =>
                         renderWarnCard(
                           h,
                           idx,
-                          t('sync.server.msg.localProjectMode')
+                          isRenderMode
+                            ? 'Synchronisation desactivee sur cette station. Active-la pour comparer et copier les projets rendu.'
+                            : t('sync.server.msg.localProjectMode')
                         )
                       )}
                     </div>
@@ -1733,14 +2010,18 @@ export default function SynchronisationScreen() {
                 {excludedHosts.length > 0 && (
                   <div className="uu-section">
                     <h3 className="uu-h3 uu-block-title">
-                      {t('sync.server.section.excluded')}
+                      {isRenderMode
+                        ? 'Stations exclues de la synchronisation'
+                        : t('sync.server.section.excluded')}
                     </h3>
                     <div className="uu-list">
                       {excludedHosts.map((h, idx) =>
                         renderWarnCard(
                           h,
                           idx,
-                          t('sync.server.msg.excluded')
+                          isRenderMode
+                            ? 'Cette station est exclue du rendu/synchronisation.'
+                            : t('sync.server.msg.excluded')
                         )
                       )}
                     </div>

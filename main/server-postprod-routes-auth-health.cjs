@@ -13,15 +13,6 @@ async function handlePostprodAuthAndHealthRoutes(options = {}) {
     requireSession,
     dbPath,
     sessionTtlSec,
-    buildBrokerConnectivitySnapshot,
-    requestTransportSecure,
-    clientCertVerified,
-    clientCertAccepted,
-    clientCertSource,
-    clientCertSubject,
-    clientCertIssuer,
-    clientCertFingerprintSha256,
-    clientCertPolicyReason,
     nowIso,
     addSeconds,
     RENDER_WORKER_ONLINE_TTL_SECONDS,
@@ -29,8 +20,6 @@ async function handlePostprodAuthAndHealthRoutes(options = {}) {
     stmts,
     resolveRenderDispatchConfig,
     buildRenderDispatchPolicyPayload,
-    computeHubConnectivityStatus,
-    hubHealthAuditState,
     audit,
     asCount,
     renderDetectedAutoScanBusy,
@@ -60,21 +49,10 @@ async function handlePostprodAuthAndHealthRoutes(options = {}) {
       sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
       return true;
     }
-    const connectivitySnapshot = buildBrokerConnectivitySnapshot({
-      requestTransportSecure,
-      clientCertVerified,
-      clientCertAccepted,
-      clientCertSource,
-      clientCertSubject,
-      clientCertIssuer,
-      clientCertFingerprintSha256,
-      clientCertPolicyReason,
-    });
     sendJSON(res, 200, {
       ok: true,
       dbPath,
       sessionTtlSec,
-      ...connectivitySnapshot,
     });
     return true;
   }
@@ -91,42 +69,9 @@ async function handlePostprodAuthAndHealthRoutes(options = {}) {
     const staleRequeued = sweepStaleWorkersAndRequeue(now, cutoff, auth.session.user_id);
     const row = stmts.renderHealthSnapshot.get() || {};
     const dispatchConfig = resolveRenderDispatchConfig(stmts);
-    const connectivitySnapshot = buildBrokerConnectivitySnapshot({
-      requestTransportSecure,
-      clientCertVerified,
-      clientCertAccepted,
-      clientCertSource,
-      clientCertSubject,
-      clientCertIssuer,
-      clientCertFingerprintSha256,
-      clientCertPolicyReason,
-    });
-    const healthStatus = computeHubConnectivityStatus(connectivitySnapshot);
-    if (hubHealthAuditState.signature !== healthStatus.signature) {
-      hubHealthAuditState.signature = healthStatus.signature;
-      hubHealthAuditState.state = healthStatus.state;
-      hubHealthAuditState.kind = healthStatus.kind;
-      hubHealthAuditState.changedAt = now;
-      audit(auth.session.user_id, 'hub_health_state_changed', {
-        state: healthStatus.state,
-        kind: healthStatus.kind,
-        degradedCount: healthStatus.degradedCount,
-        brokerDegradedCount: healthStatus.brokerDegradedCount,
-        securityDegradedCount: healthStatus.securityDegradedCount,
-        reason: healthStatus.reason,
-        secureTransportRequired: connectivitySnapshot?.secureTransportRequired === true,
-        secureTransportDetected: connectivitySnapshot?.secureTransportDetected === true,
-        clientCertRequired: connectivitySnapshot?.clientCertRequired === true,
-        clientCertVerified: connectivitySnapshot?.clientCertVerified === true,
-        clientCertAccepted: connectivitySnapshot?.clientCertAccepted === true,
-        clientCertPolicyReason: String(connectivitySnapshot?.clientCertPolicyReason || ''),
-        clientCertSource: String(connectivitySnapshot?.clientCertSource || ''),
-      }, 'health', 'hub');
-    }
     sendJSON(res, 200, {
       ok: true,
       health: {
-        hubOnline: true,
         serverTime: now,
         staleRequeued,
         workers: {
@@ -156,11 +101,8 @@ async function handlePostprodAuthAndHealthRoutes(options = {}) {
         },
         dispatchPolicy: buildRenderDispatchPolicyPayload(dispatchConfig, { includeRules: true }),
         connectivity: {
-          supportedModes: ['lan', 'vpn', 'broker'],
-          recommendedNextMode: 'vpn',
+          supportedModes: ['local', 'lan'],
           requestHost: String(req?.headers?.host || '').trim(),
-          requestProto: String(req?.headers?.['x-forwarded-proto'] || 'http').trim(),
-          ...connectivitySnapshot,
         },
       },
     });

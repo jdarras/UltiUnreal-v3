@@ -82,6 +82,7 @@ function buildScheduledTaskCreateRenderInput(task = null) {
       templateName,
       projectName,
       launchMode: "now",
+      scheduledAt: undefined, // overridden by caller when scheduled
       payload: {
         ...basePayload,
         source: "scheduled_task_auto_render",

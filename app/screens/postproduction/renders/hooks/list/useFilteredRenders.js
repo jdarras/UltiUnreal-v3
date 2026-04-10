@@ -1,12 +1,13 @@
 import { useMemo } from "react";
 import { renderReviewStatusKey } from "../../helpers";
-import { buildRenderSearchHaystack } from "./renderListUtils";
+import { buildRenderSearchHaystack, renderIsLocal, renderStationIpKey } from "./renderListUtils";
 
 export function useFilteredRenders({
   detectedRenders = [],
   searchQuery = "",
   reviewFilter = "all",
   projectFilter = "all",
+  stationFilter = "all",
   favoriteOnly = false,
   isRenderFavorite = () => false,
 } = {}) {
@@ -15,6 +16,7 @@ export function useFilteredRenders({
     const hasQuery = query.length > 0;
     const selectedFilter = String(reviewFilter || "all").trim();
     const selectedProject = String(projectFilter || "all").trim().toLowerCase();
+    const selectedStation = String(stationFilter || "all").trim().toLowerCase();
     const list = Array.isArray(detectedRenders) ? [...detectedRenders] : [];
     list.sort((a, b) => String(b?.updatedAt || "").localeCompare(String(a?.updatedAt || "")));
     return list.filter((render) => {
@@ -22,18 +24,23 @@ export function useFilteredRenders({
       if (selectedFilter !== "all" && reviewStatus !== selectedFilter) return false;
       const renderProject = String(render?.projectName || "").trim().toLowerCase();
       if (selectedProject !== "all" && renderProject !== selectedProject) return false;
+      if (selectedStation === "local" && !renderIsLocal(render)) return false;
+      if (selectedStation !== "all" && selectedStation !== "local") {
+        if (renderStationIpKey(render) !== selectedStation) return false;
+      }
       if (favoriteOnly && !isRenderFavorite(render)) return false;
       if (!hasQuery) return true;
       return buildRenderSearchHaystack(render).includes(query);
     });
-  }, [detectedRenders, favoriteOnly, isRenderFavorite, projectFilter, reviewFilter, searchQuery]);
+  }, [detectedRenders, favoriteOnly, isRenderFavorite, projectFilter, reviewFilter, searchQuery, stationFilter]);
 
   const hasActiveFilters = useMemo(() => (
     String(searchQuery || "").trim().length > 0
     || String(reviewFilter || "all").trim() !== "all"
     || String(projectFilter || "all").trim() !== "all"
+    || String(stationFilter || "all").trim() !== "all"
     || favoriteOnly
-  ), [favoriteOnly, projectFilter, reviewFilter, searchQuery]);
+  ), [favoriteOnly, projectFilter, reviewFilter, searchQuery, stationFilter]);
 
   return {
     displayedRenders,
@@ -42,4 +49,3 @@ export function useFilteredRenders({
 }
 
 export default useFilteredRenders;
-

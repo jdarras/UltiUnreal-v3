@@ -4,6 +4,7 @@ export function resolveAutoRenderContext({
   selectedAutoRenderProjectRef = "",
   projectOptionByRef = new Map(),
   projectLookupByAny = new Map(),
+  renderWorkerLookupByKey = new Map(),
   autoRenderWorkerKey = "",
   renderOutputDir = "",
   autoRenderFormId = "",
@@ -14,7 +15,24 @@ export function resolveAutoRenderContext({
   const effectiveOutputProfile = String(selectedAutoRenderTemplate?.outputProfile || selectedForm?.outputProfile || "").trim();
   const effectiveWrcPresetName = String(selectedForm?.presetName || "").trim();
   const effectiveRenderPresetName = String(selectedAutoRenderTemplate?.presetName || "").trim();
-  const effectiveWorkerKey = String(autoRenderWorkerKey || "").trim();
+  const requestedStationRaw = String(autoRenderWorkerKey || "").trim().toLowerCase();
+  let renderStation = "local";
+  if (requestedStationRaw === "auto") {
+    renderStation = "auto";
+  } else if (requestedStationRaw && requestedStationRaw !== "local") {
+    renderStation = String(autoRenderWorkerKey || "").trim();
+  }
+  const stationOption = renderWorkerLookupByKey instanceof Map
+    ? renderWorkerLookupByKey.get(String(renderStation || "").trim())
+    : null;
+  const renderStationName = String(
+    stationOption?.displayName
+    || stationOption?.name
+    || (renderStation !== "auto" && renderStation !== "local" ? renderStation : "")
+  ).trim();
+  const effectiveWorkerKey = renderStation !== "auto" && renderStation !== "local"
+    ? String(renderStation || "").trim()
+    : "";
   const effectiveOutputDir = String(renderOutputDir || "").trim();
   const effectiveTemplateName = String(selectedAutoRenderTemplate?.templateName || selectedForm?.templateName || "").trim();
   const projectOption =
@@ -37,6 +55,8 @@ export function resolveAutoRenderContext({
     effectiveWrcPresetName,
     effectiveRenderPresetName,
     effectiveWorkerKey,
+    renderStation,
+    renderStationName,
     effectiveOutputDir,
     effectiveTemplateName,
     effectiveProjectPath,

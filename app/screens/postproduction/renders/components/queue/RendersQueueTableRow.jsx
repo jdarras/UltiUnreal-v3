@@ -1,6 +1,14 @@
+import { useState } from "react";
 import { safeT } from "../../../shared/helpers";
 import { taskAutoRenderStateLevel } from "../../../tasks/helpers";
 import { queueRenderStateShortLabel } from "../../helpers";
+
+function nowDatetimeLocalValue() {
+  const now = new Date();
+  // datetime-local format: YYYY-MM-DDTHH:MM
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
 
 function RendersQueueTableRow({
   t,
@@ -16,6 +24,9 @@ function RendersQueueTableRow({
   onLaunchScheduledTaskRender = null,
   onOpenRenderDetail = null,
 }) {
+  const [launchMode, setLaunchMode] = useState("immediate");
+  const [scheduledAt, setScheduledAt] = useState("");
+
   const task = queueEntry?.task && typeof queueEntry.task === "object"
     ? queueEntry.task
     : {};
@@ -36,6 +47,19 @@ function RendersQueueTableRow({
   const isSelected = selectedQueueEntrySet?.has?.(Math.trunc(taskId)) === true;
   const linkedRenderIdRaw = Number(queueEntry?.linkedRender?.id || 0);
   const hasLinkedRender = Number.isFinite(linkedRenderIdRaw) && linkedRenderIdRaw > 0;
+
+  const minDatetimeLocal = nowDatetimeLocalValue();
+
+  const handleLaunch = () => {
+    let resolvedScheduledAt = null;
+    if (launchMode === "scheduled" && scheduledAt) {
+      const d = new Date(scheduledAt);
+      if (!isNaN(d.getTime()) && d.getTime() > Date.now()) {
+        resolvedScheduledAt = d.toISOString();
+      }
+    }
+    onLaunchScheduledTaskRender?.(task, queueEntry, { scheduledAt: resolvedScheduledAt });
+  };
 
   return (
     <tr>
@@ -74,21 +98,52 @@ function RendersQueueTableRow({
         </span>
       </td>
       <td>{typeof queueTaskPriorityLabel === "function" ? queueTaskPriorityLabel(task?.priority) : "-"}</td>
-      <td style={{ textAlign: "center" }}>
-        <div className="uu-row" style={{ gap: "8px", flexWrap: "nowrap", justifyContent: "center" }}>
+      <td style={{ overflowWrap: "anywhere" }}>
+        <div className="uu-col" style={{ gap: "6px" }}>
           {canLaunchFromQueue ? (
-            <button
-              className="uu-btn"
-              type="button"
-              disabled={rendersLoading || isBusy || !canLaunchRenders}
-              onClick={() => {
-                onLaunchScheduledTaskRender?.(task, queueEntry);
-              }}
-            >
-              {renderState === "error"
-                ? safeT(t, "postprod.renders.queue.relaunch", "Relancer")
-                : safeT(t, "postprod.renders.queue.launch", "Lancer")}
-            </button>
+            <>
+              <div className="uu-row" style={{ gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                <select
+                  className="uu-select"
+                  style={{ height: "30px", fontSize: "0.85em" }}
+                  value={launchMode}
+                  disabled={rendersLoading || isBusy || !canLaunchRenders}
+                  onChange={(e) => {
+                    setLaunchMode(e.target.value);
+                    if (e.target.value === "immediate") setScheduledAt("");
+                  }}
+                >
+                  <option value="immediate">{safeT(t, "postprod.renders.launchMode.immediate", "Lancer immédiatement")}</option>
+                  <option value="scheduled">{safeT(t, "postprod.renders.launchMode.scheduled", "Programmer, lancer plus tard")}</option>
+                </select>
+                <button
+                  className="uu-btn"
+                  type="button"
+                  disabled={
+                    rendersLoading
+                    || isBusy
+                    || !canLaunchRenders
+                    || (launchMode === "scheduled" && !scheduledAt)
+                  }
+                  onClick={handleLaunch}
+                >
+                  {renderState === "error"
+                    ? safeT(t, "postprod.renders.queue.relaunch", "Relancer")
+                    : safeT(t, "postprod.renders.queue.launch", "Lancer")}
+                </button>
+              </div>
+              {launchMode === "scheduled" ? (
+                <input
+                  type="datetime-local"
+                  className="uu-input"
+                  style={{ height: "30px", fontSize: "0.85em", width: "100%" }}
+                  min={minDatetimeLocal}
+                  value={scheduledAt}
+                  disabled={rendersLoading || isBusy || !canLaunchRenders}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                />
+              ) : null}
+            </>
           ) : null}
           {hasLinkedRender ? (
             <button
@@ -96,7 +151,7 @@ function RendersQueueTableRow({
               type="button"
               onClick={() => onOpenRenderDetail?.(queueEntry.linkedRender)}
             >
-              {safeT(t, "postprod.renders.detail.open", "Ouvrir")}
+              {safeT(t, "postprod.renders.detail.view", "Voir")}
             </button>
           ) : null}
           {!canLaunchFromQueue && !hasLinkedRender ? (

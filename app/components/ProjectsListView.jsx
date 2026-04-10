@@ -46,7 +46,8 @@ export default function ProjectsListView({
           : String(p?.metaUsageMode || p?.usageMode || '').trim() === 'auto_render'
       )
     );
-    const showStartButton = canManageUnrealProjects && !!serverHost && (showActivationControls ? isActive : true);
+    const showStartStopToggle = canManageUnrealProjects && !!serverHost && showActivationControls && isActive;
+    const showPerProjectStart = canManageUnrealProjects && !!serverHost && !showActivationControls;
 
     const actionButtons = (
       <div className="uu-row uu-gap-4">
@@ -66,12 +67,10 @@ export default function ProjectsListView({
             ) : null}
           </>
         ) : null}
-        {showStartButton ? (
+        {showStartStopToggle ? (
           <button
             className={`uu-btn ${serverRunning ? 'uu-btn-danger' : 'prod-toggle-active'}`}
-            onClick={serverRunning
-              ? stopIntegration
-              : (showActivationControls ? startIntegration : () => startIntegration?.(p.id))}
+            onClick={serverRunning ? stopIntegration : startIntegration}
             disabled={integrationBusy}
             title={t('projects.integration.hint')}
           >
@@ -82,7 +81,17 @@ export default function ProjectsListView({
                 : t('launch.buttons.start')}
           </button>
         ) : null}
-        {canCreateTask && showStartButton ? (
+        {showPerProjectStart ? (
+          <button
+            className="uu-btn"
+            onClick={() => startIntegration?.(p.id)}
+            disabled={integrationBusy}
+            title={t('projects.integration.hint')}
+          >
+            {integrationBusy ? '...' : t('launch.buttons.start')}
+          </button>
+        ) : null}
+        {canCreateTask ? (
           <button className="uu-btn" onClick={() => onCreateTaskFromProject?.(p.id)}>
             {t('projects.actions.createTask', 'Tâche')}
           </button>
@@ -95,11 +104,6 @@ export default function ProjectsListView({
             title={t('resources.detail.labels.favorite') || 'Favoris'}
           >
             ★
-          </button>
-        ) : null}
-        {canCreateTask && !showStartButton ? (
-          <button className="uu-btn" onClick={() => onCreateTaskFromProject?.(p.id)}>
-            {t('projects.actions.createTask', 'Tâche')}
           </button>
         ) : null}
       </div>

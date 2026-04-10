@@ -32,6 +32,8 @@ function buildRendersCardDataPreferences(preferences = {}) {
     setReviewFilter: preferences.setReviewFilter,
     projectFilter: preferences.projectFilter,
     setProjectFilter: preferences.setProjectFilter,
+    stationFilter: preferences.stationFilter,
+    setStationFilter: preferences.setStationFilter,
     searchExpanded: preferences.searchExpanded,
     favoriteOnly: preferences.favoriteOnly,
     viewMode: preferences.viewMode,
@@ -47,4 +49,3 @@ export {
 };
 
 export default buildRendersCardControllersInput;
-

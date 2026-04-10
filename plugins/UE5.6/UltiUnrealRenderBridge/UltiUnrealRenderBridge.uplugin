@@ -1,0 +1,23 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "UltiUnrealRenderBridge",
+	"Description": "Bridge for UltiUnreal Auto Render",
+	"Category": "Other",
+	"CreatedBy": "JDarrasVp",
+	"CreatedByURL": "www.jdarrasvp.fr",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EngineVersion": "5.6.0",
+	"CanContainContent": true,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "UltiUnrealRenderBridge",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}

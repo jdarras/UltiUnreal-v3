@@ -32,21 +32,11 @@ function getDaysLeft(exp) {
 const LOCAL_IP_MANUAL = '__manual__';
 const APP_MODE_LIVE = 'live';
 const APP_MODE_POSTPROD = 'postprod';
-const POSTPROD_NET_LAN = 'lan';
-const POSTPROD_NET_VPN = 'vpn';
-const POSTPROD_NET_BROKER = 'broker';
 
 function normalizeMode(mode) {
   return String(mode || '').trim().toLowerCase() === APP_MODE_POSTPROD
     ? APP_MODE_POSTPROD
     : APP_MODE_LIVE;
-}
-
-function normalizePostprodNetworkMode(value) {
-  const raw = String(value || '').trim().toLowerCase();
-  if (raw === POSTPROD_NET_VPN) return POSTPROD_NET_VPN;
-  if (raw === POSTPROD_NET_BROKER) return POSTPROD_NET_BROKER;
-  return POSTPROD_NET_LAN;
 }
 
 export default function WelcomeScreen({
@@ -64,15 +54,11 @@ export default function WelcomeScreen({
     return {
       lang: saved.lang || 'fr',
       mode: normalizeMode(saved.mode),
-      role: saved.role || '',
+      role: String(saved.role || '').trim().toLowerCase() === 'client' ? 'client' : 'server',
       localIp: saved.localIp || '',
-      serverIp: saved.serverIp || '',
+      serverIp: '',
       agentPort: saved.agentPort || '',
       localIpChoice: saved.localIpChoice || '',
-      postprodNetworkMode: normalizePostprodNetworkMode(saved.postprodNetworkMode),
-      postprodHubHost: saved.postprodHubHost || '',
-      postprodHubUrl: saved.postprodHubUrl || '',
-      postprodBrokerToken: saved.postprodBrokerToken || '',
     };
   });
 
@@ -124,11 +110,9 @@ export default function WelcomeScreen({
     : t('welcome.license.none');
 
   // refs pour focus
-  const roleRef = React.useRef(null);
   const localIpSelectRef = React.useRef(null);
   const localIpManualRef = React.useRef(null);
   const agentPortRef = React.useRef(null);
-  const serverIpRef = React.useRef(null);
 
   // Sauvegarde locale (uu_identity via helper)
   const saveIdentity = React.useCallback((patch) => {
@@ -143,19 +127,17 @@ export default function WelcomeScreen({
   React.useEffect(() => {
     if (canChooseMode || !forcedMode) return;
     if (normalizeMode(identity.mode) === forcedMode) return;
-    saveIdentity({
-      mode: forcedMode,
-      role: forcedMode === APP_MODE_POSTPROD ? 'server' : String(identity.role || '').trim(),
-      serverIp: forcedMode === APP_MODE_POSTPROD ? '' : String(identity.serverIp || '').trim(),
-    });
-  }, [
-    canChooseMode,
-    forcedMode,
-    identity.mode,
-    identity.role,
-    identity.serverIp,
-    saveIdentity,
-  ]);
+    saveIdentity({ mode: forcedMode, role: 'server', serverIp: '' });
+  }, [canChooseMode, forcedMode, identity.mode, saveIdentity]);
+
+  React.useEffect(() => {
+    if (effectiveMode !== APP_MODE_POSTPROD) return;
+    const currentRole = String(identity.role || '').trim().toLowerCase() === 'client' ? 'client' : 'server';
+    const currentServerIp = String(identity.serverIp || '').trim();
+    if (currentRole !== 'server' || currentServerIp) {
+      saveIdentity({ role: 'server', serverIp: '' });
+    }
+  }, [effectiveMode, identity.role, identity.serverIp, saveIdentity]);
 
   function showMsg(text, kind = 'info') {
     setMsg(text);
@@ -228,21 +210,11 @@ export default function WelcomeScreen({
   async function handleContinue() {
     if (busy) return;
     const mode = effectiveMode;
-    const role = String(identity.role || '').trim();
-    const effectiveRole = mode === APP_MODE_POSTPROD ? 'server' : role;
+    const effectiveRole = mode === APP_MODE_LIVE
+      ? (String(identity.role || '').trim().toLowerCase() === 'client' ? 'client' : 'server')
+      : 'server';
     const desired = String(identity.agentPort || '').trim();
-    const srvIp = String(identity.serverIp || '').trim();
     const locIp = String(identity.localIp || '').trim();
-    const postprodNetworkMode = POSTPROD_NET_LAN;
-    const postprodHubHost = '';
-    const postprodHubUrl = '';
-    const postprodBrokerToken = '';
-
-    if (mode === APP_MODE_LIVE && !effectiveRole) {
-      showMsg(t('welcome.validation.roleRequired'), 'error');
-      roleRef.current?.focus();
-      return;
-    }
     if (!locIp) {
       showMsg(t('welcome.validation.localIpRequired') || 'Adresse locale requise', 'error');
       focusLocalIp();
@@ -251,16 +223,6 @@ export default function WelcomeScreen({
     if (!isValidHost(locIp)) {
       showMsg(t('welcome.validation.localIpRequired') || 'Adresse locale invalide', 'error');
       focusLocalIp();
-      return;
-    }
-    if (mode === APP_MODE_LIVE && effectiveRole === 'client' && !srvIp) {
-      showMsg(t('welcome.validation.serverIpRequired') || 'IP serveur requise', 'error');
-      serverIpRef.current?.focus();
-      return;
-    }
-    if (mode === APP_MODE_LIVE && effectiveRole === 'client' && srvIp && !isValidHost(srvIp)) {
-      showMsg(t('welcome.validation.serverIpRequired') || 'IP serveur invalide', 'error');
-      serverIpRef.current?.focus();
       return;
     }
     if (!desired) {
@@ -322,11 +284,7 @@ export default function WelcomeScreen({
           ...identity,
           mode,
           role: effectiveRole,
-          serverIp: mode === APP_MODE_POSTPROD ? '' : identity.serverIp,
-          postprodNetworkMode,
-          postprodHubHost: mode === APP_MODE_POSTPROD ? postprodHubHost : '',
-          postprodHubUrl: mode === APP_MODE_POSTPROD ? postprodHubUrl : '',
-          postprodBrokerToken: '',
+          serverIp: '',
         });
       }
     } catch (e) {
@@ -350,15 +308,11 @@ export default function WelcomeScreen({
     setIdentity({
       lang: identity.lang || 'fr',
       mode: resetMode,
-      role: resetMode === APP_MODE_POSTPROD ? 'server' : '',
+      role: 'server',
       localIp: '',
       serverIp: '',
       agentPort: '',
       localIpChoice: '',
-      postprodNetworkMode: POSTPROD_NET_LAN,
-      postprodHubHost: '',
-      postprodHubUrl: '',
-      postprodBrokerToken: '',
     });
     setManualIp('');
     setLocalIpChoice(LOCAL_IP_MANUAL);
@@ -368,10 +322,6 @@ export default function WelcomeScreen({
 
     // refocus doux
     setTimeout(() => {
-      if (effectiveMode === APP_MODE_LIVE) {
-        roleRef.current?.focus() || localIpSelectRef.current?.focus() || agentPortRef.current?.focus();
-        return;
-      }
       localIpSelectRef.current?.focus() || agentPortRef.current?.focus();
     }, 0);
   }
@@ -411,17 +361,13 @@ export default function WelcomeScreen({
                 <button
                   type="button"
                   className={`uu-chip lvl-info ${effectiveMode === APP_MODE_POSTPROD ? 'chip-on' : 'chip-off'}`}
-                onClick={() => saveIdentity({
-                  mode: APP_MODE_POSTPROD,
-                  role: 'server',
-                  serverIp: '',
-                  postprodNetworkMode: POSTPROD_NET_LAN,
-                  postprodHubHost: '',
-                  postprodHubUrl: '',
-                  postprodBrokerToken: '',
-                })}
-                disabled={busy}
-              >
+                  onClick={() => saveIdentity({
+                    mode: APP_MODE_POSTPROD,
+                    role: 'server',
+                    serverIp: '',
+                  })}
+                  disabled={busy}
+                >
                   {t('welcome.mode.postprod')}
                 </button>
               </div>
@@ -438,17 +384,16 @@ export default function WelcomeScreen({
             )}
           </div>
 
-          {/* Sélecteur de rôle (mode Live uniquement) */}
+          {/* Role Live uniquement */}
           {effectiveMode === APP_MODE_LIVE ? (
             <div className="welcome-row uu-row-nowrap">
               <label className="uu-label w-160">{t('welcome.role.label')}</label>
               <select
-                ref={roleRef}
                 className="uu-input"
-                value={identity.role || ''}
-                onChange={(e) => saveIdentity({ role: e.target.value })}
+                value={String(identity.role || '').trim().toLowerCase() === 'client' ? 'client' : 'server'}
+                onChange={(e) => saveIdentity({ role: e.target.value === 'client' ? 'client' : 'server' })}
+                disabled={busy}
               >
-                <option value="">{t('welcome.role.placeholder')}</option>
                 <option value="server">{t('welcome.role.server')}</option>
                 <option value="client">{t('welcome.role.client')}</option>
               </select>
@@ -522,23 +467,6 @@ export default function WelcomeScreen({
             disabled={busy}
           />
         </div>
-
-
-          {/* IP serveur si client */}
-          {effectiveMode === APP_MODE_LIVE && identity.role === 'client' && (
-            <div className="welcome-row uu-row-nowrap">
-              <label className="uu-label w-160">{t('welcome.serverIp.label')}</label>
-              <input
-                ref={serverIpRef}
-                className="uu-input"
-                type="text"
-                placeholder=""
-                value={identity.serverIp || ''}
-                onChange={(e) => saveIdentity({ serverIp: e.target.value })}
-                disabled={busy}
-              />
-            </div>
-          )}
 
 
           {/* Boutons + message inline */}

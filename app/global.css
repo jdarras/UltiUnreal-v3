@@ -218,10 +218,18 @@ textarea::placeholder {
 .w-160 { width:160px; }
 .uu-maxw-420 { max-width:420px; }
 .gap-8 { gap:8px; }
+.uu-gap-4 { gap: 4px !important; }
+.uu-gap-6 { gap: 6px !important; }
+.uu-gap-8 { gap: 8px !important; }
+.uu-gap-10 { gap: 10px !important; }
+.uu-gap-12 { gap: 12px !important; }
+.uu-gap-16 { gap: 16px !important; }
 .uu-muted { opacity:0.5; align-self:center; }
 
 /* launchcontrol */
 .uu-col { display:flex; flex-direction:column; gap:12px; }
+.uu-config-stack { display:flex; flex-direction:column; gap:12px; }
+.uu-config-stack .uu-muted { align-self:flex-start; }
 .ml-auto { margin-left:auto; }
 
 /* ---- UltiUnreal LaunchControl styles ---- */
@@ -1211,6 +1219,40 @@ textarea::placeholder {
 
 .uu-project-card-right {  flex: 1 1 auto;  min-width: 0;}
 
+.uu-project-thumb-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.uu-project-thumb-actions-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.uu-project-thumb-actions-main .uu-btn {
+  padding: 4px 9px;
+  min-height: 28px;
+  font-size: 13px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.uu-project-thumb-actions > .uu-fav-btn { flex: 0 0 auto; }
+
+.uu-project-usage-line {
+  opacity: 0.75;
+  align-self: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+
 /* Ligne d'édition : Label + champ + oeil sur la même ligne */
 .prod-label-inline {
   display: flex;          /* aligne input + oeil sur une seule ligne */
@@ -1426,11 +1468,24 @@ button:not(.uu-reset-btn):not(.uu-btn-delete):not(.uu-rating-btn):not(.uu-fav-bt
   max-height: calc(100vh - 48px);
   overflow: auto;
 }
-.uu-render-detail-layout {
+.uu-render-detail-preview-block {
+  margin-top: 12px;
+}
+.uu-render-detail-bottom-layout {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
   align-items: start;
+}
+.uu-render-detail-info-block,
+.uu-render-detail-logs-block {
+  min-width: 0;
+}
+.uu-render-detail-logs-list {
+  border: 1px solid var(--uu-color-border);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(8, 12, 18, 0.28);
 }
 
 .uu-resource-indexing {
@@ -1619,7 +1674,7 @@ button:not(.uu-reset-btn):not(.uu-btn-delete):not(.uu-rating-btn):not(.uu-fav-bt
 
 @media (max-width: 980px) {
   .uu-render-detail-overlay { padding: 10px; }
-  .uu-render-detail-layout { grid-template-columns: 1fr; }
+  .uu-render-detail-bottom-layout { grid-template-columns: 1fr; }
 }
 
 

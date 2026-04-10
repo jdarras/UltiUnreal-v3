@@ -233,6 +233,8 @@ export default function LogsScreen() {
   const currentPage = Math.min(page, totalPages - 1);
   const pageStart = currentPage * pageSize;
   const visibleLogs = filtered.slice(pageStart, pageStart + pageSize);
+  const canPrevPage = currentPage > 0;
+  const canNextPage = currentPage < totalPages - 1;
 
   function toggleLevel(l) {
     setLevelFilter(prev => {
@@ -443,30 +445,29 @@ export default function LogsScreen() {
       ) : null}
 
       <div className="uu-row uu-gap-8 uu-align-center" style={{ marginTop: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-        <div className="uu-muted">
-          {`${Math.min(pageStart + 1, totalItems)}-${Math.min(totalItems, pageStart + pageSize)} / ${totalItems} (${t('logs.countLabel')})`}
-        </div>
         {totalItems > 0 && (
           <div className="uu-row uu-gap-6 uu-align-center">
-            <button
-              type="button"
-              className="uu-btn"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={currentPage === 0}
-            >
-              ‹
-            </button>
+            {canPrevPage ? (
+              <button
+                type="button"
+                className="uu-btn"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                ‹
+              </button>
+            ) : null}
             <span className="uu-muted">
               {`Page ${currentPage + 1}/${totalPages}`}
             </span>
-            <button
-              type="button"
-              className="uu-btn"
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={currentPage >= totalPages - 1}
-            >
-              ›
-            </button>
+            {canNextPage ? (
+              <button
+                type="button"
+                className="uu-btn"
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              >
+                ›
+              </button>
+            ) : null}
             <select
               className="uu-select"
               value={pageSize}
@@ -478,6 +479,7 @@ export default function LogsScreen() {
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>
+            <span className="uu-muted">{`${totalItems} ${t('logs.countLabel')}`}</span>
           </div>
         )}
       </div>

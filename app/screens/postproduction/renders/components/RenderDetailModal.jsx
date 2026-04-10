@@ -1,6 +1,7 @@
 import { RenderDetailHeader } from "./renderDetail/RenderDetailHeader";
 import { RenderDetailPreviewPanel } from "./renderDetail/RenderDetailPreviewPanel";
 import { RenderDetailInfoPanel } from "./renderDetail/RenderDetailInfoPanel";
+import { RenderDetailLogsPanel } from "./renderDetail/RenderDetailLogsPanel";
 
 function RenderDetailModal({
   t,
@@ -21,9 +22,11 @@ function RenderDetailModal({
   rendersLoading = false,
   busyRenderId = 0,
   onApplyReviewStatus = null,
+  onScheduleRender = null,
   transitionsLoading = false,
   transitionsError = "",
   transitions = [],
+  embedded = false,
 }) {
   if (!render) return null;
 
@@ -31,46 +34,60 @@ function RenderDetailModal({
   const renderOutputName = typeof outputFilename === "function" ? outputFilename(render) : "-";
   const detailTransitions = Array.isArray(transitions) ? transitions : [];
 
-  return (
-    <div className="uu-render-detail-overlay" onClick={() => onClose?.()}>
-      <div className="uu-card uu-render-detail-modal" onClick={(e) => e.stopPropagation()}>
-        <RenderDetailHeader
+  const detailBody = (
+    <>
+      <RenderDetailHeader
+        t={t}
+        render={render}
+        renderOutputName={renderOutputName}
+        onOpenOutputExternally={onOpenOutputExternally}
+        onClose={onClose}
+      />
+
+      <RenderDetailPreviewPanel
+        t={t}
+        renderId={renderId}
+        renderOutputName={renderOutputName}
+        previewKind={previewKind}
+        previewSource={previewSource}
+        previewError={previewError}
+        previewCandidatesCount={previewCandidatesCount}
+        onAdvancePreviewCandidate={onAdvancePreviewCandidate}
+      />
+
+      <div className="uu-render-detail-bottom-layout mt-12">
+        <RenderDetailInfoPanel
           t={t}
           render={render}
           renderOutputName={renderOutputName}
-          onOpenOutputExternally={onOpenOutputExternally}
-          onClose={onClose}
+          linkedTaskValue={linkedTaskValue}
+          reviewStatusValue={reviewStatusValue}
+          reviewFlow={reviewFlow}
+          reviewStatusLabel={reviewStatusLabel}
+          canReviewRenders={canReviewRenders}
+          rendersLoading={rendersLoading}
+          busyRenderId={busyRenderId}
+          onApplyReviewStatus={onApplyReviewStatus}
+          onScheduleRender={onScheduleRender}
         />
+        <RenderDetailLogsPanel
+          t={t}
+          transitionsLoading={transitionsLoading}
+          transitionsError={transitionsError}
+          detailTransitions={detailTransitions}
+        />
+      </div>
+    </>
+  );
 
-        <div className="uu-render-detail-layout mt-12">
-          <RenderDetailPreviewPanel
-            t={t}
-            renderId={renderId}
-            renderOutputName={renderOutputName}
-            previewKind={previewKind}
-            previewSource={previewSource}
-            previewError={previewError}
-            previewCandidatesCount={previewCandidatesCount}
-            onAdvancePreviewCandidate={onAdvancePreviewCandidate}
-          />
+  if (embedded) {
+    return detailBody;
+  }
 
-          <RenderDetailInfoPanel
-            t={t}
-            render={render}
-            renderOutputName={renderOutputName}
-            linkedTaskValue={linkedTaskValue}
-            reviewStatusValue={reviewStatusValue}
-            reviewFlow={reviewFlow}
-            reviewStatusLabel={reviewStatusLabel}
-            canReviewRenders={canReviewRenders}
-            rendersLoading={rendersLoading}
-            busyRenderId={busyRenderId}
-            onApplyReviewStatus={onApplyReviewStatus}
-            transitionsLoading={transitionsLoading}
-            transitionsError={transitionsError}
-            detailTransitions={detailTransitions}
-          />
-        </div>
+  return (
+    <div className="uu-render-detail-overlay" onClick={() => onClose?.()}>
+      <div className="uu-card uu-render-detail-modal" onClick={(e) => e.stopPropagation()}>
+        {detailBody}
       </div>
     </div>
   );

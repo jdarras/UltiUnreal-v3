@@ -146,7 +146,7 @@ function RendersThumbCard({
           ))}
         </select>
         <button className="uu-btn-ghost" type="button" onClick={() => onOpenRenderDetail?.(render)}>
-          {safeT(t, "postprod.renders.detail.open", "Ouvrir")}
+          {safeT(t, "postprod.renders.detail.view", "Voir")}
         </button>
       </div>
     </div>

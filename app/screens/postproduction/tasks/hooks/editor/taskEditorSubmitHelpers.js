@@ -15,6 +15,8 @@ function buildImmediateRenderRequest({
   effectiveTemplateName = "",
   projectRef = "",
   selectedAutoRenderForm = null,
+  renderStation = "local",
+  renderStationName = "",
 } = {}) {
   const taskTitle = String(savedTask?.title || fallbackTaskTitle || "").trim();
   const taskStatus = String(savedTask?.status || "A faire").trim();
@@ -25,6 +27,8 @@ function buildImmediateRenderRequest({
   return {
     templateName: effectiveTemplateName,
     projectName,
+    render_station: String(renderStation || "local").trim() || "local",
+    render_station_name: String(renderStationName || "").trim(),
     payload: {
       ...(basePayload && typeof basePayload === "object" ? basePayload : {}),
       source: "task_auto_render_now",
@@ -73,6 +77,8 @@ async function runTaskSubmit({
     basePayload,
     effectiveTemplateName,
     projectRef,
+    renderStation,
+    renderStationName,
   } = built;
 
   const savedTask = isEditingTask
@@ -94,6 +100,8 @@ async function runTaskSubmit({
       effectiveTemplateName,
       projectRef,
       selectedAutoRenderForm,
+      renderStation,
+      renderStationName,
     });
     await Promise.resolve(onCreateRender?.(createRenderInput));
   }

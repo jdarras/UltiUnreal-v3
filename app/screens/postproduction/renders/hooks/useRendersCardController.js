@@ -24,6 +24,7 @@ export function useRendersCardController({
   onLoadRenderTransitions = null,
   onCreateRender = null,
   onDispatchRenders = null,
+  onScheduleRender = null,
 } = {}) {
   const data = useRendersCardData({
     t,
@@ -64,7 +65,7 @@ export function useRendersCardController({
     toolbarProps,
     queuePanelProps,
     listPanelProps,
-    detailModalProps,
+    detailModalProps: { ...detailModalProps, onScheduleRender },
   };
 }
 

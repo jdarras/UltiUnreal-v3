@@ -40,6 +40,7 @@ export function useUserManagementActions({
     editingUserId,
     rolesByKey,
     editorInputFocused,
+    autosavePulse,
   } = state;
 
   const [deleteUserBusy, setDeleteUserBusy] = useState(false);
@@ -130,6 +131,7 @@ export function useUserManagementActions({
     editingUserId,
     usersLoading,
     editorInputFocused,
+    autosavePulse,
     onUpdateUser,
     buildUserPayloadFromDraft,
     draft,

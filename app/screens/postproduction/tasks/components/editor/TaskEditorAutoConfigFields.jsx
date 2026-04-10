@@ -27,6 +27,25 @@ function TaskEditorAutoConfigFields({
   onChangeAutoRenderLaunchMode = null,
   isEditingTask = false,
 }) {
+  const remoteStationOptions = Array.isArray(availableRenderWorkers)
+    ? availableRenderWorkers
+        .map((worker) => {
+          const key = String(worker?.workerKey || worker?.ip || "").trim();
+          if (!key) return null;
+          const name = String(worker?.displayName || worker?.name || key).trim() || key;
+          return { key, name };
+        })
+        .filter(Boolean)
+    : [];
+
+  const seenStationKeys = new Set();
+  const dedupedRemoteStations = [];
+  for (const entry of remoteStationOptions) {
+    if (!entry || !entry.key || seenStationKeys.has(entry.key)) continue;
+    seenStationKeys.add(entry.key);
+    dedupedRemoteStations.push(entry);
+  }
+
   return (
     <>
       <div className="uu-grid-2 mt-12">
@@ -157,10 +176,11 @@ function TaskEditorAutoConfigFields({
                 disabled={tasksLoading}
                 onChange={(e) => onChangeAutoRenderWorker?.(String(e.target.value || "").trim())}
               >
-                <option value="">{safeT(t, "postprod.tasks.form.autoRenderWorker.auto", "Auto (dispatcher)")}</option>
-                {availableRenderWorkers.map((worker) => (
-                  <option key={`task-auto-render-worker-${worker.workerKey}`} value={worker.workerKey}>
-                    {worker.displayName || worker.workerKey}
+                <option value="local">{safeT(t, "postprod.tasks.form.autoRenderWorker.local", "Rendu local")}</option>
+                <option value="auto">{safeT(t, "postprod.tasks.form.autoRenderWorker.auto", "Auto (dispatcher)")}</option>
+                {dedupedRemoteStations.map((station) => (
+                  <option key={`task-auto-render-worker-${station.key}`} value={station.key}>
+                    {station.name}
                   </option>
                 ))}
               </select>
@@ -173,6 +193,15 @@ function TaskEditorAutoConfigFields({
           ) : null}
           {!renderWorkersLoading && renderWorkersError ? (
             <div className="uu-msg warn mt-8">{renderWorkersError}</div>
+          ) : null}
+          {!renderWorkersLoading && !renderWorkersError && dedupedRemoteStations.length <= 0 ? (
+            <div className="uu-muted mt-8">
+              {safeT(
+                t,
+                "postprod.tasks.form.autoRenderWorker.noRemote",
+                "Aucune station distante disponible."
+              )}
+            </div>
           ) : null}
         </div>
       </div>

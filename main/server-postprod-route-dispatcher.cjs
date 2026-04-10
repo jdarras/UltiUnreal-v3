@@ -36,7 +36,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     requireSession,
     dbPath,
     sessionTtlSec,
-    buildBrokerConnectivitySnapshot,
     nowIso,
     addSeconds,
     RENDER_WORKER_ONLINE_TTL_SECONDS,
@@ -44,8 +43,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     stmts,
     resolveRenderDispatchConfig,
     buildRenderDispatchPolicyPayload,
-    computeHubConnectivityStatus,
-    hubHealthAuditState,
     audit,
     asCount,
     renderDetectedAutoScanBusy,
@@ -220,6 +217,8 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     toDispatchableRenderRow,
     selectRenderJobsForDispatch,
     buildRenderDispatchPairs,
+    selectBestStation,
+    sendJobToStation,
     normalizeRenderHealthEventState,
     normalizeRenderHealthEventKind,
     sanitizeRenderHealthEventLabel,
@@ -252,14 +251,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
 
   const {
     isAuthHealthRoute = false,
-    requestTransportSecure = false,
-    clientCertVerified = false,
-    clientCertAccepted = false,
-    clientCertSource = '',
-    clientCertSubject = '',
-    clientCertIssuer = '',
-    clientCertFingerprintSha256 = '',
-    clientCertPolicyReason = '',
   } = security;
 
   const authAndHealthRoutesHandled = await handlePostprodAuthAndHealthRoutes({
@@ -272,15 +263,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     requireSession,
     dbPath,
     sessionTtlSec,
-    buildBrokerConnectivitySnapshot,
-    requestTransportSecure,
-    clientCertVerified,
-    clientCertAccepted,
-    clientCertSource,
-    clientCertSubject,
-    clientCertIssuer,
-    clientCertFingerprintSha256,
-    clientCertPolicyReason,
     nowIso,
     addSeconds,
     RENDER_WORKER_ONLINE_TTL_SECONDS,
@@ -288,8 +270,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     stmts,
     resolveRenderDispatchConfig,
     buildRenderDispatchPolicyPayload,
-    computeHubConnectivityStatus,
-    hubHealthAuditState,
     audit,
     asCount,
     renderDetectedAutoScanBusy,
@@ -622,6 +602,11 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     nowIso,
     sanitizeRenderComment,
     audit,
+    db,
+    selectBestStation,
+    sendJobToStation,
+    readCommonServerConfigFile,
+    commonServerFile,
   });
   if (rendersRoutesHandled) return true;
 

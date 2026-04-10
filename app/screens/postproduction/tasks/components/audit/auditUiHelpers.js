@@ -15,7 +15,6 @@ function hubEventKindLabel(t, value) {
   const key = String(value || "").trim().toLowerCase();
   if (!key || key === "online" || key === "offline" || key === "loading" || key === "general") return "";
   if (key === "security") return safeT(t, "postprod.renders.health.events.kind.security", "Securite");
-  if (key === "broker") return safeT(t, "postprod.renders.health.events.kind.broker", "Broker");
   if (key === "worker") return safeT(t, "postprod.renders.health.events.kind.worker", "Station de rendu");
   if (key === "mixed") return safeT(t, "postprod.renders.health.events.kind.mixed", "Mixte");
   return key;

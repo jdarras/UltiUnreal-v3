@@ -51,6 +51,7 @@ export function useTasksCardController({
     editorSectionProps,
     statusMessagesProps,
     deleteDialogProps,
+    closeTaskForm,
   } = useTasksCardFlowController({
     t,
     tasksLoading,
@@ -74,6 +75,7 @@ export function useTasksCardController({
     editorSectionProps,
     statusMessagesProps,
     deleteDialogProps,
+    closeTaskForm,
   };
 }
 

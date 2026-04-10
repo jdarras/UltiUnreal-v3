@@ -10,12 +10,13 @@ const STORAGE_KEYS = Object.freeze({
   searchQuery: "uu_postprod_renders_validation_search_query",
   reviewFilter: "uu_postprod_renders_validation_review_filter",
   projectFilter: "uu_postprod_renders_validation_project_filter",
+  stationFilter: "uu_postprod_renders_validation_station_filter",
   favoriteOnly: "uu_postprod_renders_validation_favorite_only",
   favorites: "uu_postprod_renders_validation_favorites",
 });
 
 const REVIEW_FILTER_SET = new Set(["to_validate", "validated", "to_modify", "canceled"]);
-const LIST_SORT_KEY_SET = new Set(["file", "project", "linkedTask", "requester", "updatedAt", "reviewStatus"]);
+const LIST_SORT_KEY_SET = new Set(["file", "project", "linkedTask", "requester", "station", "updatedAt", "reviewStatus"]);
 const SORT_DIR_SET = new Set(["asc", "desc"]);
 const QUEUE_SORT_KEY_SET = new Set(["task", "project", "template", "worker", "status", "priority"]);
 
@@ -39,6 +40,10 @@ function getInitialReviewFilter() {
 
 function getInitialProjectFilter() {
   return readStorageString(STORAGE_KEYS.projectFilter).trim().toLowerCase() || "all";
+}
+
+function getInitialStationFilter() {
+  return readStorageString(STORAGE_KEYS.stationFilter).trim().toLowerCase() || "all";
 }
 
 function getInitialFavoriteOnly() {
@@ -77,6 +82,7 @@ function usePersistRendersPreferences({
   viewMode = "thumbs",
   reviewFilter = "all",
   projectFilter = "all",
+  stationFilter = "all",
   favoriteOnly = false,
   renderFavorites = {},
   listSortKey = "updatedAt",
@@ -88,6 +94,7 @@ function usePersistRendersPreferences({
   useDebouncedLocalStorage(STORAGE_KEYS.view, String(viewMode || "thumbs"), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.reviewFilter, String(reviewFilter || "all"), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.projectFilter, String(projectFilter || "all"), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.stationFilter, String(stationFilter || "all"), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.favoriteOnly, favoriteOnly ? "true" : "false", 180);
   useDebouncedLocalStorage(STORAGE_KEYS.favorites, JSON.stringify(renderFavorites || {}), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.listSortKey, String(listSortKey || "updatedAt"), 180);
@@ -101,6 +108,7 @@ export {
   getInitialListSortDir,
   getInitialListSortKey,
   getInitialProjectFilter,
+  getInitialStationFilter,
   getInitialQueueSortDir,
   getInitialQueueSortKey,
   getInitialRenderFavorites,
@@ -110,4 +118,3 @@ export {
   STORAGE_KEYS,
   usePersistRendersPreferences,
 };
-

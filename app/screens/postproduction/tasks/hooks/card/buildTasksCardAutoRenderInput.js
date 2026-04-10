@@ -46,6 +46,7 @@ function buildTaskPayloadBuilderInput({
     selectedAutoRenderProjectRef: autoRender.selectedAutoRenderProjectRef,
     projectOptionByRef: autoRender.projectOptionByRef,
     projectLookupByAny: autoRender.projectLookupByAny,
+    availableRenderWorkers: autoRender.availableRenderWorkers,
   };
 }
 
@@ -55,4 +56,3 @@ export {
 };
 
 export default buildTaskAutoRenderControllerInput;
-

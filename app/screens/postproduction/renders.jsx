@@ -3,6 +3,7 @@ import { useRendersCardController } from "./renders/hooks/useRendersCardControll
 import { RenderDetailModal } from "./renders/components/RenderDetailModal";
 import { RendersListPanel } from "./renders/components/RendersListPanel";
 import { RendersQueuePanel } from "./renders/components/RendersQueuePanel";
+import { RenderJobsQueuePanel } from "./renders/components/RenderJobsQueuePanel";
 import { RendersToolbar } from "./renders/components/RendersToolbar";
 
 function RendersValidationCard({
@@ -19,6 +20,8 @@ function RendersValidationCard({
   onLoadRenderTransitions = null,
   onCreateRender = null,
   onDispatchRenders = null,
+  onScheduleRender = null,
+  onReorderRenders = null,
 }) {
   const {
     canReviewRenders,
@@ -40,32 +43,48 @@ function RendersValidationCard({
     onLoadRenderTransitions,
     onCreateRender,
     onDispatchRenders,
+    onScheduleRender,
   });
+
+  const hasRenderDetailPage = Boolean(detailModalProps?.render);
 
   return (
     <section className="uu-section">
-      <RendersToolbar {...toolbarProps} />
+      {!hasRenderDetailPage ? (
+        <>
+          <RendersToolbar {...toolbarProps} />
 
-      {!canReviewRenders ? (
-        <div className="uu-msg info mt-12">
-          {safeT(
-            t,
-            "postprod.renders.review.readOnly",
-            "Validation en lecture seule pour ton role."
-          )}
-        </div>
+          {!canReviewRenders ? (
+            <div className="uu-msg info mt-12">
+              {safeT(
+                t,
+                "postprod.renders.review.readOnly",
+                "Validation en lecture seule pour ton role."
+              )}
+            </div>
+          ) : null}
+
+          {rendersError ? <div className="uu-msg error mt-12">{rendersError}</div> : null}
+
+          <RenderJobsQueuePanel
+            t={t}
+            renders={renders}
+            rendersLoading={rendersLoading}
+            onScheduleRender={onScheduleRender}
+            onReorderRenders={onReorderRenders}
+          />
+
+          <RendersQueuePanel {...queuePanelProps} />
+
+          {rendersLoading ? (
+            <div className="uu-muted mt-12">{safeT(t, "postprod.renders.loading", "Chargement des rendus...")}</div>
+          ) : null}
+
+          <RendersListPanel {...listPanelProps} />
+        </>
       ) : null}
 
-      {rendersError ? <div className="uu-msg error mt-12">{rendersError}</div> : null}
-
-      <RendersQueuePanel {...queuePanelProps} />
-
-      {rendersLoading ? (
-        <div className="uu-muted mt-12">{safeT(t, "postprod.renders.loading", "Chargement des rendus...")}</div>
-      ) : null}
-
-      <RendersListPanel {...listPanelProps} />
-      <RenderDetailModal {...detailModalProps} />
+      <RenderDetailModal {...detailModalProps} embedded={hasRenderDetailPage} />
     </section>
   );
 }
@@ -73,4 +92,3 @@ function RendersValidationCard({
 export {
   RendersValidationCard,
 };
-

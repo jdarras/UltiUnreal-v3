@@ -1,9 +1,11 @@
+import { useEffect } from "react";
 import { RenderFormsBrowseView } from "./components/editor/RenderFormsBrowseView";
 import { RenderFormsEditorView } from "./components/editor/RenderFormsEditorView";
 import { useRenderFormsEditorPageController } from "./hooks/useRenderFormsEditorPageController";
 
 function RenderFormsEditorCard({
   t,
+  tabKey = 0,
   selectedProjectRef = "",
   projectOptions = [],
   onSelectProjectRef = null,
@@ -45,6 +47,10 @@ function RenderFormsEditorCard({
   });
   const showEditor = editorState?.showEditor === true;
   const startEdit = editorState?.startEdit;
+
+  useEffect(() => {
+    if (showEditor) editorState.backToList();
+  }, [tabKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="mt-12">

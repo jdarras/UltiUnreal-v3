@@ -3,14 +3,16 @@ import React from 'react';
 import { readIdentity, writeIdentity } from '../utils/identity';
 import {
   getCommon,
+  getLibraryMeta,
+  getProjects,
   postCommon,
   getHosts,
   postHost,
+  postLaunch,
   postProjectsScan,
   postProjectsImport,
   postLibraryImportRemote,
   postLibraryImportRemotePreview,
-  probePostprodHub,
 } from '../utils/agent';
 import { createT } from '../i18n';
 import { NoticeContext } from '../NoticeContext';
@@ -32,17 +34,7 @@ const EMPTY_COMMON = {
   useStartLayout: false,
 };
 
-const POSTPROD_NET_LAN = 'lan';
-const POSTPROD_NET_VPN = 'vpn';
-const POSTPROD_NET_BROKER = 'broker';
 const APP_MODE_POSTPROD = 'postprod';
-
-function normalizePostprodNetworkMode(value) {
-  const raw = String(value || '').trim().toLowerCase();
-  if (raw === POSTPROD_NET_VPN) return POSTPROD_NET_VPN;
-  if (raw === POSTPROD_NET_BROKER) return POSTPROD_NET_BROKER;
-  return POSTPROD_NET_LAN;
-}
 
 function formatLicenseDate(exp, lang) {
   const raw = String(exp || '').trim();
@@ -51,6 +43,15 @@ function formatLicenseDate(exp, lang) {
   const date = new Date(`${raw}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return raw;
   return date.toLocaleDateString(locale);
+}
+
+function formatDateTime(value, lang) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  const locale = lang === 'en' ? 'en-US' : 'fr-FR';
+  return date.toLocaleString(locale, { hour12: false });
 }
 
 function parseLicenseExpToUtcMs(exp) {
@@ -133,16 +134,13 @@ export default function ConfigurationScreen({
   const [fabRemoteImportMsg, setFabRemoteImportMsg] = React.useState('');
   const [fabRemoteImportMsgType, setFabRemoteImportMsgType] = React.useState('');
   const [fabRemoteImportBusy, setFabRemoteImportBusy] = React.useState(false);
+  const [catalogStats, setCatalogStats] = React.useState({
+    resourcesCount: 0,
+    resourcesLastImport: '',
+    projectsCount: 0,
+    projectsLastImport: '',
+  });
   const [loaded, setLoaded] = React.useState(false);
-  const [postprodConnectivity, setPostprodConnectivity] = React.useState(() => ({
-    mode: normalizePostprodNetworkMode(identity?.postprodNetworkMode),
-    hubHost: String(identity?.postprodHubHost || '').trim(),
-    hubUrl: String(identity?.postprodHubUrl || '').trim(),
-    brokerToken: String(identity?.postprodBrokerToken || '').trim(),
-  }));
-  const [postprodConnectivityTesting, setPostprodConnectivityTesting] = React.useState(false);
-  const [postprodConnectivityMsg, setPostprodConnectivityMsg] = React.useState('');
-  const [postprodConnectivityMsgType, setPostprodConnectivityMsgType] = React.useState('');
   const saveTimer = React.useRef(null);
 
   React.useEffect(() => {
@@ -277,6 +275,53 @@ export default function ConfigurationScreen({
     };
   }, []);
 
+  const refreshCatalogStats = React.useCallback(async () => {
+    const [libraryMetaRes, projectsRes] = await Promise.all([
+      getLibraryMeta().catch(() => ({})),
+      getProjects({ light: 1 }).catch(() => ({})),
+    ]);
+
+    const libraryMeta = libraryMetaRes?.meta && typeof libraryMetaRes.meta === 'object'
+      ? libraryMetaRes.meta
+      : {};
+    const resourcesCountRaw = Number(libraryMetaRes?.count);
+    const resourcesCount = Number.isFinite(resourcesCountRaw)
+      ? Math.max(0, Math.trunc(resourcesCountRaw))
+      : 0;
+    const resourcesLastImportRaw = String(
+      libraryMeta?.lastImportAt ||
+      libraryMeta?.lastImportDate ||
+      ''
+    ).trim();
+
+    const projectsList = Array.isArray(projectsRes?.projects) ? projectsRes.projects : [];
+    const projectsCount = projectsList.length;
+    let latestProjectImportRaw = '';
+    let latestProjectImportMs = -1;
+    for (const project of projectsList) {
+      const raw = String(project?.createdAt || '').trim();
+      if (!raw) continue;
+      const ms = Date.parse(raw);
+      if (!Number.isFinite(ms)) continue;
+      if (ms > latestProjectImportMs) {
+        latestProjectImportMs = ms;
+        latestProjectImportRaw = raw;
+      }
+    }
+
+    setCatalogStats({
+      resourcesCount,
+      resourcesLastImport: formatDateTime(resourcesLastImportRaw, lang),
+      projectsCount,
+      projectsLastImport: formatDateTime(latestProjectImportRaw, lang),
+    });
+  }, [lang]);
+
+  React.useEffect(() => {
+    if (!loaded) return;
+    refreshCatalogStats();
+  }, [loaded, refreshCatalogStats]);
+
   React.useEffect(() => {
     refreshFabAuthStatus();
   }, []);
@@ -370,6 +415,56 @@ export default function ConfigurationScreen({
       scheduleSave(section);
     }
   }
+
+  const handleLaunchUnrealVersion = React.useCallback(async (versionName = '') => {
+    const version = String(versionName || '').trim();
+    if (!version) {
+      setInfoMsg({
+        text: t('launch.status.missingExeVersion', { version: '—' }),
+        type: 'error',
+        section: 'versions',
+      });
+      setTimeout(() => setInfoMsg({ text: '', type: '', section: '' }), 2500);
+      return;
+    }
+
+    const targetIp = String(localIp || '').trim();
+    if (!targetIp) {
+      setInfoMsg({
+        text: t('config.unreal.launchError', { version }),
+        type: 'error',
+        section: 'versions',
+      });
+      setTimeout(() => setInfoMsg({ text: '', type: '', section: '' }), 2500);
+      return;
+    }
+
+    try {
+      const res = await postLaunch(targetIp, {
+        editorOnly: true,
+        requiredVersion: version,
+        uproject: '',
+      });
+      if (res && res.ok === false) {
+        throw new Error(String(res?.message || res?.error || 'launch_failed'));
+      }
+      setInfoMsg({
+        text: t('config.unreal.launchSuccess', { version }),
+        type: 'ok',
+        section: 'versions',
+      });
+    } catch (e) {
+      const details = String(e?.message || '').trim();
+      setInfoMsg({
+        text: details
+          ? `${t('config.unreal.launchError', { version })} (${details})`
+          : t('config.unreal.launchError', { version }),
+        type: 'error',
+        section: 'versions',
+      });
+    }
+    setTimeout(() => setInfoMsg({ text: '', type: '', section: '' }), 3000);
+  }, [localIp, t]);
 
   async function handleSave(section = 'common', forceShowFlag = null) {
     if (!loaded) return;
@@ -550,6 +645,7 @@ export default function ConfigurationScreen({
       setProjectScanMsg(
         t('setup.server.projectRoots.importResult', { imported, skipped })
       );
+      refreshCatalogStats();
       if (imported > 0 && typeof onNavigate === 'function') {
         onNavigate('Projets', { force: true });
       }
@@ -797,6 +893,7 @@ export default function ConfigurationScreen({
             skipped: skippedTotal,
           })
         );
+        refreshCatalogStats();
         if (typeof onLibraryImported === 'function' && importedTotal > 0) {
           onLibraryImported();
         }
@@ -846,92 +943,6 @@ export default function ConfigurationScreen({
     // pas de save côté agent pour la langue (stock local)
 
     persistIdentityPatch({ lang: newLang });
-  }
-
-  function updatePostprodConnectivityField(key, value) {
-    const field = String(key || '').trim();
-    if (!field) return;
-    setPostprodConnectivity((prev) => {
-      const current = prev && typeof prev === 'object'
-        ? prev
-        : {
-          mode: POSTPROD_NET_LAN,
-          hubHost: '',
-          hubUrl: '',
-          brokerToken: '',
-        };
-      const next = { ...current };
-      if (field === 'mode') {
-        next.mode = normalizePostprodNetworkMode(value);
-      } else if (field === 'hubHost') {
-        next.hubHost = String(value || '');
-      } else if (field === 'hubUrl') {
-        next.hubUrl = String(value || '');
-      } else if (field === 'brokerToken') {
-        next.brokerToken = String(value || '');
-      }
-      persistIdentityPatch({
-        postprodNetworkMode: next.mode,
-        postprodHubHost: String(next.hubHost || ''),
-        postprodHubUrl: String(next.hubUrl || ''),
-        postprodBrokerToken: String(next.brokerToken || ''),
-      });
-      return next;
-    });
-    setPostprodConnectivityMsg('');
-    setPostprodConnectivityMsgType('');
-  }
-
-  async function handleTestPostprodConnectivity() {
-    if (postprodConnectivityTesting) return;
-    const mode = normalizePostprodNetworkMode(postprodConnectivity?.mode);
-    const hubHost = String(postprodConnectivity?.hubHost || '').trim();
-    const hubUrl = String(postprodConnectivity?.hubUrl || '').trim();
-    if (mode !== POSTPROD_NET_BROKER && !hubHost) {
-      setPostprodConnectivityMsgType('info');
-      setPostprodConnectivityMsg(t('welcome.postprod.connectivity.test.localHint'));
-      return;
-    }
-    setPostprodConnectivityTesting(true);
-    setPostprodConnectivityMsg('');
-    setPostprodConnectivityMsgType('');
-    try {
-      const latestIdentity = readIdentity();
-      const portRaw =
-        latestIdentity && typeof latestIdentity === 'object'
-          ? latestIdentity.agentPort
-          : identity?.agentPort;
-      const port = Number(portRaw);
-      const probe = await probePostprodHub({
-        mode,
-        hubHost,
-        hubUrl,
-        port: Number.isFinite(port) && port > 0 ? Math.trunc(port) : 4000,
-      });
-      const target = String(probe?.target || hubUrl || hubHost || '').trim();
-      if (probe?.ok) {
-        setPostprodConnectivityMsgType('ok');
-        setPostprodConnectivityMsg(
-          t('welcome.postprod.connectivity.test.ok', { target: target || 'hub' })
-        );
-      } else {
-        setPostprodConnectivityMsgType('error');
-        setPostprodConnectivityMsg(
-          t('welcome.postprod.connectivity.test.fail', { target: target || 'hub' })
-        );
-      }
-    } catch {
-      const fallbackTarget =
-        String(postprodConnectivity?.mode || '').trim().toLowerCase() === POSTPROD_NET_BROKER
-          ? String(postprodConnectivity?.hubUrl || '').trim()
-          : String(postprodConnectivity?.hubHost || '').trim();
-      setPostprodConnectivityMsgType('error');
-      setPostprodConnectivityMsg(
-        t('welcome.postprod.connectivity.test.fail', { target: fallbackTarget || 'hub' })
-      );
-    } finally {
-      setPostprodConnectivityTesting(false);
-    }
   }
 
   const cleanedProjectRoots = normalizeProjectRoots(projectRoots);
@@ -1293,7 +1304,14 @@ export default function ConfigurationScreen({
               </button>
             </div>
             </div>
-            <div className="uu-row wrap">
+            <div className="uu-row uu-gap-8" style={{ gridColumn: '1 / -1', flexWrap: 'nowrap' }}>
+              <button
+                type="button"
+                className="uu-btn"
+                onClick={() => handleLaunchUnrealVersion(v?.name)}
+              >
+                {t('config.unreal.launchVersion', 'Lancer')}
+              </button>
               <button
                 type="button"
                 className="uu-btn"
@@ -1312,10 +1330,17 @@ export default function ConfigurationScreen({
 
       {canManageProjects ? (
       <div className="uu-section mt-16">
+        <div className="uu-config-stack">
         <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
           <h3 className="uu-h3 uu-block-title">
             {t('setup.server.projectRoots.title')}
           </h3>
+        </div>
+        <div className="uu-muted">
+          {t('config.catalog.projectsSummary', {
+            count: catalogStats.projectsCount,
+            date: catalogStats.projectsLastImport || '—',
+          })}
         </div>
 
         <div className="uu-row uu-gap-8">
@@ -1373,12 +1398,12 @@ export default function ConfigurationScreen({
         </div>
 
         {projectRoots.length === 0 ? (
-          <div className="uu-muted mt-8">
+          <div className="uu-muted">
             {t('setup.server.projectRoots.empty')}
           </div>
         ) : (
           projectRoots.map((root, idx) => (
-            <div key={`project-root-${idx}`} className="uu-grid-field mt-8">
+            <div key={`project-root-${idx}`} className="uu-grid-field">
               <label className="uu-label w-160">
                 {t('setup.server.projectRoots.pathLabel')}
               </label>
@@ -1435,7 +1460,7 @@ export default function ConfigurationScreen({
 
         {projectScanResults.length > 0 ? (
           <>
-            <div className="uu-row uu-gap-8 mt-12">
+            <div className="uu-row uu-gap-8">
               <button
                 type="button"
                 className="uu-btn"
@@ -1463,7 +1488,7 @@ export default function ConfigurationScreen({
                 {t('setup.server.projectRoots.hideImported')}
               </label>
             </div>
-            <div className="uu-list mt-8">
+            <div className="uu-list">
               {visibleScanResults.map((it, idx) => {
                 const key = normalizePathKey(it.uprojectPath || it.name || String(idx));
                 return (
@@ -1497,15 +1522,23 @@ export default function ConfigurationScreen({
             </div>
           </>
         ) : null}
+        </div>
       </div>
       ) : null}
 
       {canViewResources ? (
       <div className="uu-section mt-16">
+        <div className="uu-config-stack">
         <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
           <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
             {t('config.resources.title')}
           </h3>
+        </div>
+        <div className="uu-muted">
+          {t('config.catalog.resourcesSummary', {
+            count: catalogStats.resourcesCount,
+            date: catalogStats.resourcesLastImport || '—',
+          })}
         </div>
 
         <label className="uu-check">
@@ -1517,7 +1550,7 @@ export default function ConfigurationScreen({
           {t('config.resources.enabled')}
         </label>
 
-        <div className="uu-row mt-12">
+        <div className="uu-row">
           {!fabAuthConnected ? (
             <button
               type="button"
@@ -1551,7 +1584,7 @@ export default function ConfigurationScreen({
         </div>
 
         {fabShowControls ? (
-          <div className="uu-row uu-row-nowrap mt-8">
+          <div className="uu-row uu-row-nowrap">
             {!fabRemoteImportBusy && !fabImporting ? (
               <button
                 type="button"
@@ -1593,7 +1626,7 @@ export default function ConfigurationScreen({
             </div>
           </div>
         ) : fabAuthConnected ? (
-          <div className="uu-row mt-8">
+          <div className="uu-row">
             <button
               type="button"
               className="uu-btn"
@@ -1611,7 +1644,7 @@ export default function ConfigurationScreen({
           <>
             {fabPreviewNewItems.length > 0 ? (
               <>
-                <strong className="uu-block-title mt-8">
+                <strong className="uu-block-title">
                   {t('resources.fabImport.newBlock')}
                 </strong>
                 {renderFabPreviewList(fabPreviewNewItems)}
@@ -1619,7 +1652,7 @@ export default function ConfigurationScreen({
             ) : null}
             {fabPreviewUpdatedItems.length > 0 ? (
               <>
-                <strong className="uu-block-title mt-8">
+                <strong className="uu-block-title">
                   {t('resources.fabImport.updatedBlock')}
                 </strong>
                 {renderFabPreviewList(fabPreviewUpdatedItems)}
@@ -1629,11 +1662,11 @@ export default function ConfigurationScreen({
         ) : null}
 
         {fabRemoteImportMsg ? (
-          <div className={`uu-msg ${fabRemoteImportMsgType || 'info'} mt-8`}>
+          <div className={`uu-msg ${fabRemoteImportMsgType || 'info'}`}>
             {fabRemoteImportMsg}
           </div>
         ) : null}
-
+        </div>
       </div>
       ) : null}
 

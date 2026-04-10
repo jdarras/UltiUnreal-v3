@@ -11,6 +11,7 @@ export const RENDER_LIST_ALLOWED_SORT_KEYS = new Set([
   "project",
   "linkedTask",
   "requester",
+  "station",
   "reviewStatus",
 ]);
 
@@ -58,9 +59,30 @@ export function buildRenderSearchHaystack(render) {
     renderLinkedTaskValue(render),
     String(render?.matchedExpectedRenderName || ""),
     String(render?.errorMessage || ""),
+    String(render?.stationName || ""),
+    String(render?.stationIp || ""),
+    String(render?.stationStatus || ""),
   ]
     .join(" ")
     .toLowerCase();
+}
+
+export function renderStationIpKey(render) {
+  return String(render?.stationIp || "").trim().toLowerCase();
+}
+
+export function renderIsLocal(render) {
+  if (render?.stationIsLocal === true) return true;
+  const ip = renderStationIpKey(render);
+  return ip === "127.0.0.1" || ip === "localhost";
+}
+
+export function renderStationLabel(render) {
+  const name = String(render?.stationName || "").trim();
+  if (name) return name;
+  const ip = String(render?.stationIp || "").trim();
+  if (ip) return ip;
+  return "-";
 }
 
 export function compareRendersBySortKey(a, b, listSortKey) {
@@ -75,6 +97,9 @@ export function compareRendersBySortKey(a, b, listSortKey) {
   }
   if (listSortKey === "requester") {
     return String(a?.requestedByUsername || "").localeCompare(String(b?.requestedByUsername || ""), undefined, { sensitivity: "base" });
+  }
+  if (listSortKey === "station") {
+    return renderStationLabel(a).localeCompare(renderStationLabel(b), undefined, { sensitivity: "base" });
   }
   if (listSortKey === "reviewStatus") {
     const rankA = REVIEW_STATUS_RANK[renderReviewStatusKey(a)] ?? 999;

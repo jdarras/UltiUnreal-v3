@@ -3,6 +3,7 @@ import { useCallback } from "react";
 function useRendersToolbarActions({
   setSearchQuery = null,
   setProjectFilter = null,
+  setStationFilter = null,
   setReviewFilter = null,
   setFavoriteOnly = null,
   setSearchExpanded = null,
@@ -10,10 +11,11 @@ function useRendersToolbarActions({
   const clearFilters = useCallback(() => {
     setSearchQuery?.("");
     setProjectFilter?.("all");
+    setStationFilter?.("all");
     setReviewFilter?.("all");
     setFavoriteOnly?.(false);
     setSearchExpanded?.(false);
-  }, [setSearchQuery, setProjectFilter, setReviewFilter, setFavoriteOnly, setSearchExpanded]);
+  }, [setSearchQuery, setProjectFilter, setStationFilter, setReviewFilter, setFavoriteOnly, setSearchExpanded]);
 
   const openAdvancedSearch = useCallback(() => {
     setSearchExpanded?.(true);

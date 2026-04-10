@@ -7,12 +7,14 @@ function useUserAutosave({
   editingUserId = 0,
   usersLoading = false,
   editorInputFocused = false,
+  autosavePulse = 0,
   onUpdateUser = null,
   buildUserPayloadFromDraft,
   draft,
 }) {
   const userAutosaveTimerRef = useRef(null);
   const userAutosaveLastSignatureRef = useRef("");
+  const userAutosaveLastPulseRef = useRef(0);
   const [userAutosaveBusy, setUserAutosaveBusy] = useState(false);
   const [userAutosaveError, setUserAutosaveError] = useState("");
   const [userAutosaveInfo, setUserAutosaveInfo] = useState("");
@@ -20,6 +22,7 @@ function useUserAutosave({
   useEffect(() => {
     if (editorMode !== "edit") {
       userAutosaveLastSignatureRef.current = "";
+      userAutosaveLastPulseRef.current = 0;
       if (userAutosaveTimerRef.current) {
         clearTimeout(userAutosaveTimerRef.current);
         userAutosaveTimerRef.current = null;
@@ -29,7 +32,7 @@ function useUserAutosave({
       setUserAutosaveInfo("");
       return;
     }
-    if (editingUserId <= 0 || usersLoading || editorInputFocused) {
+    if (editingUserId <= 0 || usersLoading) {
       if (userAutosaveTimerRef.current) {
         clearTimeout(userAutosaveTimerRef.current);
         userAutosaveTimerRef.current = null;
@@ -42,11 +45,14 @@ function useUserAutosave({
 
     const payload = buildUserPayloadFromDraft(draft, { includeIsActive: true });
     const signature = JSON.stringify(payload);
+    const pulse = Math.max(0, Math.trunc(Number(autosavePulse) || 0));
     if (!userAutosaveLastSignatureRef.current) {
       userAutosaveLastSignatureRef.current = signature;
+      userAutosaveLastPulseRef.current = pulse;
       return;
     }
     if (signature === userAutosaveLastSignatureRef.current) return;
+    if (pulse <= userAutosaveLastPulseRef.current) return;
 
     if (userAutosaveTimerRef.current) {
       clearTimeout(userAutosaveTimerRef.current);
@@ -65,6 +71,7 @@ function useUserAutosave({
           return;
         }
         userAutosaveLastSignatureRef.current = signature;
+        userAutosaveLastPulseRef.current = pulse;
         setUserAutosaveInfo(
           safeT(t, "postprod.users.form.autosaveOk", "Modifications enregistrées automatiquement.")
         );
@@ -86,7 +93,16 @@ function useUserAutosave({
         userAutosaveTimerRef.current = null;
       }
     };
-  }, [editorMode, editingUserId, usersLoading, editorInputFocused, onUpdateUser, buildUserPayloadFromDraft, draft, t]);
+  }, [
+    editorMode,
+    editingUserId,
+    usersLoading,
+    autosavePulse,
+    onUpdateUser,
+    buildUserPayloadFromDraft,
+    draft,
+    t,
+  ]);
 
   return {
     userAutosaveBusy,

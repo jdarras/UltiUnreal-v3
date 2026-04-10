@@ -46,6 +46,7 @@ export function useUserManagementState({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [editorInputFocused, setEditorInputFocused] = useState(false);
+  const [autosavePulse, setAutosavePulse] = useState(0);
   const editorAvatarInputRef = useRef(null);
 
   const {
@@ -150,6 +151,7 @@ export function useUserManagementState({
   useEffect(() => {
     if (editorMode !== "edit") {
       setEditorInputFocused(false);
+      setAutosavePulse(0);
     }
   }, [editorMode, setEditorInputFocused]);
 
@@ -168,6 +170,8 @@ export function useUserManagementState({
     setSearchQuery,
     editorInputFocused,
     setEditorInputFocused,
+    autosavePulse,
+    requestAutosaveOnBlur: () => setAutosavePulse((prev) => Number(prev || 0) + 1),
     editorAvatarInputRef,
     editorMode,
     setEditorMode,

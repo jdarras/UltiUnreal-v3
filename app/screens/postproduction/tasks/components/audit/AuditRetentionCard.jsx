@@ -15,7 +15,7 @@ function AuditRetentionCard({
     <div className="uu-card mt-12">
       <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
         <h4 className="uu-h3 uu-block-title" style={{ marginBottom: "8px" }}>
-          {safeT(t, "postprod.audit.retention.title", "Retention evenements Hub")}
+          {safeT(t, "postprod.audit.retention.title", "Retention evenements")}
         </h4>
         <div className="uu-row">
           <button

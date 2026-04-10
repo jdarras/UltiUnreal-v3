@@ -86,6 +86,8 @@ const { handleLayoutRoutes } = require('./server-layout.cjs');
 const { handleProjectConfigRoutes, ensureHttpServerBindAddress } = require('./server-project-config.cjs');
 const { handleHostsOnlineRoutes, heartbeatLoop } = require('./server-hosts-online.cjs');
 const { createPostprodAuth } = require('./server-postprod-auth.cjs');
+const { handlePostprodRemoteJobRoutes } = require('./server-postprod-routes-remote-jobs.cjs');
+const { notifyJobStatusUpdate } = require('./server-postprod-remote-dispatcher.cjs');
 
 const NAME = 'UltiUnreal Agent';
 const VERSION = '0.9.0';
@@ -220,7 +222,7 @@ function sendJSONWithEtag(req, res, status, obj) {
       'ETag': etag,
       'Access-Control-Allow-Origin':'*',
       'Access-Control-Allow-Methods': CORS_ALLOWED_METHODS,
-      'Access-Control-Allow-Headers':'Content-Type, Authorization, X-UU-Auth, X-UU-Broker-Token, X-UU-Purge-Id, X-UU-Purge-Origin',
+      'Access-Control-Allow-Headers':'Content-Type, Authorization, X-UU-Auth, X-UU-Purge-Id, X-UU-Purge-Origin',
     });
     res.end();
     return;
@@ -237,7 +239,7 @@ function sendJSONPayload(res, status, payload, etag = '') {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': CORS_ALLOWED_METHODS,
     // On autorise les headers custom utilisés par le front (purgeId/origin, etc.)
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-UU-Auth, X-UU-Broker-Token, X-UU-Purge-Id, X-UU-Purge-Origin',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-UU-Auth, X-UU-Purge-Id, X-UU-Purge-Origin',
   };
   if (etag) baseHeaders.ETag = etag;
 
@@ -710,7 +712,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(204, {
         'Access-Control-Allow-Origin':'*',
         'Access-Control-Allow-Methods': CORS_ALLOWED_METHODS,
-        'Access-Control-Allow-Headers':'Content-Type, Authorization, X-UU-Auth, X-UU-Broker-Token, X-UU-Purge-Id, X-UU-Purge-Origin',
+        'Access-Control-Allow-Headers':'Content-Type, Authorization, X-UU-Auth, X-UU-Purge-Id, X-UU-Purge-Origin',
       });
       res.end();
       return;
@@ -728,6 +730,31 @@ const server = http.createServer(async (req, res) => {
     res._acceptsGzip = encHeader.includes('gzip');
 
     // ---- Routes Post-production auth (/agent/postprod/*) ----
+    const commonCfgForRemoteRoutes = getCommonCached() || {};
+    const handledRemote = await handlePostprodRemoteJobRoutes({
+      req,
+      res,
+      url,
+      pathname: url?.pathname || '',
+      sendJSON,
+      parseBody,
+      logLine,
+      stmts: postprodAuth?.remoteBridge?.stmts,
+      nowIso: postprodAuth?.remoteBridge?.nowIso,
+      buildRenderJobPayload: postprodAuth?.remoteBridge?.buildRenderJobPayload,
+      ensureProjectCanAutoRender: postprodAuth?.remoteBridge?.ensureProjectCanAutoRender,
+      sanitizeRenderTemplateName: postprodAuth?.remoteBridge?.sanitizeRenderTemplateName,
+      sanitizeRenderProjectName: postprodAuth?.remoteBridge?.sanitizeRenderProjectName,
+      normalizeRenderPayload: postprodAuth?.remoteBridge?.normalizeRenderPayload,
+      sharedStore: postprodAuth?.remoteBridge?.sharedStore,
+      stationIp: String(commonCfgForRemoteRoutes?.localIp || '127.0.0.1').trim() || '127.0.0.1',
+      stationName: String(commonCfgForRemoteRoutes?.hostName || '').trim(),
+      agentPort: Number(commonCfgForRemoteRoutes?.agentPort || PORT),
+      COMMON_FILE,
+      notifyJobStatusUpdate,
+    });
+    if (handledRemote !== false) return;
+
     const handledPostprod = await postprodAuth.handleRoutes(req, res, url, {
       sendJSON,
       parseBody,

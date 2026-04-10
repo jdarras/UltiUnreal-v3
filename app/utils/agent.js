@@ -1,6 +1,6 @@
 ﻿// app/utils/agent.js
 // Lecture centralisée des endpoints de l’agent avec URL absolue
-// Base construite depuis uu_identity (role, serverIp, agentPort)
+// Base construite depuis uu_identity (mode, role, serverIp, agentPort)
 import { readIdentity } from './identity';
 import { buildColorPropertyBody } from './colorutils.mjs';
 
@@ -31,41 +31,15 @@ function normalizeHttpBase(raw, fallbackPort = 0, protocolHint = 'http:') {
   }
 }
 
-function normalizeHttpsBase(raw, fallbackPort = 0) {
-  const normalized = normalizeHttpBase(raw, fallbackPort, 'https:');
-  if (!normalized) return '';
-  try {
-    const u = new URL(normalized);
-    if (u.protocol !== 'https:') return '';
-    return normalized;
-  } catch {
-    return '';
-  }
-}
-
-function getPostprodBrokerHeaders(identity = null) {
-  const id = identity && typeof identity === 'object' ? identity : readIdentity();
-  const mode = String(id?.mode || '').trim().toLowerCase();
-  const networkMode = String(id?.postprodNetworkMode || 'lan').trim().toLowerCase();
-  if (mode !== 'postprod' || networkMode !== 'broker') return {};
-  const token = String(id?.postprodBrokerToken || '').trim();
-  if (!token) return {};
-  return { 'x-uu-broker-token': token };
-}
-
 function getBase() {
   const id = readIdentity();
   const mode = String(id?.mode || '').trim().toLowerCase();
-  const role = id?.role || 'server';
   const port = id?.agentPort || 4000;
   if (mode === 'postprod') {
-    const networkMode = String(id?.postprodNetworkMode || 'lan').trim().toLowerCase();
-    const brokerBase = normalizeHttpsBase(id?.postprodHubUrl || '', port);
-    if (networkMode === 'broker' && brokerBase) return brokerBase;
-    const hostBase = normalizeHttpBase(id?.postprodHubHost || id?.serverIp || '', port, 'http:');
-    if (hostBase) return hostBase;
+    // En post-production pair-a-pair, le front parle toujours a l'agent local.
     return `http://127.0.0.1:${port}`;
   }
+  const role = id?.role || 'server';
   const host = role === 'client' ? (id?.serverIp || null) : '127.0.0.1';
   if (role === 'client' && !host) throw new Error('serverIp manquant dans uu_identity (rôle client)');
   return `http://${host}:${port}`;
@@ -75,11 +49,11 @@ function getBase() {
 export function getCompanionBaseUrl() {
   const id = readIdentity();
   const mode = String(id?.mode || '').trim().toLowerCase();
-  const role = id?.role || 'server';
   const port = id?.agentPort || 4000;
   if (mode === 'postprod') {
     return getBase();
   }
+  const role = id?.role || 'server';
 
   // Sur le HUB (rôle = server), on utilise de préférence l'IP saisie dans Welcome
   if (role === 'server') {
@@ -186,8 +160,6 @@ async function httpRequest(path, opts = {}) {
     body = undefined,
     timeoutMs = 5000,
   } = opts || {};
-  const id = readIdentity();
-  const brokerHeaders = getPostprodBrokerHeaders(id);
   const url = getBase() + ensureLeadingSlash(path);
 
   const parseText = (txt) => {
@@ -197,7 +169,7 @@ async function httpRequest(path, opts = {}) {
   if (typeof window.electron?.httpJson === 'function') {
     const r = await window.electron.httpJson(url, {
       method,
-      headers: { ...brokerHeaders, ...(headers || {}) },
+      headers: { ...(headers || {}) },
       body,
       timeout: timeoutMs,
     });
@@ -218,7 +190,7 @@ async function httpRequest(path, opts = {}) {
   try {
     const res = await fetch(url, {
       method,
-      headers: { ...brokerHeaders, ...(headers || {}) },
+      headers: { ...(headers || {}) },
       body: body == null ? undefined : JSON.stringify(body),
       signal: ctrl.signal,
     });
@@ -396,6 +368,18 @@ export async function setProjectHttpBind(projectId, bindAddress = '0.0.0.0') {
   const addr = String(bindAddress || '').trim();
   if (!addr) return { ok: false, error: 'missing bindAddress' };
   return await httpPost('/agent/project-http-bind', { projectId: pid, bindAddress: addr });
+}
+
+export async function getProjectRenderBridgeStatus(projectId) {
+  const pid = encodeURIComponent(String(projectId || '').trim());
+  if (!pid) return { ok: false, error: 'missing projectId' };
+  return await httpGet(`/agent/project-render-bridge-status?projectId=${pid}`);
+}
+
+export async function installProjectRenderBridge(projectId) {
+  const pid = String(projectId || '').trim();
+  if (!pid) return { ok: false, error: 'missing projectId' };
+  return await httpPost('/agent/project-render-bridge-install', { projectId: pid });
 }
 
 /** Écritures utiles */
@@ -1407,6 +1391,127 @@ export async function postprodListRenders(token = '', timeoutOrOptions = 8000, m
   return res.json || { ok: true, renders: [] };
 }
 
+function normalizeRemoteStationHost(value) {
+  let hostRaw = String(value || '').trim();
+  if (!hostRaw) return '';
+  hostRaw = hostRaw.replace(/^\s*https?:\/\//i, '');
+  const slashIndex = hostRaw.indexOf('/');
+  if (slashIndex >= 0) hostRaw = hostRaw.slice(0, slashIndex).trim();
+  if (!hostRaw) return '';
+  if (hostRaw.startsWith('[')) {
+    const endBracket = hostRaw.indexOf(']');
+    hostRaw = endBracket > 1 ? hostRaw.slice(1, endBracket).trim() : '';
+  }
+  if (!hostRaw) return '';
+  if (/^localhost$/i.test(hostRaw)) return '127.0.0.1';
+  if (/^[^:]+:\d+$/.test(hostRaw)) {
+    hostRaw = String(hostRaw.split(':')[0] || '').trim();
+  }
+  return hostRaw;
+}
+
+function formatRemoteStationHostForUrl(hostValue) {
+  const host = normalizeRemoteStationHost(hostValue);
+  if (!host) return '';
+  if (host.includes(':') && !host.startsWith('[')) return `[${host}]`;
+  return host;
+}
+
+export async function postprodListRemoteJobsByStation(stationIp = '', agentPort = 4000, timeoutMs = 3000) {
+  const normalizedIp = normalizeRemoteStationHost(stationIp);
+  const hostForUrl = formatRemoteStationHostForUrl(normalizedIp);
+  if (!hostForUrl) {
+    return { ok: false, error: 'invalid_station_ip', jobs: [], stationIp: '', stationName: '' };
+  }
+  const portRaw = Number(agentPort);
+  const normalizedPort = Number.isFinite(portRaw) && portRaw > 0
+    ? Math.max(1, Math.min(65535, Math.trunc(portRaw)))
+    : 4000;
+  const normalizedTimeout = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
+    ? Math.max(300, Math.trunc(Number(timeoutMs)))
+    : 3000;
+  const url = `http://${hostForUrl}:${normalizedPort}/agent/postprod/remote/jobs`;
+
+  if (typeof window.electron?.httpGet === 'function') {
+    try {
+      const result = await window.electron.httpGet(url, {}, normalizedTimeout);
+      const status = Number(result?.status || 0);
+      const text = String(result?.text || '').trim();
+      let json = null;
+      try { json = JSON.parse(text || '{}'); } catch { json = null; }
+      if (!result?.ok || !json || json.ok !== true) {
+        return {
+          ok: false,
+          status,
+          error: String(json?.error || result?.error || `http_${status || 0}`).trim() || 'remote_jobs_unavailable',
+          jobs: [],
+          stationIp: normalizedIp,
+          stationName: '',
+        };
+      }
+      return {
+        ok: true,
+        status,
+        error: '',
+        jobs: Array.isArray(json.jobs) ? json.jobs : [],
+        stationIp: String(json.stationIp || normalizedIp).trim() || normalizedIp,
+        stationName: String(json.stationName || '').trim(),
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 0,
+        error: String(error?.message || error || 'remote_jobs_unavailable').trim() || 'remote_jobs_unavailable',
+        jobs: [],
+        stationIp: normalizedIp,
+        stationName: '',
+      };
+    }
+  }
+
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), normalizedTimeout) : null;
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller ? controller.signal : undefined,
+    });
+    const text = await response.text();
+    let json = null;
+    try { json = JSON.parse(text || '{}'); } catch { json = null; }
+    if (!response.ok || !json || json.ok !== true) {
+      return {
+        ok: false,
+        status: Number(response.status || 0),
+        error: String(json?.error || `http_${Number(response.status || 0)}`).trim() || 'remote_jobs_unavailable',
+        jobs: [],
+        stationIp: normalizedIp,
+        stationName: '',
+      };
+    }
+    return {
+      ok: true,
+      status: Number(response.status || 0),
+      error: '',
+      jobs: Array.isArray(json.jobs) ? json.jobs : [],
+      stationIp: String(json.stationIp || normalizedIp).trim() || normalizedIp,
+      stationName: String(json.stationName || '').trim(),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      error: String(error?.message || error || 'remote_jobs_unavailable').trim() || 'remote_jobs_unavailable',
+      jobs: [],
+      stationIp: normalizedIp,
+      stationName: '',
+    };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function postprodScanDetectedRenders(token = '', payload = {}, timeoutMs = 12000) {
   const authToken = assertPostprodToken(token);
   const body = payload && typeof payload === 'object' ? payload : {};
@@ -1672,7 +1777,6 @@ export async function postprodGetHealth(token = '', timeoutMs = 8000) {
   return res.json || {
     ok: true,
     health: {
-      hubOnline: true,
       serverTime: '',
       staleRequeued: 0,
       workers: { total: 0, online: 0, available: 0 },
@@ -1734,6 +1838,45 @@ export async function postprodDispatchRenders(token = '', payload = {}, timeoutM
   });
   if (!res.ok) throw toRequestError(res);
   return res.json || { ok: true, dispatched: [], count: 0 };
+}
+
+export async function postprodScheduleRenderJob(token = '', renderId = 0, payload = {}, timeoutMs = 6000) {
+  const authToken = assertPostprodToken(token);
+  const idNum = Number(renderId);
+  if (!Number.isFinite(idNum) || idNum <= 0) {
+    const err = new Error('invalid_render_id');
+    err.code = 'invalid_render_id';
+    err.status = 400;
+    throw err;
+  }
+  const body = payload && typeof payload === 'object' ? payload : {};
+  const res = await httpRequest(`/agent/postprod/renders/${Math.trunc(idNum)}/schedule`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body,
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true };
+}
+
+export async function postprodReorderRenderJobs(token = '', payload = {}, timeoutMs = 6000) {
+  const authToken = assertPostprodToken(token);
+  const body = payload && typeof payload === 'object' ? payload : {};
+  const res = await httpRequest('/agent/postprod/renders/reorder', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body,
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true, updated: 0 };
 }
 
 export async function postprodSaveDispatchPolicy(token = '', payload = {}, timeoutMs = 8000) {
@@ -2060,26 +2203,67 @@ export async function setProjectAssociation(hostIp, projectName, uprojectPath) {
 }
 
 // --- Synchronisation projets : vérification réelle via l'agent serveur ---
-export async function checkSync(hostIp, timeoutMs = 120000) {
+export async function checkSync(hostIp, timeoutOrOptions = 120000, maybeOptions = null) {
   if (!hostIp) throw new Error('hostIp manquant pour checkSync');
+
+  let timeoutMs = 120000;
+  let options = {};
+  if (typeof timeoutOrOptions === 'number') {
+    timeoutMs = timeoutOrOptions;
+    options = maybeOptions && typeof maybeOptions === 'object' ? maybeOptions : {};
+  } else if (timeoutOrOptions && typeof timeoutOrOptions === 'object') {
+    options = timeoutOrOptions;
+    timeoutMs =
+      typeof options.timeoutMs === 'number' && Number.isFinite(options.timeoutMs)
+        ? options.timeoutMs
+        : 120000;
+  }
+
+  const params = new URLSearchParams();
+  params.set('ip', String(hostIp || ''));
+  const scope = String(options.scope || '').trim();
+  if (scope) params.set('scope', scope);
+  const direction = String(options.direction || '').trim();
+  if (direction) params.set('direction', direction);
+
   return await httpGet(
-    `/agent/sync/check?ip=${encodeURIComponent(hostIp)}`,
+    `/agent/sync/check?${params.toString()}`,
     timeoutMs
   );
 }
 
 // --- Synchronisation projets : copie depuis le serveur vers un host ---
-export async function copySync(hostIp, payload = null, timeoutMs = 600000) {
+export async function copySync(hostIp, payload = null, timeoutOrOptions = 600000, maybeOptions = null) {
   if (!hostIp) throw new Error('hostIp manquant pour copySync');
+
+  let timeoutMs = 600000;
+  let options = {};
+  if (typeof timeoutOrOptions === 'number') {
+    timeoutMs = timeoutOrOptions;
+    options = maybeOptions && typeof maybeOptions === 'object' ? maybeOptions : {};
+  } else if (timeoutOrOptions && typeof timeoutOrOptions === 'object') {
+    options = timeoutOrOptions;
+    timeoutMs =
+      typeof options.timeoutMs === 'number' && Number.isFinite(options.timeoutMs)
+        ? options.timeoutMs
+        : 600000;
+  }
 
   const body =
     payload && typeof payload === 'object'
       ? payload
       : {};
 
+  const params = new URLSearchParams();
+  params.set('ip', String(hostIp || ''));
+  const scope = String(options.scope || '').trim();
+  if (scope) params.set('scope', scope);
+  const direction = String(options.direction || '').trim();
+  if (direction) params.set('direction', direction);
+
   // Compat : si body = {}, le backend recalcule la diff comme avant
   return await httpPost(
-    `/agent/sync/copy?ip=${encodeURIComponent(hostIp)}`,
+    `/agent/sync/copy?${params.toString()}`,
     body,
     timeoutMs
   );
@@ -2332,13 +2516,10 @@ async function __requestAbsoluteJson(url, {
   body = undefined,
   timeoutMs = 5000,
 } = {}) {
-  const id = readIdentity();
-  const brokerHeaders = getPostprodBrokerHeaders(id);
   if (typeof window?.electron?.httpJson === 'function') {
     const r = await window.electron.httpJson(url, {
       method,
       headers: {
-        ...brokerHeaders,
         ...(body == null ? {} : { 'Content-Type': 'application/json' }),
       },
       body,
@@ -2362,7 +2543,6 @@ async function __requestAbsoluteJson(url, {
     const res = await fetch(url, {
       method,
       headers: {
-        ...brokerHeaders,
         ...(body == null ? {} : { 'Content-Type': 'application/json' }),
       },
       body: body == null ? undefined : JSON.stringify(body),
@@ -2395,21 +2575,6 @@ function __joinBaseAndPath(base, path) {
   const baseStr = String(base || '').replace(/\/+$/g, '');
   const p = String(path || '').startsWith('/') ? String(path) : `/${String(path || '')}`;
   return `${baseStr}${p}`;
-}
-
-function __resolvePostprodHubBase({
-  mode = 'lan',
-  hubHost = '',
-  hubUrl = '',
-  port = 4000,
-} = {}) {
-  const nPort = Number(port);
-  const fallbackPort = Number.isFinite(nPort) && nPort > 0 ? Math.trunc(nPort) : 4000;
-  const networkMode = String(mode || '').trim().toLowerCase();
-  if (networkMode === 'broker') {
-    return normalizeHttpsBase(hubUrl, 0);
-  }
-  return normalizeHttpBase(hubHost, fallbackPort, 'http:') || `http://127.0.0.1:${fallbackPort}`;
 }
 
 function __parseAgentError(res) {
@@ -2820,51 +2985,6 @@ export async function wrcSendJoystickForWidget(widget, hosts, common, value) {
 export async function pingLocalAgent(port) {
   const url = `http://127.0.0.1:${Number(port)}/agent/ping`;
   return await __agentRequest('GET', url); // réutilise le bridge ou fetch interne
-}
-
-export async function probePostprodHub({
-  mode = 'lan',
-  hubHost = '',
-  hubUrl = '',
-  port = 4000,
-  timeoutMs = 3500,
-} = {}) {
-  const targetBase = __resolvePostprodHubBase({ mode, hubHost, hubUrl, port });
-  if (!targetBase) {
-    return {
-      ok: false,
-      target: '',
-      endpoint: '',
-      status: 0,
-      error: 'invalid_hub_base',
-    };
-  }
-  const endpoints = [
-    '/agent/postprod/auth/health',
-    '/agent/ping',
-  ];
-  let last = null;
-  for (const endpoint of endpoints) {
-    const url = __joinBaseAndPath(targetBase, endpoint);
-    const res = await __requestAbsoluteJson(url, { method: 'GET', timeoutMs });
-    if (res?.ok) {
-      return {
-        ok: true,
-        target: targetBase,
-        endpoint,
-        status: Number(res?.status || 200),
-      };
-    }
-    last = { endpoint, res };
-  }
-  const errCode = String(last?.res?.json?.error || '').trim();
-  return {
-    ok: false,
-    target: targetBase,
-    endpoint: String(last?.endpoint || ''),
-    status: Number(last?.res?.status || 0),
-    error: errCode || String(last?.res?.error || 'hub_unreachable'),
-  };
 }
 
 // --- Écrire les "common" sur l'agent local à un port précis (Welcome) ---

@@ -30,9 +30,6 @@ export function filterHealthEventsByKind(events, kind) {
   if (kind === "security") {
     return events.filter((entry) => entry.kind === "security" || entry.kind === "mixed");
   }
-  if (kind === "broker") {
-    return events.filter((entry) => entry.kind === "broker" || entry.kind === "mixed");
-  }
   if (kind === "worker") {
     return events.filter((entry) => entry.kind === "worker");
   }

@@ -9,6 +9,7 @@ function UserEditorPanel({
   t,
   usersLoading = false,
   setEditorInputFocused = null,
+  requestAutosaveOnBlur = null,
   closeEditor = null,
   editorAvatarSrc = "",
   editorAvatarInitials = "",
@@ -71,6 +72,13 @@ function UserEditorPanel({
         }
       }}
       onBlurCapture={(event) => {
+        const target = event?.target instanceof HTMLElement ? event.target : null;
+        const tagName = String(target?.tagName || "").toLowerCase();
+        const isFieldTarget =
+          tagName === "input" || tagName === "select" || tagName === "textarea";
+        if (!isCreate && isFieldTarget && typeof requestAutosaveOnBlur === "function") {
+          requestAutosaveOnBlur();
+        }
         if (typeof setEditorInputFocused !== "function") return;
         const container = event.currentTarget;
         setTimeout(() => {

@@ -19,6 +19,7 @@ export function buildUserManagementDataOutput({
     setSearchQuery: state.setSearchQuery,
     editorInputFocused: state.editorInputFocused,
     setEditorInputFocused: state.setEditorInputFocused,
+    requestAutosaveOnBlur: state.requestAutosaveOnBlur,
     closeEditor: actions.closeEditor,
     editorAvatarSrc: actions.editorAvatarSrc,
     editorAvatarInitials: actions.editorAvatarInitials,

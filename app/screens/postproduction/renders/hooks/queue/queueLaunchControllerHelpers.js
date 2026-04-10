@@ -12,6 +12,7 @@ function canLaunchRenders(onCreateRender = null, onDispatchRenders = null) {
 async function launchScheduledTaskRenderAction({
   task = null,
   queueEntry = null,
+  launchOptions = null,
   onCreateRender = null,
   onDispatchRenders = null,
   setBusyScheduledTaskId = null,
@@ -40,9 +41,15 @@ async function launchScheduledTaskRenderAction({
 
   if (!canCreateRender || !createRenderInput?.createRenderInput) return false;
 
+  // Inject scheduledAt + launchMode from launchOptions
+  const scheduledAt = launchOptions?.scheduledAt ?? null;
+  const finalInput = scheduledAt
+    ? { ...createRenderInput.createRenderInput, scheduledAt, launchMode: "scheduled" }
+    : createRenderInput.createRenderInput;
+
   if (typeof setBusyScheduledTaskId === "function") setBusyScheduledTaskId(taskId);
   try {
-    await Promise.resolve(onCreateRender(createRenderInput.createRenderInput));
+    await Promise.resolve(onCreateRender(finalInput));
   } finally {
     if (typeof setBusyScheduledTaskId === "function") setBusyScheduledTaskId(0);
   }

@@ -1,11 +1,97 @@
-import { activityActionLabel, formatDate, safeT } from "../../../shared/helpers";
+import { formatDate, safeT } from "../../../shared/helpers";
+import {
+  activityActionTypeFromAction,
+  activityActionTypeLabel,
+  activityTypeChipLevel,
+} from "../../../users/shared/activityHelpers";
 
 function AuditEntriesList({
   t,
   loading = false,
   error = "",
-  filteredRows = [],
+  entries = [],
+  onOpenActivityTarget = null,
 }) {
+  const extractDetailLabel = (detailRaw, label) => {
+    const detail = String(detailRaw || "").trim();
+    const normalizedLabel = String(label || "").trim();
+    if (!detail || !normalizedLabel) return "";
+    const match = detail.match(new RegExp(`${normalizedLabel}\\s*:\\s*([^|]+)`, "i"));
+    return match ? String(match[1] || "").trim() : "";
+  };
+
+  const buildActivityDetailTarget = (entry, actionType) => {
+    const scopeId = String(entry?.scopeId || "").trim();
+    const taskIdRaw = Number(entry?.taskId || 0);
+    const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
+    const renderIdRaw = Number(entry?.renderId || 0);
+    const renderId = Number.isFinite(renderIdRaw) && renderIdRaw > 0 ? Math.trunc(renderIdRaw) : 0;
+    const projectRefs = Array.isArray(entry?.projectRefs) ? entry.projectRefs.filter(Boolean) : [];
+    const detail = String(entry?.detail || "").trim();
+    const toStatus = String(entry?.toStatus || "").trim();
+
+    if (actionType === "project") {
+      const projectRef = String(projectRefs[0] || scopeId || "").trim();
+      const projectName = extractDetailLabel(detail, "Projet");
+      const label = projectName
+        ? `${projectName}${projectRef && projectRef !== projectName ? ` [${projectRef}]` : ""}`
+        : (projectRef ? `Projet [${projectRef}]` : safeT(t, "postprod.audit.item.project", "Projet"));
+      return {
+        label,
+        target: { type: "project", projectRef: projectRef || "" },
+      };
+    }
+
+    if (actionType === "form") {
+      const formName = extractDetailLabel(detail, "Formulaire")
+        || extractDetailLabel(detail, "Form")
+        || safeT(t, "postprod.audit.item.form", "Formulaire");
+      const formId = scopeId ? `#${scopeId}` : "";
+      return {
+        label: `${formName}${formId ? ` ${formId}` : ""}`,
+        target: { type: "form", formId: scopeId || "" },
+      };
+    }
+
+    if (actionType === "task") {
+      const taskName = extractDetailLabel(detail, "Tache")
+        || extractDetailLabel(detail, "Task")
+        || safeT(t, "postprod.audit.item.task", "Tache");
+      const taskIdLabel = taskId > 0 ? `#${taskId}` : (scopeId ? `#${scopeId}` : "");
+      return {
+        label: `${taskName}${taskIdLabel ? ` ${taskIdLabel}` : ""}`,
+        target: { type: "task", taskId: taskId > 0 ? taskId : (scopeId || "") },
+      };
+    }
+
+    if (actionType === "validation") {
+      const taskName = extractDetailLabel(detail, "Tache") || extractDetailLabel(detail, "Task");
+      const taskIdLabel = taskId > 0 ? `#${taskId}` : "";
+      const base = taskName
+        ? `${taskName}${taskIdLabel ? ` ${taskIdLabel}` : ""}`
+        : (renderId > 0 ? `Rendu #${renderId}` : safeT(t, "postprod.audit.item.validation", "Validation"));
+      const statusPart = toStatus ? ` -> ${toStatus}` : "";
+      return {
+        label: `${base}${statusPart}`,
+        target: {
+          type: "validation",
+          renderId: renderId > 0 ? renderId : "",
+          taskId: taskId > 0 ? taskId : "",
+        },
+      };
+    }
+
+    return {
+      label: detail || "-",
+      target: null,
+    };
+  };
+
+  const rows = (Array.isArray(entries) ? entries : [])
+    .map((entry) => (entry && typeof entry === "object" ? entry : null))
+    .filter(Boolean)
+    .filter((entry) => activityActionTypeFromAction(entry?.action, entry) !== "other");
+
   if (loading) {
     return <div className="uu-muted mt-12">{safeT(t, "postprod.audit.loading", "Chargement de l'historique...")}</div>;
   }
@@ -13,91 +99,67 @@ function AuditEntriesList({
     return <div className="uu-msg error mt-12">{error}</div>;
   }
 
+  if (rows.length === 0) {
+    return (
+      <div className="uu-muted mt-12">
+        {safeT(t, "postprod.audit.emptyBusiness", "Aucune action metier recente.")}
+      </div>
+    );
+  }
+
   return (
-    <div className="uu-col mt-12">
-      {filteredRows.length === 0 ? (
-        <div className="uu-muted">{safeT(t, "postprod.audit.empty", "Aucune entree.")}</div>
-      ) : (
-        filteredRows.map((entry, index) => {
-          const id = Number(entry?.id || 0);
-          const actorUserId = Number(entry?.actorUserId || 0);
-          const actorUsername = String(entry?.actorUsername || "").trim();
-          const action = String(entry?.action || "").trim();
-          const scopeType = String(entry?.scopeType || "").trim();
-          const scopeId = String(entry?.scopeId || "").trim();
-          const projectRefs = Array.isArray(entry?.projectRefs) ? entry.projectRefs : [];
-          const payload = entry?.payload && typeof entry.payload === "object" ? entry.payload : {};
-          const payloadPretty = JSON.stringify(payload, null, 2);
-
+    <table className="uu-table" style={{ width: "100%", tableLayout: "fixed", marginTop: "12px" }}>
+      <thead>
+        <tr>
+          <th style={{ width: "200px", textAlign: "left" }}>
+            {safeT(t, "postprod.audit.table.dateTime", "Date et heure")}
+          </th>
+          <th style={{ width: "220px", textAlign: "left" }}>
+            {safeT(t, "postprod.audit.table.actionType", "Type action")}
+          </th>
+          <th style={{ textAlign: "left" }}>
+            {safeT(t, "postprod.audit.table.detail", "Detail")}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((entry) => {
+          const rowId = Number(entry?.id || 0);
+          const actionType = activityActionTypeFromAction(entry?.action, entry);
+          const actionTypeText = activityActionTypeLabel(t, actionType);
+          const detailLink = buildActivityDetailTarget(entry, actionType);
+          const canOpenDetail = detailLink?.target && typeof onOpenActivityTarget === "function";
           return (
-            <div
-              key={`audit-entry-${id || `${String(entry?.createdAt || "").trim()}-${String(entry?.action || "").trim()}-${index}`}`}
-              className="uu-card"
-            >
-              <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontWeight: 600 }}>{activityActionLabel({ action })}</div>
-                <span className="uu-muted">{formatDate(entry?.createdAt)}</span>
-              </div>
-
-              <div className="uu-row mt-8">
-                <span className="uu-muted">
-                  {safeT(t, "postprod.audit.meta.actor", "Acteur: {value}", {
-                    value: actorUsername || (actorUserId > 0 ? `#${actorUserId}` : "-"),
-                  })}
-                </span>
-                <span className="uu-muted">
-                  {safeT(t, "postprod.audit.meta.scope", "Scope: {type} / {id}", {
-                    type: scopeType || "-",
-                    id: scopeId || "-",
-                  })}
-                </span>
-              </div>
-
-              {String(entry?.fromStatus || "").trim() || String(entry?.toStatus || "").trim() ? (
-                <div className="uu-muted mt-8">
-                  {safeT(t, "postprod.audit.meta.transition", "Transition: {from} -> {to}", {
-                    from: String(entry?.fromStatus || "").trim() || "-",
-                    to: String(entry?.toStatus || "").trim() || "-",
-                  })}
-                </div>
-              ) : null}
-
-              {projectRefs.length > 0 ? (
-                <div className="uu-muted mt-8">
-                  {safeT(t, "postprod.audit.meta.projects", "Projets: {value}", {
-                    value: projectRefs.join(", "),
-                  })}
-                </div>
-              ) : null}
-
-              {String(entry?.comment || "").trim() ? (
-                <div className="uu-muted mt-8">
-                  {safeT(t, "postprod.audit.meta.comment", "Commentaire: {value}", {
-                    value: String(entry?.comment || "").trim(),
-                  })}
-                </div>
-              ) : null}
-
-              <details className="mt-8">
-                <summary>{safeT(t, "postprod.audit.payload.toggle", "Payload JSON")}</summary>
-                <pre
-                  style={{
-                    margin: "8px 0 0 0",
-                    padding: "8px",
-                    border: "1px solid var(--uu-border, #ddd)",
-                    borderRadius: "8px",
-                    overflowX: "auto",
-                    maxHeight: "240px",
-                  }}
+            <tr key={`audit-entry-${rowId > 0 ? rowId : `${String(entry?.createdAt || "")}-${String(entry?.action || "")}`}`}>
+              <td style={{ paddingTop: "6px", paddingBottom: "6px", verticalAlign: "top" }}>
+                {formatDate(entry?.createdAt)}
+              </td>
+              <td style={{ paddingTop: "6px", paddingBottom: "6px", verticalAlign: "top" }}>
+                <span
+                  className={`uu-chip ${activityTypeChipLevel(actionType)} chip-on`}
+                  style={{ display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1.2 }}
                 >
-                  {payloadPretty}
-                </pre>
-              </details>
-            </div>
+                  {actionTypeText}
+                </span>
+              </td>
+              <td style={{ overflowWrap: "anywhere", lineHeight: 1.35, paddingTop: "6px", paddingBottom: "6px", verticalAlign: "top" }}>
+                {canOpenDetail ? (
+                  <button
+                    type="button"
+                    className="uu-link"
+                    onClick={() => onOpenActivityTarget?.(detailLink.target)}
+                  >
+                    {detailLink.label || "-"}
+                  </button>
+                ) : (
+                  detailLink.label || "-"
+                )}
+              </td>
+            </tr>
           );
-        })
-      )}
-    </div>
+        })}
+      </tbody>
+    </table>
   );
 }
 

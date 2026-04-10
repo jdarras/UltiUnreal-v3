@@ -11,7 +11,7 @@ function RenderDetailPreviewPanel({
   onAdvancePreviewCandidate = null,
 } = {}) {
   return (
-    <div className="uu-card">
+    <section className="uu-render-detail-preview-block">
       <div style={{ fontWeight: 600, marginBottom: "8px" }}>
         {safeT(t, "postprod.renders.preview.title", "Apercu rendu")}
       </div>
@@ -55,7 +55,7 @@ function RenderDetailPreviewPanel({
         </div>
       )}
       {previewError ? <div className="uu-msg warn mt-8">{previewError}</div> : null}
-    </div>
+    </section>
   );
 }
 

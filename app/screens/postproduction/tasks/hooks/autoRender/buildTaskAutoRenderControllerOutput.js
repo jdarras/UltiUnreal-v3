@@ -34,6 +34,7 @@ const DATA_KEYS = [
   "autoExpectedRenderName",
   "projectOptionByRef",
   "projectLookupByAny",
+  "availableRenderWorkers",
   "resetAutoRenderState",
   "hydrateAutoRenderFromTask",
 ];

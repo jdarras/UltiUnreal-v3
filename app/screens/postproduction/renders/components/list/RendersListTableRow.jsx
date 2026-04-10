@@ -25,6 +25,28 @@ function RendersListTableRow({
   const isBusy = busyRenderId === renderId;
   const outputPath = String(render?.outputPath || "").trim();
   const favorite = typeof isRenderFavorite === "function" ? isRenderFavorite(render) : false;
+  const stationName = String(render?.stationName || "").trim();
+  const stationIp = String(render?.stationIp || "").trim();
+  const stationStatus = String(render?.stationStatus || "").trim().toLowerCase();
+  const stationIsLocal = render?.stationIsLocal === true
+    || String(stationIp || "").trim().toLowerCase() === "127.0.0.1"
+    || String(stationIp || "").trim().toLowerCase() === "localhost";
+  const stationBadgeLabel = stationIsLocal
+    ? safeT(t, "postprod.renders.filter.localOnly", "Station locale")
+    : safeT(t, "postprod.renders.columns.station", "Station");
+  const stationStatusLabel = stationStatus === "waiting_station"
+    ? safeT(
+      t,
+      "postprod.renders.stationStatus.waitingStation",
+      "En attente (machine occupée)"
+    )
+    : (stationStatus === "station_unreachable"
+      ? safeT(
+        t,
+        "postprod.renders.stationStatus.stationUnreachable",
+        "Machine inaccessible"
+      )
+      : "");
 
   return (
     <tr
@@ -57,6 +79,22 @@ function RendersListTableRow({
       <td style={{ overflowWrap: "anywhere" }}>{String(render?.projectName || "-")}</td>
       <td style={{ overflowWrap: "anywhere" }}>{typeof renderLinkedTaskValue === "function" ? renderLinkedTaskValue(render) || "-" : "-"}</td>
       <td style={{ overflowWrap: "anywhere" }}>{String(render?.requestedByUsername || "-")}</td>
+      <td style={{ overflowWrap: "anywhere" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+            <span className={`uu-chip ${stationIsLocal ? "lvl-info" : "lvl-debug"} chip-on`}>
+              {stationBadgeLabel}
+            </span>
+            <span style={{ fontWeight: 600 }}>{stationName || stationIp || "-"}</span>
+          </div>
+          {stationIp ? <div className="uu-muted">{stationIp}</div> : null}
+          {stationStatusLabel ? (
+            <span className={`uu-chip ${stationStatus === "station_unreachable" ? "lvl-error" : "lvl-warn"} chip-on`}>
+              {stationStatusLabel}
+            </span>
+          ) : null}
+        </div>
+      </td>
       <td onClick={(e) => e.stopPropagation()}>
         <select
           className="uu-input"
@@ -90,7 +128,7 @@ function RendersListTableRow({
       </td>
       <td onClick={(e) => e.stopPropagation()} style={{ textAlign: "center" }}>
         <button className="uu-btn-ghost" type="button" onClick={() => onOpenRenderDetail?.(render)}>
-          {safeT(t, "postprod.renders.detail.open", "Ouvrir")}
+          {safeT(t, "postprod.renders.detail.view", "Voir")}
         </button>
       </td>
     </tr>

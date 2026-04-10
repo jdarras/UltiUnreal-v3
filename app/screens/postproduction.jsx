@@ -15,6 +15,10 @@ import {
 
 export default function PostProductionScreen({
   tabKey = "Utilisateurs",
+  userTabKey = 0,
+  roleTabKey = 0,
+  taskTabKey = 0,
+  datasTabKey = 0,
   titleOverride = "",
   hideStubNotice = false,
   t,
@@ -81,7 +85,6 @@ export default function PostProductionScreen({
   renderWorkersLoading = false,
   renderWorkersError = "",
   renderHealth = null,
-  renderHealthEvents = [],
   renderHealthAuditMaintenance = null,
   renderHealthAuditMaintenanceLoading = false,
   renderHealthAuditMaintenanceError = "",
@@ -135,6 +138,8 @@ export default function PostProductionScreen({
   onScanDetectedRenders = null,
   onDispatchRenders = null,
   onSaveDispatchPolicy = null,
+  onScheduleRender = null,
+  onReorderRenders = null,
   onCreateRenderForm = null,
   onUpdateRenderForm = null,
   onDeleteRenderForm = null,
@@ -198,6 +203,7 @@ export default function PostProductionScreen({
       {tabKey === "Utilisateurs" && canManageUsers ? (
         <UserManagementCard
           t={t}
+          tabKey={userTabKey}
           manageableRoles={manageableRoles}
           canBanUsers={canBanUsers}
           canManageProjectPermissions={canManageProjectPermissions}
@@ -228,6 +234,7 @@ export default function PostProductionScreen({
       {tabKey === "Taches" ? (
         <TasksCard
           t={t}
+          tabKey={taskTabKey}
           tasks={tasks}
           renders={renders}
           projectOptions={taskProjectOptions}
@@ -301,6 +308,7 @@ export default function PostProductionScreen({
       {tabKey === "Datas" && canManageRenderTemplates ? (
         <DatasCard
           t={t}
+          tabKey={datasTabKey}
           projects={projects}
           projectsLoading={projectsLoading}
           projectsError={projectsError}
@@ -346,6 +354,8 @@ export default function PostProductionScreen({
           onScanDetectedRenders={onScanDetectedRenders}
           onDispatchRenders={onDispatchRenders}
           onSaveDispatchPolicy={onSaveDispatchPolicy}
+          onScheduleRender={onScheduleRender}
+          onReorderRenders={onReorderRenders}
         />
       ) : null}
 
@@ -360,7 +370,6 @@ export default function PostProductionScreen({
           pageSize={auditPageSize}
           hasMore={auditHasMore}
           filters={auditFilters}
-          healthEvents={renderHealthEvents}
           canManageRetention={canManageRoles}
           renderHealthAuditMaintenance={renderHealthAuditMaintenance}
           renderHealthAuditMaintenanceLoading={renderHealthAuditMaintenanceLoading}
@@ -374,13 +383,14 @@ export default function PostProductionScreen({
           onExportAuditAll={onExportAuditAll}
           onExportAuditAllJson={onExportAuditAllJson}
           onExportAuditAllNdjson={onExportAuditAllNdjson}
+          onOpenActivityTarget={onOpenActivityTarget}
         />
       ) : null}
 
       {tabKey === "Profils" && canManageRoles ? (
         <RoleManagementCard
           t={t}
-          tabKey={tabKey}
+          tabKey={roleTabKey}
           roles={roles}
           rolesLoading={rolesLoading}
           rolesError={rolesError}

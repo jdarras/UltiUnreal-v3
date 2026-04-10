@@ -55,6 +55,7 @@ export function useUserManagementCardController({
 
   return {
     inEditor: data.inEditor,
+    closeEditor: data.closeEditor,
     roleOptionsLength: data.roleOptionsLength,
     usersError,
     toolbarProps,

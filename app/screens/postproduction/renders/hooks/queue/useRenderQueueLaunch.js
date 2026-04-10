@@ -18,10 +18,11 @@ export function useRenderQueueLaunch({
   const [queueBatchFeedback, setQueueBatchFeedback] = useState("");
   const [queueBatchError, setQueueBatchError] = useState("");
 
-  const launchScheduledTaskRender = useCallback(async (task, queueEntry = null) => {
+  const launchScheduledTaskRender = useCallback(async (task, queueEntry = null, launchOptions = null) => {
     await launchScheduledTaskRenderAction({
       task,
       queueEntry,
+      launchOptions,
       onCreateRender,
       onDispatchRenders,
       setBusyScheduledTaskId,

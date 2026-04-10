@@ -32,6 +32,7 @@ function resolveTaskPayloadBuildContext({
   selectedForm = null,
   projectOptionByRef = new Map(),
   projectLookupByAny = new Map(),
+  availableRenderWorkers = [],
   autoRenderWorkerKey = "",
   renderOutputDir = "",
   autoRenderFormId = "",
@@ -55,6 +56,16 @@ function resolveTaskPayloadBuildContext({
     selectedAutoRenderProjectRef,
     projectOptionByRef,
     projectLookupByAny,
+    renderWorkerLookupByKey: (() => {
+      const lookup = new Map();
+      const list = Array.isArray(availableRenderWorkers) ? availableRenderWorkers : [];
+      for (const worker of list) {
+        const key = String(worker?.workerKey || worker?.ip || "").trim();
+        if (!key || lookup.has(key)) continue;
+        lookup.set(key, worker);
+      }
+      return lookup;
+    })(),
     autoRenderWorkerKey,
     renderOutputDir,
     autoRenderFormId,
@@ -108,6 +119,8 @@ function resolveTaskPayloadBuildContext({
     effectiveWrcPresetName: context.effectiveWrcPresetName,
     effectiveRenderPresetName: context.effectiveRenderPresetName,
     effectiveWorkerKey: context.effectiveWorkerKey,
+    renderStation: context.renderStation,
+    renderStationName: context.renderStationName,
     effectiveOutputDir: context.effectiveOutputDir,
     effectiveTemplateName: context.effectiveTemplateName,
     effectiveProjectPath: context.effectiveProjectPath,
@@ -122,6 +135,8 @@ function resolveTaskPayloadBuildContext({
     autoRenderConfig,
     effectiveTemplateName: context.effectiveTemplateName,
     projectRef: context.formProjectRef,
+    renderStation: context.renderStation,
+    renderStationName: context.renderStationName,
   };
 }
 

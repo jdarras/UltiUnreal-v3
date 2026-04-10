@@ -17,6 +17,7 @@ export function buildUserEditorPanelProps({ t, data = {} } = {}) {
     t,
     usersLoading: data.usersLoading,
     setEditorInputFocused: data.setEditorInputFocused,
+    requestAutosaveOnBlur: data.requestAutosaveOnBlur,
     closeEditor: data.closeEditor,
     editorAvatarSrc: data.editorAvatarSrc,
     editorAvatarInitials: data.editorAvatarInitials,

@@ -27,7 +27,7 @@ export function useTaskAutoRenderController({
 }) {
   const [expectedRenderCountInput, setExpectedRenderCountInput] = useState("1");
   const [autoRenderProjectRef, setAutoRenderProjectRef] = useState("");
-  const [autoRenderWorkerKey, setAutoRenderWorkerKey] = useState("");
+  const [autoRenderWorkerKey, setAutoRenderWorkerKey] = useState("auto");
   const [autoRenderFormId, setAutoRenderFormId] = useState("");
   const [autoRenderTemplateId, setAutoRenderTemplateId] = useState("");
   const [autoRenderFormValues, setAutoRenderFormValues] = useState({});
@@ -158,6 +158,7 @@ export function useTaskAutoRenderController({
     autoExpectedRenderName,
     projectOptionByRef,
     projectLookupByAny,
+    availableRenderWorkers,
     resetAutoRenderState,
     hydrateAutoRenderFromTask,
   });

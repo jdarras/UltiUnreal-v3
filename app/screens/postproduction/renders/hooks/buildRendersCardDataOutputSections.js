@@ -10,6 +10,8 @@ function buildPreferencesOutput({
     setReviewFilter: preferences.setReviewFilter,
     projectFilter: preferences.projectFilter,
     setProjectFilter: preferences.setProjectFilter,
+    stationFilter: preferences.stationFilter,
+    setStationFilter: preferences.setStationFilter,
     searchExpanded: preferences.searchExpanded,
     favoriteOnly: preferences.favoriteOnly,
     toggleFavoriteOnly: toolbar.toggleFavoriteOnly,
@@ -32,6 +34,7 @@ function buildReviewOutput({ review = {} } = {}) {
 function buildListOutput({ list = {} } = {}) {
   return {
     projectFilterOptions: list.projectFilterOptions,
+    stationFilterOptions: list.stationFilterOptions,
     hasActiveFilters: list.hasActiveFilters,
     sortedDisplayedRenders: list.sortedDisplayedRenders,
     isRenderFavorite: list.isRenderFavorite,
@@ -101,4 +104,3 @@ export {
   buildReviewOutput,
   buildToolbarOutput,
 };
-

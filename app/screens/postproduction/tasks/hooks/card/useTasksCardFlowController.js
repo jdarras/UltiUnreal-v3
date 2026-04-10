@@ -80,7 +80,11 @@ export function useTasksCardFlowController({
     dialog,
   });
 
-  return useTasksSectionProps(sectionPropsInput);
+  const sectionProps = useTasksSectionProps(sectionPropsInput);
+  return {
+    ...sectionProps,
+    closeTaskForm: lifecycle.closeTaskForm,
+  };
 }
 
 export default useTasksCardFlowController;

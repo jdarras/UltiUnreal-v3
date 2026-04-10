@@ -14,6 +14,8 @@ export function buildAutoRenderPayloads({
   effectiveWrcPresetName = "",
   effectiveRenderPresetName = "",
   effectiveWorkerKey = "",
+  renderStation = "local",
+  renderStationName = "",
   effectiveOutputDir = "",
   effectiveTemplateName = "",
   effectiveProjectPath = "",
@@ -31,6 +33,10 @@ export function buildAutoRenderPayloads({
   assignIfDefined(basePayload, "presetName", effectiveWrcPresetName);
   assignIfDefined(basePayload, "renderModeName", renderModeName);
   assignIfDefined(basePayload, "outputDir", effectiveOutputDir);
+  assignIfDefined(basePayload, "renderStation", renderStation);
+  assignIfDefined(basePayload, "render_station", renderStation);
+  assignIfDefined(basePayload, "renderStationName", renderStationName);
+  assignIfDefined(basePayload, "render_station_name", renderStationName);
   if (effectiveWorkerKey) {
     basePayload.preferredWorkerKey = effectiveWorkerKey;
     basePayload.targetWorkerKey = effectiveWorkerKey;
@@ -54,6 +60,8 @@ export function buildAutoRenderPayloads({
   assignIfDefined(autoRenderConfig, "uprojectPath", effectiveProjectPath);
   assignIfDefined(autoRenderConfig, "presetName", effectiveWrcPresetName);
   assignIfDefined(autoRenderConfig, "renderModeName", renderModeName);
+  assignIfDefined(autoRenderConfig, "renderStation", renderStation);
+  assignIfDefined(autoRenderConfig, "renderStationName", renderStationName);
   assignIfDefined(autoRenderConfig, "targetWorkerKey", effectiveWorkerKey);
   assignIfDefined(autoRenderConfig, "mapName", effectiveMapName);
   assignIfDefined(autoRenderConfig, "sequenceName", effectiveSequenceName);

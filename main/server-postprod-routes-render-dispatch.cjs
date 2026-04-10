@@ -228,7 +228,7 @@ async function handlePostprodRenderDispatchRoutes({
         dispatchableJobs.push(toDispatchableRenderRow(row));
       }
     } else {
-      dispatchableJobs = stmts.listDispatchableRenderJobs.all(dispatchFetchLimit);
+      dispatchableJobs = stmts.listDispatchableRenderJobsScheduled.all(nowIso(), dispatchFetchLimit);
     }
     const runningProjectLoads = stmts.listRunningRenderLoadByProject.all();
     const selectedJobs = requestedRenderIds.length > 0

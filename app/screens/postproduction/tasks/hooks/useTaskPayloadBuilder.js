@@ -19,6 +19,7 @@ export function useTaskPayloadBuilder({
   selectedAutoRenderProjectRef = "",
   projectOptionByRef = new Map(),
   projectLookupByAny = new Map(),
+  availableRenderWorkers = [],
 }) {
   const buildTaskPayloadFromCurrentForm = useCallback(() => (
     buildTaskPayloadFromForm({
@@ -39,6 +40,7 @@ export function useTaskPayloadBuilder({
       selectedAutoRenderProjectRef,
       projectOptionByRef,
       projectLookupByAny,
+      availableRenderWorkers,
     })
   ), [
     t,
@@ -58,6 +60,7 @@ export function useTaskPayloadBuilder({
     selectedAutoRenderProjectRef,
     projectOptionByRef,
     projectLookupByAny,
+    availableRenderWorkers,
   ]);
 
   return {

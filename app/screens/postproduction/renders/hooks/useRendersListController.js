@@ -2,15 +2,18 @@ import { useMemo } from "react";
 import { useFilteredRenders } from "./list/useFilteredRenders";
 import { useRenderListSorting } from "./list/useRenderListSorting";
 import { useRenderProjectFilterOptions } from "./list/useRenderProjectFilterOptions";
+import { useRenderStationFilterOptions } from "./list/useRenderStationFilterOptions";
 import { useRenderFavorites } from "./list/useRenderFavorites";
-import { isDetectedRender } from "./list/renderListUtils";
 
 export function useRendersListController({
+  t,
   renders = [],
   searchQuery = "",
   reviewFilter = "all",
   projectFilter = "all",
   setProjectFilter = null,
+  stationFilter = "all",
+  setStationFilter = null,
   favoriteOnly = false,
   renderFavorites = {},
   setRenderFavorites = null,
@@ -19,15 +22,20 @@ export function useRendersListController({
   setListSortKey = null,
   setListSortDir = null,
 } = {}) {
-  const detectedRenders = useMemo(() => {
-    const list = Array.isArray(renders) ? renders : [];
-    return list.filter((render) => isDetectedRender(render));
+  const renderJobs = useMemo(() => {
+    return Array.isArray(renders) ? renders : [];
   }, [renders]);
 
   const { projectFilterOptions } = useRenderProjectFilterOptions({
-    detectedRenders,
+    detectedRenders: renderJobs,
     projectFilter,
     setProjectFilter,
+  });
+  const { stationFilterOptions } = useRenderStationFilterOptions({
+    t,
+    renders: renderJobs,
+    stationFilter,
+    setStationFilter,
   });
 
   const { isRenderFavorite, toggleRenderFavorite } = useRenderFavorites({
@@ -36,10 +44,11 @@ export function useRendersListController({
   });
 
   const { displayedRenders, hasActiveFilters } = useFilteredRenders({
-    detectedRenders,
+    detectedRenders: renderJobs,
     searchQuery,
     reviewFilter,
     projectFilter,
+    stationFilter,
     favoriteOnly,
     isRenderFavorite,
   });
@@ -59,6 +68,7 @@ export function useRendersListController({
 
   return {
     projectFilterOptions,
+    stationFilterOptions,
     hasActiveFilters,
     sortedDisplayedRenders,
     isRenderFavorite,

@@ -24,6 +24,7 @@ export function buildTaskPayloadFromForm({
   selectedAutoRenderProjectRef = "",
   projectOptionByRef = new Map(),
   projectLookupByAny = new Map(),
+  availableRenderWorkers = [],
 } = {}) {
   const selectedForm = selectedAutoRenderForm;
   const inputValidationError = validateTaskPayloadInputs({
@@ -51,6 +52,7 @@ export function buildTaskPayloadFromForm({
     selectedForm,
     projectOptionByRef,
     projectLookupByAny,
+    availableRenderWorkers,
     autoRenderWorkerKey,
     renderOutputDir,
     autoRenderFormId,
@@ -83,6 +85,8 @@ export function buildTaskPayloadFromForm({
     basePayload: context.basePayload,
     effectiveTemplateName: context.effectiveTemplateName,
     projectRef: context.projectRef,
+    renderStation: context.renderStation,
+    renderStationName: context.renderStationName,
   };
 }
 

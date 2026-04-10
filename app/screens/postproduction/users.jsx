@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { safeT } from "./shared/helpers";
 import { AuthCard } from "./users/AuthCard";
 import { ProfileCard } from "./users/ProfileCard";
@@ -9,6 +10,7 @@ import { useUserManagementCardController } from "./users/hooks/useUserManagement
 
 function UserManagementCard({
   t,
+  tabKey = "",
   manageableRoles = [],
   canBanUsers = false,
   canManageProjectPermissions = false,
@@ -32,6 +34,7 @@ function UserManagementCard({
 }) {
   const {
     inEditor,
+    closeEditor,
     roleOptionsLength,
     toolbarProps,
     editorPanelProps,
@@ -58,6 +61,10 @@ function UserManagementCard({
     onEditorModeChange,
     onNotify,
   });
+
+  useEffect(() => {
+    if (inEditor) closeEditor();
+  }, [tabKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <section className="uu-section">

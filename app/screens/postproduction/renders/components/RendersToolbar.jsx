@@ -21,9 +21,12 @@ function RendersToolbar({
   sortedDisplayedRendersCount = 0,
   projectFilter = "all",
   onSetProjectFilter = null,
+  stationFilter = "all",
+  onSetStationFilter = null,
   reviewFilter = "all",
   onSetReviewFilter = null,
   projectFilterOptions = [],
+  stationFilterOptions = [],
 }) {
   return (
     <div className="uu-card">
@@ -50,6 +53,7 @@ function RendersToolbar({
             <option value="project:asc">{safeT(t, "postprod.renders.sort.project", "Projet")}</option>
             <option value="linkedTask:asc">{safeT(t, "postprod.renders.sort.linkedTask", "Tache liee")}</option>
             <option value="requester:asc">{safeT(t, "postprod.renders.sort.requester", "Demandeur")}</option>
+            <option value="station:asc">{safeT(t, "postprod.renders.columns.station", "Station")}</option>
             <option value="reviewStatus:asc">{safeT(t, "postprod.renders.sort.reviewStatus", "Validation")}</option>
           </select>
 
@@ -162,6 +166,22 @@ function RendersToolbar({
                 <option value="validated">{safeT(t, "postprod.renders.review.validated", "Valide")}</option>
                 <option value="to_modify">{safeT(t, "postprod.renders.review.toModify", "A modifier")}</option>
                 <option value="canceled">{safeT(t, "postprod.renders.review.canceled", "Annule")}</option>
+              </select>
+            </div>
+            <div className="uu-row uu-align-center uu-gap-8" style={{ minWidth: "280px" }}>
+              <label className="uu-label" style={{ width: "140px" }}>{safeT(t, "postprod.renders.columns.station", "Station")}</label>
+              <select
+                className="uu-select"
+                style={{ width: "260px", height: "36px" }}
+                value={stationFilter}
+                disabled={rendersLoading}
+                onChange={(e) => onSetStationFilter?.(String(e.target.value || "all"))}
+              >
+                {(Array.isArray(stationFilterOptions) ? stationFilterOptions : []).map((entry) => (
+                  <option key={`postprod-renders-filter-station-${entry.key}`} value={entry.key}>
+                    {entry.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

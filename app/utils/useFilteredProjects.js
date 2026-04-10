@@ -106,6 +106,7 @@ export default function useFilteredProjects(projects, sortMode, sortDir, searchQ
       const statusMatch = matchMulti(adv.status, p.metaStatus);
       const typeMatch = matchMulti(adv.type, p.metaType);
       const usageModeMatch = matchMulti(adv.usageMode, p.metaUsageMode);
+      const engineVersionMatch = matchMulti(adv.engineVersion, p.engineVersion);
       const directorMatch = !adv.director || listIncludes(directorList, adv.director);
       const techMatch = !adv.technician || listIncludes(technicianList, adv.technician);
       const opMatch = !adv.operator || listIncludes(operatorList, adv.operator);
@@ -114,7 +115,7 @@ export default function useFilteredProjects(projects, sortMode, sortDir, searchQ
 
       if (quickFav && p.favorite !== true) return false;
 
-      return statusMatch && typeMatch && usageModeMatch && directorMatch && techMatch && opMatch && jourMatch && tagsMatch;
+      return statusMatch && typeMatch && usageModeMatch && engineVersionMatch && directorMatch && techMatch && opMatch && jourMatch && tagsMatch;
     });
   }, [sortedProjects, searchQuery, searchAdvanced, quickFilters]);
 

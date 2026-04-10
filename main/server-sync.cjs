@@ -12,7 +12,7 @@ const {
 } = require("./server-files.cjs");
 
 const { hostsToList } = require("./server-normalize.cjs");
-const { saveProjects } = require("./server-projects.cjs");
+const { saveProjects, readProjectMeta } = require("./server-projects.cjs");
 const { statSync, readdirSync } = fs;
 
 function resolveUprojectPath(rawPath) {
@@ -101,6 +101,282 @@ function shouldIgnore(relPath, patterns) {
 let logLine, sendJSON, COMMON_FILE, HOSTS_FILE, loadProjects;
 const lastSyncCheckSignatureByHost = new Map();
 const lastSyncCheckStateByHost = new Map(); // "ok" | "error"
+
+function normalizeProjectUsageModeLocal(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const key = raw.toLowerCase();
+  const aliases = new Map([
+    ["live", "live"],
+    ["auto_render", "auto_render"],
+    ["render", "auto_render"],
+    ["rendu_automatique", "auto_render"],
+    ["rendu automatique", "auto_render"],
+    ["live_auto_render", "live_auto_render"],
+    ["live + rendu automatique", "live_auto_render"],
+    ["live et rendu automatique", "live_auto_render"],
+    ["live_and_auto_render", "live_auto_render"],
+    ["other", "other"],
+    ["autre", "other"],
+  ]);
+  return aliases.get(key) || "";
+}
+
+function isRenderAutoUsageMode(value) {
+  const mode = normalizeProjectUsageModeLocal(value);
+  return mode === "auto_render" || mode === "live_auto_render";
+}
+
+function resolveProjectSyncIgnore(project, ip) {
+  const syncIgnore =
+    project &&
+    project.syncIgnore &&
+    typeof project.syncIgnore === "object"
+      ? project.syncIgnore
+      : {};
+  return [
+    ...(Array.isArray(syncIgnore.default) ? syncIgnore.default : []),
+    ...(Array.isArray(syncIgnore[ip]) ? syncIgnore[ip] : []),
+  ]
+    .map((v) => String(v || "").replace(/\\/g, "/").trim())
+    .filter(Boolean);
+}
+
+function resolveRenderEligibleProjects(projectsDoc) {
+  const projects = Array.isArray(projectsDoc?.projects) ? projectsDoc.projects : [];
+  return projects.filter((project) => {
+    if (!project || typeof project !== "object") return false;
+    let usageMode = String(project.metaUsageMode || project.usageMode || "").trim();
+    if (!usageMode) {
+      try {
+        const meta = readProjectMeta(String(project.id || "").trim()) || {};
+        usageMode = String(meta.usageMode || meta.modeDefault || "").trim();
+      } catch {
+        usageMode = "";
+      }
+    }
+    return isRenderAutoUsageMode(usageMode);
+  });
+}
+
+function resolveSourceUprojectForProject(project, hostList, projectsDoc) {
+  const list = Array.isArray(hostList) ? hostList : [];
+  const pj = projectsDoc && typeof projectsDoc === "object" ? projectsDoc : {};
+  const activeByHost =
+    pj?.activeByHost && typeof pj.activeByHost === "object"
+      ? pj.activeByHost
+      : {};
+  const projectId = String(project?.id || "").trim();
+  const sourceIp = String(project?.sourceHostIp || "").trim();
+  const sourceHost = sourceIp
+    ? (list.find((h) => String(h?.ip || h?.address || "").trim() === sourceIp) || null)
+    : null;
+
+  let sourceUproject = "";
+  if (sourceIp && projectId) {
+    const perHost = activeByHost[sourceIp];
+    if (perHost && typeof perHost === "object") {
+      const raw = perHost[projectId];
+      if (raw) sourceUproject = resolveUprojectPath(raw);
+    }
+  }
+
+  if (!sourceUproject) {
+    sourceUproject = resolveUprojectPath(
+      project?.uproject || project?.projectPath || project?.path || ""
+    );
+  }
+
+  if (!sourceUproject && sourceHost && sourceHost.uproject) {
+    sourceUproject = resolveUprojectPath(sourceHost.uproject);
+  }
+
+  return {
+    sourceUproject,
+    sourceIp,
+    sourceHostName: String(sourceHost?.name || sourceIp || "").trim(),
+  };
+}
+
+async function getRemoteInventory({ ip, agentPort, destDir }) {
+  const urlInv = `http://${ip}:${agentPort}/agent/sync/inventory?destDir=${encodeURIComponent(
+    destDir
+  )}`;
+  const inv = await getJSON(urlInv, 8000);
+  if (!inv?.ok || typeof inv.files !== "object") {
+    const safeInv = {
+      ok: inv?.ok || false,
+      error: inv?.error || null,
+      text: typeof inv?.text === "string" ? inv.text.slice(0, 2000) : undefined,
+      filesKeysCount:
+        inv && typeof inv.files === "object" ? Object.keys(inv.files).length : undefined,
+    };
+    const err = new Error("Réponse d'inventaire distante invalide");
+    err.syncCheckData = safeInv;
+    throw err;
+  }
+  return inv.files || {};
+}
+
+function buildScopeResponseStatus(projectRows) {
+  const rows = Array.isArray(projectRows) ? projectRows : [];
+  if (rows.length === 0) return "no_projects";
+  if (rows.some((r) => r && r.status === "error")) return "error";
+  if (rows.some((r) => r && r.status === "desync")) return "desync";
+  if (rows.some((r) => r && r.status === "no_root")) return "no_root";
+  if (rows.some((r) => r && r.status === "no_source")) return "no_source";
+  return "in_sync";
+}
+
+async function checkRenderScopeForHost({ ip, hostList, projectsDoc, agentPort }) {
+  const list = Array.isArray(hostList) ? hostList : [];
+  const targetHost = list.find((h) => (h.ip || h.address || "").trim() === ip);
+  if (!targetHost) {
+    return {
+      ok: false,
+      error: "unknown_host",
+      message: `Machine ${ip} introuvable.`,
+    };
+  }
+
+  const syncRoot = String(targetHost.syncRoot || "").trim();
+  if (!syncRoot) {
+    return {
+      ok: true,
+      scope: "render_auto",
+      status: "no_root",
+      message: "Aucun dossier de synchro défini.",
+      projectCount: 0,
+      desyncCount: 0,
+      diffCount: 0,
+      rawDiffCount: 0,
+      projects: [],
+    };
+  }
+
+  const renderProjects = resolveRenderEligibleProjects(projectsDoc);
+  if (renderProjects.length === 0) {
+    return {
+      ok: true,
+      scope: "render_auto",
+      status: "no_projects",
+      message: "Aucun projet en mode rendu automatique.",
+      projectCount: 0,
+      desyncCount: 0,
+      diffCount: 0,
+      rawDiffCount: 0,
+      projects: [],
+    };
+  }
+
+  const rows = [];
+  let totalDiff = 0;
+  let totalRawDiff = 0;
+  let desyncCount = 0;
+
+  for (const project of renderProjects) {
+    const projectId = String(project?.id || "").trim();
+    const projectName = String(project?.name || projectId || "").trim();
+    const source = resolveSourceUprojectForProject(project, list, projectsDoc);
+    if (!source.sourceUproject) {
+      rows.push({
+        projectId,
+        projectName,
+        status: "no_source",
+        message: "Aucune source de vérité détectée.",
+        sourceHostIp: source.sourceIp,
+        sourceHostName: source.sourceHostName,
+        sourceDir: "",
+        destDir: "",
+        diffCount: 0,
+        rawDiffCount: 0,
+        added: [],
+        modified: [],
+        removed: [],
+        effectiveAdded: [],
+        effectiveModified: [],
+        effectiveRemoved: [],
+      });
+      continue;
+    }
+
+    const sourceDir = path.dirname(source.sourceUproject);
+    const projectFolderName = path.basename(sourceDir);
+    const destDir = path.join(syncRoot, projectFolderName);
+
+    try {
+      const srcFilesAll = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
+      const srcFiles = {};
+      for (const rel of Object.keys(srcFilesAll)) srcFiles[rel] = srcFilesAll[rel];
+
+      const dstFiles = await getRemoteInventory({ ip, agentPort, destDir });
+      const { added, modified, removed } = computeDiffs(srcFiles, dstFiles);
+
+      const ignorePatterns = resolveProjectSyncIgnore(project, ip);
+      const isIgnored = (rel) =>
+        shouldIgnore(String(rel || "").replace(/\\/g, "/"), ignorePatterns);
+
+      const effectiveAdded = added.filter((rel) => !isIgnored(rel));
+      const effectiveModified = modified.filter((rel) => !isIgnored(rel));
+      const effectiveRemoved = removed.filter((rel) => !isIgnored(rel));
+      const effectiveDiffCount =
+        effectiveAdded.length + effectiveModified.length + effectiveRemoved.length;
+      const rawDiffCount = added.length + modified.length + removed.length;
+      const status = effectiveDiffCount === 0 ? "in_sync" : "desync";
+      if (status === "desync") desyncCount += 1;
+      totalDiff += effectiveDiffCount;
+      totalRawDiff += rawDiffCount;
+
+      rows.push({
+        projectId,
+        projectName,
+        status,
+        sourceHostIp: source.sourceIp,
+        sourceHostName: source.sourceHostName,
+        sourceDir,
+        destDir,
+        diffCount: effectiveDiffCount,
+        rawDiffCount,
+        added,
+        modified,
+        removed,
+        effectiveAdded,
+        effectiveModified,
+        effectiveRemoved,
+      });
+    } catch (e) {
+      rows.push({
+        projectId,
+        projectName,
+        status: "error",
+        message: String(e?.message || "Erreur de comparaison"),
+        sourceHostIp: source.sourceIp,
+        sourceHostName: source.sourceHostName,
+        sourceDir,
+        destDir,
+        diffCount: 0,
+        rawDiffCount: 0,
+        added: [],
+        modified: [],
+        removed: [],
+        effectiveAdded: [],
+        effectiveModified: [],
+        effectiveRemoved: [],
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    scope: "render_auto",
+    status: buildScopeResponseStatus(rows),
+    projectCount: rows.length,
+    desyncCount,
+    diffCount: totalDiff,
+    rawDiffCount: totalRawDiff,
+    projects: rows,
+  };
+}
 
 function logSyncCheckError(ip, message, data = undefined) {
   if (typeof logLine !== "function") return;
@@ -237,6 +513,8 @@ async function handleSync(req, res, url, context) {
   // ======================= SERVEUR: CHECK SYNCHRO =======================
   if (req.method === "GET" && url.pathname === "/agent/sync/check") {
     const ip = (url.searchParams.get("ip") || "").trim();
+    const scope = String(url.searchParams.get("scope") || "").trim().toLowerCase();
+    const direction = String(url.searchParams.get("direction") || "auto").trim().toLowerCase();
     if (!ip) {
       return sendJSON(res, 400, {
         ok: false,
@@ -247,6 +525,33 @@ async function handleSync(req, res, url, context) {
 
     const rawHosts = readJSON(HOSTS_FILE) || {};
     const list = hostsToList(rawHosts);
+    const common = readJSON(COMMON_FILE) || {};
+    const agentPort = common.agentPort || 4000;
+    const projectsDoc = typeof loadProjects === "function" ? loadProjects() : {};
+
+    if (scope === "render_auto") {
+      try {
+        const scoped = await checkRenderScopeForHost({
+          ip,
+          hostList: list,
+          projectsDoc,
+          agentPort,
+        });
+        return sendJSON(res, 200, {
+          ...scoped,
+          direction: direction || "auto",
+        });
+      } catch (e) {
+        const errMessage = String(e?.message || "Erreur sync_check render_auto");
+        return sendJSON(res, 200, {
+          ok: false,
+          scope: "render_auto",
+          direction: direction || "auto",
+          error: "compare_error",
+          message: errMessage,
+        });
+      }
+    }
 
     const sourceUproject = resolveSourceUproject(list);
 
@@ -278,8 +583,6 @@ async function handleSync(req, res, url, context) {
           srcFiles[rel] = srcFilesAll[rel];
         }
 
-        const common = readJSON(COMMON_FILE) || {};
-        const agentPort = common.agentPort || 4000;
         const urlInv = `http://${ip}:${agentPort}/agent/sync/inventory?destDir=${encodeURIComponent(
           destDir
         )}`;
@@ -542,6 +845,8 @@ async function handleSync(req, res, url, context) {
     // ======================= SERVEUR: COPIE SYNCHRO =======================
   if (req.method === "POST" && url.pathname === "/agent/sync/copy") {
     const ip = (url.searchParams.get("ip") || "").trim();
+    const scope = String(url.searchParams.get("scope") || "").trim().toLowerCase();
+    const direction = String(url.searchParams.get("direction") || "auto").trim().toLowerCase();
     if (!ip) {
       return sendJSON(res, 400, {
         ok: false,
@@ -566,10 +871,237 @@ async function handleSync(req, res, url, context) {
       selection = null;
     }
 
-    // 1) Résoudre le .uproject source (même logique que /agent/sync/check)
+    const common = readJSON(COMMON_FILE) || {};
+    const agentPort = common.agentPort || 4000;
     const rawHosts = readJSON(HOSTS_FILE) || {};
     const list = hostsToList(rawHosts);
+    const targetHost = list.find((h) => (h.ip || h.address || "").trim() === ip);
+    if (!targetHost) {
+      return sendJSON(res, 200, {
+        ok: false,
+        error: "unknown_host",
+        message: `Machine ${ip} introuvable.`,
+      });
+    }
 
+    if (scope === "render_auto") {
+      const syncRoot = String(targetHost.syncRoot || "").trim();
+      if (!syncRoot) {
+        return sendJSON(res, 200, {
+          ok: true,
+          scope: "render_auto",
+          direction: direction || "auto",
+          status: "no_root",
+          message: "Aucun dossier de synchro défini.",
+          copied: 0,
+          deleted: 0,
+          total: 0,
+          copyErrors: 0,
+          deleteErrors: 0,
+          projectCount: 0,
+          projects: [],
+        });
+      }
+
+      const projectsDoc = typeof loadProjects === "function" ? loadProjects() : {};
+      const renderProjects = resolveRenderEligibleProjects(projectsDoc);
+      if (renderProjects.length === 0) {
+        return sendJSON(res, 200, {
+          ok: true,
+          scope: "render_auto",
+          direction: direction || "auto",
+          status: "no_projects",
+          message: "Aucun projet en mode rendu automatique.",
+          copied: 0,
+          deleted: 0,
+          total: 0,
+          copyErrors: 0,
+          deleteErrors: 0,
+          projectCount: 0,
+          projects: [],
+        });
+      }
+
+      let totalCopied = 0;
+      let totalDeleted = 0;
+      let totalCopyErrors = 0;
+      let totalDeleteErrors = 0;
+      let totalAddedCount = 0;
+      let totalModifiedCount = 0;
+      let totalRemovedCount = 0;
+      const projectRows = [];
+
+      const sendFileToHost = async (destDir, rel, buf) => {
+        const urlFile = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
+          destDir
+        )}&rel=${encodeURIComponent(rel)}`;
+        const resp = await fetch(urlFile, { method: "POST", body: buf });
+        const txt = await resp.text();
+        try {
+          return JSON.parse(txt || "{}");
+        } catch {
+          return {};
+        }
+      };
+
+      const deleteFileOnHost = async (destDir, rel) => {
+        const urlDel = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
+          destDir
+        )}&rel=${encodeURIComponent(rel)}&op=delete`;
+        const resp = await fetch(urlDel, { method: "POST" });
+        const txt = await resp.text();
+        try {
+          return JSON.parse(txt || "{}");
+        } catch {
+          return {};
+        }
+      };
+
+      for (const project of renderProjects) {
+        const projectId = String(project?.id || "").trim();
+        const projectName = String(project?.name || projectId || "").trim();
+        const source = resolveSourceUprojectForProject(project, list, projectsDoc);
+        if (!source.sourceUproject) {
+          projectRows.push({
+            projectId,
+            projectName,
+            status: "no_source",
+            message: "Aucune source de vérité détectée.",
+            copied: 0,
+            deleted: 0,
+            copyErrors: 0,
+            deleteErrors: 0,
+            addedCount: 0,
+            modifiedCount: 0,
+            removedCount: 0,
+          });
+          continue;
+        }
+
+        const sourceDir = path.dirname(source.sourceUproject);
+        const projectFolderName = path.basename(sourceDir);
+        const destDir = path.join(syncRoot, projectFolderName);
+
+        let copied = 0;
+        let deleted = 0;
+        let copyErrors = 0;
+        let deleteErrors = 0;
+        let addedCount = 0;
+        let modifiedCount = 0;
+        let removedCount = 0;
+
+        try {
+          const srcFilesAll = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
+          const srcFiles = {};
+          for (const rel of Object.keys(srcFilesAll)) srcFiles[rel] = srcFilesAll[rel];
+          const dstFiles = await getRemoteInventory({ ip, agentPort, destDir });
+          const { added, modified, removed } = computeDiffs(srcFiles, dstFiles);
+
+          const ignorePatterns = resolveProjectSyncIgnore(project, ip);
+          const isIgnored = (rel) =>
+            shouldIgnore(String(rel || "").replace(/\\/g, "/"), ignorePatterns);
+
+          const effectiveAdded = added.filter((rel) => !isIgnored(rel));
+          const effectiveModified = modified.filter((rel) => !isIgnored(rel));
+          const effectiveRemoved = removed.filter((rel) => !isIgnored(rel));
+
+          const toCopy = [...effectiveAdded, ...effectiveModified];
+          const toDelete = [...effectiveRemoved];
+          addedCount = effectiveAdded.length;
+          modifiedCount = effectiveModified.length;
+          removedCount = effectiveRemoved.length;
+
+          for (const rel of toCopy) {
+            try {
+              const srcPath = path.join(sourceDir, rel);
+              const buf = await fsp.readFile(srcPath);
+              const parsed = await sendFileToHost(destDir, rel, buf);
+              if (parsed && parsed.ok) copied += 1;
+              else copyErrors += 1;
+            } catch {
+              copyErrors += 1;
+            }
+          }
+
+          for (const rel of toDelete) {
+            try {
+              const parsed = await deleteFileOnHost(destDir, rel);
+              if (parsed && parsed.ok) deleted += 1;
+              else deleteErrors += 1;
+            } catch {
+              deleteErrors += 1;
+            }
+          }
+
+          totalCopied += copied;
+          totalDeleted += deleted;
+          totalCopyErrors += copyErrors;
+          totalDeleteErrors += deleteErrors;
+          totalAddedCount += addedCount;
+          totalModifiedCount += modifiedCount;
+          totalRemovedCount += removedCount;
+
+          projectRows.push({
+            projectId,
+            projectName,
+            status: copyErrors === 0 && deleteErrors === 0 ? "ok" : "partial",
+            copied,
+            deleted,
+            copyErrors,
+            deleteErrors,
+            addedCount,
+            modifiedCount,
+            removedCount,
+          });
+        } catch (e) {
+          projectRows.push({
+            projectId,
+            projectName,
+            status: "error",
+            message: String(e?.message || "Erreur de synchronisation"),
+            copied,
+            deleted,
+            copyErrors: copyErrors + 1,
+            deleteErrors,
+            addedCount,
+            modifiedCount,
+            removedCount,
+          });
+          totalCopyErrors += copyErrors + 1;
+          totalDeleteErrors += deleteErrors;
+          totalCopied += copied;
+          totalDeleted += deleted;
+          totalAddedCount += addedCount;
+          totalModifiedCount += modifiedCount;
+          totalRemovedCount += removedCount;
+        }
+      }
+
+      const status = projectRows.some((r) => r.status === "error")
+        ? "error"
+        : projectRows.some((r) => r.status === "partial")
+        ? "partial"
+        : "ok";
+
+      return sendJSON(res, 200, {
+        ok: totalCopyErrors === 0 && totalDeleteErrors === 0,
+        scope: "render_auto",
+        direction: direction || "auto",
+        status,
+        copied: totalCopied,
+        deleted: totalDeleted,
+        total: totalAddedCount + totalModifiedCount + totalRemovedCount,
+        copyErrors: totalCopyErrors,
+        deleteErrors: totalDeleteErrors,
+        addedCount: totalAddedCount,
+        modifiedCount: totalModifiedCount,
+        deletedCount: totalRemovedCount,
+        projectCount: projectRows.length,
+        projects: projectRows,
+      });
+    }
+
+    // 1) Résoudre le .uproject source (même logique que /agent/sync/check)
     const sourceUproject = resolveSourceUproject(list);
 
     if (!sourceUproject) {
@@ -581,15 +1113,6 @@ async function handleSync(req, res, url, context) {
     }
 
     const sourceDir = path.dirname(sourceUproject);
-    const targetHost = list.find((h) => (h.ip || h.address || "").trim() === ip);
-    if (!targetHost) {
-      return sendJSON(res, 200, {
-        ok: false,
-        error: "unknown_host",
-        message: `Machine ${ip} introuvable.`,
-      });
-    }
-
     const syncRoot = (targetHost.syncRoot || "").trim();
     if (!syncRoot) {
       return sendJSON(res, 200, {
@@ -603,18 +1126,13 @@ async function handleSync(req, res, url, context) {
     const destDir = path.join(syncRoot, projectName);
 
     try {
-      
       // 2) Inventaire local + distant
-            // 2) Inventaire local + distant
       const srcFilesAll = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
 
       const srcFiles = {};
       for (const rel of Object.keys(srcFilesAll)) {
         srcFiles[rel] = srcFilesAll[rel];
       }
-
-      const common = readJSON(COMMON_FILE) || {};
-      const agentPort = common.agentPort || 4000;
 
       const urlInv = `http://${ip}:${agentPort}/agent/sync/inventory?destDir=${encodeURIComponent(
         destDir
