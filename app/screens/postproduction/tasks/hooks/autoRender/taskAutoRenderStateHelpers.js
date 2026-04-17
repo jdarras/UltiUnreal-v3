@@ -12,7 +12,10 @@ export const DEFAULT_AUTO_RENDER_STATE = Object.freeze({
   autoRenderFormId: "",
   autoRenderTemplateId: "",
   autoRenderFormValues: {},
-  autoRenderLaunchMode: "scheduled",
+  autoRenderLaunchMode: "",
+  autoRenderScheduledMode: "",
+  autoRenderScheduledAt: "",
+  taskSequenceName: "",
 });
 
 function findMatchedRenderTemplate({
@@ -78,12 +81,20 @@ export function buildHydratedAutoRenderState(task, normalizedRenderTemplateOptio
         : {}
     );
 
+  const rawWorkerKey = resolveAutoRenderTargetWorkerKey(task);
+  const workerKey = rawWorkerKey === "local" ? "auto" : (rawWorkerKey || "auto");
+  const inferredScheduledMode = (
+    !workerKey || workerKey === "auto"
+      ? "any_station"
+      : "specific_station"
+  );
+
   return {
     expectedRenderCountInput: String(
       normalizeTaskExpectedRenderCountInput(task?.expectedRenderCount)
     ),
     autoRenderProjectRef: taskProjectRef,
-    autoRenderWorkerKey: resolveAutoRenderTargetWorkerKey(task),
+    autoRenderWorkerKey: workerKey,
     autoRenderFormId: (
       Number.isFinite(formIdRaw) && formIdRaw > 0
         ? String(Math.trunc(formIdRaw))
@@ -92,5 +103,8 @@ export function buildHydratedAutoRenderState(task, normalizedRenderTemplateOptio
     autoRenderTemplateId: String(matchedRenderTemplate?.key || ""),
     autoRenderFormValues: formData,
     autoRenderLaunchMode: "scheduled",
+    autoRenderScheduledMode: inferredScheduledMode,
+    autoRenderScheduledAt: "",
+    taskSequenceName: String(autoConfig?.sequenceName || autoPayload?.sequenceName || "").trim(),
   };
 }

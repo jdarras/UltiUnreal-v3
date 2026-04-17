@@ -4,7 +4,7 @@ function buildRenderQueueDerivedDataInput({
   renders = [],
   renderWorkers = [],
   searchQuery = "",
-  queueSortKey = "status",
+  queueSortKey = "startAt",
   queueSortDir = "asc",
 } = {}) {
   return {
@@ -29,7 +29,7 @@ function buildRenderQueueSelectionInput({
 }
 
 function buildRenderQueueSortingInput({
-  queueSortKey = "status",
+  queueSortKey = "startAt",
   queueSortDir = "asc",
   setQueueSortKey = null,
   setQueueSortDir = null,

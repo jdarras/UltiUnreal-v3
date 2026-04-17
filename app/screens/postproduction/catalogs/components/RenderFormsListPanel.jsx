@@ -8,9 +8,8 @@ function RenderFormsListPanel({
   formsSearchExpanded = false,
   onCloseAdvancedSearch = null,
   sortedForms = [],
-  selectedProjectRef = "",
+  visibleForms = [],
   normalizedProjectOptions = [],
-  onSelectProjectRef = null,
   formsSearchAdvanced = null,
   onFormsSearchAdvancedChange = null,
   formsViewMode = "thumbs",
@@ -20,21 +19,24 @@ function RenderFormsListPanel({
   onToggleFormFavorite = null,
   formProjectLabel = null,
   onEditForm = null,
+  onDeleteForm = null,
 }) {
   return (
-    <div className="uu-card mt-12">
+    <>
       {formsSearchExpanded ? (
-        <RenderFormsAdvancedSearchPanel
-          t={t}
-          sortedForms={sortedForms}
-          selectedProjectRef={selectedProjectRef}
-          normalizedProjectOptions={normalizedProjectOptions}
-          onSelectProjectRef={onSelectProjectRef}
-          formsSearchAdvanced={formsSearchAdvanced}
-          onFormsSearchAdvancedChange={onFormsSearchAdvancedChange}
-          onClose={onCloseAdvancedSearch}
-        />
+        <div className="uu-card mt-12">
+          <RenderFormsAdvancedSearchPanel
+            t={t}
+            sortedForms={sortedForms}
+            visibleForms={visibleForms}
+            normalizedProjectOptions={normalizedProjectOptions}
+            formsSearchAdvanced={formsSearchAdvanced}
+            onFormsSearchAdvancedChange={onFormsSearchAdvancedChange}
+            onClose={onCloseAdvancedSearch}
+          />
+        </div>
       ) : null}
+    <div className="uu-card mt-12">
       {sortedForms.length <= 0 ? (
         <div className="uu-muted">{safeT(t, "postprod.data.forms.empty", "Aucun formulaire pour ce projet.")}</div>
       ) : formsViewMode === "list" ? (
@@ -47,6 +49,7 @@ function RenderFormsListPanel({
           onToggleFormFavorite={onToggleFormFavorite}
           formProjectLabel={formProjectLabel}
           onEditForm={onEditForm}
+          onDeleteForm={onDeleteForm}
         />
       ) : (
         <RenderFormsThumbsView
@@ -56,9 +59,11 @@ function RenderFormsListPanel({
           onToggleFormFavorite={onToggleFormFavorite}
           formProjectLabel={formProjectLabel}
           onEditForm={onEditForm}
+          onDeleteForm={onDeleteForm}
         />
       )}
     </div>
+    </>
   );
 }
 

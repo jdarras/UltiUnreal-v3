@@ -34,8 +34,11 @@ const preloaders = {
 import {
   getCommon,
   getHosts,
+  getProjects,
   getLibraryMeta,
   getLogsStorage,
+  postCommon,
+  postLaunch,
   postPresence,
   postprodAuthLogin,
   postprodAuthMe,
@@ -90,6 +93,7 @@ import {
   postprodGetHealth,
   postprodCreateRender,
   postprodScheduleRenderJob,
+  postprodDeleteRenderJob,
   postprodReorderRenderJobs,
   postprodTransitionRender,
   postprodDispatchRenders,
@@ -97,10 +101,13 @@ import {
   postprodListRenderWorkers,
   postprodUpsertRenderWorker,
   postprodCompleteRenderWorkerJob,
+  postprodPatchRenderWorkerAptitude,
   postprodListRenderTransitions,
   runLocalProcess,
+  getOnlineMap,
 } from "./utils/agent";
 
+import { AptitudeCheckModal } from "./screens/postproduction/renders/components/AptitudeCheckModal";
 import "./global.css";
 import { readIdentity, writeIdentity } from "./utils/identity";
 import { createT } from "./i18n";
@@ -164,7 +171,7 @@ function mapTaskProjectOptions(payload = {}) {
       const metaStatus = String(project?.metaStatus || project?.status || "").trim();
       return {
         ref: id || name,
-        label: id && name ? `${name} [${id}]` : (name || id),
+        label: name || id,
         id: id || '',
         name: name || '',
         uprojectPath,
@@ -534,6 +541,7 @@ function resolvePostprodRendersError(err, t) {
   if (code === 'render_template_payload_too_large') return t('postprod.renders.error.payloadTooLarge');
   if (code === 'render_not_found') return t('postprod.renders.error.renderNotFound');
   if (code === 'render_not_running') return t('postprod.renders.error.invalidStatus');
+  if (code === 'render_running_cannot_delete') return t('postprod.renders.error.invalidStatus');
   if (code === 'invalid_render_status') return t('postprod.renders.error.invalidStatus');
   if (code === 'forbidden_worker_assignment') return t('postprod.renders.error.forbiddenTransition');
   if (code === 'forbidden_dispatch') return t('postprod.renders.error.forbiddenDispatch');
@@ -569,7 +577,9 @@ function resolvePostprodProjectsError(err, t) {
   if (code === 'invalid_project_id') return 'Projet invalide.';
   if (code === 'unknown_project') return 'Projet introuvable.';
   if (code === 'missing_project_uproject_path') return 'Chemin .uproject manquant pour ce projet.';
+  if (code === 'missing_wrc_file') return 'Fichier WRC manquant.';
   if (code === 'missing_preset_name') return 'Preset WRC manquant.';
+  if (code === 'wrc_preset_unreachable_no_snapshot') return t('production.error.wrcUnreachableNoSnapshot');
   if (code === 'wrc_preset_unreachable') return 'Preset WRC inaccessible (verifie Unreal ouvert + Web Remote Control actif).';
   if (code === 'wrc_fetch_failed') return 'Preset WRC inaccessible (connexion refusee). Verifie Unreal ouvert + Web Remote Control actif.';
   if (code === 'wrc_timeout') return 'Preset WRC inaccessible (timeout). Verifie le port RC HTTP et l’accessibilite de la station.';
@@ -1486,6 +1496,7 @@ function App() {
   const [taskTabKey, setTaskTabKey] = useState(0);
   const [datasTabKey, setDatasTabKey] = useState(0);
   const [quitDialogOpen, setQuitDialogOpen] = useState(false);
+  const [aptitudeCheckPending, setAptitudeCheckPending] = useState(null);
   const [resourcesRefreshKey, setResourcesRefreshKey] = useState(0);
   const [postprodTaskFormOpen, setPostprodTaskFormOpen] = useState(false);
   const [postprodUserEditorOpen, setPostprodUserEditorOpen] = useState(false);
@@ -1511,6 +1522,7 @@ function App() {
   const postprodOfflineReplayLastKickRef = useRef(0);
   const postprodWorkerCompletionReplayLastKickRef = useRef(0);
   const postprodAgentBootRef = useRef({ started: false, port: '' });
+  const postprodWrcCacheNoticeRef = useRef({});
   const handleCommonUpdated = React.useCallback((next) => {
     if (!next || typeof next !== 'object') return;
     setCommonCfg(next);
@@ -2048,6 +2060,9 @@ function App() {
     const ref = String(payload?.ref || '').trim();
     if (!ref) return;
     const action = String(payload?.action || '').trim().toLowerCase();
+    const task = payload?.task && typeof payload.task === "object" && !Array.isArray(payload.task)
+      ? payload.task
+      : null;
     if (
       type !== 'project'
       && type !== 'resource'
@@ -2059,6 +2074,7 @@ function App() {
       type,
       ref,
       action,
+      task,
     });
     setCurrent('Taches');
   }, []);
@@ -2099,6 +2115,132 @@ function App() {
       setCurrent("Rendus");
     }
   }, []);
+  const normalizePostprodWrcFiles = useCallback((wrcPresets = []) => {
+    const list = Array.isArray(wrcPresets) ? wrcPresets : [];
+    const out = [];
+    const seen = new Set();
+    for (const entry of list) {
+      const value = String(
+        (entry && typeof entry === 'object'
+          ? (entry.assetPath || entry.path || entry.name)
+          : entry
+        ) || ''
+      ).trim();
+      if (!value) continue;
+      const key = value.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(value);
+    }
+    return out;
+  }, []);
+
+  const refreshPostprodProjectWrcSnapshots = useCallback(async (projectRef, wrcPresets = []) => {
+    const token = String(postprodAuth.token || '').trim();
+    const project = String(projectRef || '').trim();
+    if (!token || !project) {
+      return { attempted: 0, refreshed: 0, usingLastKnown: 0, missingSnapshot: 0, failed: 0 };
+    }
+    const wrcFiles = normalizePostprodWrcFiles(wrcPresets);
+    if (wrcFiles.length <= 0) {
+      return { attempted: 0, refreshed: 0, usingLastKnown: 0, missingSnapshot: 0, failed: 0 };
+    }
+    let refreshed = 0;
+    let usingLastKnown = 0;
+    let missingSnapshot = 0;
+    let failed = 0;
+    for (const wrcFile of wrcFiles) {
+      try {
+        const res = await postprodGetProjectWrcFields(token, project, wrcFile, 10000, { refreshSnapshot: true });
+        if (res?.refreshedFromUnreal === true) refreshed += 1;
+        if (res?.usingLastKnownPreset === true) usingLastKnown += 1;
+      } catch (e) {
+        const code = String(e?.code || '').trim().toLowerCase();
+        if (code === 'wrc_preset_unreachable_no_snapshot') missingSnapshot += 1;
+        else failed += 1;
+      }
+    }
+    return { attempted: wrcFiles.length, refreshed, usingLastKnown, missingSnapshot, failed };
+  }, [postprodAuth.token, normalizePostprodWrcFiles]);
+  const handlePostprodNavigateToProject = React.useCallback(async (projectRef, opts = {}) => {
+    const ref = String(projectRef || '').trim();
+    if (!ref) return;
+    if (opts?.start) {
+      try {
+        const hostList = Array.isArray(hostsCfg) && hostsCfg.length > 0
+          ? hostsCfg
+          : (await getHosts().catch(() => []));
+        const preferredHost = (
+          Array.isArray(hostList)
+            ? hostList.find(
+                (host) =>
+                  host
+                  && String(host.ip || '').trim().toLowerCase() === String(localIp || '').trim().toLowerCase()
+              ) || hostList[0]
+            : null
+        );
+        const hostIp = String(preferredHost?.ip || '').trim();
+        if (!hostIp) {
+          showNotice(t('launch.status.agentOffline'), 'warn');
+          return;
+        }
+
+        const projectsPayload = await getProjects({ timeoutMs: 30000 }).catch(() => ({}));
+        const projectsList = Array.isArray(projectsPayload?.projects) ? projectsPayload.projects : [];
+        const refLower = ref.toLowerCase();
+        const selectedProject = projectsList.find((project) => {
+          const id = String(project?.id || '').trim().toLowerCase();
+          const name = String(project?.name || '').trim().toLowerCase();
+          const code = String(project?.code || '').trim().toLowerCase();
+          return refLower === id || refLower === name || refLower === code;
+        }) || null;
+        const uproject = String(
+          selectedProject?.uproject
+          || selectedProject?.projectPath
+          || selectedProject?.path
+          || selectedProject?.uprojectPath
+          || ''
+        ).trim();
+        const requiredVersion = String(selectedProject?.engineVersion || '').trim();
+        if (!uproject) {
+          showNotice(t('launch.status.missingUproject'), 'warn');
+          return;
+        }
+
+        await postCommon({ launchMode: 'integration' });
+        const launchRes = await postLaunch(hostIp, { uproject, engineVersion: requiredVersion });
+        if (launchRes?.localFallback?.used) {
+          showNotice(t('launch.msg.localFallback') || 'Reseau Ethernet inactif, bascule locale sur 127.0.0.1.', 'warn');
+        }
+        const postprodToken = String(postprodAuth.token || '').trim();
+        const projectRefForRefresh = String(
+          selectedProject?.id
+          || selectedProject?.name
+          || ref
+        ).trim();
+        if (postprodToken && projectRefForRefresh) {
+          let wrcPresetsFromProject = Array.isArray(selectedProject?.wrcNames)
+            ? selectedProject.wrcNames
+            : [];
+          try {
+            const catalogRes = await postprodGetProjectUnrealCatalog(postprodToken, projectRefForRefresh);
+            const catalogObj = catalogRes?.catalog && typeof catalogRes.catalog === 'object'
+              ? catalogRes.catalog
+              : {};
+            const catalogWrc = Array.isArray(catalogObj?.wrcPresets) ? catalogObj.wrcPresets : [];
+            if (catalogWrc.length > 0) wrcPresetsFromProject = catalogWrc;
+          } catch {}
+          void refreshPostprodProjectWrcSnapshots(projectRefForRefresh, wrcPresetsFromProject);
+        }
+        return;
+      } catch (e) {
+        showNotice(String(e?.message || e || t('postprod.projects.error')), 'error');
+        return;
+      }
+    }
+    try { localStorage.setItem('uu_pending_detail', ref); } catch {}
+    setCurrent('Projets');
+  }, [hostsCfg, localIp, showNotice, t, postprodAuth.token, refreshPostprodProjectWrcSnapshots]);
   const handlePostprodTaskFocusHandled = React.useCallback(() => {
     setPostprodTaskFocusRequest(null);
   }, []);
@@ -2153,7 +2295,12 @@ function App() {
       : Array.from(localEditorPathsByVersion.keys()).filter(Boolean)
   );
   const localUnrealVersionsKey = localUnrealVersions.join('|');
-  const localRenderEnabled = localHost?.renderEnabled === false ? false : true;
+  const localRenderAvailability = (() => {
+    const VALID = ['capable', 'busy', 'excluded'];
+    if (VALID.includes(localHost?.renderAvailability)) return localHost.renderAvailability;
+    return localHost?.renderEnabled === false ? 'excluded' : 'capable';
+  })();
+  const localRenderEnabled = localRenderAvailability !== 'excluded'; // backward compat alias
   const hasLocalUnrealCapability = (
     localEditorPaths.length > 0
     || String(localHost?.unreal_editor || '').trim().length > 0
@@ -2198,6 +2345,7 @@ function App() {
       displayName: renderWorkerDisplayName,
       capabilities: renderWorkerCapabilities,
       canRender: localRenderEnabled,
+      renderAvailability: localRenderAvailability,
       isActive: true,
     };
     try {
@@ -2213,13 +2361,13 @@ function App() {
     renderWorkerCapabilities,
     hasLocalUnrealCapability,
     localRenderEnabled,
+    localRenderAvailability,
   ]);
 
   const postprodRenderWorkersForUi = useMemo(() => {
     const base = Array.isArray(postprodRenderWorkers.items) ? postprodRenderWorkers.items : [];
     const workerKey = String(renderWorkerKey || '').trim();
     if (!workerKey) return base;
-    const localCanRender = localRenderEnabled;
     const idx = base.findIndex((entry) => String(entry?.workerKey || '').trim() === workerKey);
     if (idx >= 0) {
       const next = [...base];
@@ -2230,17 +2378,19 @@ function App() {
         displayName: String(current?.displayName || '').trim() || renderWorkerDisplayName || workerKey,
         // La station courante est localement joignable par l'application.
         isOnline: true,
-        canRender: localCanRender ? true : current?.canRender,
+        canRender: localRenderEnabled ? true : current?.canRender,
+        renderAvailability: localRenderAvailability,
       };
       return next;
     }
-    if (!localCanRender) return base;
+    if (!localRenderEnabled) return base;
     return [
       {
         workerKey,
         displayName: renderWorkerDisplayName || workerKey,
         isOnline: true,
         canRender: true,
+        renderAvailability: localRenderAvailability,
         capabilities: renderWorkerCapabilities,
         isActive: true,
       },
@@ -2253,6 +2403,7 @@ function App() {
     renderWorkerCapabilities,
     hasLocalUnrealCapability,
     localRenderEnabled,
+    localRenderAvailability,
   ]);
 
   const configMissing =
@@ -2261,7 +2412,6 @@ function App() {
     commonCfg &&
     (
       !Number(commonCfg.rcHttpPort || 0) ||
-      !String(commonCfg.webRemoteControlName || '').trim() ||
       versionsList.length === 0 ||
       (hostsLoaded &&
         versionsList.some(
@@ -3265,27 +3415,84 @@ function App() {
     try {
       const res = await postprodGetProjectUnrealCatalog(token, projectRef);
       const catalog = res?.catalog && typeof res.catalog === 'object' ? res.catalog : {};
-      return {
+      const normalizedCatalog = {
         levels: Array.isArray(catalog.levels) ? catalog.levels : [],
         sequences: Array.isArray(catalog.sequences) ? catalog.sequences : [],
         presets: Array.isArray(catalog.presets) ? catalog.presets : [],
         wrcPresets: Array.isArray(catalog.wrcPresets) ? catalog.wrcPresets : [],
         stats: catalog?.stats && typeof catalog.stats === 'object' ? catalog.stats : null,
       };
+      // Refresh snapshot in background on form editor open / project selection.
+      void (async () => {
+        const summary = await refreshPostprodProjectWrcSnapshots(projectRef, normalizedCatalog.wrcPresets);
+        const projectKey = String(projectRef || '').trim().toLowerCase();
+        if (summary?.usingLastKnown > 0) {
+          const noticeKey = `catalog::snapshot::${projectKey}`;
+          const nowTs = Date.now();
+          const previousTs = Number(postprodWrcCacheNoticeRef.current?.[noticeKey] || 0);
+          if (!Number.isFinite(previousTs) || (nowTs - previousTs) > 10000) {
+            postprodWrcCacheNoticeRef.current = {
+              ...(postprodWrcCacheNoticeRef.current || {}),
+              [noticeKey]: nowTs,
+            };
+            showNotice(t('production.error.wrcUnreachableUsingSnapshot'), 'info');
+          }
+          return;
+        }
+        if (summary?.missingSnapshot > 0) {
+          const noticeKey = `catalog::nosnapshot::${projectKey}`;
+          const nowTs = Date.now();
+          const previousTs = Number(postprodWrcCacheNoticeRef.current?.[noticeKey] || 0);
+          if (!Number.isFinite(previousTs) || (nowTs - previousTs) > 10000) {
+            postprodWrcCacheNoticeRef.current = {
+              ...(postprodWrcCacheNoticeRef.current || {}),
+              [noticeKey]: nowTs,
+            };
+            showNotice(t('production.error.wrcUnreachableNoSnapshot'), 'warn');
+          }
+        }
+      })();
+      return normalizedCatalog;
     } catch (e) {
       const err = new Error(resolvePostprodProjectsError(e, t));
       err.code = e?.code || '';
       throw err;
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, refreshPostprodProjectWrcSnapshots, showNotice]);
 
-  const handlePostprodLoadProjectWrcFields = useCallback(async (projectRef, presetName = '') => {
+  const handlePostprodLoadProjectWrcFields = useCallback(async (projectRef, wrcFile = '', options = null) => {
     const token = String(postprodAuth.token || '').trim();
     if (!token) return [];
+    const opts = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
     try {
-      const res = await postprodGetProjectWrcFields(token, projectRef, presetName);
+      const res = await postprodGetProjectWrcFields(token, projectRef, wrcFile, 10000, opts);
+      if (res?.usingLastKnownPreset === true) {
+        const noticeKey = `${String(projectRef || '').trim()}::${String(wrcFile || '').trim()}`.toLowerCase();
+        const nowTs = Date.now();
+        const previousTs = Number(postprodWrcCacheNoticeRef.current?.[noticeKey] || 0);
+        if (!Number.isFinite(previousTs) || (nowTs - previousTs) > 10000) {
+          postprodWrcCacheNoticeRef.current = {
+            ...(postprodWrcCacheNoticeRef.current || {}),
+            [noticeKey]: nowTs,
+          };
+          showNotice(t('production.error.wrcUnreachableUsingSnapshot'), 'info');
+        }
+      }
       return Array.isArray(res?.fields) ? res.fields : [];
     } catch (e) {
+      const code = String(e?.code || '').trim().toLowerCase();
+      if (code === 'wrc_preset_unreachable_no_snapshot') {
+        const noticeKey = `nosnapshot::${String(projectRef || '').trim()}::${String(wrcFile || '').trim()}`.toLowerCase();
+        const nowTs = Date.now();
+        const previousTs = Number(postprodWrcCacheNoticeRef.current?.[noticeKey] || 0);
+        if (!Number.isFinite(previousTs) || (nowTs - previousTs) > 10000) {
+          postprodWrcCacheNoticeRef.current = {
+            ...(postprodWrcCacheNoticeRef.current || {}),
+            [noticeKey]: nowTs,
+          };
+          showNotice(t('production.error.wrcUnreachableNoSnapshot'), 'warn');
+        }
+      }
       const resolved = resolvePostprodProjectsError(e, t);
       const fallback = String(e?.message || '').trim();
       const message = fallback && resolved === t('postprod.projects.error')
@@ -3295,7 +3502,7 @@ function App() {
       err.code = e?.code || '';
       throw err;
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, showNotice]);
 
   const handlePostprodLoadProjectDataTables = useCallback(async (projectRef) => {
     const token = String(postprodAuth.token || '').trim();
@@ -3832,6 +4039,67 @@ function App() {
     }
   }, [postprodAuth.token, t]);
 
+  const handlePatchLocalWorkerAptitude = useCallback(async (apte) => {
+    const token = String(postprodAuth.token || '').trim();
+    const workerKey = String(renderWorkerKey || '').trim();
+    if (!token || !workerKey) return;
+    try {
+      await postprodPatchRenderWorkerAptitude(token, workerKey, apte);
+      await loadPostprodRenderWorkers();
+    } catch {
+      // best-effort
+    }
+  }, [postprodAuth.token, renderWorkerKey, loadPostprodRenderWorkers]);
+
+  const handlePostprodPatchWorkerAptitude = useCallback(async (workerKey, apte) => {
+    const token = String(postprodAuth.token || '').trim();
+    const key = String(workerKey || '').trim();
+    if (!token || !key) return;
+    try {
+      await postprodPatchRenderWorkerAptitude(token, key, apte);
+      await loadPostprodRenderWorkers();
+    } catch {
+      // best-effort
+    }
+  }, [postprodAuth.token, loadPostprodRenderWorkers]);
+
+  const handleAptitudeConfirm = useCallback(async () => {
+    const pending = aptitudeCheckPending;
+    setAptitudeCheckPending(null);
+    if (!pending) return;
+    await handlePatchLocalWorkerAptitude(true);
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return;
+    try {
+      await ensureLocalRenderWorkerOnline();
+      const dispatchRes = await postprodDispatchRenders(token, {
+        maxJobs: 1,
+        renderIds: pending.renderId > 0 ? [pending.renderId] : undefined,
+      });
+      const dispatchedCount = Number.isFinite(Number(dispatchRes?.count)) ? Math.max(0, Math.trunc(Number(dispatchRes.count))) : 0;
+      if (dispatchedCount <= 0) {
+        showNotice("Rendu cree mais non demarre: aucune station disponible.", "warn");
+      }
+    } catch {
+      showNotice("Rendu cree, mais lancement immediat indisponible.", "warn");
+    }
+    await Promise.all([loadPostprodRenders(), loadPostprodRenderWorkers(), loadPostprodRenderHealth()]);
+  }, [
+    aptitudeCheckPending,
+    handlePatchLocalWorkerAptitude,
+    ensureLocalRenderWorkerOnline,
+    postprodAuth.token,
+    loadPostprodRenders,
+    loadPostprodRenderWorkers,
+    loadPostprodRenderHealth,
+    showNotice,
+  ]);
+
+  const handleAptitudeCancel = useCallback(() => {
+    setAptitudeCheckPending(null);
+    showNotice(t('postprod.renders.aptitude.noticeCancelled'), 'warn');
+  }, [showNotice, t]);
+
   const handlePostprodUpdateMe = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
     if (!token) return;
@@ -4248,7 +4516,7 @@ function App() {
     try {
       const res = await postprodUpdateRenderForm(token, formId, payload);
       await loadPostprodRenderForms();
-      showNotice('Formulaire de rendu mis a jour.', 'info');
+      showNotice('Formulaire de rendu mis a jour.', 'ok');
       return res?.form && typeof res.form === 'object' ? res.form : true;
     } catch (e) {
       setPostprodRenderForms((prev) => ({
@@ -4305,14 +4573,14 @@ function App() {
     }
   }, [postprodAuth.token]);
 
-  const handlePostprodReplaceRenderFormFields = useCallback(async (formId, fields = []) => {
+  const handlePostprodReplaceRenderFormFields = useCallback(async (formId, fields = [], wrcFile = '') => {
     const token = String(postprodAuth.token || '').trim();
     if (!token) return [];
     if (!postprodCanManageRenderTemplates) {
       showNotice(t('postprod.renders.error.forbiddenTemplateManage'), 'warn');
       return [];
     }
-    const res = await postprodReplaceRenderFormFields(token, formId, fields);
+    const res = await postprodReplaceRenderFormFields(token, formId, fields, wrcFile);
     await loadPostprodRenderForms();
     return Array.isArray(res?.fields) ? res.fields : [];
   }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderForms, showNotice, t]);
@@ -4393,32 +4661,46 @@ function App() {
       const remoteDispatchOk = remoteDispatch?.ok === true
         && (remoteDispatchMode === 'auto' || remoteDispatchMode === 'manual');
       if (launchNowRequested && !remoteDispatchOk) {
-        try {
-          await ensureLocalRenderWorkerOnline();
-          const dispatchRes = await postprodDispatchRenders(token, {
-            maxJobs: 1,
-            renderIds: createdRenderId > 0 ? [createdRenderId] : undefined,
+        const localWorkerKey = String(renderWorkerKey || '').trim();
+        const localWorkerInList = localWorkerKey
+          ? (postprodRenderWorkers.items || []).find(
+              (w) => String(w?.workerKey || '').trim() === localWorkerKey
+            )
+          : null;
+        const localWorkerIsInapte = localWorkerInList && localWorkerInList.apte === false;
+        if (localWorkerIsInapte) {
+          setAptitudeCheckPending({
+            renderId: createdRenderId,
+            workerDisplayName: String(localWorkerInList?.displayName || renderWorkerDisplayName || localWorkerKey).trim(),
           });
-          const dispatchedCountRaw = Number(dispatchRes?.count || 0);
-          const dispatchedCount = Number.isFinite(dispatchedCountRaw) ? Math.max(0, Math.trunc(dispatchedCountRaw)) : 0;
-          if (dispatchedCount <= 0) {
-            showNotice(
-              "Rendu cree mais non demarre: aucune station de rendu disponible/compatible pour le moment.",
-              "warn"
-            );
-          }
-        } catch (dispatchErr) {
-          const dispatchErrCode = String(dispatchErr?.code || "").trim().toLowerCase();
-          if (dispatchErrCode === "forbidden_dispatch") {
-            showNotice(
-              "Rendu cree, mais dispatch auto non autorise pour ce role. Lance le rendu depuis la file d'attente.",
-              "warn"
-            );
-          } else {
-            showNotice(
-              "Rendu cree, mais lancement immediat indisponible. Verifie les stations de rendu disponibles.",
-              "warn"
-            );
+        } else {
+          try {
+            await ensureLocalRenderWorkerOnline();
+            const dispatchRes = await postprodDispatchRenders(token, {
+              maxJobs: 1,
+              renderIds: createdRenderId > 0 ? [createdRenderId] : undefined,
+            });
+            const dispatchedCountRaw = Number(dispatchRes?.count || 0);
+            const dispatchedCount = Number.isFinite(dispatchedCountRaw) ? Math.max(0, Math.trunc(dispatchedCountRaw)) : 0;
+            if (dispatchedCount <= 0) {
+              showNotice(
+                "Rendu cree mais non demarre: aucune station de rendu disponible/compatible pour le moment.",
+                "warn"
+              );
+            }
+          } catch (dispatchErr) {
+            const dispatchErrCode = String(dispatchErr?.code || "").trim().toLowerCase();
+            if (dispatchErrCode === "forbidden_dispatch") {
+              showNotice(
+                "Rendu cree, mais dispatch auto non autorise pour ce role. Lance le rendu depuis la file d'attente.",
+                "warn"
+              );
+            } else {
+              showNotice(
+                "Rendu cree, mais lancement immediat indisponible. Verifie les stations de rendu disponibles.",
+                "warn"
+              );
+            }
           }
         }
       }
@@ -4489,6 +4771,10 @@ function App() {
     loadPostprodRenderHealth,
     showNotice,
     ensureLocalRenderWorkerOnline,
+    renderWorkerKey,
+    renderWorkerDisplayName,
+    postprodRenderWorkers.items,
+    setAptitudeCheckPending,
     t,
   ]);
 
@@ -4502,6 +4788,28 @@ function App() {
       showNotice(String(e?.message || e?.code || 'schedule_error'), 'error');
     }
   }, [postprodAuth.token, loadPostprodRenders, showNotice]);
+
+  const handlePostprodDeleteRender = useCallback(async (renderId) => {
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return false;
+    setPostprodRenders((prev) => ({ ...prev, loading: true, error: '' }));
+    try {
+      await postprodDeleteRenderJob(token, renderId);
+      await Promise.all([
+        loadPostprodRenders(),
+        loadPostprodRenderHealth(),
+      ]);
+      showNotice(t('postprod.renders.msg.deleted'), 'info');
+      return true;
+    } catch (e) {
+      setPostprodRenders((prev) => ({
+        ...prev,
+        loading: false,
+        error: resolvePostprodRendersError(e, t),
+      }));
+      return false;
+    }
+  }, [postprodAuth.token, loadPostprodRenders, loadPostprodRenderHealth, showNotice, t]);
 
   const handlePostprodReorderRenders = useCallback(async (order = []) => {
     const token = String(postprodAuth.token || '').trim();
@@ -5000,6 +5308,7 @@ function App() {
       displayName: renderWorkerDisplayName,
       capabilities: renderWorkerCapabilities,
       canRender: localRenderEnabled,
+      renderAvailability: localRenderAvailability,
       isActive: true,
     };
 
@@ -5027,6 +5336,7 @@ function App() {
     renderWorkerCapabilities,
     hasLocalUnrealCapability,
     localRenderEnabled,
+    localRenderAvailability,
   ]);
 
   useEffect(() => {
@@ -5323,6 +5633,68 @@ function App() {
     showNotice,
     t,
   ]);
+
+  // ---- Notifications renderReturnAt (retour de station depuis 'busy') ----
+  const renderReturnNotifiedRef = useRef({}); // { `${ip}:${threshold}` -> true }
+  useEffect(() => {
+    const THRESHOLDS_MIN = [15, 5, 1];
+    let stopped = false;
+    let timer = null;
+
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const map = await getOnlineMap();
+        const now = Date.now();
+        for (const [ip, entry] of Object.entries(map || {})) {
+          if (entry?.renderAvailability !== 'busy') continue;
+          const rat = entry?.renderReturnAt;
+          if (!rat || typeof rat !== 'string') continue;
+          const returnMs = Date.parse(rat);
+          if (!Number.isFinite(returnMs)) continue;
+          const diffMin = (returnMs - now) / 60000;
+          if (diffMin < 0) continue; // already past
+
+          const name = String(entry?.name || ip || '').trim() || ip;
+          for (const thresh of THRESHOLDS_MIN) {
+            if (diffMin <= thresh + 0.5 && diffMin > thresh - 1.5) {
+              const key = `${ip}:${thresh}`;
+              if (!renderReturnNotifiedRef.current[key]) {
+                renderReturnNotifiedRef.current[key] = true;
+                const msgKey = thresh === 15
+                  ? 'renderReturnAt.notify.15min'
+                  : thresh === 5
+                    ? 'renderReturnAt.notify.5min'
+                    : 'renderReturnAt.notify.1min';
+                showNotice(t(msgKey, { name }), 'info');
+              }
+            }
+          }
+          // Clear stale notified keys for entries no longer busy
+          const stalePrefix = `${ip}:`;
+          for (const k of Object.keys(renderReturnNotifiedRef.current)) {
+            if (k.startsWith(stalePrefix)) {
+              const thresh = Number(k.split(':')[1]);
+              const diffMin2 = (returnMs - Date.now()) / 60000;
+              if (diffMin2 < thresh - 2) {
+                // threshold is safely behind us — allow re-notification next cycle if needed
+                delete renderReturnNotifiedRef.current[k];
+              }
+            }
+          }
+        }
+      } catch {}
+      if (!stopped) {
+        timer = setTimeout(tick, 60000); // check once per minute
+      }
+    };
+
+    tick();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [showNotice, t]);
 
   // Garde un onglet valide quand le rôle change
   useEffect(() => {
@@ -5888,6 +6260,8 @@ function App() {
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
                 onScheduleRender={handlePostprodScheduleRender}
                 onReorderRenders={handlePostprodReorderRenders}
+                onDeleteRender={handlePostprodDeleteRender}
+                onPatchWorkerAptitude={handlePostprodPatchWorkerAptitude}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
                 onCreateRenderForm={handlePostprodCreateRenderForm}
@@ -5905,6 +6279,7 @@ function App() {
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
+                onNavigateToProject={handlePostprodNavigateToProject}
               />
             </Suspense>
           )}
@@ -6049,6 +6424,8 @@ function App() {
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
                 onScheduleRender={handlePostprodScheduleRender}
                 onReorderRenders={handlePostprodReorderRenders}
+                onDeleteRender={handlePostprodDeleteRender}
+                onPatchWorkerAptitude={handlePostprodPatchWorkerAptitude}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
                 onCreateRenderForm={handlePostprodCreateRenderForm}
@@ -6066,6 +6443,7 @@ function App() {
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
+                onNavigateToProject={handlePostprodNavigateToProject}
               />
             </Suspense>
           )}
@@ -6232,6 +6610,8 @@ function App() {
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
                 onScheduleRender={handlePostprodScheduleRender}
                 onReorderRenders={handlePostprodReorderRenders}
+                onDeleteRender={handlePostprodDeleteRender}
+                onPatchWorkerAptitude={handlePostprodPatchWorkerAptitude}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
                 onCreateRenderForm={handlePostprodCreateRenderForm}
@@ -6249,6 +6629,7 @@ function App() {
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
+                onNavigateToProject={handlePostprodNavigateToProject}
               />
             </Suspense>
           )}
@@ -6388,6 +6769,8 @@ function App() {
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
                 onScheduleRender={handlePostprodScheduleRender}
                 onReorderRenders={handlePostprodReorderRenders}
+                onDeleteRender={handlePostprodDeleteRender}
+                onPatchWorkerAptitude={handlePostprodPatchWorkerAptitude}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
                 onCreateRenderForm={handlePostprodCreateRenderForm}
@@ -6405,10 +6788,20 @@ function App() {
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
+                onNavigateToProject={handlePostprodNavigateToProject}
               />
             </Suspense>
           )}
         </section>
+
+        {aptitudeCheckPending && (
+          <AptitudeCheckModal
+            t={t}
+            workerDisplayName={aptitudeCheckPending.workerDisplayName}
+            onConfirm={handleAptitudeConfirm}
+            onCancel={handleAptitudeCancel}
+          />
+        )}
 
         {quitDialog}
       </main>
@@ -6424,3 +6817,5 @@ root.render(
     <App />
   </ErrorBoundary>
 );
+
+

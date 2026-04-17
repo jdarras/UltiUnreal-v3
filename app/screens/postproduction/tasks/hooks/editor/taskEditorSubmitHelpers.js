@@ -17,21 +17,24 @@ function buildImmediateRenderRequest({
   selectedAutoRenderForm = null,
   renderStation = "local",
   renderStationName = "",
+  scheduledAt = null,
 } = {}) {
   const taskTitle = String(savedTask?.title || fallbackTaskTitle || "").trim();
   const taskStatus = String(savedTask?.status || "A faire").trim();
   const matchedExpectedRenderName = String(expectedRenderNames?.[0] || "").trim() || undefined;
   const createdTaskId = resolveSavedTaskId(savedTask);
   const projectName = String(projectRef || selectedAutoRenderForm?.projectName || "");
+  const isScheduled = !!scheduledAt;
 
   return {
     templateName: effectiveTemplateName,
     projectName,
     render_station: String(renderStation || "local").trim() || "local",
     render_station_name: String(renderStationName || "").trim(),
+    ...(scheduledAt ? { scheduledAt } : {}),
     payload: {
       ...(basePayload && typeof basePayload === "object" ? basePayload : {}),
-      source: "task_auto_render_now",
+      source: isScheduled ? "task_auto_render_scheduled" : "task_auto_render_now",
       taskId: createdTaskId > 0 ? createdTaskId : undefined,
       taskTitle,
       taskStatus,
@@ -46,7 +49,9 @@ async function runTaskSubmit({
   t,
   isEditingTask = false,
   editingTaskId = 0,
-  autoRenderLaunchMode = "scheduled",
+  autoRenderLaunchMode = "",
+  autoRenderScheduledMode = "",
+  autoRenderScheduledAt = "",
   onCreateTask = null,
   onUpdateTask = null,
   onCreateRender = null,
@@ -61,7 +66,9 @@ async function runTaskSubmit({
   if (typeof setFormError === "function") setFormError("");
   if (typeof buildTaskPayloadFromCurrentForm !== "function") return;
 
-  const launchMode = autoRenderLaunchMode === "now" ? "now" : "scheduled";
+  const launchMode = autoRenderLaunchMode;
+  const scheduledMode = autoRenderScheduledMode;
+  const scheduledAt = String(autoRenderScheduledAt || "").trim();
   const built = buildTaskPayloadFromCurrentForm();
   if (!built?.ok) {
     if (typeof setFormError === "function") {
@@ -81,6 +88,14 @@ async function runTaskSubmit({
     renderStationName,
   } = built;
 
+  if (!isEditingTask && launchMode) {
+    taskPayload.autoRenderConfig = {
+      ...(taskPayload.autoRenderConfig || {}),
+      launchMode,
+      scheduledMode: scheduledMode || "",
+    };
+  }
+
   const savedTask = isEditingTask
     ? await Promise.resolve(onUpdateTask?.(editingTaskId, taskPayload))
     : await Promise.resolve(onCreateTask?.(taskPayload));
@@ -90,7 +105,13 @@ async function runTaskSubmit({
     editAutosaveStateRef.current.signature = toPayloadSignature(taskPayload);
   }
 
-  if (!isEditingTask && launchMode === "now") {
+  const shouldCreateRenderNow = !isEditingTask && launchMode === "now";
+  const shouldCreateRenderScheduled = !isEditingTask
+    && launchMode === "scheduled"
+    && scheduledMode === "datetime"
+    && !!scheduledAt;
+
+  if (shouldCreateRenderNow || shouldCreateRenderScheduled) {
     const createRenderInput = buildImmediateRenderRequest({
       basePayload,
       savedTask,
@@ -102,6 +123,7 @@ async function runTaskSubmit({
       selectedAutoRenderForm,
       renderStation,
       renderStationName,
+      scheduledAt: shouldCreateRenderScheduled ? scheduledAt : null,
     });
     await Promise.resolve(onCreateRender?.(createRenderInput));
   }

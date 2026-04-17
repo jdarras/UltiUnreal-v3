@@ -99,7 +99,7 @@ export function sortHosts(list, locale = 'fr') {
       host: h,
       idx,
       sortIndex: Number.isFinite(n) ? n : idx,
-      segment: h?.eligible === false ? 1 : 0,
+      segment: (h?.renderAvailability === 'excluded' || h?.eligible === false) ? 1 : 0,
     };
   });
 

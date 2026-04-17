@@ -81,6 +81,31 @@ function AuditEntriesList({
       };
     }
 
+    if (actionType === "user") {
+      const username = extractDetailLabel(detail, "Utilisateur")
+        || extractDetailLabel(detail, "User")
+        || extractDetailLabel(detail, "Username")
+        || extractDetailLabel(detail, "DisplayName")
+        || safeT(t, "postprod.audit.item.user", "Utilisateur");
+      const userRef = scopeId ? `#${scopeId}` : "";
+      return {
+        label: `${username}${userRef ? ` ${userRef}` : ""}`,
+        target: null,
+      };
+    }
+
+    if (actionType === "profile") {
+      const roleName = extractDetailLabel(detail, "Role")
+        || extractDetailLabel(detail, "Profil")
+        || extractDetailLabel(detail, "Profile")
+        || safeT(t, "postprod.audit.item.profile", "Profil");
+      const roleRef = scopeId ? `[${scopeId}]` : "";
+      return {
+        label: `${roleName}${roleRef ? ` ${roleRef}` : ""}`,
+        target: null,
+      };
+    }
+
     return {
       label: detail || "-",
       target: null,

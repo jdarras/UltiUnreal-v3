@@ -2,23 +2,25 @@ function normalizeTextValue(value) {
   return String(value || "").trim();
 }
 
+function normalizeStringArray(val) {
+  if (Array.isArray(val)) return val.map(String).filter(Boolean);
+  return [];
+}
+
 function buildCreateFormPayload({
   name = "",
   projectRef = "",
   templateName = "",
   mapName = "",
-  sequenceName = "",
   outputProfile = "",
-  presetName = "",
 }) {
   return {
     name: normalizeTextValue(name),
     projectName: normalizeTextValue(projectRef),
     templateName: normalizeTextValue(templateName),
     mapName: normalizeTextValue(mapName),
-    sequenceName: normalizeTextValue(sequenceName),
     outputProfile: normalizeTextValue(outputProfile),
-    presetName: normalizeTextValue(presetName),
+    wrcFiles: [],
     modeDefault: "live",
     isActive: true,
     layout: {},
@@ -31,10 +33,12 @@ function buildSaveMetaPayload({
   metaName = "",
   metaTemplateName = "",
   metaMapName = "",
-  metaSequenceName = "",
   metaOutputProfile = "",
-  metaPresetName = "",
+  metaWrcFiles = [],
   metaActive = true,
+  metaAllowedSequences = [],
+  metaAllowedPresets = [],
+  metaNote = "",
 }) {
   const normalizedPatch = patch && typeof patch === "object" && !Array.isArray(patch) ? patch : {};
   const nextName = normalizeTextValue(
@@ -46,51 +50,64 @@ function buildSaveMetaPayload({
   const nextMapName = normalizeTextValue(
     Object.prototype.hasOwnProperty.call(normalizedPatch, "mapName") ? normalizedPatch.mapName : metaMapName
   );
-  const nextSequenceName = normalizeTextValue(
-    Object.prototype.hasOwnProperty.call(normalizedPatch, "sequenceName") ? normalizedPatch.sequenceName : metaSequenceName
-  );
   const nextOutputProfile = normalizeTextValue(
     Object.prototype.hasOwnProperty.call(normalizedPatch, "outputProfile") ? normalizedPatch.outputProfile : metaOutputProfile
   );
-  const nextPresetName = normalizeTextValue(
-    Object.prototype.hasOwnProperty.call(normalizedPatch, "presetName") ? normalizedPatch.presetName : metaPresetName
-  );
+  const nextWrcFiles = Object.prototype.hasOwnProperty.call(normalizedPatch, "wrcFiles")
+    ? normalizeStringArray(normalizedPatch.wrcFiles)
+    : normalizeStringArray(metaWrcFiles);
   const nextActive = Object.prototype.hasOwnProperty.call(normalizedPatch, "isActive")
     ? normalizedPatch.isActive === true
     : metaActive === true;
+  const nextAllowedSequences = Object.prototype.hasOwnProperty.call(normalizedPatch, "allowedSequences")
+    ? normalizeStringArray(normalizedPatch.allowedSequences)
+    : normalizeStringArray(metaAllowedSequences);
+  const nextAllowedPresets = Object.prototype.hasOwnProperty.call(normalizedPatch, "allowedPresets")
+    ? normalizeStringArray(normalizedPatch.allowedPresets)
+    : normalizeStringArray(metaAllowedPresets);
+  const nextNote = normalizeTextValue(
+    Object.prototype.hasOwnProperty.call(normalizedPatch, "note") ? normalizedPatch.note : metaNote
+  );
 
   return {
     nextName,
     nextTemplateName,
     nextMapName,
-    nextSequenceName,
     nextOutputProfile,
-    nextPresetName,
+    nextWrcFiles,
     nextActive,
+    nextAllowedSequences,
+    nextAllowedPresets,
+    nextNote,
     payload: {
       name: nextName,
       templateName: nextTemplateName,
       mapName: nextMapName,
-      sequenceName: nextSequenceName,
       outputProfile: nextOutputProfile,
-      presetName: nextPresetName,
+      wrcFiles: nextWrcFiles,
       modeDefault: "live",
       isActive: nextActive,
+      allowedSequences: nextAllowedSequences,
+      allowedPresets: nextAllowedPresets,
+      note: nextNote,
     },
     noChanges: (
       normalizeTextValue(selectedForm?.name) === nextName
       && normalizeTextValue(selectedForm?.templateName) === nextTemplateName
       && normalizeTextValue(selectedForm?.mapName) === nextMapName
-      && normalizeTextValue(selectedForm?.sequenceName) === nextSequenceName
       && normalizeTextValue(selectedForm?.outputProfile) === nextOutputProfile
-      && normalizeTextValue(selectedForm?.presetName) === nextPresetName
+      && JSON.stringify(normalizeStringArray(selectedForm?.wrcFiles)) === JSON.stringify(nextWrcFiles)
       && (selectedForm?.isActive !== false) === nextActive
+      && JSON.stringify(normalizeStringArray(selectedForm?.allowedSequences)) === JSON.stringify(nextAllowedSequences)
+      && JSON.stringify(normalizeStringArray(selectedForm?.allowedPresets)) === JSON.stringify(nextAllowedPresets)
+      && normalizeTextValue(selectedForm?.note) === nextNote
     ),
   };
 }
 
 export {
   normalizeTextValue,
+  normalizeStringArray,
   buildCreateFormPayload,
   buildSaveMetaPayload,
 };

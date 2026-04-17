@@ -22,6 +22,9 @@ export default function ProjectsThumbsView({
   const THRESHOLD = 120;
   const COLS = 4;
   const ROW_HEIGHT = 308; // base card height (virtualized rows add bottom spacing)
+  const projectList = Array.isArray(projects)
+    ? projects.filter((entry) => entry && typeof entry === 'object')
+    : [];
   const usageModeLabel = (value) => {
     const v = String(value || '').trim();
     if (v === 'live') return t('projects.thumb.usage.live', 'Live');
@@ -169,10 +172,10 @@ export default function ProjectsThumbsView({
     );
   };
 
-  if (!projects || projects.length === 0) return null;
+  if (projectList.length === 0) return null;
 
-  if (projects.length > THRESHOLD) {
-    const rows = Math.ceil(projects.length / COLS);
+  if (projectList.length > THRESHOLD) {
+    const rows = Math.ceil(projectList.length / COLS);
     const listHeight = Math.min(900, rows * ROW_HEIGHT);
     const listWidth = typeof window !== 'undefined'
       ? Math.min(window.innerWidth - 32, 1800)
@@ -189,8 +192,8 @@ export default function ProjectsThumbsView({
           const rowItems = [];
           for (let c = 0; c < COLS; c += 1) {
             const itemIndex = index * COLS + c;
-            if (itemIndex >= projects.length) break;
-            const item = projects[itemIndex];
+            if (itemIndex >= projectList.length) break;
+            const item = projectList[itemIndex];
             rowItems.push(renderCard(item, item.id || item.name || `${index}-${c}`));
           }
           return (
@@ -224,7 +227,7 @@ export default function ProjectsThumbsView({
         alignItems: 'start',
       }}
     >
-      {projects.map((p, idx) => renderCard(p, p.id || p.name || idx))}
+      {projectList.map((p, idx) => renderCard(p, p.id || p.name || idx))}
     </div>
   );
 }

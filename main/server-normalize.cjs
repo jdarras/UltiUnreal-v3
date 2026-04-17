@@ -10,6 +10,21 @@ const DEFAULT_UNREAL_PROCESS_CANDIDATES = [
   'UE5Game.exe',
 ];
 
+const RENDER_AVAILABILITY_VALUES = ['capable', 'busy', 'excluded'];
+
+/**
+ * Résout renderAvailability à partir d'un objet host brut.
+ * Migration : eligible===false ou renderEnabled===false → 'excluded', sinon → 'capable'.
+ */
+function resolveRenderAvailability(host) {
+  if (RENDER_AVAILABILITY_VALUES.includes(host?.renderAvailability)) {
+    return host.renderAvailability;
+  }
+  if (host?.eligible === false) return 'excluded';
+  if (host?.renderEnabled === false || host?.render_enabled === false) return 'excluded';
+  return 'capable';
+}
+
 /**
  * Transforme le contenu brut de hosts_server.json (array ou objet)
  * en une liste normalisée de hosts : [{ ip, name, unreal_editor, uproject, syncRoot, syncEnabled, ... }]
@@ -53,8 +68,8 @@ function hostsToList(rawHosts) {
       sortIndex: Number.isFinite(Number(host?.sortIndex))
         ? Number(host.sortIndex)
         : out.length,
-      eligible: host?.eligible === false ? false : true,
-      renderEnabled: host?.renderEnabled === false || host?.render_enabled === false ? false : true,
+      renderAvailability: resolveRenderAvailability(host),
+      renderReturnAt: String(host?.renderReturnAt || '').trim() || null,
     });
   };
 
@@ -125,4 +140,6 @@ function getUnrealProcessCandidates(host = {}) {
 module.exports = {
   hostsToList,
   getUnrealProcessCandidates,
+  resolveRenderAvailability,
+  RENDER_AVAILABILITY_VALUES,
 };

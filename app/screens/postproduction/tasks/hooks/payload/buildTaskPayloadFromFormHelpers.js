@@ -38,6 +38,7 @@ function resolveTaskPayloadBuildContext({
   autoRenderFormId = "",
   autoRenderFormFields = [],
   autoRenderFormValues = {},
+  taskSequenceName = "",
 } = {}) {
   const expectedRenderCount = normalizeTaskExpectedRenderCountInput(expectedRenderCountInput);
   const expectedRenderNames = buildTaskExpectedRenderNamesPreview(title, expectedRenderCount);
@@ -56,6 +57,7 @@ function resolveTaskPayloadBuildContext({
     selectedAutoRenderProjectRef,
     projectOptionByRef,
     projectLookupByAny,
+    taskSequenceName,
     renderWorkerLookupByKey: (() => {
       const lookup = new Map();
       const list = Array.isArray(availableRenderWorkers) ? availableRenderWorkers : [];

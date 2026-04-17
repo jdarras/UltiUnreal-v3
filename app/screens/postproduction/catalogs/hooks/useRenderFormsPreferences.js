@@ -27,9 +27,11 @@ function useRenderFormsPreferences({ selectedProjectRef = "" } = {}) {
   const [formsFavorites, setFormsFavorites] = useState({});
   const [formsSearchAdvanced, setFormsSearchAdvanced] = useState({
     active: "all",
-    mapName: "",
-    sequenceName: "",
-    presetName: "",
+    projects: [],
+    mapNames: [],
+    sequences: [],
+    presets: [],
+    wrcFiles: [],
   });
 
   useEffect(() => {

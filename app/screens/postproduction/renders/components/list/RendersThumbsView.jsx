@@ -1,5 +1,42 @@
 import { formatDate, safeT } from "../../../shared/helpers";
 
+function firstNonEmptyString(values = []) {
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = String(value || "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function resolveRenderProjectRef(render = null) {
+  const item = render && typeof render === "object" ? render : {};
+  const payload = item?.payload && typeof item.payload === "object" && !Array.isArray(item.payload)
+    ? item.payload
+    : {};
+  return firstNonEmptyString([
+    item?.projectId,
+    item?.projectRef,
+    payload?.projectId,
+    payload?.projectRef,
+    item?.projectName,
+    payload?.projectName,
+  ]);
+}
+
+function resolveRenderLinkedTaskMeta(render = null) {
+  const item = render && typeof render === "object" ? render : {};
+  const payload = item?.payload && typeof item.payload === "object" && !Array.isArray(item.payload)
+    ? item.payload
+    : {};
+  const taskIdRaw = Number(item?.linkedTaskId || payload?.taskId || 0);
+  const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
+  const taskTitle = firstNonEmptyString([
+    item?.linkedTaskTitle,
+    payload?.taskTitle,
+  ]);
+  return { taskId, taskTitle };
+}
+
 function RendersThumbsView({
   t,
   sortedDisplayedRenders = [],
@@ -15,8 +52,9 @@ function RendersThumbsView({
   canReviewRenders = false,
   onApplyReviewStatus = null,
   onOpenRenderDetail = null,
-  isRenderFavorite = null,
-  onToggleRenderFavorite = null,
+  onDeleteRender = null,
+  onRequestOpenTasks = null,
+  onNavigateToProject = null,
 }) {
   return (
     <div className="uu-render-grid thumbs">
@@ -37,8 +75,9 @@ function RendersThumbsView({
           canReviewRenders={canReviewRenders}
           onApplyReviewStatus={onApplyReviewStatus}
           onOpenRenderDetail={onOpenRenderDetail}
-          isRenderFavorite={isRenderFavorite}
-          onToggleRenderFavorite={onToggleRenderFavorite}
+          onDeleteRender={onDeleteRender}
+          onRequestOpenTasks={onRequestOpenTasks}
+          onNavigateToProject={onNavigateToProject}
         />
       ))}
     </div>
@@ -60,8 +99,9 @@ function RendersThumbCard({
   canReviewRenders = false,
   onApplyReviewStatus = null,
   onOpenRenderDetail = null,
-  isRenderFavorite = null,
-  onToggleRenderFavorite = null,
+  onDeleteRender = null,
+  onRequestOpenTasks = null,
+  onNavigateToProject = null,
 }) {
   const renderId = Number(render?.id || 0);
   const reviewStatus = typeof renderReviewStatusKey === "function" ? renderReviewStatusKey(render) : "to_validate";
@@ -69,7 +109,50 @@ function RendersThumbCard({
   const thumbSrc = thumbCandidates[0] || "";
   const isBusy = busyRenderId === renderId;
   const outputPath = String(render?.outputPath || "").trim();
-  const favorite = typeof isRenderFavorite === "function" ? isRenderFavorite(render) : false;
+  const canDeleteRender = (
+    typeof onDeleteRender === "function"
+    && Number.isFinite(renderId)
+    && renderId > 0
+  );
+  const projectRef = resolveRenderProjectRef(render);
+  const projectLabel = String(render?.projectName || "").trim() || projectRef || "-";
+  const projectRefLower = projectRef.toLowerCase();
+  const projectLabelLower = projectLabel.toLowerCase();
+  const showProjectRefTag = Boolean(
+    projectRef
+    && projectLabel
+    && projectRefLower !== projectLabelLower
+  );
+  const { taskId: linkedTaskId, taskTitle: linkedTaskTitle } = resolveRenderLinkedTaskMeta(render);
+  const linkedTaskFallback = typeof renderLinkedTaskValue === "function"
+    ? String(renderLinkedTaskValue(render) || "").trim()
+    : "";
+  const canOpenProjectLink = typeof onNavigateToProject === "function" && !!projectRef;
+  const canOpenTaskLink = typeof onRequestOpenTasks === "function" && linkedTaskId > 0;
+
+  const handleDeleteRender = async () => {
+    if (!canDeleteRender || rendersLoading || isBusy) return;
+    onDeleteRender?.(render);
+  };
+
+  const handleOpenProject = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!canOpenProjectLink) return;
+    onNavigateToProject?.(projectRef);
+  };
+
+  const handleOpenTask = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!canOpenTaskLink) return;
+    onRequestOpenTasks?.({
+      type: "task",
+      action: "edit",
+      ref: String(linkedTaskId),
+      task: null,
+    });
+  };
 
   return (
     <div
@@ -93,30 +176,54 @@ function RendersThumbCard({
         <div style={{ fontWeight: 600 }}>
           {typeof renderOutputFilename === "function" ? renderOutputFilename(render) : "-"}
         </div>
-        <button
-          type="button"
-          className={`uu-fav-filter ${favorite ? "active" : ""}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleRenderFavorite?.(render);
-          }}
-          aria-pressed={favorite ? "true" : "false"}
-          title={favorite
-            ? safeT(t, "postprod.renders.favorite.remove", "Retirer des favoris")
-            : safeT(t, "postprod.renders.favorite.add", "Ajouter aux favoris")}
-        >
-          ★
-        </button>
       </div>
-      <div className="uu-muted mt-8">
-        {safeT(t, "postprod.renders.meta.project", "Projet: {value}", {
-          value: String(render?.projectName || "-"),
-        })}
+      <div className="uu-muted mt-8" onClick={(e) => e.stopPropagation()}>
+        <span>{safeT(t, "postprod.renders.table.project", "Projet")}: </span>
+        {canOpenProjectLink ? (
+          <>
+            <button
+              type="button"
+              className="uu-link uu-muted"
+              style={{ textAlign: "left" }}
+              onClick={handleOpenProject}
+            >
+              {projectLabel}
+            </button>
+            {showProjectRefTag ? (
+              <button
+                type="button"
+                className="uu-link uu-muted"
+                style={{ marginLeft: "6px" }}
+                onClick={handleOpenProject}
+              >
+                [{projectRef}]
+              </button>
+            ) : null}
+          </>
+        ) : (
+          <span>{projectLabel}</span>
+        )}
       </div>
-      <div className="uu-muted mt-8">
-        {safeT(t, "postprod.renders.meta.linkedTask", "Tache: {value}", {
-          value: typeof renderLinkedTaskValue === "function" ? renderLinkedTaskValue(render) || "-" : "-",
-        })}
+      <div className="uu-muted mt-8" onClick={(e) => e.stopPropagation()}>
+        <span>{safeT(t, "postprod.renders.table.linkedTask", "Tache")}: </span>
+        {linkedTaskId > 0 ? (
+          <>
+            {linkedTaskTitle ? <span>{linkedTaskTitle} </span> : null}
+            {canOpenTaskLink ? (
+              <button
+                type="button"
+                className="uu-link"
+                onClick={handleOpenTask}
+              >
+                ({linkedTaskId})
+              </button>
+            ) : (
+              <span>({linkedTaskId})</span>
+            )}
+          </>
+        ) : (
+          <span>{linkedTaskTitle || linkedTaskFallback || "-"}</span>
+        )}
       </div>
       <div className="uu-muted mt-8">
         {safeT(t, "postprod.renders.meta.updated", "Mise a jour: {value}", {
@@ -131,6 +238,7 @@ function RendersThumbCard({
       <div className="uu-row mt-12" onClick={(e) => e.stopPropagation()}>
         <select
           className="uu-input"
+          style={{ width: "75%" }}
           value={reviewStatus}
           disabled={rendersLoading || isBusy || !onTransitionRender || !canReviewRenders}
           onChange={async (e) => {
@@ -147,6 +255,25 @@ function RendersThumbCard({
         </select>
         <button className="uu-btn-ghost" type="button" onClick={() => onOpenRenderDetail?.(render)}>
           {safeT(t, "postprod.renders.detail.view", "Voir")}
+        </button>
+        <button
+          className="uu-btn-ghost"
+          type="button"
+          disabled={rendersLoading || isBusy || !canDeleteRender}
+          onClick={handleDeleteRender}
+          title={safeT(t, "postprod.renders.delete.button", "Supprimer")}
+          aria-label={safeT(t, "postprod.renders.delete.button", "Supprimer")}
+          style={{
+            width: "32px",
+            minWidth: "32px",
+            height: "32px",
+            padding: "0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {"X"}
         </button>
       </div>
     </div>

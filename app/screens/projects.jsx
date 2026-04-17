@@ -209,7 +209,7 @@ export default function ProjectsScreen({
     return 'thumbs'; // défaut : miniatures
   }); // cards | list | thumbs
   const [knownVersions, setKnownVersions] = React.useState([]);
-  const [defaultWrcName, setDefaultWrcName] = React.useState('');
+  const [detailWrcNames, setDetailWrcNames] = React.useState([]);
   const [detailId, setDetailId] = React.useState('');
   const [detailName, setDetailName] = React.useState('');
   const [detailMeta, setDetailMeta] = React.useState(null);
@@ -218,7 +218,6 @@ export default function ProjectsScreen({
   const [detailInsights, setDetailInsights] = React.useState(null);
   const [detailLoading, setDetailLoading] = React.useState(false);
   const [detailPath, setDetailPath] = React.useState('');
-  const [detailWrcName, setDetailWrcName] = React.useState('');
   const [httpBindMsg, setHttpBindMsg] = React.useState('');
   const [httpBindMsgType, setHttpBindMsgType] = React.useState('');
   const [projectsLoading, setProjectsLoading] = React.useState(true);
@@ -478,6 +477,7 @@ export default function ProjectsScreen({
     scheduleVpSave
   } = useVideoProduction({ t, detailId, detailIsNew, detailInsights, setDetailInsights });
   const pendingDetailIdRef = React.useRef('');
+  const pendingStartRef = React.useRef(false);
   const fullProjectsReloadAttemptedRef = React.useRef(false);
   // Tri des projets : 'name' | 'createdAt' | 'lastModified'
   const [sortMode, setSortMode] = React.useState(() => {
@@ -839,7 +839,7 @@ export default function ProjectsScreen({
         metaSnapshot,
         pid,
         detailPath,
-        detailWrcName,
+        detailWrcNames,
         projectVersion,
         keywordsSnapshot,
         'indexation'
@@ -872,7 +872,7 @@ export default function ProjectsScreen({
     setDetailIsNew(false);
     setDetailName(proj?.name || '');
     setDetailPath(proj?.uproject || proj?.projectPath || '');
-    setDetailWrcName(proj?.wrcName || '');
+    setDetailWrcNames(Array.isArray(proj?.wrcNames) ? proj.wrcNames : (proj?.wrcName ? [proj.wrcName] : []));
     setDetailId(pid);
     setDetailLoading(true);
     setDetailMsg('');
@@ -1034,14 +1034,14 @@ export default function ProjectsScreen({
     return () => window.removeEventListener('keydown', onKey);
   }, [snapshotOpen, snapshotBusy, setSnapshotOpen, setSnapshotMsg, setSnapshotMsgType]);
 
-  async function saveDetails(metaOverride, pidOverride, pathOverride, wrcOverride, pvOverride, keywordsOverride, source) {
+  async function saveDetails(metaOverride, pidOverride, pathOverride, wrcNamesOverride, pvOverride, keywordsOverride, source) {
     if (!canManageUnrealProjects) return;
     if (detailIsNew) return;
     const pid = String(pidOverride || detailId || '').trim();
     if (!pid) return;
     const meta = metaOverride || detailMetaRef.current || detailMeta || {};
     const pathValue = pathOverride !== undefined ? pathOverride : detailPath;
-    const wrcValue = wrcOverride !== undefined ? wrcOverride : detailWrcName;
+    const wrcNamesValue = Array.isArray(wrcNamesOverride) ? wrcNamesOverride : detailWrcNames;
     const pvValue = pvOverride !== undefined ? pvOverride : projectVersion;
     const keywordsValue = keywordsOverride !== undefined
       ? keywordsOverride
@@ -1056,7 +1056,7 @@ export default function ProjectsScreen({
       referents: meta.referents || {},
       keywords,
       note: meta.note || '',
-      wrcName: String(wrcValue || meta.wrcName || '').trim(),
+      wrcNames: wrcNamesValue,
     };
     try {
       const res = await saveProjectMeta(pid, payload);
@@ -1067,7 +1067,7 @@ export default function ProjectsScreen({
           ? {
               ...p,
               uproject: pathValue ? normPath(pathValue) : p.uproject,
-              wrcName: wrcValue,
+              wrcNames: wrcNamesValue,
               note: payload.note,
               metaStatus: payload.status || '',
               metaType: payload.type || '',
@@ -1141,7 +1141,7 @@ export default function ProjectsScreen({
               ? {
                   ...p,
                   uproject: pathValue ? normPath(pathValue) : p.uproject,
-                  wrcName: wrcValue,
+                  wrcNames: wrcNamesValue,
                   note: mergedMeta.note,
                   metaStatus: mergedMeta.status || '',
                   metaType: mergedMeta.type || '',
@@ -1266,14 +1266,14 @@ export default function ProjectsScreen({
     }
     const metaSnapshot = nextMeta || detailMetaRef.current || detailMeta || {};
     const metaForSave = { ...metaSnapshot };
-    const pathSnapshot = overrides.path !== undefined ? overrides.path : detailPath;
-    const wrcSnapshot = overrides.wrc !== undefined ? overrides.wrc : detailWrcName;
+    const pathSnapshot = overrides.path !== undefined ? overrides.path : undefined;
+    const wrcNamesSnapshot = Array.isArray(overrides.wrcNames) ? overrides.wrcNames : detailWrcNames;
     const pvSnapshot = overrides.pv !== undefined ? overrides.pv : projectVersion;
     const keywordsSnapshot = overrides.keywords !== undefined
       ? overrides.keywords
       : (metaSnapshot.keywords ?? detailMetaRef.current?.keywords ?? detailMeta?.keywords ?? []);
     saveTimer.current = setTimeout(() => {
-      saveDetails(metaForSave, pid, pathSnapshot, wrcSnapshot, pvSnapshot, keywordsSnapshot, source);
+      saveDetails(metaForSave, pid, pathSnapshot, wrcNamesSnapshot, pvSnapshot, keywordsSnapshot, source);
     }, 500);
   }
 
@@ -1383,7 +1383,7 @@ export default function ProjectsScreen({
           id: String(x.id || '').trim(),
           name: String(x.name || ''),
           uproject: normPath(x.uproject || x.projectPath || ''),
-          wrcName: String(x.wrcName || ''),
+          wrcNames: Array.isArray(x.wrcNames) ? x.wrcNames : (x.wrcName ? [String(x.wrcName)] : []),
           note: String(x.note || ''),
           createdAt: String(x.createdAt || ''),
           lastModified: String(x.lastModified || ''),
@@ -1500,6 +1500,11 @@ export default function ProjectsScreen({
         pendingDetailIdRef.current = String(pending).trim();
         localStorage.removeItem('uu_pending_detail');
       }
+      const pendingStart = localStorage.getItem('uu_pending_start') || '';
+      if (pendingStart) {
+        pendingStartRef.current = true;
+        localStorage.removeItem('uu_pending_start');
+      }
     } catch {}
   }, []);
 
@@ -1510,6 +1515,13 @@ export default function ProjectsScreen({
     }
   }, [projects]);
 
+  React.useEffect(() => {
+    if (pendingStartRef.current && detailId && serverHost?.ip) {
+      pendingStartRef.current = false;
+      startIntegration(detailId);
+    }
+  }, [detailId, serverHost]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Charger les versions UE connues (page config)
   React.useEffect(() => {
     (async () => {
@@ -1519,7 +1531,6 @@ export default function ProjectsScreen({
           ? common.unrealVersions.map(v => String(v || '').trim()).filter(Boolean)
           : [];
         setKnownVersions(versions);
-        setDefaultWrcName(String(common.webRemoteControlName || '').trim());
       } catch {}
     })();
   }, []);
@@ -1670,7 +1681,7 @@ export default function ProjectsScreen({
       id: newId,
       name: detailName.trim(),
       uproject: normPath(detailPath),
-      wrcName: String(detailWrcName || '').trim(),
+      wrcNames: detailWrcNames,
       favorite: detailMeta?.favorite === true,
       note: '',
       createdAt,
@@ -1724,7 +1735,7 @@ export default function ProjectsScreen({
         id: (p.id || '').trim(),
         name: (p.name || '').trim(),
         uproject: normPath(p.uproject || p.projectPath || ''),
-        wrcName: String(p.wrcName || '').trim(),
+        wrcNames: Array.isArray(p.wrcNames) ? p.wrcNames : [],
           note: String(p.note || ''),
           maps: (p.maps && typeof p.maps === 'object') ? p.maps : {},
           createdAt: String(p.createdAt || ''),
@@ -1763,7 +1774,7 @@ export default function ProjectsScreen({
             id: String(x.id || '').trim(),
             name: String(x.name || ''),
             uproject: normPath(x.uproject || x.projectPath || ''),
-            wrcName: String(x.wrcName || ''),
+            wrcNames: Array.isArray(x.wrcNames) ? x.wrcNames : (x.wrcName ? [String(x.wrcName)] : []),
             note: String(x.note || ''),
             createdAt: String(x.createdAt || ''),
             lastModified: String(x.lastModified || ''),
@@ -2682,31 +2693,6 @@ async function activateOne(projectKey) {
                 <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={{ marginBottom: '12px' }}>
                   <strong className="uu-block-title">{t('projects.detail.blocks.wrc')}</strong>
                 </div>
-                <div className="uu-row wrap">
-                  <div className="uu-label w-160">{t('projects.detail.labels.wrcName')}</div>
-                  <div className="uu-value">
-                    <input
-                      className="uu-input"
-                      style={{ flex: '1 1 300px' }}
-                      value={detailWrcName}
-                      placeholder={defaultWrcName || ''}
-                      onChange={(e) => {
-                        setDetailWrcName(e.target.value);
-                        setDetailMsg('');
-                      }}
-                      onBlur={(e) => {
-                        const nextWrc = e.target.value;
-                        scheduleSave(null, null, { wrc: nextWrc });
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          e.currentTarget.blur();
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
                 <HttpBindBlock
                   t={t}
                   visible={httpBindVisible}
@@ -2729,24 +2715,40 @@ async function activateOne(projectKey) {
                   <div className="uu-value">{wrcPresetsList.length}</div>
                 </div>
                 {hasWrcPresets ? (
-                  <div className="uu-row wrap">
-                    <div className="uu-label w-160" />
-                    <div className="uu-value uu-small mt-4">
+                  <div className="uu-row wrap mt-4">
+                    <div className="uu-label w-160">{t('projects.detail.wrcPresets.active')}</div>
+                    <div className="uu-value">
                       {wrcPresetsList.map((entry, idx) => {
                         const assetPath = String(entry?.assetPath || '').trim();
                         const relativePath = String(entry?.relativePath || '').trim();
                         const name = String(entry?.name || '').trim();
                         const key = assetPath || relativePath || `${name}-${idx}`;
+                        const isChecked = detailWrcNames.includes(name);
                         return (
-                          <div key={`project-wrc-preset-${key}`}>
-                            {assetPath || relativePath || name || '-'}
+                          <div key={`project-wrc-preset-${key}`} className="uu-row uu-align-center uu-gap-8 mt-4">
+                            <input
+                              type="checkbox"
+                              id={`wrc-preset-${key}`}
+                              checked={isChecked}
+                              disabled={!canManageUnrealProjects}
+                              onChange={() => {
+                                const next = isChecked
+                                  ? detailWrcNames.filter(n => n !== name)
+                                  : [...detailWrcNames, name];
+                                setDetailWrcNames(next);
+                                scheduleSave(null, null, { wrcNames: next });
+                              }}
+                            />
+                            <label htmlFor={`wrc-preset-${key}`} className="uu-small" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                              {assetPath || relativePath || name || '-'}
+                            </label>
                           </div>
                         );
                       })}
                     </div>
                   </div>
                 ) : (
-                  <div className="uu-row wrap">
+                  <div className="uu-row wrap mt-4">
                     <div className="uu-label w-160" />
                     <div className="uu-value uu-muted">{t('projects.detail.wrcPresets.noInfo')}</div>
                   </div>

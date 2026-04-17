@@ -6,6 +6,7 @@ const { readJSON } = require('./server-files.cjs');
 const {
   hostsToList,
   getUnrealProcessCandidates,
+  RENDER_AVAILABILITY_VALUES,
 } = require('./server-normalize.cjs');
 
 const DEFAULT_PRESENCE_TTL_MS = 30000;
@@ -87,11 +88,17 @@ async function pingOnce(ip, port, timeoutMs = 2000) {
 
     const data = await r.json().catch(() => ({}));
     const running = !!data.unrealRunning;
+    const avail = RENDER_AVAILABILITY_VALUES.includes(data.renderAvailability)
+      ? data.renderAvailability
+      : null;
+    const renderReturnAt = typeof data.renderReturnAt === 'string' && data.renderReturnAt
+      ? data.renderReturnAt
+      : null;
 
-    return { online:true, rtt: Date.now() - start, unrealRunning: running };
+    return { online:true, rtt: Date.now() - start, unrealRunning: running, renderAvailability: avail, renderReturnAt };
   } catch {
     clearTimeout(t);
-    return { online:false, rtt:null, unrealRunning:false };
+    return { online:false, rtt:null, unrealRunning:false, renderAvailability: null };
   }
 }
 
@@ -103,7 +110,7 @@ async function heartbeatOnce(ctx = {}) {
   const list      = hostsToList(rawHosts);
   const agentPort = common?.agentPort || 4000;
   const rcHttpPort = common?.rcHttpPort || 30010;
-  const presetName = common?.webRemoteControlName || 'RemoteControlPreset';
+  const presetName = 'RemoteControlPreset';
   const locals = localIpSet();
 
   for (const h of list) {
@@ -144,10 +151,17 @@ async function heartbeatOnce(ctx = {}) {
       // si le ping plante → on laisse now = offline
     }
 
+    const prevAvail = ONLINE[ip]?.renderAvailability;
     ONLINE[ip] = {
       online: !!now.online,
       rtt: typeof now.rtt === 'number' ? now.rtt : null,
       unrealRunning: !!now.unrealRunning,
+      renderAvailability: RENDER_AVAILABILITY_VALUES.includes(now.renderAvailability)
+        ? now.renderAvailability
+        : (RENDER_AVAILABILITY_VALUES.includes(prevAvail) ? prevAvail : 'capable'),
+      renderReturnAt: typeof now.renderReturnAt === 'string' && now.renderReturnAt
+        ? now.renderReturnAt
+        : (ONLINE[ip]?.renderReturnAt || null),
       ts: new Date().toISOString()
     };
   }
@@ -185,6 +199,12 @@ async function handleHostsOnlineRoutes(req, res, url, ctx = {}) {
         online: !!st.online,
         unrealRunning: !!st.unrealRunning,
         rtt: typeof st.rtt === 'number' ? st.rtt : null,
+        renderAvailability: RENDER_AVAILABILITY_VALUES.includes(st.renderAvailability)
+          ? st.renderAvailability
+          : 'capable',
+        renderReturnAt: typeof st.renderReturnAt === 'string' && st.renderReturnAt
+          ? st.renderReturnAt
+          : null,
         ts: st.ts || new Date().toISOString(),
       };
     }

@@ -30,7 +30,6 @@ const sharedStore = getSharedStore({ dataDir: DATA_DIR });
 
 const DEFAULT_COMMON = {
   agentPort: 4000,
-  webRemoteControlName: 'RemoteControlPreset',
   rcHttpPort: 30010,
   rcWsPort: 30020,
   refreshSec: 5,

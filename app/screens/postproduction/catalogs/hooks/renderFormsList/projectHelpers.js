@@ -9,7 +9,7 @@ function buildProjectLabelByAnyKey(projectOptions) {
     const ref = String(project?.ref || "").trim();
     const id = String(project?.id || "").trim();
     const name = String(project?.name || "").trim();
-    const label = name && id ? `${name} [${id}]` : (name || id || ref);
+    const label = name || id || ref;
     for (const rawKey of [ref, id, name]) {
       const key = String(rawKey || "").trim().toLowerCase();
       if (!key) continue;

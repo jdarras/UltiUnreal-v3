@@ -21,7 +21,6 @@ function buildRenderQueueControllerOutput({
     canLaunchRenders: launch.canLaunchRenders,
     queueEntryWorkerLabel: derived.queueEntryWorkerLabel,
     getQueueEntryLaunchMeta: derived.getQueueEntryLaunchMeta,
-    queueTaskPriorityLabel: derived.queueTaskPriorityLabel,
     toggleSelectAllQueueEntries: selection.toggleSelectAllQueueEntries,
     launchQueueBatch: launch.launchQueueBatch,
     toggleQueueSort: sorting.toggleQueueSort,

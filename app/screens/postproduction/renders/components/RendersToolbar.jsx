@@ -1,4 +1,20 @@
+import MultiSelectDropdown from "../../../../components/MultiSelectDropdown";
 import { safeT } from "../../shared/helpers";
+
+const DROPDOWN_STYLE = { flex: "none", minWidth: 0, width: "100%" };
+const FIELD_GRID = { display: "grid", gridTemplateColumns: "150px 1fr", gap: "8px", alignItems: "center" };
+
+function normalizeMultiSelectOptions(options = []) {
+  return (Array.isArray(options) ? options : [])
+    .map((entry) => {
+      const valueRaw = entry?.value ?? entry?.key ?? "";
+      const value = String(valueRaw || "").trim().toLowerCase();
+      const label = String(entry?.label || valueRaw || "").trim();
+      if (!value || !label) return null;
+      return { value, label };
+    })
+    .filter(Boolean);
+}
 
 function RendersToolbar({
   t,
@@ -12,22 +28,46 @@ function RendersToolbar({
   hasActiveFilters = false,
   onClearFilters = null,
   onOpenAdvancedSearch = null,
-  favoriteOnly = false,
-  onToggleFavoriteOnly = null,
   viewMode = "thumbs",
   onSetViewMode = null,
   searchExpanded = false,
   onSetSearchExpanded = null,
   sortedDisplayedRendersCount = 0,
-  projectFilter = "all",
+  projectFilter = [],
   onSetProjectFilter = null,
-  stationFilter = "all",
+  stationFilter = [],
   onSetStationFilter = null,
-  reviewFilter = "all",
+  reviewFilter = [],
   onSetReviewFilter = null,
+  taskFilter = [],
+  onSetTaskFilter = null,
+  formFilter = [],
+  onSetFormFilter = null,
+  requesterFilter = [],
+  onSetRequesterFilter = null,
+  statusFilter = [],
+  onSetStatusFilter = null,
+  sequenceFilter = [],
+  onSetSequenceFilter = null,
   projectFilterOptions = [],
+  reviewFilterOptions = [],
   stationFilterOptions = [],
+  taskFilterOptions = [],
+  formFilterOptions = [],
+  requesterFilterOptions = [],
+  statusFilterOptions = [],
+  sequenceFilterOptions = [],
 }) {
+  const noneLabel = safeT(t, "common.all", "Tous");
+  const projectOptions = normalizeMultiSelectOptions(projectFilterOptions);
+  const reviewOptions = normalizeMultiSelectOptions(reviewFilterOptions);
+  const stationOptions = normalizeMultiSelectOptions(stationFilterOptions);
+  const taskOptions = normalizeMultiSelectOptions(taskFilterOptions);
+  const formOptions = normalizeMultiSelectOptions(formFilterOptions);
+  const requesterOptions = normalizeMultiSelectOptions(requesterFilterOptions);
+  const statusOptions = normalizeMultiSelectOptions(statusFilterOptions);
+  const sequenceOptions = normalizeMultiSelectOptions(sequenceFilterOptions);
+
   return (
     <div className="uu-card">
       <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: "nowrap", alignItems: "center", width: "100%" }}>
@@ -94,19 +134,6 @@ function RendersToolbar({
               {safeT(t, "projects.search.advancedButton", "Recherche avancee")}
             </button>
           </div>
-
-          <div className="uu-row uu-gap-6 uu-align-center" style={{ marginLeft: "12px" }}>
-            <button
-              type="button"
-              className={`uu-fav-filter ${favoriteOnly ? "active" : ""}`}
-              onClick={() => onToggleFavoriteOnly?.()}
-              aria-pressed={favoriteOnly ? "true" : "false"}
-              title={safeT(t, "resources.detail.labels.favorite", "Favoris")}
-            >
-              ★
-            </button>
-            <span>{safeT(t, "resources.detail.labels.favorite", "Favoris")}</span>
-          </div>
         </div>
 
         <div className="uu-row uu-gap-4" style={{ marginLeft: "auto" }}>
@@ -126,78 +153,93 @@ function RendersToolbar({
           </button>
         </div>
       </div>
-      {searchExpanded ? (
-        <div className="uu-card uu-col uu-gap-12 mt-12">
-          <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-            <strong className="uu-block-title">{safeT(t, "projects.search.advancedTitle", "Recherche avancee")}</strong>
-            <div className="uu-muted">
-              {sortedDisplayedRendersCount > 0 ? `(${sortedDisplayedRendersCount})` : ""}
-            </div>
-          </div>
-          <div className="uu-row uu-gap-16 uu-wrap">
-            <div className="uu-row uu-align-center uu-gap-8" style={{ minWidth: "280px" }}>
-              <label className="uu-label" style={{ width: "140px" }}>{safeT(t, "postprod.renders.filter.project", "Projet")}</label>
-              <select
-                className="uu-select"
-                style={{ width: "260px", height: "36px" }}
-                value={projectFilter}
-                disabled={rendersLoading}
-                onChange={(e) => onSetProjectFilter?.(String(e.target.value || "all"))}
-              >
-                <option value="all">{safeT(t, "postprod.renders.filter.project.all", "Tous les projets")}</option>
-                {(Array.isArray(projectFilterOptions) ? projectFilterOptions : []).map((entry) => (
-                  <option key={`postprod-renders-filter-project-${entry.key}`} value={entry.key}>
-                    {entry.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="uu-row uu-align-center uu-gap-8" style={{ minWidth: "280px" }}>
-              <label className="uu-label" style={{ width: "140px" }}>{safeT(t, "postprod.renders.filter.review", "Filtre validation")}</label>
-              <select
-                className="uu-select"
-                style={{ width: "260px", height: "36px" }}
-                value={reviewFilter}
-                disabled={rendersLoading}
-                onChange={(e) => onSetReviewFilter?.(String(e.target.value || "all"))}
-              >
-                <option value="all">{safeT(t, "postprod.renders.filter.review.all", "Tous")}</option>
-                <option value="to_validate">{safeT(t, "postprod.renders.review.toValidate", "A valider")}</option>
-                <option value="validated">{safeT(t, "postprod.renders.review.validated", "Valide")}</option>
-                <option value="to_modify">{safeT(t, "postprod.renders.review.toModify", "A modifier")}</option>
-                <option value="canceled">{safeT(t, "postprod.renders.review.canceled", "Annule")}</option>
-              </select>
-            </div>
-            <div className="uu-row uu-align-center uu-gap-8" style={{ minWidth: "280px" }}>
-              <label className="uu-label" style={{ width: "140px" }}>{safeT(t, "postprod.renders.columns.station", "Station")}</label>
-              <select
-                className="uu-select"
-                style={{ width: "260px", height: "36px" }}
-                value={stationFilter}
-                disabled={rendersLoading}
-                onChange={(e) => onSetStationFilter?.(String(e.target.value || "all"))}
-              >
-                {(Array.isArray(stationFilterOptions) ? stationFilterOptions : []).map((entry) => (
-                  <option key={`postprod-renders-filter-station-${entry.key}`} value={entry.key}>
-                    {entry.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="uu-row uu-justify-end">
-            <button
-              type="button"
-              className="uu-btn-ghost"
-              onClick={() => onSetSearchExpanded?.(false)}
-            >
-              {safeT(t, "projects.search.close", "Fermer")}
-            </button>
-          </div>
-        </div>
-      ) : null}
+
     </div>
   );
 }
 
-export { RendersToolbar };
+function RendersAdvancedSearchPanel({
+  t,
+  rendersLoading = false,
+  searchExpanded = false,
+  onSetSearchExpanded = null,
+  sortedDisplayedRendersCount = 0,
+  projectFilter = [],
+  onSetProjectFilter = null,
+  stationFilter = [],
+  onSetStationFilter = null,
+  reviewFilter = [],
+  onSetReviewFilter = null,
+  taskFilter = [],
+  onSetTaskFilter = null,
+  formFilter = [],
+  onSetFormFilter = null,
+  requesterFilter = [],
+  onSetRequesterFilter = null,
+  statusFilter = [],
+  onSetStatusFilter = null,
+  sequenceFilter = [],
+  onSetSequenceFilter = null,
+  projectFilterOptions = [],
+  reviewFilterOptions = [],
+  stationFilterOptions = [],
+  taskFilterOptions = [],
+  formFilterOptions = [],
+  requesterFilterOptions = [],
+  statusFilterOptions = [],
+  sequenceFilterOptions = [],
+}) {
+  if (!searchExpanded) return null;
+
+  const noneLabel = safeT(t, "common.all", "Tous");
+  const projectOptions = normalizeMultiSelectOptions(projectFilterOptions);
+  const reviewOptions = normalizeMultiSelectOptions(reviewFilterOptions);
+  const stationOptions = normalizeMultiSelectOptions(stationFilterOptions);
+  const taskOptions = normalizeMultiSelectOptions(taskFilterOptions);
+  const formOptions = normalizeMultiSelectOptions(formFilterOptions);
+  const requesterOptions = normalizeMultiSelectOptions(requesterFilterOptions);
+  const statusOptions = normalizeMultiSelectOptions(statusFilterOptions);
+  const sequenceOptions = normalizeMultiSelectOptions(sequenceFilterOptions);
+
+  return (
+    <div className="uu-card uu-col uu-gap-12 mt-12">
+      <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
+        <strong className="uu-block-title">{safeT(t, "projects.search.advancedTitle", "Recherche avancee")}</strong>
+        <div className="uu-muted">
+          {sortedDisplayedRendersCount > 0 ? `(${sortedDisplayedRendersCount})` : ""}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", alignItems: "start" }}>
+        <div style={FIELD_GRID}>
+          <label className="uu-label">{safeT(t, "postprod.renders.filters.projects", "Projets")}</label>
+          <MultiSelectDropdown options={projectOptions} values={Array.isArray(projectFilter) ? projectFilter : []} onChange={(v) => { if (!rendersLoading) onSetProjectFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />
+          <label className="uu-label">{safeT(t, "postprod.renders.filters.station", "Station")}</label>
+          <MultiSelectDropdown options={stationOptions} values={Array.isArray(stationFilter) ? stationFilter : []} onChange={(v) => { if (!rendersLoading) onSetStationFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />
+          <label className="uu-label">{safeT(t, "postprod.renders.filters.form", "Formulaire")}</label>
+          <MultiSelectDropdown options={formOptions} values={Array.isArray(formFilter) ? formFilter : []} onChange={(v) => { if (!rendersLoading) onSetFormFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />
+          <label className="uu-label">{safeT(t, "postprod.renders.filters.status", "Statut")}</label>
+          <MultiSelectDropdown options={statusOptions} values={Array.isArray(statusFilter) ? statusFilter : []} onChange={(v) => { if (!rendersLoading) onSetStatusFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />
+        </div>
+        <div style={FIELD_GRID}>
+          <label className="uu-label">{safeT(t, "postprod.renders.filters.validation", "Validation")}</label>
+          <MultiSelectDropdown options={reviewOptions} values={Array.isArray(reviewFilter) ? reviewFilter : []} onChange={(v) => { if (!rendersLoading) onSetReviewFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />
+          <label className="uu-label">{safeT(t, "postprod.renders.filters.task", "Tâche")}</label>
+          <MultiSelectDropdown options={taskOptions} values={Array.isArray(taskFilter) ? taskFilter : []} onChange={(v) => { if (!rendersLoading) onSetTaskFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />
+          <label className="uu-label">{safeT(t, "postprod.renders.filters.requester", "Demandeur")}</label>
+          <MultiSelectDropdown options={requesterOptions} values={Array.isArray(requesterFilter) ? requesterFilter : []} onChange={(v) => { if (!rendersLoading) onSetRequesterFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />
+          <label className="uu-label">{safeT(t, "postprod.renders.filters.sequence", "Level Sequence")}</label>
+          <MultiSelectDropdown options={sequenceOptions} values={Array.isArray(sequenceFilter) ? sequenceFilter : []} onChange={(v) => { if (!rendersLoading) onSetSequenceFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />
+        </div>
+      </div>
+
+      <div className="uu-row uu-justify-end">
+        <button type="button" className="uu-btn-ghost" onClick={() => onSetSearchExpanded?.(false)}>
+          {safeT(t, "projects.search.close", "Fermer")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export { RendersToolbar, RendersAdvancedSearchPanel };

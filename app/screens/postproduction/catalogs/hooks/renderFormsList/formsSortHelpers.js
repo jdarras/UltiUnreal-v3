@@ -2,6 +2,7 @@ const FORMS_SORT_MODES = new Set([
   "name",
   "projectName",
   "mapName",
+  "allowedSequences",
   "templateName",
   "presetName",
   "modeDefault",
@@ -43,6 +44,10 @@ function sortForms({
       );
     } else if (formsSortMode === "mapName") {
       compare = compareText(a?.mapName, b?.mapName);
+    } else if (formsSortMode === "allowedSequences") {
+      const aSeq = Array.isArray(a?.allowedSequences) && a.allowedSequences.length > 0 ? a.allowedSequences[0] : "";
+      const bSeq = Array.isArray(b?.allowedSequences) && b.allowedSequences.length > 0 ? b.allowedSequences[0] : "";
+      compare = compareText(aSeq, bSeq);
     } else if (formsSortMode === "templateName") {
       compare = compareText(a?.templateName, b?.templateName);
     } else if (formsSortMode === "presetName") {

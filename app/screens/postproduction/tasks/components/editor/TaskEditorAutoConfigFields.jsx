@@ -1,4 +1,203 @@
 import { safeT } from "../../../shared/helpers";
+import { useEffect, useRef, useState } from "react";
+
+const WARN_SOON_MS = 5 * 60 * 1000;
+
+function resolveDatetimeBadge(scheduledAt) {
+  if (!scheduledAt) return null;
+  const d = new Date(scheduledAt);
+  if (isNaN(d.getTime())) return null;
+  const diff = d.getTime() - Date.now();
+  if (diff <= 0) return "error";
+  if (diff < WARN_SOON_MS) return "warn";
+  return null;
+}
+
+// Calcule la valeur fusionnée à partir des deux states séparés
+function getMergedMode(launchMode, scheduledMode) {
+  if (launchMode === "now") return "now";
+  if (launchMode === "scheduled") {
+    if (scheduledMode === "any_station" || scheduledMode === "specific_station" || scheduledMode === "datetime") {
+      return scheduledMode;
+    }
+  }
+  return "";
+}
+
+function LaunchModeSection({
+  t,
+  tasksLoading = false,
+  isEditingTask = false,
+  autoRenderLaunchMode = "",
+  onChangeAutoRenderLaunchMode = null,
+  autoRenderScheduledMode = "",
+  onChangeAutoRenderScheduledMode = null,
+  autoRenderScheduledAt = "",
+  onChangeAutoRenderScheduledAt = null,
+  autoRenderWorkerKey = "",
+  onChangeAutoRenderWorker = null,
+  dedupedRemoteStations = [],
+  renderWorkersLoading = false,
+  renderWorkersError = "",
+  hasAvailableNowStation = true,
+}) {
+  const [badge, setBadge] = useState(() => resolveDatetimeBadge(autoRenderScheduledAt));
+  const intervalRef = useRef(null);
+
+  useEffect(() => {
+    setBadge(resolveDatetimeBadge(autoRenderScheduledAt));
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (autoRenderLaunchMode === "scheduled" && autoRenderScheduledMode === "datetime" && autoRenderScheduledAt) {
+      intervalRef.current = setInterval(() => {
+        setBadge(resolveDatetimeBadge(autoRenderScheduledAt));
+      }, 30000);
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [autoRenderLaunchMode, autoRenderScheduledMode, autoRenderScheduledAt]);
+
+  const mergedMode = getMergedMode(autoRenderLaunchMode, autoRenderScheduledMode);
+
+  const handleMergedChange = (value) => {
+    if (value === "now") {
+      onChangeAutoRenderLaunchMode?.("now");
+      onChangeAutoRenderScheduledMode?.("");
+    } else if (value === "any_station" || value === "specific_station" || value === "datetime") {
+      onChangeAutoRenderLaunchMode?.("scheduled");
+      onChangeAutoRenderScheduledMode?.(value);
+    } else {
+      onChangeAutoRenderLaunchMode?.("");
+      onChangeAutoRenderScheduledMode?.("");
+    }
+  };
+
+  const showDatetimePicker = !isEditingTask && mergedMode === "datetime";
+  const showStation = mergedMode !== "";
+  const stationReadOnly = mergedMode === "any_station";
+  const showAutoOption = mergedMode === "now" || mergedMode === "datetime" || mergedMode === "any_station";
+
+  const stationField = showStation ? (
+    <div className="uu-grid-field">
+      <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
+        <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+          {safeT(t, "postprod.tasks.form.autoRenderWorker", "Station de rendu")}
+        </label>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <select
+            className="uu-input"
+            value={stationReadOnly ? "auto" : autoRenderWorkerKey}
+            disabled={tasksLoading || stationReadOnly}
+            onChange={(e) => onChangeAutoRenderWorker?.(String(e.target.value || "").trim())}
+          >
+            {showAutoOption ? (
+              <option value="auto">{safeT(t, "postprod.tasks.form.autoRenderWorker.auto", "Auto (dispatcher)")}</option>
+            ) : null}
+            {dedupedRemoteStations.map((station) => {
+              const avail = station.renderAvailability;
+              const suffix = avail === 'busy'
+                ? ` (${safeT(t, "renderAvailability.busy", "occupée")})`
+                : !station.isOnline
+                  ? ` (${safeT(t, "renderAvailability.offline", "hors ligne")})`
+                  : "";
+              return (
+                <option key={`task-auto-render-worker-${station.key}`} value={station.key}>
+                  {station.name}{suffix}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+      </div>
+      {renderWorkersLoading ? (
+        <div className="uu-muted mt-8">
+          {safeT(t, "postprod.tasks.form.autoRenderWorker.loading", "Chargement des stations de rendu...")}
+        </div>
+      ) : null}
+      {!renderWorkersLoading && renderWorkersError ? (
+        <div className="uu-msg warn mt-8">{renderWorkersError}</div>
+      ) : null}
+      {!renderWorkersLoading && !renderWorkersError && !showAutoOption && dedupedRemoteStations.length === 0 ? (
+        <div className="uu-muted mt-8">
+          {safeT(t, "postprod.tasks.form.autoRenderWorker.noRemote", "Aucune station distante disponible.")}
+        </div>
+      ) : null}
+    </div>
+  ) : <div />;
+
+  return (
+    <>
+      <div className="uu-grid-2 mt-12">
+        <div className="uu-grid-field">
+          <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
+            <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+              {safeT(t, "postprod.tasks.form.autoRenderLaunchMode", "Mode de lancement")}
+            </label>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <select
+                className="uu-input"
+                value={mergedMode}
+                disabled={tasksLoading}
+                onChange={(e) => handleMergedChange(e.target.value)}
+              >
+                <option value="">
+                  {safeT(t, "postprod.tasks.form.autoRenderLaunchMode.placeholder", "Sélectionner un mode de lancement")}
+                </option>
+                <option value="now" disabled={!hasAvailableNowStation}>
+                  {safeT(t, "postprod.tasks.form.autoRenderLaunchMode.now", "Créer et lancer maintenant")}
+                  {!hasAvailableNowStation ? ` (${safeT(t, "postprod.tasks.form.autoRenderLaunchMode.now.unavailable", "aucune station disponible")})` : ""}
+                </option>
+                <option value="any_station">
+                  {safeT(t, "postprod.tasks.form.autoRenderMode.any_station", "Programmer — quand une station est disponible")}
+                </option>
+                <option value="specific_station">
+                  {safeT(t, "postprod.tasks.form.autoRenderMode.specific_station", "Programmer — station spécifique")}
+                </option>
+                <option value="datetime">
+                  {safeT(t, "postprod.tasks.form.autoRenderMode.datetime", "Programmer — à date et heure précise")}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+        {stationField}
+      </div>
+
+      {showDatetimePicker ? (
+        <div className="uu-grid-2 mt-12">
+          <div className="uu-grid-field">
+            <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
+              <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+                {safeT(t, "postprod.tasks.form.autoRenderScheduledAt", "Date de lancement")}
+              </label>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <input
+                  type="datetime-local"
+                  className="uu-input"
+                  value={autoRenderScheduledAt}
+                  disabled={tasksLoading}
+                  onChange={(e) => onChangeAutoRenderScheduledAt?.(String(e.target.value || ""))}
+                />
+              </div>
+            </div>
+            {!autoRenderScheduledAt ? (
+              <div className="uu-msg error mt-8">
+                {safeT(t, "postprod.tasks.form.autoRenderScheduledAt.errorEmpty", "Choisir une date de lancement.")}
+              </div>
+            ) : badge === "error" ? (
+              <div className="uu-msg error mt-8">
+                {safeT(t, "postprod.tasks.form.autoRenderScheduledAt.errorPast", "La date doit être dans le futur.")}
+              </div>
+            ) : badge === "warn" ? (
+              <div className="uu-msg warn mt-8">
+                {safeT(t, "postprod.tasks.form.autoRenderScheduledAt.warnSoon", "Lancement dans moins de 5 minutes.")}
+              </div>
+            ) : null}
+          </div>
+          <div />
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 function TaskEditorAutoConfigFields({
   t,
@@ -23,17 +222,29 @@ function TaskEditorAutoConfigFields({
   availableRenderWorkers = [],
   renderWorkersLoading = false,
   renderWorkersError = "",
-  autoRenderLaunchMode = "scheduled",
+  autoRenderLaunchMode = "",
   onChangeAutoRenderLaunchMode = null,
+  autoRenderScheduledMode = "",
+  onChangeAutoRenderScheduledMode = null,
+  autoRenderScheduledAt = "",
+  onChangeAutoRenderScheduledAt = null,
+  taskSequenceName = "",
+  onChangeAutoRenderSequence = null,
+  projectCatalogSequenceOptions = [],
   isEditingTask = false,
 }) {
+  // En mode "now" : uniquement les stations online + capable (availableNow)
+  // En mode "scheduled" : toutes les stations capables (capable ou busy), online ou non
+  const isNowMode = autoRenderLaunchMode === "now";
   const remoteStationOptions = Array.isArray(availableRenderWorkers)
     ? availableRenderWorkers
+        .filter((worker) => !isNowMode || worker?.availableNow !== false)
         .map((worker) => {
           const key = String(worker?.workerKey || worker?.ip || "").trim();
           if (!key) return null;
           const name = String(worker?.displayName || worker?.name || key).trim() || key;
-          return { key, name };
+          const avail = worker?.renderAvailability;
+          return { key, name, renderAvailability: avail || 'capable', isOnline: worker?.isOnline !== false };
         })
         .filter(Boolean)
     : [];
@@ -45,6 +256,9 @@ function TaskEditorAutoConfigFields({
     seenStationKeys.add(entry.key);
     dedupedRemoteStations.push(entry);
   }
+
+  const hasAvailableNowStation = Array.isArray(availableRenderWorkers)
+    && availableRenderWorkers.some((w) => w?.availableNow !== false);
 
   return (
     <>
@@ -124,6 +338,11 @@ function TaskEditorAutoConfigFields({
           ) : null}
         </div>
       </div>
+      {selectedAutoRenderForm && String(selectedAutoRenderForm?.note || "").trim() ? (
+        <div className="uu-notice info mt-12" style={{ whiteSpace: "pre-wrap" }}>
+          {String(selectedAutoRenderForm.note).trim()}
+        </div>
+      ) : null}
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
           <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
@@ -164,72 +383,61 @@ function TaskEditorAutoConfigFields({
             </div>
           ) : null}
         </div>
-        <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
-            <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
-              {safeT(t, "postprod.tasks.form.autoRenderWorker", "Station de rendu")}
-            </label>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <select
-                className="uu-input"
-                value={autoRenderWorkerKey}
-                disabled={tasksLoading}
-                onChange={(e) => onChangeAutoRenderWorker?.(String(e.target.value || "").trim())}
-              >
-                <option value="local">{safeT(t, "postprod.tasks.form.autoRenderWorker.local", "Rendu local")}</option>
-                <option value="auto">{safeT(t, "postprod.tasks.form.autoRenderWorker.auto", "Auto (dispatcher)")}</option>
-                {dedupedRemoteStations.map((station) => (
-                  <option key={`task-auto-render-worker-${station.key}`} value={station.key}>
-                    {station.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          {renderWorkersLoading ? (
-            <div className="uu-muted mt-8">
-              {safeT(t, "postprod.tasks.form.autoRenderWorker.loading", "Chargement des stations de rendu...")}
-            </div>
-          ) : null}
-          {!renderWorkersLoading && renderWorkersError ? (
-            <div className="uu-msg warn mt-8">{renderWorkersError}</div>
-          ) : null}
-          {!renderWorkersLoading && !renderWorkersError && dedupedRemoteStations.length <= 0 ? (
-            <div className="uu-muted mt-8">
-              {safeT(
-                t,
-                "postprod.tasks.form.autoRenderWorker.noRemote",
-                "Aucune station distante disponible."
-              )}
-            </div>
-          ) : null}
-        </div>
+        <div />
       </div>
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
           <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
             <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
-              {safeT(t, "postprod.tasks.form.autoRenderLaunchMode", "Mode de lancement")}
+              {safeT(t, "postprod.tasks.form.autoRenderSequence", "Level Sequence")}
             </label>
             <div style={{ flex: 1, minWidth: 0 }}>
               <select
                 className="uu-input"
-                value={autoRenderLaunchMode}
-                disabled={tasksLoading || isEditingTask}
-                onChange={(e) => onChangeAutoRenderLaunchMode?.(String(e.target.value || "scheduled"))}
+                value={taskSequenceName}
+                disabled={tasksLoading || !autoRenderProjectRef || autoRenderProjectCatalogLoading || projectCatalogSequenceOptions.length === 0}
+                onChange={(e) => onChangeAutoRenderSequence?.(String(e.target.value || ""))}
               >
-                <option value="scheduled">
-                  {safeT(t, "postprod.tasks.form.autoRenderLaunchMode.scheduled", "Programmer (lancer plus tard)")}
+                <option value="">
+                  {safeT(t, "postprod.tasks.form.autoRenderSequence.none", "Aucune")}
                 </option>
-                <option value="now" disabled={isEditingTask}>
-                  {safeT(t, "postprod.tasks.form.autoRenderLaunchMode.now", "Créer et lancer maintenant")}
-                </option>
+                {projectCatalogSequenceOptions.map((entry) => (
+                  <option key={`task-auto-render-sequence-${entry.value}`} value={entry.value}>
+                    {entry.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
+          {autoRenderProjectCatalogLoading ? (
+            <div className="uu-muted mt-8">
+              {safeT(t, "postprod.tasks.form.autoRenderSequence.loading", "Chargement des séquences...")}
+            </div>
+          ) : !autoRenderProjectCatalogLoading && !autoRenderProjectCatalogError && !!autoRenderProjectRef && projectCatalogSequenceOptions.length === 0 ? (
+            <div className="uu-muted mt-8">
+              {safeT(t, "postprod.tasks.form.autoRenderSequence.noDetected", "Aucune séquence détectée.")}
+            </div>
+          ) : null}
         </div>
         <div />
       </div>
+      <LaunchModeSection
+        t={t}
+        tasksLoading={tasksLoading}
+        isEditingTask={isEditingTask}
+        autoRenderLaunchMode={autoRenderLaunchMode}
+        onChangeAutoRenderLaunchMode={onChangeAutoRenderLaunchMode}
+        autoRenderScheduledMode={autoRenderScheduledMode}
+        onChangeAutoRenderScheduledMode={onChangeAutoRenderScheduledMode}
+        autoRenderScheduledAt={autoRenderScheduledAt}
+        onChangeAutoRenderScheduledAt={onChangeAutoRenderScheduledAt}
+        autoRenderWorkerKey={autoRenderWorkerKey}
+        onChangeAutoRenderWorker={onChangeAutoRenderWorker}
+        dedupedRemoteStations={dedupedRemoteStations}
+        renderWorkersLoading={renderWorkersLoading}
+        renderWorkersError={renderWorkersError}
+        hasAvailableNowStation={hasAvailableNowStation}
+      />
     </>
   );
 }

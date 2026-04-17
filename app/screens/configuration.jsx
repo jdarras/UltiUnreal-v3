@@ -21,7 +21,6 @@ const EMPTY_COMMON = {
   refreshSec: '',
   logWarnLines: 1500,
   logHardLimitLines: 2000,
-  webRemoteControlName: '',
   renderOutputDir: '',
   rcHttpPort: '',
   rcWsPort: '',
@@ -189,7 +188,6 @@ export default function ConfigurationScreen({
           ...prev,
           rcHttpPort: c?.rcHttpPort ?? prev.rcHttpPort,
           rcWsPort: c?.rcWsPort ?? prev.rcWsPort,
-          webRemoteControlName: c?.webRemoteControlName ?? prev.webRemoteControlName,
           renderOutputDir: String(
             c?.render_output_dir ??
             c?.renderOutputDir ??
@@ -397,7 +395,7 @@ export default function ConfigurationScreen({
       sectionOverride ||
       (field === 'showUnrealLaunchButtons' ? 'versions' :
         field.startsWith('wrc') ? 'common' :
-        field === 'refreshSec' || field === 'webRemoteControlName' ||
+        field === 'refreshSec' ||
         field === 'rcHttpPort' || field === 'rcWsPort' ||
         field === 'logWarnLines' || field === 'logHardLimitLines'
           ? 'common'
@@ -479,7 +477,6 @@ export default function ConfigurationScreen({
     const body = {
       rcHttpPort: Number(currentCfg.rcHttpPort || 0),
       rcWsPort: Number(currentCfg.rcWsPort || 0),
-      webRemoteControlName: String(currentCfg.webRemoteControlName || ''),
       render_output_dir: String(currentCfg.renderOutputDir || '').trim(),
       render_output_dirs: String(currentCfg.renderOutputDir || '').trim()
         ? [String(currentCfg.renderOutputDir || '').trim()]
@@ -1104,20 +1101,6 @@ export default function ConfigurationScreen({
               />
             </div>
 
-            {!isPostprodMode ? (
-              <div className="uu-grid-field uu-maxw-420 mt-12">
-                <label className="uu-label">
-                  {t('setup.server.wrcName')}
-                </label>
-                <input
-                  className="uu-input"
-                  value={cfg.webRemoteControlName}
-                  onChange={(e) =>
-                    updateField('webRemoteControlName', e.target.value)
-                  }
-                />
-              </div>
-            ) : null}
 
           </div>
 

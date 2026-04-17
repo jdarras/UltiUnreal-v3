@@ -19,6 +19,7 @@ function DatasCard({
   onLoadProjectUnrealCatalog = null,
   onLoadRenderFormFields = null,
   onReplaceRenderFormFields = null,
+  onNavigateToProject = null,
 }) {
   const [selectedProjectRef, setSelectedProjectRef] = useState("");
 
@@ -44,13 +45,13 @@ function DatasCard({
   }, [projects]);
 
   useEffect(() => {
+    if (!selectedProjectRef) return;
     if (!Array.isArray(normalizedProjects) || normalizedProjects.length === 0) {
       setSelectedProjectRef("");
       return;
     }
     const hasCurrent = normalizedProjects.some((project) => project.ref === selectedProjectRef);
-    if (hasCurrent) return;
-    setSelectedProjectRef(String(normalizedProjects[0]?.ref || ""));
+    if (!hasCurrent) setSelectedProjectRef("");
   }, [normalizedProjects, selectedProjectRef]);
 
   return (
@@ -72,6 +73,7 @@ function DatasCard({
         onLoadProjectUnrealCatalog={onLoadProjectUnrealCatalog}
         onLoadRenderFormFields={onLoadRenderFormFields}
         onReplaceRenderFormFields={onReplaceRenderFormFields}
+        onNavigateToProject={onNavigateToProject}
       />
 
       {projectsLoading ? (

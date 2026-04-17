@@ -26,10 +26,30 @@ export default function MultiSelectDropdown({
     onChange(Array.from(set));
   };
 
-  const title =
-    Array.isArray(values) && values.length
-      ? values.join(', ')
-      : placeholder || noneLabel;
+  const selectedLabels = React.useMemo(() => {
+    const selected = Array.isArray(values) ? values : [];
+    if (selected.length <= 0) return [];
+    const labelByValue = new Map(
+      (Array.isArray(options) ? options : []).map((opt) => [
+        String(opt?.value ?? ''),
+        String(opt?.label ?? opt?.value ?? '').trim(),
+      ])
+    );
+    const seen = new Set();
+    const out = [];
+    for (const value of selected) {
+      const key = String(value ?? '');
+      const label = String(labelByValue.get(key) || key).trim();
+      if (!label || seen.has(label)) continue;
+      seen.add(label);
+      out.push(label);
+    }
+    return out;
+  }, [options, values]);
+
+  const title = selectedLabels.length > 0
+    ? selectedLabels.join(', ')
+    : (placeholder || noneLabel);
 
   return (
     <div

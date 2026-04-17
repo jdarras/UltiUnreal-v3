@@ -1,3 +1,6 @@
+const { getOnlineState } = require('./server-hosts-online.cjs');
+const { RENDER_AVAILABILITY_VALUES } = require('./server-normalize.cjs');
+
 async function handlePostprodRenderDispatchRoutes({
   req,
   res,
@@ -45,7 +48,15 @@ async function handlePostprodRenderDispatchRoutes({
     sweepStaleWorkersAndRequeue(now, cutoff, auth.session.user_id);
 
     if (req.method === 'GET') {
-      const workers = stmts.listRenderWorkers.all().map(buildRenderWorkerPayload);
+      const onlineState = getOnlineState();
+      const workers = stmts.listRenderWorkers.all().map((row) => {
+        const payload = buildRenderWorkerPayload(row);
+        const onlineEntry = onlineState[payload.workerKey] || null;
+        const renderAvailability = RENDER_AVAILABILITY_VALUES.includes(onlineEntry?.renderAvailability)
+          ? onlineEntry.renderAvailability
+          : (payload.canRender ? 'capable' : 'excluded');
+        return { ...payload, renderAvailability };
+      });
       sendJSON(res, 200, { ok: true, workers });
       return true;
     }
@@ -103,6 +114,45 @@ async function handlePostprodRenderDispatchRoutes({
     }
 
     sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
+    return true;
+  }
+
+  const aptitudeMatch = /^\/agent\/postprod\/render-workers\/([^/]+)\/aptitude$/.exec(pathname);
+  if (aptitudeMatch) {
+    if (req.method !== 'PATCH') {
+      sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
+      return true;
+    }
+    const auth = requireSession(req, res, sendJSON);
+    if (!auth) return true;
+    const actorPerms = rolePermissions(auth.session.role, rolesCache);
+    if (actorPerms.canLaunchRenders !== true) {
+      sendJSON(res, 403, { ok: false, error: 'forbidden' });
+      return true;
+    }
+    const workerKey = sanitizeRenderWorkerKey(decodeURIComponent(aptitudeMatch[1] || ''));
+    if (!workerKey) {
+      sendJSON(res, 400, { ok: false, error: 'invalid_worker_key' });
+      return true;
+    }
+    const existing = stmts.findRenderWorkerByKey.get(workerKey);
+    if (!existing) {
+      sendJSON(res, 404, { ok: false, error: 'worker_not_found' });
+      return true;
+    }
+    const body = await parseBody(req);
+    const apte = body?.apte === true || body?.apte === 1;
+    const now = nowIso();
+    stmts.updateRenderWorkerAptitude.run(apte ? 1 : 0, now, workerKey);
+    const updated = stmts.findRenderWorkerByKey.get(workerKey);
+    audit(
+      auth.session.user_id,
+      'render_worker_aptitude_updated',
+      { workerKey, apte },
+      'render',
+      ''
+    );
+    sendJSON(res, 200, { ok: true, worker: buildRenderWorkerPayload(updated) });
     return true;
   }
 

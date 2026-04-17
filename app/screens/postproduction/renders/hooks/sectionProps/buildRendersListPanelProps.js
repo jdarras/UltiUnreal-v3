@@ -16,13 +16,11 @@ const DIRECT_KEYS = [
   "rendersLoading",
   "onTransitionRender",
   "canReviewRenders",
-  "isRenderFavorite",
 ];
 
 const ALIASES = {
   onApplyReviewStatus: "applyReviewStatus",
   onOpenRenderDetail: "openRenderDetail",
-  onToggleRenderFavorite: "toggleRenderFavorite",
 };
 
 function buildListPanelProps(input = {}) {

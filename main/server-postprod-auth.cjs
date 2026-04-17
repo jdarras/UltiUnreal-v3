@@ -27,6 +27,17 @@ const {
   selectBestStation,
   sendJobToStation,
 } = require('./server-postprod-remote-dispatcher.cjs');
+const { hostsToList } = require('./server-normalize.cjs');
+
+const DEFAULT_USERS_SYNC_POLL_INTERVAL_MS = 8000;
+const MIN_USERS_SYNC_POLL_INTERVAL_MS = 2000;
+const MAX_USERS_SYNC_POLL_INTERVAL_MS = 60000;
+const DEFAULT_USERS_SYNC_REMOTE_TIMEOUT_MS = 3500;
+const MIN_USERS_SYNC_REMOTE_TIMEOUT_MS = 1000;
+const MAX_USERS_SYNC_REMOTE_TIMEOUT_MS = 10000;
+const DEFAULT_USERS_SYNC_FETCH_LIMIT = 250;
+const MAX_USERS_SYNC_FETCH_LIMIT = 1000;
+const DEFAULT_USERS_SYNC_AGENT_PORT = 4000;
 
 const {
   DEFAULT_BOOTSTRAP_USER,
@@ -203,6 +214,68 @@ const {
 } = require('./server-postprod-auth-utils-core.cjs');
 
 const { createTaskRenderHelpers } = require('./server-postprod-auth-task-render-utils.cjs');
+const { createUsersSyncHelpers } = require('./server-postprod-auth-users-sync.cjs');
+const { createRenderDetectedAutoScanHelpers } = require('./server-postprod-auth-render-detected.cjs');
+const { createResourcesIndexSyncHelpers } = require('./server-postprod-auth-resources-sync.cjs');
+const { createPostprodAuthGuards } = require('./server-postprod-auth-guards.cjs');
+const { createTaskRenderStateHelpers } = require('./server-postprod-auth-task-render-state.cjs');
+const { createRenderDispatchHelpers } = require('./server-postprod-auth-render-dispatch.cjs');
+const { createRenderHealthAuditMaintenanceHelpers } = require('./server-postprod-auth-render-health-maintenance.cjs');
+const { createPostprodRouteDispatchDeps } = require('./server-postprod-auth-route-dispatch-deps.cjs');
+const { buildPostprodRouteDispatchGroups } = require('./server-postprod-auth-route-dispatch-groups.cjs');
+const {
+  sanitizeRenderWorkerKey,
+  sanitizeRenderWorkerName,
+  normalizeRenderWorkerCapabilityKey,
+  normalizeRenderWorkerCapabilityAtom,
+  normalizeRenderWorkerCapabilitiesObject,
+  normalizeRenderWorkerCapabilities,
+  parseRenderWorkerCapabilitiesJson,
+  extractRenderJobRequiredCapabilities,
+  extractRenderJobPreferredWorkerKey,
+  computeRenderWorkerCapabilitiesScore,
+  normalizeCapabilityCollection,
+  workerCapabilityContains,
+  doesWorkerMatchRequiredCapabilities,
+  buildRenderDispatchPairs,
+  normalizeRenderDispatchPriority,
+  normalizeRenderDispatchQuota,
+  normalizeRenderDispatchProjectMap,
+  normalizeRenderDispatchPolicy,
+  serializeRenderDispatchProjectMap,
+  buildRenderDispatchPolicyStorageJson,
+  resolveRenderDispatchConfig,
+  buildRenderDispatchPolicyPayload,
+  resolveRequestedRenderDispatchConfig,
+  computeRenderDispatchFetchLimit,
+  normalizeRenderProjectLoadMap,
+  countRenderJobsByProject,
+  normalizeDispatchRenderIds,
+  isDispatchableRenderRow,
+  toDispatchableRenderRow,
+  selectRenderJobsForDispatch,
+} = createRenderDispatchHelpers({
+  normalizeJsonValueWithSize,
+  parseRenderPayloadJson,
+  sanitizeRenderProjectName,
+  safeParseObjectJson,
+  coercePositiveInt,
+  normalizeRenderStatus,
+  MAX_RENDER_WORKER_KEY_LEN,
+  MAX_RENDER_WORKER_NAME_LEN,
+  MAX_RENDER_WORKER_CAPABILITY_KEY_LEN,
+  MAX_RENDER_WORKER_CAPABILITY_VALUE_LEN,
+  MAX_RENDER_WORKER_CAPABILITY_ITEMS,
+  MAX_RENDER_WORKER_CAPABILITIES_BYTES,
+  MAX_RENDER_DISPATCH_PRIORITY,
+  MAX_RENDER_DISPATCH_QUOTA,
+  MAX_RENDER_DISPATCH_PROJECT_RULES,
+  DEFAULT_RENDER_DISPATCH_PRIORITY,
+  MAX_RENDER_DISPATCH_MAX_JOBS,
+  DEFAULT_RENDER_DISPATCH_MAX_JOBS,
+  MAX_RENDER_DISPATCH_FETCH_LIMIT,
+  MAX_RENDER_DISPATCH_RENDER_IDS,
+});
 const {
   sanitizeTaskTitle,
   sanitizeTaskDescription,
@@ -591,658 +664,6 @@ function normalizeRenderHealthEventKind(value, fallback = '') {
   return '';
 }
 
-function sanitizeRenderWorkerKey(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, MAX_RENDER_WORKER_KEY_LEN);
-}
-
-function sanitizeRenderWorkerName(value, fallback = '') {
-  const raw = String(value || '').replace(/\s+/g, ' ').trim();
-  const safe = raw || String(fallback || '').replace(/\s+/g, ' ').trim();
-  return safe.slice(0, MAX_RENDER_WORKER_NAME_LEN);
-}
-
-function normalizeRenderWorkerCapabilityKey(value) {
-  return String(value || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase()
-    .slice(0, MAX_RENDER_WORKER_CAPABILITY_KEY_LEN);
-}
-
-function normalizeRenderWorkerCapabilityAtom(value) {
-  if (value == null) return '';
-  const str = String(value).replace(/\s+/g, ' ').trim().toLowerCase();
-  if (!str) return '';
-  return str.slice(0, MAX_RENDER_WORKER_CAPABILITY_VALUE_LEN);
-}
-
-function normalizeRenderWorkerCapabilitiesObject(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const out = {};
-  let count = 0;
-
-  for (const [rawKey, rawValue] of Object.entries(value)) {
-    if (count >= MAX_RENDER_WORKER_CAPABILITY_ITEMS) break;
-    const key = normalizeRenderWorkerCapabilityKey(rawKey);
-    if (!key) continue;
-
-    if (rawValue === true || rawValue === false) {
-      out[key] = rawValue;
-      count += 1;
-      continue;
-    }
-
-    if (typeof rawValue === 'number') {
-      if (!Number.isFinite(rawValue)) continue;
-      out[key] = Number(rawValue);
-      count += 1;
-      continue;
-    }
-
-    if (typeof rawValue === 'string') {
-      const atom = normalizeRenderWorkerCapabilityAtom(rawValue);
-      if (!atom) continue;
-      out[key] = atom;
-      count += 1;
-      continue;
-    }
-
-    if (Array.isArray(rawValue)) {
-      const seen = new Set();
-      const items = [];
-      for (const item of rawValue) {
-        const atom = normalizeRenderWorkerCapabilityAtom(item);
-        if (!atom || seen.has(atom)) continue;
-        seen.add(atom);
-        items.push(atom);
-        if (items.length >= MAX_RENDER_WORKER_CAPABILITY_ITEMS) break;
-      }
-      if (items.length <= 0) continue;
-      out[key] = items;
-      count += 1;
-    }
-  }
-
-  return out;
-}
-
-function normalizeRenderWorkerCapabilities(value) {
-  const normalized = normalizeJsonValueWithSize(value, {
-    fallbackValue: {},
-    maxBytes: MAX_RENDER_WORKER_CAPABILITIES_BYTES,
-    invalidError: 'invalid_worker_capabilities',
-    tooLargeError: 'worker_capabilities_too_large',
-  });
-  if (!normalized?.ok) return normalized;
-  const parsed = parseRenderPayloadJson(normalized.json);
-  const compact = normalizeRenderWorkerCapabilitiesObject(parsed);
-  try {
-    return { ok: true, capabilitiesJson: JSON.stringify(compact) };
-  } catch {
-    return { ok: false, error: 'invalid_worker_capabilities' };
-  }
-}
-
-function parseRenderWorkerCapabilitiesJson(value) {
-  const parsed = parseRenderPayloadJson(value);
-  return normalizeRenderWorkerCapabilitiesObject(parsed);
-}
-
-function extractRenderJobRequiredCapabilities(jobRow) {
-  const payload = parseRenderPayloadJson(jobRow?.payload_json);
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {};
-  const execution = payload.execution && typeof payload.execution === 'object' && !Array.isArray(payload.execution)
-    ? payload.execution
-    : {};
-
-  const raw =
-    execution.requiredCapabilities
-    ?? payload.requiredCapabilities
-    ?? payload.workerRequiredCapabilities
-    ?? null;
-
-  if (Array.isArray(raw)) {
-    return normalizeRenderWorkerCapabilitiesObject({ tags: raw });
-  }
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  return normalizeRenderWorkerCapabilitiesObject(raw);
-}
-
-function extractRenderJobPreferredWorkerKey(jobRow) {
-  const payload = parseRenderPayloadJson(jobRow?.payload_json);
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return '';
-  return sanitizeRenderWorkerKey(
-    payload.preferredWorkerKey
-    ?? payload.targetWorkerKey
-    ?? payload.workerKey
-    ?? ''
-  );
-}
-
-function computeRenderWorkerCapabilitiesScore(capabilities) {
-  if (!capabilities || typeof capabilities !== 'object') return 0;
-  let score = 0;
-  for (const value of Object.values(capabilities)) {
-    score += 1;
-    if (Array.isArray(value)) score += value.length;
-  }
-  return score;
-}
-
-function normalizeCapabilityCollection(value) {
-  if (Array.isArray(value)) {
-    const out = [];
-    const seen = new Set();
-    for (const item of value) {
-      const atom = normalizeRenderWorkerCapabilityAtom(item);
-      if (!atom || seen.has(atom)) continue;
-      seen.add(atom);
-      out.push(atom);
-      if (out.length >= MAX_RENDER_WORKER_CAPABILITY_ITEMS) break;
-    }
-    return out;
-  }
-  const atom = normalizeRenderWorkerCapabilityAtom(value);
-  return atom ? [atom] : [];
-}
-
-function workerCapabilityContains(workerValue, requiredValue) {
-  if (requiredValue == null) return true;
-
-  if (requiredValue === true) {
-    return workerValue === true;
-  }
-  if (requiredValue === false) {
-    return true;
-  }
-
-  if (typeof requiredValue === 'number') {
-    if (!Number.isFinite(requiredValue)) return true;
-    const workerNum = Number(workerValue);
-    if (!Number.isFinite(workerNum)) return false;
-    return workerNum >= requiredValue;
-  }
-
-  if (typeof requiredValue === 'string') {
-    const requiredAtom = normalizeRenderWorkerCapabilityAtom(requiredValue);
-    if (!requiredAtom) return true;
-    const workerItems = normalizeCapabilityCollection(workerValue);
-    return workerItems.includes(requiredAtom);
-  }
-
-  if (Array.isArray(requiredValue)) {
-    const requiredItems = normalizeCapabilityCollection(requiredValue);
-    if (requiredItems.length <= 0) return true;
-    const workerItems = normalizeCapabilityCollection(workerValue);
-    if (workerItems.length <= 0) return false;
-    const workerSet = new Set(workerItems);
-    for (const item of requiredItems) {
-      if (!workerSet.has(item)) return false;
-    }
-    return true;
-  }
-
-  return false;
-}
-
-function doesWorkerMatchRequiredCapabilities(workerCapabilities, requiredCapabilities) {
-  const required =
-    requiredCapabilities && typeof requiredCapabilities === 'object' && !Array.isArray(requiredCapabilities)
-      ? requiredCapabilities
-      : {};
-  const requiredEntries = Object.entries(required);
-  if (requiredEntries.length <= 0) return true;
-
-  const worker =
-    workerCapabilities && typeof workerCapabilities === 'object' && !Array.isArray(workerCapabilities)
-      ? workerCapabilities
-      : {};
-
-  for (const [rawKey, requiredValue] of requiredEntries) {
-    const key = normalizeRenderWorkerCapabilityKey(rawKey);
-    if (!key) continue;
-    if (!workerCapabilityContains(worker[key], requiredValue)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function buildRenderDispatchPairs(selectedJobs, availableWorkers, maxPairs) {
-  const jobs = Array.isArray(selectedJobs) ? selectedJobs : [];
-  const workers = Array.isArray(availableWorkers) ? availableWorkers : [];
-  const target = Math.max(0, Math.trunc(Number(maxPairs) || 0));
-  if (target <= 0 || jobs.length <= 0 || workers.length <= 0) {
-    return { pairs: [], unmatchedJobs: jobs.length };
-  }
-
-  const pool = workers.map((worker, index) => {
-    const capabilities = parseRenderWorkerCapabilitiesJson(worker?.capabilities_json);
-    const workerKey = sanitizeRenderWorkerKey(worker?.worker_key ?? worker?.workerKey ?? '');
-    return {
-      worker,
-      index,
-      workerKey,
-      capabilities,
-      capabilityScore: computeRenderWorkerCapabilitiesScore(capabilities),
-    };
-  });
-
-  const pairs = [];
-  let unmatchedJobs = 0;
-
-  for (let jobIndex = 0; jobIndex < jobs.length; jobIndex += 1) {
-    if (pairs.length >= target) break;
-    if (pool.length <= 0) {
-      unmatchedJobs += (jobs.length - jobIndex);
-      break;
-    }
-    const job = jobs[jobIndex];
-    const requiredCapabilities = extractRenderJobRequiredCapabilities(job);
-    const preferredWorkerKey = extractRenderJobPreferredWorkerKey(job);
-
-    let bestPoolIndex = -1;
-    if (preferredWorkerKey) {
-      for (let i = 0; i < pool.length; i += 1) {
-        const candidate = pool[i];
-        if (!candidate || candidate.workerKey !== preferredWorkerKey) continue;
-        if (!doesWorkerMatchRequiredCapabilities(candidate.capabilities, requiredCapabilities)) continue;
-        bestPoolIndex = i;
-        break;
-      }
-    }
-    if (bestPoolIndex < 0) {
-      for (let i = 0; i < pool.length; i += 1) {
-        const candidate = pool[i];
-        if (preferredWorkerKey && candidate.workerKey !== preferredWorkerKey) continue;
-        if (!doesWorkerMatchRequiredCapabilities(candidate.capabilities, requiredCapabilities)) continue;
-        if (bestPoolIndex < 0) {
-          bestPoolIndex = i;
-          continue;
-        }
-        const currentBest = pool[bestPoolIndex];
-        if (candidate.capabilityScore < currentBest.capabilityScore) {
-          bestPoolIndex = i;
-          continue;
-        }
-        if (candidate.capabilityScore === currentBest.capabilityScore && candidate.index < currentBest.index) {
-          bestPoolIndex = i;
-        }
-      }
-    }
-
-    if (bestPoolIndex < 0) {
-      unmatchedJobs += 1;
-      continue;
-    }
-
-    const selectedWorker = pool.splice(bestPoolIndex, 1)[0];
-    pairs.push({
-      job,
-      worker: selectedWorker.worker,
-      requiredCapabilities,
-    });
-  }
-
-  return { pairs, unmatchedJobs };
-}
-
-function normalizeRenderDispatchPriority(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  return Math.max(1, Math.min(MAX_RENDER_DISPATCH_PRIORITY, Math.trunc(n)));
-}
-
-function normalizeRenderDispatchQuota(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  return Math.max(0, Math.min(MAX_RENDER_DISPATCH_QUOTA, Math.trunc(n)));
-}
-
-function normalizeRenderDispatchProjectMap(value, normalizeValue) {
-  const out = new Map();
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      if (!entry || typeof entry !== 'object') continue;
-      const projectName = sanitizeRenderProjectName(entry.projectName || entry.project || entry.name || '');
-      const normalized = normalizeValue(entry.value ?? entry.priority ?? entry.quota);
-      if (!projectName || normalized == null) continue;
-      out.set(projectName, normalized);
-      if (out.size >= MAX_RENDER_DISPATCH_PROJECT_RULES) break;
-    }
-    return out;
-  }
-  if (value && typeof value === 'object') {
-    for (const [key, raw] of Object.entries(value)) {
-      const projectName = sanitizeRenderProjectName(key);
-      const normalized = normalizeValue(raw);
-      if (!projectName || normalized == null) continue;
-      out.set(projectName, normalized);
-      if (out.size >= MAX_RENDER_DISPATCH_PROJECT_RULES) break;
-    }
-  }
-  return out;
-}
-
-function normalizeRenderDispatchPolicy(value) {
-  const root =
-    value && typeof value === 'object' && value.dispatchPolicy && typeof value.dispatchPolicy === 'object'
-      ? value.dispatchPolicy
-      : value && typeof value === 'object'
-        ? value
-        : {};
-
-  const projectPriorities = normalizeRenderDispatchProjectMap(
-    root.projectPriorities || root.priorities,
-    normalizeRenderDispatchPriority
-  );
-  const projectQuotas = normalizeRenderDispatchProjectMap(
-    root.projectQuotas || root.quotas,
-    normalizeRenderDispatchQuota
-  );
-  const defaultPriority = normalizeRenderDispatchPriority(root.defaultPriority);
-  const defaultQuota = normalizeRenderDispatchQuota(root.defaultQuota);
-  const policy = {
-    projectPriorities,
-    projectQuotas,
-    defaultPriority: defaultPriority == null ? DEFAULT_RENDER_DISPATCH_PRIORITY : defaultPriority,
-    defaultQuota: defaultQuota == null ? null : defaultQuota,
-  };
-  policy.applied =
-    policy.projectPriorities.size > 0 ||
-    policy.projectQuotas.size > 0 ||
-    policy.defaultPriority !== DEFAULT_RENDER_DISPATCH_PRIORITY ||
-    policy.defaultQuota != null;
-  return policy;
-}
-
-function serializeRenderDispatchProjectMap(value) {
-  const src = value instanceof Map ? value : new Map();
-  const out = {};
-  for (const [projectName, rawValue] of src.entries()) {
-    const key = sanitizeRenderProjectName(projectName);
-    const normalizedValue = Number(rawValue);
-    if (!key || !Number.isFinite(normalizedValue)) continue;
-    out[key] = Math.trunc(normalizedValue);
-  }
-  return out;
-}
-
-function buildRenderDispatchPolicyStorageJson(dispatchPolicy) {
-  const normalized = dispatchPolicy && typeof dispatchPolicy === 'object'
-    ? dispatchPolicy
-    : normalizeRenderDispatchPolicy({});
-  const payload = {};
-  if (normalized.defaultPriority !== DEFAULT_RENDER_DISPATCH_PRIORITY) {
-    payload.defaultPriority = normalized.defaultPriority;
-  }
-  if (normalized.defaultQuota != null) {
-    payload.defaultQuota = normalized.defaultQuota;
-  }
-  const projectPriorities = serializeRenderDispatchProjectMap(normalized.projectPriorities);
-  if (Object.keys(projectPriorities).length > 0) {
-    payload.projectPriorities = projectPriorities;
-  }
-  const projectQuotas = serializeRenderDispatchProjectMap(normalized.projectQuotas);
-  if (Object.keys(projectQuotas).length > 0) {
-    payload.projectQuotas = projectQuotas;
-  }
-  try {
-    return JSON.stringify(payload);
-  } catch {
-    return '{}';
-  }
-}
-
-function resolveRenderDispatchConfig(stmts) {
-  const row = stmts?.findRenderDispatchPolicyById?.get(1) || null;
-  const maxJobs = Math.min(
-    MAX_RENDER_DISPATCH_MAX_JOBS,
-    coercePositiveInt(row?.max_jobs, DEFAULT_RENDER_DISPATCH_MAX_JOBS, 1)
-  );
-  const dispatchPolicy = normalizeRenderDispatchPolicy(safeParseObjectJson(row?.policy_json, {}));
-  return {
-    id: 1,
-    maxJobs,
-    dispatchPolicy,
-    updatedByUserId: Number.isFinite(Number(row?.updated_by_user_id))
-      ? Number(row.updated_by_user_id)
-      : null,
-    createdAt: String(row?.created_at || '').trim(),
-    updatedAt: String(row?.updated_at || '').trim(),
-  };
-}
-
-function buildRenderDispatchPolicyPayload(config, { includeRules = false } = {}) {
-  const dispatchConfig = config && typeof config === 'object'
-    ? config
-    : {
-      maxJobs: DEFAULT_RENDER_DISPATCH_MAX_JOBS,
-      dispatchPolicy: normalizeRenderDispatchPolicy({}),
-      updatedByUserId: null,
-      createdAt: '',
-      updatedAt: '',
-    };
-  const policy = dispatchConfig.dispatchPolicy && typeof dispatchConfig.dispatchPolicy === 'object'
-    ? dispatchConfig.dispatchPolicy
-    : normalizeRenderDispatchPolicy({});
-  const payload = {
-    maxJobs: Math.min(
-      MAX_RENDER_DISPATCH_MAX_JOBS,
-      coercePositiveInt(dispatchConfig.maxJobs, DEFAULT_RENDER_DISPATCH_MAX_JOBS, 1)
-    ),
-    applied: policy.applied === true,
-    defaultPriority: policy.defaultPriority,
-    defaultQuota: policy.defaultQuota,
-    projectPriorityCount: policy.projectPriorities instanceof Map ? policy.projectPriorities.size : 0,
-    projectQuotaCount: policy.projectQuotas instanceof Map ? policy.projectQuotas.size : 0,
-    updatedByUserId: dispatchConfig.updatedByUserId,
-    createdAt: String(dispatchConfig.createdAt || '').trim(),
-    updatedAt: String(dispatchConfig.updatedAt || '').trim(),
-  };
-  if (includeRules) {
-    payload.projectPriorities = serializeRenderDispatchProjectMap(policy.projectPriorities);
-    payload.projectQuotas = serializeRenderDispatchProjectMap(policy.projectQuotas);
-  }
-  return payload;
-}
-
-function resolveRequestedRenderDispatchConfig(body, dispatchConfig) {
-  const bodyObject = body && typeof body === 'object' && !Array.isArray(body)
-    ? body
-    : {};
-  const currentConfig = dispatchConfig && typeof dispatchConfig === 'object'
-    ? dispatchConfig
-    : resolveRenderDispatchConfig(null);
-  const hasMaxJobsInput =
-    bodyObject.maxJobs != null && String(bodyObject.maxJobs).trim() !== '';
-  const hasDispatchPolicyInput =
-    (
-      bodyObject.dispatchPolicy
-      && typeof bodyObject.dispatchPolicy === 'object'
-      && !Array.isArray(bodyObject.dispatchPolicy)
-    ) ||
-    bodyObject.defaultPriority != null ||
-    bodyObject.defaultQuota != null ||
-    bodyObject.projectPriorities != null ||
-    bodyObject.projectQuotas != null ||
-    bodyObject.priorities != null ||
-    bodyObject.quotas != null;
-  const requestedMaxJobs = hasMaxJobsInput
-    ? Math.min(
-      MAX_RENDER_DISPATCH_MAX_JOBS,
-      coercePositiveInt(bodyObject.maxJobs, currentConfig.maxJobs, 1)
-    )
-    : currentConfig.maxJobs;
-  const requestedDispatchPolicy = hasDispatchPolicyInput
-    ? normalizeRenderDispatchPolicy(bodyObject)
-    : currentConfig.dispatchPolicy;
-  return {
-    bodyObject,
-    hasMaxJobsInput,
-    hasDispatchPolicyInput,
-    shouldPersistDispatchConfig: hasMaxJobsInput || hasDispatchPolicyInput,
-    requestedMaxJobs,
-    requestedDispatchPolicy,
-  };
-}
-
-function computeRenderDispatchFetchLimit(maxJobs, dispatchPolicy) {
-  if (!dispatchPolicy?.applied) return maxJobs;
-  const weightedByRules = (dispatchPolicy.projectPriorities.size + dispatchPolicy.projectQuotas.size) * 4;
-  const weightedByBatch = maxJobs * 8;
-  return Math.min(
-    MAX_RENDER_DISPATCH_FETCH_LIMIT,
-    Math.max(maxJobs, weightedByBatch, weightedByRules)
-  );
-}
-
-function normalizeRenderProjectLoadMap(value) {
-  const out = new Map();
-  const push = (projectNameRaw, countRaw) => {
-    const projectName = sanitizeRenderProjectName(projectNameRaw || '');
-    const count = Number(countRaw);
-    if (!projectName || !Number.isFinite(count)) return;
-    out.set(projectName, Math.max(0, Math.trunc(count)));
-  };
-  if (value instanceof Map) {
-    for (const [projectName, count] of value.entries()) {
-      push(projectName, count);
-    }
-    return out;
-  }
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      if (!entry || typeof entry !== 'object') continue;
-      push(entry.projectName || entry.project || entry.project_name, entry.count ?? entry.n);
-    }
-    return out;
-  }
-  if (value && typeof value === 'object') {
-    for (const [projectName, count] of Object.entries(value)) {
-      push(projectName, count);
-    }
-  }
-  return out;
-}
-
-function countRenderJobsByProject(jobs) {
-  const out = new Map();
-  const src = Array.isArray(jobs) ? jobs : [];
-  for (const job of src) {
-    const projectName = sanitizeRenderProjectName(job?.project_name || '');
-    if (!projectName) continue;
-    out.set(projectName, Number(out.get(projectName) || 0) + 1);
-  }
-  return out;
-}
-
-function normalizeDispatchRenderIds(value, maxCount = MAX_RENDER_DISPATCH_RENDER_IDS) {
-  if (!Array.isArray(value)) return [];
-  const limit = Math.max(1, Math.min(MAX_RENDER_DISPATCH_RENDER_IDS, Math.trunc(Number(maxCount) || MAX_RENDER_DISPATCH_RENDER_IDS)));
-  const out = [];
-  const seen = new Set();
-  for (let i = 0; i < value.length; i += 1) {
-    if (out.length >= limit) break;
-    const raw = Number(value[i]);
-    if (!Number.isFinite(raw) || raw <= 0) continue;
-    const id = Math.trunc(raw);
-    if (seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-  }
-  return out;
-}
-
-function isDispatchableRenderRow(row) {
-  if (!row || typeof row !== 'object') return false;
-  if (normalizeRenderStatus(row.status, '') !== 'Queued') return false;
-  if (row.assigned_worker_id != null) return false;
-  if (Number(row.requires_validation) === 1 && !(Number(row.validated_by_user_id) > 0)) return false;
-  return true;
-}
-
-function toDispatchableRenderRow(row) {
-  return {
-    id: Number(row?.id || 0),
-    project_name: String(row?.project_name || ''),
-    payload_json: String(row?.payload_json || ''),
-    status: normalizeRenderStatus(row?.status, 'Queued'),
-    requires_validation: Number(row?.requires_validation || 0) === 1 ? 1 : 0,
-    validated_by_user_id: row?.validated_by_user_id == null ? null : Number(row.validated_by_user_id),
-    created_at: String(row?.created_at || ''),
-  };
-}
-
-function selectRenderJobsForDispatch(dispatchableJobs, maxJobs, dispatchPolicy, projectActiveLoads = {}) {
-  const jobs = Array.isArray(dispatchableJobs) ? dispatchableJobs : [];
-  const target = Math.max(0, Math.trunc(Number(maxJobs) || 0));
-  const activeByProjectMap = normalizeRenderProjectLoadMap(projectActiveLoads);
-  if (target <= 0 || jobs.length <= 0) {
-    return {
-      jobs: [],
-      policyApplied: Boolean(dispatchPolicy?.applied),
-      byProject: {},
-      activeByProject: Object.fromEntries(activeByProjectMap),
-      totalByProject: Object.fromEntries(activeByProjectMap),
-    };
-  }
-  if (!dispatchPolicy?.applied) {
-    const selected = jobs.slice(0, target);
-    const selectedByProject = countRenderJobsByProject(selected);
-    const totalByProject = new Map(activeByProjectMap);
-    for (const [projectName, selectedCount] of selectedByProject.entries()) {
-      totalByProject.set(projectName, Number(totalByProject.get(projectName) || 0) + selectedCount);
-    }
-    return {
-      jobs: selected,
-      policyApplied: false,
-      byProject: Object.fromEntries(selectedByProject),
-      activeByProject: Object.fromEntries(activeByProjectMap),
-      totalByProject: Object.fromEntries(totalByProject),
-    };
-  }
-
-  const sorted = [...jobs].sort((a, b) => {
-    const projectA = sanitizeRenderProjectName(a?.project_name || '');
-    const projectB = sanitizeRenderProjectName(b?.project_name || '');
-    const priorityA =
-      dispatchPolicy.projectPriorities.get(projectA) ?? dispatchPolicy.defaultPriority;
-    const priorityB =
-      dispatchPolicy.projectPriorities.get(projectB) ?? dispatchPolicy.defaultPriority;
-    if (priorityA !== priorityB) return priorityA - priorityB;
-    const createdA = String(a?.created_at || '');
-    const createdB = String(b?.created_at || '');
-    if (createdA !== createdB) return createdA.localeCompare(createdB);
-    return Number(a?.id || 0) - Number(b?.id || 0);
-  });
-
-  const selected = [];
-  const selectedByProject = new Map();
-  const usedByProject = new Map(activeByProjectMap);
-  for (const job of sorted) {
-    if (selected.length >= target) break;
-    const projectName = sanitizeRenderProjectName(job?.project_name || '');
-    const quota = dispatchPolicy.projectQuotas.get(projectName) ?? dispatchPolicy.defaultQuota;
-    if (quota != null) {
-      const used = Number(usedByProject.get(projectName) || 0);
-      if (used >= quota) continue;
-      usedByProject.set(projectName, used + 1);
-    } else {
-      usedByProject.set(projectName, Number(usedByProject.get(projectName) || 0) + 1);
-    }
-    selectedByProject.set(projectName, Number(selectedByProject.get(projectName) || 0) + 1);
-    selected.push(job);
-  }
-  return {
-    jobs: selected,
-    policyApplied: true,
-    byProject: Object.fromEntries(selectedByProject),
-    activeByProject: Object.fromEntries(activeByProjectMap),
-    totalByProject: Object.fromEntries(usedByProject),
-  };
-}
-
 function sanitizeProjectRef(value) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, MAX_PROJECT_REF_LEN);
 }
@@ -1558,7 +979,20 @@ function scanUnrealProjectCatalogFromUproject(uprojectPath) {
       if (!assetPath) continue;
       const name = String(entry.name || '').replace(/\.[^/.\\]+$/g, '').trim();
       const classified = classifyUnrealAssetFromName(entry.name, ext);
-      if ((classified.isSequence || classified.isPreset || classified.isWrcPreset) && isLikelyUnrealRedirectorAsset(absPath)) {
+      const relLower = relativePosix.toLowerCase();
+      const isFolderSequenceHint = (
+        ext === '.uasset' &&
+        !classified.isPreset &&
+        !classified.isWrcPreset && (
+          relLower.includes('/sequences/') ||
+          relLower.includes('/levelsequences/') ||
+          relLower.includes('/cinematics/') ||
+          relLower.includes('/cinematic/') ||
+          relLower.includes('/shots/')
+        )
+      );
+      const effectiveIsSequence = classified.isSequence || isFolderSequenceHint;
+      if ((effectiveIsSequence || classified.isPreset) && isLikelyUnrealRedirectorAsset(absPath)) {
         continue;
       }
 
@@ -1573,7 +1007,7 @@ function scanUnrealProjectCatalogFromUproject(uprojectPath) {
           });
         }
       }
-      if (classified.isSequence) {
+      if (effectiveIsSequence) {
         const key = assetPath.toLowerCase();
         if (!seenSequence.has(key)) {
           seenSequence.add(key);
@@ -1852,7 +1286,13 @@ function collectWrcExposedProperties(presetPayload) {
     : (Array.isArray(payload.groups) ? payload.groups : []);
   for (const group of groups) {
     const groupProps = extractWrcGroupPropertyEntries(group);
-    if (groupProps.length > 0) props = props.concat(groupProps);
+    if (groupProps.length > 0) {
+      const wrcGroupName = String(group.Name || group.name || group.GroupName || group.groupName || '').trim();
+      for (const entry of groupProps) {
+        if (entry && typeof entry === 'object' && !entry._wrcGroupName) entry._wrcGroupName = wrcGroupName;
+      }
+      props = props.concat(groupProps);
+    }
   }
   if (!props.length) {
     const rootContainers = [
@@ -2101,7 +1541,7 @@ function extractWrcPropertyCurrentValue(entry = {}, underlying = {}) {
   return undefined;
 }
 
-function buildRenderFormFieldsFromWrcPreset(presetPayload) {
+function buildRenderFormFieldsFromWrcPreset(presetPayload, wrcFile) {
   const props = collectWrcExposedProperties(presetPayload);
   const out = [];
   const seenKeys = new Set();
@@ -2206,8 +1646,18 @@ function buildRenderFormFieldsFromWrcPreset(presetPayload) {
       displayNameRaw,
       entityIdRaw
     );
-    const sourcePath = String(sourcePathRaw || '').trim();
+    // Prefer property GUID as stable source_path identifier; fall back to composed path.
+    const propertyGuidRaw = String(
+      p.PropertyId || p.propertyId || p.PropertyID || p.propertyID
+      || p.PropertyIdentifier || p.propertyIdentifier
+      || p.EntityId || p.entityId
+      || p.ID || p.id || p.Id
+      || underlying.PropertyId || underlying.propertyId || underlying.PropertyID || underlying.propertyID
+      || ''
+    ).trim();
+    const sourcePath = propertyGuidRaw || String(sourcePathRaw || '').trim();
     if (!sourcePath) continue;
+    const groupName = sanitizeRenderFormFieldGroupName(p._wrcGroupName || '');
 
     const fieldLabel = sanitizeRenderFormFieldLabel(
       pickReadableWrcIdentifier(propertyIdRaw, displayNameRaw, propertyNameRaw, sourcePath, entityIdRaw),
@@ -2280,12 +1730,14 @@ function buildRenderFormFieldsFromWrcPreset(presetPayload) {
       sourceType: 'preset_property',
       inputKind,
       valueType,
+      groupName,
       payloadKey,
       defaultValue,
       validation: {},
       isRequired: false,
       isVisible: true,
       sortOrder,
+      wrcFile: String(wrcFile || '').trim(),
     });
     sortOrder += 1;
   }
@@ -3181,6 +2633,7 @@ function normalizeRenderFormFields(value) {
       isRequired: parseBooleanFlag(rawField.isRequired, false),
       isVisible: parseBooleanFlag(rawField.isVisible, true),
       sortOrder,
+      wrcFile: String(rawField.wrcFile ?? rawField.wrc_file ?? '').trim(),
     });
   }
   return { ok: true, fields: out };
@@ -3331,6 +2784,10 @@ function normalizeRoleRow(row = {}) {
     isSystem: Number(row?.is_system ?? row?.isSystem) === 1 || row?.isSystem === true,
     createdAt: row?.created_at ?? row?.createdAt ?? null,
     updatedAt: row?.updated_at ?? row?.updatedAt ?? null,
+    lastSourceStation: String(row?.last_source_station ?? row?.lastSourceStation ?? '').trim(),
+    lastSourceVersion: Number.isFinite(Number(row?.last_source_version ?? row?.lastSourceVersion))
+      ? Math.max(0, Math.trunc(Number(row?.last_source_version ?? row?.lastSourceVersion)))
+      : 0,
   };
 }
 
@@ -3715,7 +3172,9 @@ function ensureSchema(db, logLine = () => {}) {
         locked_until TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        last_login_at TEXT
+        last_login_at TEXT,
+        last_source_station TEXT NOT NULL DEFAULT '',
+        last_source_version INTEGER NOT NULL DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS sessions (
@@ -3784,7 +3243,9 @@ function ensureSchema(db, logLine = () => {}) {
         manageable_roles_json TEXT NOT NULL DEFAULT '[]',
         is_system INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        last_source_station TEXT NOT NULL DEFAULT '',
+        last_source_version INTEGER NOT NULL DEFAULT 0
       );
 
       CREATE INDEX IF NOT EXISTS idx_roles_system ON roles(is_system);
@@ -5407,6 +4868,178 @@ function ensureSchema(db, logLine = () => {}) {
     });
   }
 
+  const hasV41 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 41 LIMIT 1')
+    .get();
+  if (!hasV41) {
+    const userCols = db.prepare('PRAGMA table_info(users)').all();
+    const userColNames = new Set(userCols.map((c) => String(c?.name || '').trim()));
+    if (!userColNames.has('last_source_station')) {
+      db.exec("ALTER TABLE users ADD COLUMN last_source_station TEXT NOT NULL DEFAULT ''");
+    }
+    if (!userColNames.has('last_source_version')) {
+      db.exec('ALTER TABLE users ADD COLUMN last_source_version INTEGER NOT NULL DEFAULT 0');
+    }
+
+    const roleCols = db.prepare('PRAGMA table_info(roles)').all();
+    const roleColNames = new Set(roleCols.map((c) => String(c?.name || '').trim()));
+    if (!roleColNames.has('last_source_station')) {
+      db.exec("ALTER TABLE roles ADD COLUMN last_source_station TEXT NOT NULL DEFAULT ''");
+    }
+    if (!roleColNames.has('last_source_version')) {
+      db.exec('ALTER TABLE roles ADD COLUMN last_source_version INTEGER NOT NULL DEFAULT 0');
+    }
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user_sync_events (
+        version INTEGER PRIMARY KEY AUTOINCREMENT,
+        op_id TEXT NOT NULL UNIQUE,
+        source_station TEXT NOT NULL DEFAULT '',
+        source_version INTEGER NOT NULL DEFAULT 0,
+        entity_type TEXT NOT NULL,
+        entity_public_id TEXT NOT NULL DEFAULT '',
+        entity_key TEXT NOT NULL DEFAULT '',
+        op TEXT NOT NULL,
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        occurred_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_user_sync_events_entity_type
+        ON user_sync_events(entity_type, occurred_at DESC, version DESC);
+      CREATE INDEX IF NOT EXISTS idx_user_sync_events_source_station
+        ON user_sync_events(source_station, version DESC);
+
+      CREATE TABLE IF NOT EXISTS user_sync_cursors (
+        peer_station TEXT PRIMARY KEY,
+        last_version INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS user_tombstones (
+        public_id TEXT PRIMARY KEY,
+        deleted_at TEXT NOT NULL,
+        source_station TEXT NOT NULL DEFAULT '',
+        op_id TEXT NOT NULL DEFAULT '',
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_user_tombstones_deleted_at
+        ON user_tombstones(deleted_at DESC);
+    `);
+
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(41, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v41',
+      message: 'Migration SQLite postprod v41 appliquee (sync users/roles P2P)',
+    });
+  }
+
+  const hasV42 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 42 LIMIT 1')
+    .get();
+  if (!hasV42) {
+    const syncEventCols = db.prepare('PRAGMA table_info(user_sync_events)').all();
+    const syncEventColNames = new Set(syncEventCols.map((c) => String(c?.name || '').trim()));
+    if (!syncEventColNames.has('source_version')) {
+      db.exec('ALTER TABLE user_sync_events ADD COLUMN source_version INTEGER NOT NULL DEFAULT 0');
+    }
+    db.exec(`
+      UPDATE user_sync_events
+      SET source_version = version
+      WHERE COALESCE(source_version, 0) <= 0;
+    `);
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(42, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v42',
+      message: 'Migration SQLite postprod v42 appliquee (source_version sync users/roles)',
+    });
+  }
+
+  const hasV43 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 43 LIMIT 1')
+    .get();
+  if (!hasV43) {
+    const workerCols43 = db.prepare('PRAGMA table_info(render_workers)').all();
+    const workerColNames43 = new Set(workerCols43.map((c) => String(c?.name || '').trim()));
+    if (!workerColNames43.has('apte')) {
+      db.exec('ALTER TABLE render_workers ADD COLUMN apte INTEGER NOT NULL DEFAULT 0');
+    }
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(43, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v43',
+      message: 'Migration SQLite postprod v43 appliquee (apte sur render_workers)',
+    });
+  }
+
+  const hasV44 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 44 LIMIT 1')
+    .get();
+  if (!hasV44) {
+    const rfCols44 = db.prepare('PRAGMA table_info(render_forms)').all();
+    const rfColNames44 = new Set(rfCols44.map((c) => String(c?.name || '').trim()));
+    if (!rfColNames44.has('allowed_sequences_json')) {
+      db.exec("ALTER TABLE render_forms ADD COLUMN allowed_sequences_json TEXT NOT NULL DEFAULT '[]'");
+    }
+    if (!rfColNames44.has('allowed_presets_json')) {
+      db.exec("ALTER TABLE render_forms ADD COLUMN allowed_presets_json TEXT NOT NULL DEFAULT '[]'");
+    }
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(44, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v44',
+      message: 'Migration SQLite postprod v44 appliquee (allowed_sequences_json, allowed_presets_json sur render_forms)',
+    });
+  }
+
+  const hasV45 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 45 LIMIT 1')
+    .get();
+  if (!hasV45) {
+    const rfCols45 = db.prepare('PRAGMA table_info(render_forms)').all();
+    const rfColNames45 = new Set(rfCols45.map((c) => String(c?.name || '').trim()));
+    if (!rfColNames45.has('note_text')) {
+      db.exec("ALTER TABLE render_forms ADD COLUMN note_text TEXT NOT NULL DEFAULT ''");
+    }
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(45, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v45',
+      message: 'Migration SQLite postprod v45 appliquee (note_text sur render_forms)',
+    });
+  }
+
+  const hasV46 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 46 LIMIT 1')
+    .get();
+  if (!hasV46) {
+    const rfCols46 = db.prepare('PRAGMA table_info(render_forms)').all();
+    const rfColNames46 = new Set(rfCols46.map((c) => String(c?.name || '').trim()));
+    if (!rfColNames46.has('wrc_files_json')) {
+      db.exec("ALTER TABLE render_forms ADD COLUMN wrc_files_json TEXT NOT NULL DEFAULT '[]'");
+    }
+    const rffCols46 = db.prepare('PRAGMA table_info(render_form_fields)').all();
+    const rffColNames46 = new Set(rffCols46.map((c) => String(c?.name || '').trim()));
+    if (!rffColNames46.has('wrc_file')) {
+      db.exec("ALTER TABLE render_form_fields ADD COLUMN wrc_file TEXT NOT NULL DEFAULT ''");
+    }
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(46, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v46',
+      message: 'Migration SQLite postprod v46 appliquee (wrc_files_json sur render_forms, wrc_file sur render_form_fields)',
+    });
+  }
+
   ensureDefaultRoles(db, logLine);
 }
 
@@ -5444,6 +5077,8 @@ function createStatements(db) {
         u.created_at,
         u.updated_at,
         u.last_login_at,
+        u.last_source_station,
+        u.last_source_version,
         COALESCE(up.timezone, '') AS timezone,
         COALESCE(up.language, 'fr') AS language,
         COALESCE(up.notification_preferences_json, '{}') AS notification_preferences_json
@@ -5491,12 +5126,49 @@ function createStatements(db) {
         u.created_at,
         u.updated_at,
         u.last_login_at,
+        u.last_source_station,
+        u.last_source_version,
         COALESCE(up.timezone, '') AS timezone,
         COALESCE(up.language, 'fr') AS language,
         COALESCE(up.notification_preferences_json, '{}') AS notification_preferences_json
       FROM users u
       LEFT JOIN user_preferences up ON up.user_id = u.id
       WHERE u.id = ?
+      LIMIT 1
+    `),
+    findUserByPublicIdFull: db.prepare(`
+      SELECT
+        u.id,
+        u.public_id,
+        u.username,
+        u.password_hash,
+        u.role,
+        u.is_active,
+        u.display_name,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.email_secondary,
+        u.mobile_phone,
+        u.office_phone,
+        u.phone,
+        u.employment_type,
+        u.user_note,
+        u.avatar_path,
+        u.must_change_password,
+        u.failed_login_count,
+        u.locked_until,
+        u.created_at,
+        u.updated_at,
+        u.last_login_at,
+        u.last_source_station,
+        u.last_source_version,
+        COALESCE(up.timezone, '') AS timezone,
+        COALESCE(up.language, 'fr') AS language,
+        COALESCE(up.notification_preferences_json, '{}') AS notification_preferences_json
+      FROM users u
+      LEFT JOIN user_preferences up ON up.user_id = u.id
+      WHERE u.public_id = ?
       LIMIT 1
     `),
     listUsers: db.prepare(`
@@ -5523,6 +5195,8 @@ function createStatements(db) {
         u.created_at,
         u.updated_at,
         u.last_login_at,
+        u.last_source_station,
+        u.last_source_version,
         COALESCE(up.timezone, '') AS timezone,
         COALESCE(up.language, 'fr') AS language,
         COALESCE(up.notification_preferences_json, '{}') AS notification_preferences_json
@@ -5630,6 +5304,156 @@ function createStatements(db) {
     deleteUserById: db.prepare(`
       DELETE FROM users
       WHERE id = ?
+    `),
+    deleteUserByPublicId: db.prepare(`
+      DELETE FROM users
+      WHERE public_id = ?
+    `),
+    updateUserSyncSourceById: db.prepare(`
+      UPDATE users
+      SET
+        last_source_station = ?,
+        last_source_version = ?
+      WHERE id = ?
+    `),
+    insertUserFromSync: db.prepare(`
+      INSERT INTO users(
+        public_id,
+        username,
+        password_hash,
+        role,
+        is_active,
+        display_name,
+        first_name,
+        last_name,
+        email,
+        email_secondary,
+        mobile_phone,
+        office_phone,
+        phone,
+        employment_type,
+        user_note,
+        avatar_path,
+        must_change_password,
+        failed_login_count,
+        locked_until,
+        created_at,
+        updated_at,
+        last_login_at,
+        last_source_station,
+        last_source_version
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `),
+    updateUserFromSyncByPublicId: db.prepare(`
+      UPDATE users
+      SET
+        username = ?,
+        password_hash = ?,
+        role = ?,
+        is_active = ?,
+        display_name = ?,
+        first_name = ?,
+        last_name = ?,
+        email = ?,
+        email_secondary = ?,
+        mobile_phone = ?,
+        office_phone = ?,
+        phone = ?,
+        employment_type = ?,
+        user_note = ?,
+        avatar_path = ?,
+        must_change_password = ?,
+        failed_login_count = ?,
+        locked_until = ?,
+        updated_at = ?,
+        last_login_at = ?,
+        last_source_station = ?,
+        last_source_version = ?
+      WHERE public_id = ?
+    `),
+    findUserByUsernameExcludingPublicId: db.prepare(`
+      SELECT id, public_id, username
+      FROM users
+      WHERE username = ?
+        AND public_id <> ?
+      LIMIT 1
+    `),
+    getMaxUserSyncEventVersion: db.prepare('SELECT COALESCE(MAX(version), 0) AS n FROM user_sync_events'),
+    getMaxUserSyncSourceVersionByStation: db.prepare(`
+      SELECT COALESCE(MAX(source_version), 0) AS n
+      FROM user_sync_events
+      WHERE source_station = ?
+    `),
+    findUserSyncEventByOpId: db.prepare(`
+      SELECT version, source_station, source_version, op_id
+      FROM user_sync_events
+      WHERE op_id = ?
+      LIMIT 1
+    `),
+    listUserSyncEventsSinceVersion: db.prepare(`
+      SELECT
+        version,
+        source_station,
+        source_version,
+        op_id,
+        entity_type,
+        entity_public_id,
+        entity_key,
+        op,
+        payload_json,
+        occurred_at
+      FROM user_sync_events
+      WHERE version > ?
+      ORDER BY version ASC
+      LIMIT ?
+    `),
+    insertUserSyncEvent: db.prepare(`
+      INSERT INTO user_sync_events(
+        op_id,
+        source_station,
+        source_version,
+        entity_type,
+        entity_public_id,
+        entity_key,
+        op,
+        payload_json,
+        occurred_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `),
+    findUserSyncCursorByPeer: db.prepare(`
+      SELECT peer_station, last_version, updated_at
+      FROM user_sync_cursors
+      WHERE peer_station = ?
+      LIMIT 1
+    `),
+    upsertUserSyncCursorByPeer: db.prepare(`
+      INSERT INTO user_sync_cursors(peer_station, last_version, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(peer_station) DO UPDATE SET
+        last_version = excluded.last_version,
+        updated_at = excluded.updated_at
+    `),
+    findUserTombstoneByPublicId: db.prepare(`
+      SELECT public_id, deleted_at, source_station, op_id, payload_json, updated_at
+      FROM user_tombstones
+      WHERE public_id = ?
+      LIMIT 1
+    `),
+    upsertUserTombstone: db.prepare(`
+      INSERT INTO user_tombstones(public_id, deleted_at, source_station, op_id, payload_json, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(public_id) DO UPDATE SET
+        deleted_at = excluded.deleted_at,
+        source_station = excluded.source_station,
+        op_id = excluded.op_id,
+        payload_json = excluded.payload_json,
+        updated_at = excluded.updated_at
+    `),
+    deleteUserTombstoneByPublicId: db.prepare(`
+      DELETE FROM user_tombstones
+      WHERE public_id = ?
     `),
     countActiveMaintenanceExcluding: db.prepare(`
       SELECT COUNT(*) AS n
@@ -6165,10 +5989,13 @@ function createStatements(db) {
         rf.map_name,
         rf.sequence_name,
         rf.output_profile,
-        rf.preset_name,
+        rf.wrc_files_json,
         rf.mode_default,
         rf.is_active,
         rf.layout_json,
+        rf.allowed_sequences_json,
+        rf.allowed_presets_json,
+        rf.note_text,
         rf.created_by_user_id,
         rf.created_at,
         rf.updated_at,
@@ -6191,10 +6018,13 @@ function createStatements(db) {
         rf.map_name,
         rf.sequence_name,
         rf.output_profile,
-        rf.preset_name,
+        rf.wrc_files_json,
         rf.mode_default,
         rf.is_active,
         rf.layout_json,
+        rf.allowed_sequences_json,
+        rf.allowed_presets_json,
+        rf.note_text,
         rf.created_by_user_id,
         rf.created_at,
         rf.updated_at,
@@ -6218,10 +6048,13 @@ function createStatements(db) {
         rf.map_name,
         rf.sequence_name,
         rf.output_profile,
-        rf.preset_name,
+        rf.wrc_files_json,
         rf.mode_default,
         rf.is_active,
         rf.layout_json,
+        rf.allowed_sequences_json,
+        rf.allowed_presets_json,
+        rf.note_text,
         rf.created_by_user_id,
         rf.created_at,
         rf.updated_at,
@@ -6245,10 +6078,13 @@ function createStatements(db) {
         rf.map_name,
         rf.sequence_name,
         rf.output_profile,
-        rf.preset_name,
+        rf.wrc_files_json,
         rf.mode_default,
         rf.is_active,
         rf.layout_json,
+        rf.allowed_sequences_json,
+        rf.allowed_presets_json,
+        rf.note_text,
         rf.created_by_user_id,
         rf.created_at,
         rf.updated_at,
@@ -6272,15 +6108,18 @@ function createStatements(db) {
         map_name,
         sequence_name,
         output_profile,
-        preset_name,
+        wrc_files_json,
         mode_default,
         is_active,
         layout_json,
+        allowed_sequences_json,
+        allowed_presets_json,
+        note_text,
         created_by_user_id,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     updateRenderFormById: db.prepare(`
       UPDATE render_forms
@@ -6291,10 +6130,13 @@ function createStatements(db) {
         map_name = ?,
         sequence_name = ?,
         output_profile = ?,
-        preset_name = ?,
+        wrc_files_json = ?,
         mode_default = ?,
         is_active = ?,
         layout_json = ?,
+        allowed_sequences_json = ?,
+        allowed_presets_json = ?,
+        note_text = ?,
         updated_at = ?
       WHERE id = ?
     `),
@@ -6322,6 +6164,7 @@ function createStatements(db) {
         rff.is_required,
         rff.is_visible,
         rff.sort_order,
+        rff.wrc_file,
         rff.created_at,
         rff.updated_at
       FROM render_form_fields rff
@@ -6331,6 +6174,22 @@ function createStatements(db) {
     deleteRenderFormFieldsByFormId: db.prepare(`
       DELETE FROM render_form_fields
       WHERE form_id = ?
+    `),
+    deleteRenderFormFieldById: db.prepare(`
+      DELETE FROM render_form_fields
+      WHERE id = ?
+    `),
+    updateRenderFormFieldMeta: db.prepare(`
+      UPDATE render_form_fields
+      SET
+        group_name = ?,
+        default_value_json = ?,
+        updated_at = ?
+      WHERE id = ?
+    `),
+    deleteRenderFormFieldsByWrcFile: db.prepare(`
+      DELETE FROM render_form_fields
+      WHERE form_id = ? AND wrc_file = ?
     `),
     insertRenderFormField: db.prepare(`
       INSERT INTO render_form_fields(
@@ -6351,10 +6210,11 @@ function createStatements(db) {
         is_required,
         is_visible,
         sort_order,
+        wrc_file,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     listRenderJobs: db.prepare(`
       SELECT
@@ -6643,6 +6503,12 @@ function createStatements(db) {
         is_online = excluded.is_online,
         last_seen_at = excluded.last_seen_at,
         updated_at = excluded.updated_at
+        -- apte n'est PAS mis à jour ici : il ne change que via PATCH /aptitude
+    `),
+    updateRenderWorkerAptitude: db.prepare(`
+      UPDATE render_workers
+      SET apte = ?, updated_at = ?
+      WHERE worker_key = ?
     `),
     markStaleRenderWorkersOffline: db.prepare(`
       UPDATE render_workers
@@ -6730,6 +6596,10 @@ function createStatements(db) {
       SET queue_order = ?, updated_at = ?
       WHERE id = ?
     `),
+    deleteRenderJobById: db.prepare(`
+      DELETE FROM render_jobs
+      WHERE id = ?
+    `),
     listAllRenderJobsForExport: db.prepare(`
       SELECT *
       FROM render_jobs
@@ -6777,6 +6647,7 @@ function createStatements(db) {
       FROM render_workers
       WHERE is_active = 1
         AND can_render = 1
+        AND apte = 1
         AND is_online = 1
         AND current_render_job_id IS NULL
         AND (
@@ -7056,7 +6927,9 @@ function createStatements(db) {
         manageable_roles_json,
         is_system,
         created_at,
-        updated_at
+        updated_at,
+        last_source_station,
+        last_source_version
       FROM roles
       ORDER BY is_system DESC, key ASC
     `),
@@ -7084,7 +6957,9 @@ function createStatements(db) {
         manageable_roles_json,
         is_system,
         created_at,
-        updated_at
+        updated_at,
+        last_source_station,
+        last_source_version
       FROM roles
       WHERE key = ?
       LIMIT 1
@@ -7140,6 +7015,13 @@ function createStatements(db) {
         can_manage_layouts = ?,
         manageable_roles_json = ?,
         updated_at = ?
+      WHERE key = ?
+    `),
+    updateRoleSyncSourceByKey: db.prepare(`
+      UPDATE roles
+      SET
+        last_source_station = ?,
+        last_source_version = ?
       WHERE key = ?
     `),
     countRolesManageRolesExcluding: db.prepare(`
@@ -7382,10 +7264,13 @@ function buildRenderFormPayload(row) {
     mapName: String(row?.map_name || ''),
     sequenceName: String(row?.sequence_name || ''),
     outputProfile: String(row?.output_profile || ''),
-    presetName: String(row?.preset_name || ''),
+    wrcFiles: parseJsonArray(row?.wrc_files_json),
     modeDefault: normalizeRenderFormModeDefault(row?.mode_default, 'edit'),
     isActive: Number(row?.is_active) === 1,
     layout: parseJsonValue(row?.layout_json, {}),
+    allowedSequences: parseJsonArray(row?.allowed_sequences_json),
+    allowedPresets: parseJsonArray(row?.allowed_presets_json),
+    note: String(row?.note_text || ''),
     fieldsCount: Number.isFinite(Number(row?.fields_count))
       ? Math.max(0, Math.trunc(Number(row?.fields_count)))
       : 0,
@@ -7418,6 +7303,7 @@ function buildRenderFormFieldPayload(row) {
     sortOrder: Number.isFinite(Number(row?.sort_order))
       ? Math.max(-999999, Math.min(999999, Math.trunc(Number(row?.sort_order))))
       : 0,
+    wrcFile: String(row?.wrc_file || ''),
     createdAt: row?.created_at || null,
     updatedAt: row?.updated_at || null,
   };
@@ -7496,6 +7382,7 @@ function buildRenderWorkerPayload(row) {
     displayName: String(row?.display_name || ''),
     capabilities: parseRenderWorkerCapabilitiesJson(row?.capabilities_json),
     canRender: Number(row?.can_render) === 1,
+    apte: Number(row?.apte) === 1,
     isActive: Number(row?.is_active) === 1,
     isOnline: Number(row?.is_online) === 1,
     currentRenderJobId: row?.current_render_job_id == null ? null : Number(row.current_render_job_id),
@@ -7661,6 +7548,27 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
           Math.min(MAX_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS, Math.trunc(resourcesIndexAutoSyncIntervalRaw))
         )
       : DEFAULT_RESOURCES_INDEX_AUTO_SYNC_INTERVAL_MS;
+  const usersSyncPollIntervalRaw = Number(process.env.UU_POSTPROD_USERS_SYNC_POLL_INTERVAL_MS);
+  const usersSyncPollIntervalMs =
+    Number.isFinite(usersSyncPollIntervalRaw)
+      ? Math.max(
+          MIN_USERS_SYNC_POLL_INTERVAL_MS,
+          Math.min(MAX_USERS_SYNC_POLL_INTERVAL_MS, Math.trunc(usersSyncPollIntervalRaw))
+        )
+      : DEFAULT_USERS_SYNC_POLL_INTERVAL_MS;
+  const usersSyncRemoteTimeoutRaw = Number(process.env.UU_POSTPROD_USERS_SYNC_REMOTE_TIMEOUT_MS);
+  const usersSyncRemoteTimeoutMs =
+    Number.isFinite(usersSyncRemoteTimeoutRaw)
+      ? Math.max(
+          MIN_USERS_SYNC_REMOTE_TIMEOUT_MS,
+          Math.min(MAX_USERS_SYNC_REMOTE_TIMEOUT_MS, Math.trunc(usersSyncRemoteTimeoutRaw))
+        )
+      : DEFAULT_USERS_SYNC_REMOTE_TIMEOUT_MS;
+  const usersSyncFetchLimitRaw = Number(process.env.UU_POSTPROD_USERS_SYNC_FETCH_LIMIT);
+  const usersSyncFetchLimit =
+    Number.isFinite(usersSyncFetchLimitRaw)
+      ? Math.max(1, Math.min(MAX_USERS_SYNC_FETCH_LIMIT, Math.trunc(usersSyncFetchLimitRaw)))
+      : DEFAULT_USERS_SYNC_FETCH_LIMIT;
   const renderDetectedExtensionsFromEnv = normalizeRenderDetectedExtensions(
     process.env.UU_POSTPROD_RENDER_DETECT_EXTENSIONS
   );
@@ -7860,80 +7768,205 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
         field.isRequired ? 1 : 0,
         field.isVisible ? 1 : 0,
         field.sortOrder,
+        String(field.wrcFile || ''),
         nowIsoValue,
         nowIsoValue
       );
     }
   });
 
+  // Merge WRC fields into existing SQLite fields, scoped to a single wrcFile.
+  // - Match by source_path (stable WRC GUID identifier) within the wrcFile scope.
+  // - Matched: update only group_name + default_value_json (preserve user customizations).
+  // - New (not in existing for this wrcFile): insert with sort_order after all existing ones.
+  // - Orphaned (in SQLite for this wrcFile but not in incoming list): delete.
+  // If wrcFile is empty, falls back to unscoped behavior (all fields).
+  function mergeRenderFormFieldsTx(formId, normalizedFields, wrcFile, nowIsoValue, localStmts) {
+    const s = localStmts || stmts;
+    const scopedWrcFile = String(wrcFile || '').trim();
+    db.transaction(() => {
+      const allExisting = s.listRenderFormFieldsByFormId.all(formId);
+      // Scope to matching wrc_file (or all if no scope)
+      const existing = scopedWrcFile
+        ? allExisting.filter((row) => String(row.wrc_file || '').trim() === scopedWrcFile)
+        : allExisting;
+
+      const existingBySourcePath = new Map();
+      for (const row of existing) {
+        const key = String(row.source_path || '').trim();
+        if (key) existingBySourcePath.set(key, row);
+      }
+
+      const incomingSourcePaths = new Set();
+      const incomingBySourcePath = new Map();
+      for (const field of normalizedFields) {
+        const key = String(field.sourcePath || '').trim();
+        if (key) {
+          incomingSourcePaths.add(key);
+          incomingBySourcePath.set(key, field);
+        }
+      }
+
+      // Update matched fields (only WRC-sourced metadata).
+      for (const [sourcePath, row] of existingBySourcePath) {
+        if (incomingSourcePaths.has(sourcePath)) {
+          const incoming = incomingBySourcePath.get(sourcePath);
+          s.updateRenderFormFieldMeta.run(
+            incoming.groupName,
+            incoming.defaultValueJson,
+            nowIsoValue,
+            row.id
+          );
+        } else {
+          // Orphaned within this wrcFile scope: delete.
+          s.deleteRenderFormFieldById.run(row.id);
+        }
+      }
+
+      // Insert new fields (not yet in SQLite for this wrcFile scope).
+      const maxExistingSortOrder = allExisting.reduce(
+        (max, row) => Math.max(max, Number(row.sort_order || 0)),
+        0
+      );
+      const usedFieldKeys = new Set(
+        allExisting
+          .map((row) => String(row?.field_key || '').trim().toLowerCase())
+          .filter(Boolean)
+      );
+      const usedPayloadKeys = new Set(
+        allExisting
+          .map((row) => String(row?.payload_key || '').trim().toLowerCase())
+          .filter(Boolean)
+      );
+      function reserveUniqueFieldKey(rawFieldKey, sourcePath, usedSet) {
+        const baseKey = sanitizeRenderFormFieldKey(rawFieldKey, sourcePath);
+        if (!baseKey) return '';
+        let candidate = baseKey;
+        let dedupeIndex = 2;
+        while (usedSet.has(candidate.toLowerCase())) {
+          candidate = sanitizeRenderFormFieldKey(`${baseKey}_${dedupeIndex}`, baseKey);
+          dedupeIndex += 1;
+          if (!candidate) break;
+        }
+        if (!candidate) return '';
+        usedSet.add(candidate.toLowerCase());
+        return candidate;
+      }
+      function reserveUniquePayloadKey(rawPayloadKey, fieldKey, usedSet) {
+        const baseKey = sanitizeRenderFormFieldPayloadKey(rawPayloadKey, fieldKey) || fieldKey;
+        let candidate = baseKey;
+        let dedupeIndex = 2;
+        while (usedSet.has(candidate.toLowerCase())) {
+          candidate = sanitizeRenderFormFieldPayloadKey(`${baseKey}_${dedupeIndex}`, fieldKey) || `${fieldKey}_${dedupeIndex}`;
+          dedupeIndex += 1;
+        }
+        usedSet.add(candidate.toLowerCase());
+        return candidate;
+      }
+      let nextSortOrder = maxExistingSortOrder + 1;
+      for (const field of normalizedFields) {
+        const sourcePath = String(field.sourcePath || '').trim();
+        if (!sourcePath || existingBySourcePath.has(sourcePath)) continue;
+        const nextFieldKey = reserveUniqueFieldKey(field.fieldKey, sourcePath, usedFieldKeys);
+        if (!nextFieldKey) continue;
+        const nextPayloadKey = reserveUniquePayloadKey(field.payloadKey, nextFieldKey, usedPayloadKeys);
+        s.insertRenderFormField.run(
+          formId,
+          nextFieldKey,
+          field.fieldLabel,
+          field.sourcePath,
+          field.sourceType,
+          field.inputKind,
+          field.valueType,
+          field.groupName,
+          nextPayloadKey,
+          field.placeholder,
+          field.helpText,
+          field.optionsJson,
+          field.validationJson,
+          field.defaultValueJson,
+          field.isRequired ? 1 : 0,
+          field.isVisible ? 1 : 0,
+          nextSortOrder,
+          scopedWrcFile,
+          nowIsoValue,
+          nowIsoValue
+        );
+        nextSortOrder += 1;
+      }
+    })();
+  }
+
+  function removeWrcFileFieldsTx(formId, wrcFile, localStmts) {
+    const s = localStmts || stmts;
+    const scopedWrcFile = String(wrcFile || '').trim();
+    if (!scopedWrcFile) return;
+    db.transaction(() => {
+      s.deleteRenderFormFieldsByWrcFile.run(formId, scopedWrcFile);
+    })();
+  }
+
   function refreshRolesCache() {
     rolesCache = buildRolesCache(stmts.listRoles.all());
     return rolesCache;
   }
 
-  try {
-    const count = Number(stmts.countUsers.get()?.n || 0);
-    if (count <= 0) {
-      const username = normalizeUsername(process.env.UU_POSTPROD_BOOTSTRAP_USER || DEFAULT_BOOTSTRAP_USER);
-      const rawPassword = String(process.env.UU_POSTPROD_BOOTSTRAP_PASSWORD || DEFAULT_BOOTSTRAP_PASSWORD);
-      const role = resolveRoleInput(
-        process.env.UU_POSTPROD_BOOTSTRAP_ROLE || DEFAULT_BOOTSTRAP_ROLE,
-        rolesCache,
-        SYSTEM_MAINTENANCE_ROLE
-      ) || SYSTEM_MAINTENANCE_ROLE;
-      const now = nowIso();
-      const publicId = buildPublicId();
-      stmts.insertUser.run(
-        publicId,
-        username || DEFAULT_BOOTSTRAP_USER,
-        hashPassword(rawPassword, pbkdf2Iters),
-        role,
-        1,
-        'Maintenance',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        0,
-        0,
-        null,
-        now,
-        now
-      );
-      const bootstrapUser = stmts.findUserByUsername.get(username || DEFAULT_BOOTSTRAP_USER);
-      const bootstrapUserId = Number(bootstrapUser?.id || 0);
-      if (Number.isFinite(bootstrapUserId) && bootstrapUserId > 0) {
-        stmts.upsertUserPreferences.run(
-          bootstrapUserId,
-          '',
-          DEFAULT_USER_LANGUAGE,
-          '{}',
-          now,
-          now
-        );
-      }
-      logLine({
-        level: 'warn',
-        src: 'postprod',
-        action: 'bootstrap_user_created',
-        message: `Utilisateur bootstrap cree (${username || DEFAULT_BOOTSTRAP_USER})`,
-        data: { role },
-      });
-    }
-  } catch (err) {
-    logLine({
-      level: 'error',
-      src: 'postprod',
-      action: 'bootstrap_user_failed',
-      message: `Creation utilisateur bootstrap impossible: ${String(err?.message || err)}`,
-    });
-  }
+  const {
+    emitUserSyncUpsert,
+    emitUserSyncDelete,
+    emitRoleSyncUpsert,
+    runUsersSyncPoll,
+    startUsersSyncPollLoop,
+  } = createUsersSyncHelpers({
+    stmts,
+    commonServerFile,
+    hostsServerFile,
+    hostsToList,
+    normalizeHostCandidate,
+    readCommonServerConfigFile,
+    readHostsServerConfigFile,
+    formatHostForHttpUrl,
+    normalizeAscii,
+    normalizeUsername,
+    buildAutoUsername,
+    MAX_USERNAME_LEN,
+    normalizePublicId,
+    normalizeRole,
+    DEFAULT_FALLBACK_ROLE,
+    sanitizeDisplayName,
+    sanitizeFirstName,
+    sanitizeLastName,
+    sanitizeEmail,
+    sanitizePhone,
+    sanitizeEmploymentType,
+    sanitizeUserNote,
+    sanitizeAvatarPath,
+    MAX_FAILED_LOGIN_COUNT,
+    parseIsoDateOrNull,
+    sanitizeTimezone,
+    sanitizeUserLanguage,
+    DEFAULT_USER_LANGUAGE,
+    normalizeNotificationPreferences,
+    normalizeRoleRow,
+    normalizeManageableRolesInput,
+    sanitizeRoleKey,
+    usersSyncFetchLimit,
+    usersSyncRemoteTimeoutMs,
+    MIN_USERS_SYNC_REMOTE_TIMEOUT_MS,
+    DEFAULT_USERS_SYNC_REMOTE_TIMEOUT_MS,
+    usersSyncPollIntervalMs,
+    MIN_USERS_SYNC_POLL_INTERVAL_MS,
+    MAX_USERS_SYNC_POLL_INTERVAL_MS,
+    DEFAULT_USERS_SYNC_POLL_INTERVAL_MS,
+    DEFAULT_USERS_SYNC_AGENT_PORT,
+    nowIso,
+    safeParseObjectJson,
+    hashPassword,
+    DEFAULT_BOOTSTRAP_PASSWORD,
+    pbkdf2Iters,
+    refreshRolesCache,
+    logLine,
+  });
 
   function audit(actorUserId, action, payload = {}, scopeType = 'auth', scopeId = '') {
     try {
@@ -7947,1064 +7980,139 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
       );
     } catch {}
   }
-  const renderDetectedScanState = {
-    lastRunMs: 0,
-    lastSummary: null,
-  };
-  let renderDetectedAutoScanTimer = null;
-  let renderDetectedAutoScanBusy = false;
-  const resourcesIndexSyncState = {
-    lastRunMs: 0,
-    lastSummary: null,
-    busy: false,
-  };
+  const {
+    renderDetectedScanState,
+    isRenderDetectedAutoScanBusy,
+    importDetectedRenderOutputs,
+    startRenderDetectedAutoScanLoop,
+  } = createRenderDetectedAutoScanHelpers({
+    db,
+    stmts,
+    sharedStore,
+    resolveRenderDetectedRoots,
+    renderDetectedExtensions,
+    DEFAULT_RENDER_DETECTED_EXTENSIONS,
+    renderDetectedScanMaxFiles,
+    renderDetectedScanIntervalMs,
+    MIN_RENDER_DETECTED_SCAN_INTERVAL_MS,
+    MAX_RENDER_DETECTED_SCAN_INTERVAL_MS,
+    DEFAULT_RENDER_DETECTED_SCAN_INTERVAL_MS,
+    nowIso,
+    logLine,
+    audit,
+    resolveProjectForRender,
+    sanitizeRenderProjectName,
+    sanitizeRenderTemplateName,
+    DEFAULT_RENDER_DETECTED_TEMPLATE_NAME,
+    buildExpectedRenderTaskMatchCatalog,
+    findExpectedRenderTaskMatch,
+    buildRenderDetectedFileSignature,
+    sanitizeRenderOutputPath,
+    sanitizeTaskExpectedRenderName,
+    normalizeTaskExpectedRenderCount,
+  });
+  const {
+    resourcesIndexSyncState,
+    maybeSyncResourcesIndexFromLibrary,
+  } = createResourcesIndexSyncHelpers({
+    stmts,
+    sharedStore,
+    syncResourcesIndexFromLibrary,
+    resourcesIndexAutoSyncIntervalMs,
+    nowIso,
+    audit,
+  });
 
-  function maybeSyncResourcesIndexFromLibrary({
-    force = false,
-    actorUserId = null,
-  } = {}) {
-    const nowMs = Date.now();
-    const previous = (
-      resourcesIndexSyncState.lastSummary &&
-      typeof resourcesIndexSyncState.lastSummary === 'object'
-    )
-      ? resourcesIndexSyncState.lastSummary
-      : null;
-    if (resourcesIndexSyncState.busy) {
-      return {
-        ok: true,
-        skipped: true,
-        reason: 'busy',
-        previous,
-      };
-    }
-    if (!force && (nowMs - Number(resourcesIndexSyncState.lastRunMs || 0)) < resourcesIndexAutoSyncIntervalMs) {
-      return {
-        ok: true,
-        skipped: true,
-        reason: 'interval',
-        previous,
-      };
-    }
-    resourcesIndexSyncState.busy = true;
-    resourcesIndexSyncState.lastRunMs = nowMs;
-    const now = nowIso();
-    let summary = null;
-    try {
-      const syncResult = syncResourcesIndexFromLibrary(stmts, sharedStore, { now });
-      const safeActorUserId = Number(actorUserId || 0);
-      const countAfter = Number(stmts.countResourcesIndex.get()?.n || 0);
-      summary = {
-        ok: syncResult.ok === true,
-        skipped: false,
-        reason: syncResult.ok ? 'synced' : String(syncResult.error || 'sync_failed'),
-        processed: Number(syncResult.processed || 0),
-        inserted: Number(syncResult.inserted || 0),
-        updated: Number(syncResult.updated || 0),
-        totalSource: Number(syncResult.totalSource || 0),
-        countAfter,
-        at: now,
-      };
-      if (syncResult.ok && safeActorUserId > 0 && (summary.inserted > 0 || summary.updated > 0)) {
-        audit(
-          safeActorUserId,
-          'resources_reindexed_auto',
-          {
-            processed: summary.processed,
-            inserted: summary.inserted,
-            updated: summary.updated,
-            countAfter,
-          },
-          'resource',
-          ''
-        );
-      }
-      if (!syncResult.ok) {
-        summary.error = String(syncResult.error || 'sync_failed');
-      }
-    } catch (err) {
-      summary = {
-        ok: false,
-        skipped: false,
-        reason: 'sync_failed',
-        error: String(err?.message || err || 'sync_failed').slice(0, 240),
-        at: now,
-      };
-    } finally {
-      resourcesIndexSyncState.busy = false;
-    }
-    resourcesIndexSyncState.lastSummary = summary;
-    return summary;
-  }
-
-  function resolveRenderDetectedActorUserId(preferredUserId = null) {
-    const direct = Number(preferredUserId || 0);
-    if (Number.isFinite(direct) && direct > 0) return direct;
-    const preferred = stmts.findRenderDetectionPreferredActor.get();
-    const preferredId = Number(preferred?.id || 0);
-    if (Number.isFinite(preferredId) && preferredId > 0) return preferredId;
-    const fallback = stmts.findRenderDetectionFallbackActor.get();
-    const fallbackId = Number(fallback?.id || 0);
-    if (Number.isFinite(fallbackId) && fallbackId > 0) return fallbackId;
-    return 0;
-  }
-
-  function listRenderDetectedFileCandidates(detectedRoots = null) {
-    const out = [];
-    const allowedExtensions = renderDetectedExtensions instanceof Set
-      ? renderDetectedExtensions
-      : new Set(DEFAULT_RENDER_DETECTED_EXTENSIONS);
-    const roots = Array.isArray(detectedRoots) && detectedRoots.length > 0
-      ? detectedRoots
-      : resolveRenderDetectedRoots();
-    const stack = [];
-    for (const root of roots) {
-      const absRoot = String(root || '').trim();
-      if (!absRoot) continue;
-      if (!fs.existsSync(absRoot)) continue;
-      stack.push({ sourceDir: absRoot, currentDir: absRoot });
-    }
-    while (stack.length > 0 && out.length < renderDetectedScanMaxFiles) {
-      const next = stack.pop();
-      if (!next || !next.currentDir) continue;
-      let entries = [];
-      try {
-        entries = fs.readdirSync(next.currentDir, { withFileTypes: true });
-      } catch {
-        continue;
-      }
-      for (const entry of entries) {
-        if (!entry || !entry.name) continue;
-        const absPath = path.join(next.currentDir, entry.name);
-        if (entry.isDirectory()) {
-          stack.push({ sourceDir: next.sourceDir, currentDir: absPath });
-          continue;
-        }
-        if (!entry.isFile()) continue;
-        const ext = String(path.extname(entry.name || '') || '').trim().toLowerCase();
-        if (allowedExtensions.size > 0 && ext && !allowedExtensions.has(ext)) continue;
-        if (allowedExtensions.size > 0 && !ext) continue;
-        let stat = null;
-        try {
-          stat = fs.statSync(absPath);
-        } catch {
-          stat = null;
-        }
-        if (!stat || !stat.isFile()) continue;
-        const size = Math.max(0, Math.trunc(Number(stat.size) || 0));
-        const mtimeIso = Number.isFinite(Number(stat.mtimeMs))
-          ? new Date(Number(stat.mtimeMs)).toISOString()
-          : nowIso();
-        const relPath = (() => {
-          try {
-            return path.relative(next.sourceDir, absPath);
-          } catch {
-            return entry.name;
-          }
-        })();
-        out.push({
-          sourceDir: next.sourceDir,
-          filePath: absPath,
-          relativePath: String(relPath || entry.name || '').replace(/\\/g, '/'),
-          fileName: String(entry.name || '').trim(),
-          fileExt: ext,
-          fileSize: size,
-          fileMtimeAt: mtimeIso,
-        });
-        if (out.length >= renderDetectedScanMaxFiles) break;
-      }
-    }
-    out.sort((a, b) => String(a.fileMtimeAt || '').localeCompare(String(b.fileMtimeAt || '')));
-    return out;
-  }
-
-  function resolveDetectedRenderProjectName(candidate) {
-    const relative = String(candidate?.relativePath || '').replace(/\\/g, '/');
-    const firstSegment = relative.split('/').map((item) => String(item || '').trim()).filter(Boolean)[0] || '';
-    if (!firstSegment) return '';
-    const resolved = resolveProjectForRender(sharedStore, firstSegment, stmts);
-    if (resolved?.ok && resolved?.project) {
-      const projectRef = String(resolved.project.id || resolved.project.name || firstSegment).trim();
-      return sanitizeRenderProjectName(projectRef);
-    }
-    return sanitizeRenderProjectName(firstSegment);
-  }
-
-  function resolveDetectedRenderTemplateName(candidate) {
-    const filename = String(candidate?.fileName || '').trim();
-    const withoutExt = filename.replace(/\.[^/.]+$/g, '').replace(/\s+/g, ' ').trim();
-    return sanitizeRenderTemplateName(withoutExt, DEFAULT_RENDER_DETECTED_TEMPLATE_NAME);
-  }
-
-  function importDetectedRenderOutputs({
-    actorUserId = null,
-    force = false,
-  } = {}) {
-    const detectedRoots = resolveRenderDetectedRoots();
-    const nowMs = Date.now();
-    const previous = renderDetectedScanState.lastSummary && typeof renderDetectedScanState.lastSummary === 'object'
-      ? renderDetectedScanState.lastSummary
-      : null;
-    if (!force && (nowMs - Number(renderDetectedScanState.lastRunMs || 0)) < renderDetectedScanIntervalMs) {
-      return {
-        ok: true,
-        skipped: true,
-        reason: 'interval',
-        imported: 0,
-        duplicates: 0,
-        errors: 0,
-        matched: 0,
-        unmatched: 0,
-        scanned: 0,
-        roots: detectedRoots,
-        maxFiles: renderDetectedScanMaxFiles,
-        scanIntervalMs: renderDetectedScanIntervalMs,
-        at: nowIso(),
-        previous,
-      };
-    }
-    renderDetectedScanState.lastRunMs = nowMs;
-    const effectiveActorUserId = resolveRenderDetectedActorUserId(actorUserId);
-    if (!Number.isFinite(effectiveActorUserId) || effectiveActorUserId <= 0) {
-      const missingUserSummary = {
-        ok: false,
-        skipped: true,
-        reason: 'missing_actor_user',
-        imported: 0,
-        duplicates: 0,
-        errors: 0,
-        matched: 0,
-        unmatched: 0,
-        scanned: 0,
-        roots: detectedRoots,
-        maxFiles: renderDetectedScanMaxFiles,
-        scanIntervalMs: renderDetectedScanIntervalMs,
-        at: nowIso(),
-      };
-      renderDetectedScanState.lastSummary = missingUserSummary;
-      return missingUserSummary;
-    }
-    const candidates = listRenderDetectedFileCandidates(detectedRoots);
-    const taskMatchCatalog = buildExpectedRenderTaskMatchCatalog(stmts);
-    const taskDetectedProgressById = new Map();
-    const tx = db.transaction((payload) => {
-      const signature = String(payload.signature || '').trim();
-      const exists = stmts.findRenderDetectedFileBySignature.get(signature);
-      if (exists) return { duplicate: true, renderId: Number(exists?.render_job_id || 0) };
-      const createdAt = String(payload.createdAt || nowIso()).trim() || nowIso();
-      const insertRes = stmts.insertRenderJob.run(
-        payload.projectName,
-        payload.templateName,
-        payload.renderPayloadJson,
-        'Done',
-        'to_validate',
-        payload.actorUserId,
-        null,
-        1,
-        payload.outputPath,
-        '',
-        payload.finishedAt,
-        payload.finishedAt,
-        createdAt,
-        createdAt
-      );
-      const renderId = Number(insertRes?.lastInsertRowid || 0);
-      stmts.insertRenderJobEvent.run(
-        renderId,
-        'Queued',
-        'Done',
-        payload.actorUserId,
-        'detected_output_import',
-        createdAt
-      );
-      stmts.insertRenderDetectedFile.run(
-        signature,
-        payload.sourceDir,
-        payload.filePath,
-        payload.projectName,
-        payload.templateName,
-        payload.fileName,
-        payload.fileExt,
-        payload.fileSize,
-        payload.fileMtimeAt,
-        renderId,
-        payload.matchedTaskId,
-        payload.matchedExpectedRenderName,
-        'imported',
-        '',
-        createdAt,
-        createdAt
-      );
-      return { duplicate: false, renderId };
-    });
-
-    let imported = 0;
-    let duplicates = 0;
-    let errors = 0;
-    let matched = 0;
-    let unmatched = 0;
-    for (const candidate of candidates) {
-      const signature = buildRenderDetectedFileSignature(
-        candidate.filePath,
-        candidate.fileSize,
-        candidate.fileMtimeAt
-      );
-      const projectName = resolveDetectedRenderProjectName(candidate);
-      const templateName = resolveDetectedRenderTemplateName(candidate);
-      const filePath = sanitizeRenderOutputPath(candidate.filePath);
-      const sourceDir = sanitizeRenderOutputPath(candidate.sourceDir);
-      const fileName = String(candidate.fileName || '').trim().slice(0, 260);
-      const fileExt = String(candidate.fileExt || '').trim().slice(0, 32).toLowerCase();
-      const fileSize = Math.max(0, Math.trunc(Number(candidate.fileSize) || 0));
-      const fileMtimeAt = String(candidate.fileMtimeAt || '').trim();
-      const taskMatch = findExpectedRenderTaskMatch(taskMatchCatalog, fileName);
-      const matchedTaskId = Number(taskMatch?.taskId || 0);
-      const hasMatchedTask = Number.isFinite(matchedTaskId) && matchedTaskId > 0;
-      const matchedExpectedRenderName = hasMatchedTask
-        ? sanitizeTaskExpectedRenderName(taskMatch?.expectedRenderName)
-        : '';
-      const matchedTaskExpectedRenderCount = hasMatchedTask
-        ? normalizeTaskExpectedRenderCount(
-          taskMatch?.expectedRenderCount,
-          taskMatch?.requestType,
-          1
-        )
-        : 0;
-      let matchedTaskDetectedBefore = 0;
-      if (hasMatchedTask) {
-        if (!taskDetectedProgressById.has(matchedTaskId)) {
-          const existingCountRow = stmts.countRenderDetectedFilesByTaskId.get(matchedTaskId);
-          const existingCount = Number(existingCountRow?.n || 0);
-          taskDetectedProgressById.set(
-            matchedTaskId,
-            Number.isFinite(existingCount) && existingCount > 0 ? Math.trunc(existingCount) : 0
-          );
-        }
-        matchedTaskDetectedBefore = Number(taskDetectedProgressById.get(matchedTaskId) || 0);
-      }
-      const payloadObj = {
-        source: 'detected_file',
-        filePath,
-        fileName,
-        fileExt,
-        fileSize,
-        fileMtimeAt,
-      };
-      if (hasMatchedTask) {
-        payloadObj.taskId = matchedTaskId;
-        payloadObj.taskTitle = String(taskMatch?.taskTitle || '');
-        payloadObj.taskStatus = String(taskMatch?.taskStatus || '');
-        payloadObj.matchedExpectedRenderName = matchedExpectedRenderName;
-        payloadObj.taskExpectedRenderCount = matchedTaskExpectedRenderCount;
-        payloadObj.taskDetectedRenderCount = matchedTaskDetectedBefore + 1;
-      }
-      let renderPayloadJson = '{}';
-      try {
-        renderPayloadJson = JSON.stringify(payloadObj);
-      } catch {
-        renderPayloadJson = '{}';
-      }
-      try {
-        const result = tx({
-          signature,
-          sourceDir,
-          filePath,
-          projectName,
-          templateName,
-          fileName,
-          fileExt,
-          fileSize,
-          fileMtimeAt,
-          outputPath: filePath,
-          finishedAt: fileMtimeAt || nowIso(),
-          actorUserId: effectiveActorUserId,
-          createdAt: nowIso(),
-          renderPayloadJson,
-          matchedTaskId: hasMatchedTask ? matchedTaskId : null,
-          matchedExpectedRenderName,
-        });
-        if (result?.duplicate) {
-          duplicates += 1;
-        } else {
-          imported += 1;
-          if (hasMatchedTask) {
-            matched += 1;
-            taskDetectedProgressById.set(matchedTaskId, matchedTaskDetectedBefore + 1);
-          } else {
-            unmatched += 1;
-          }
-        }
-      } catch (err) {
-        const msg = String(err?.message || err);
-        if (/unique/i.test(msg)) {
-          duplicates += 1;
-          continue;
-        }
-        errors += 1;
-      }
-    }
-    if (imported > 0) {
-      audit(
-        effectiveActorUserId,
-          'render_detected_imported',
-          {
-            imported,
-            duplicates,
-            errors,
-            matched,
-            unmatched,
-            scanned: candidates.length,
-            roots: detectedRoots,
-          },
-        'render',
-        ''
-      );
-    }
-    const summary = {
-      ok: true,
-      skipped: false,
-      reason: '',
-      imported,
-      duplicates,
-      errors,
-      matched,
-      unmatched,
-      scanned: candidates.length,
-      roots: detectedRoots,
-      maxFiles: renderDetectedScanMaxFiles,
-      scanIntervalMs: renderDetectedScanIntervalMs,
-      at: nowIso(),
-    };
-    renderDetectedScanState.lastSummary = summary;
-    return summary;
-  }
-
-  function runRenderDetectedAutoScan({ force = true } = {}) {
-    if (renderDetectedAutoScanBusy) return;
-    renderDetectedAutoScanBusy = true;
-    try {
-      const summary = importDetectedRenderOutputs({ force });
-      if (Number(summary?.imported || 0) > 0 || Number(summary?.errors || 0) > 0) {
-        logLine({
-          level: Number(summary?.errors || 0) > 0 ? 'warn' : 'info',
-          src: 'postprod',
-          action: 'render_detected_auto_scan',
-          message: `Scan auto rendus detectes: +${Number(summary?.imported || 0)} / dup ${Number(summary?.duplicates || 0)} / err ${Number(summary?.errors || 0)}`,
-          data: summary,
-        });
-      }
-    } catch (err) {
-      logLine({
-        level: 'warn',
-        src: 'postprod',
-        action: 'render_detected_auto_scan_failed',
-        message: `Scan auto rendus detectes impossible: ${String(err?.message || err)}`,
-      });
-    } finally {
-      renderDetectedAutoScanBusy = false;
-    }
-  }
-
-  function startRenderDetectedAutoScanLoop() {
-    const intervalMs = Math.max(
-      MIN_RENDER_DETECTED_SCAN_INTERVAL_MS,
-      Math.min(MAX_RENDER_DETECTED_SCAN_INTERVAL_MS, Math.trunc(Number(renderDetectedScanIntervalMs) || DEFAULT_RENDER_DETECTED_SCAN_INTERVAL_MS))
-    );
-    const firstDelayMs = Math.min(5000, Math.max(1000, Math.trunc(intervalMs / 2)));
-    const scheduleNext = (delayMs = intervalMs) => {
-      if (renderDetectedAutoScanTimer) clearTimeout(renderDetectedAutoScanTimer);
-      renderDetectedAutoScanTimer = setTimeout(() => {
-        runRenderDetectedAutoScan({ force: true });
-        scheduleNext(intervalMs);
-      }, Math.max(1000, Math.trunc(Number(delayMs) || intervalMs)));
-      if (typeof renderDetectedAutoScanTimer?.unref === 'function') {
-        renderDetectedAutoScanTimer.unref();
-      }
-    };
-    scheduleNext(firstDelayMs);
-  }
   maybeSyncResourcesIndexFromLibrary({ force: true });
   startRenderDetectedAutoScanLoop();
-
-  const renderHealthAuditCleanupState = {
-    nextAtMs: 0,
-    lastRunAt: '',
-    lastDeleted: 0,
-  };
-
-  function getRenderHealthAuditMaintenanceSnapshot(now = nowIso()) {
-    const enabled = Number.isFinite(renderHealthEventRetentionDays) && renderHealthEventRetentionDays > 0;
-    const nextCleanupAt = Number(renderHealthAuditCleanupState.nextAtMs || 0) > 0
-      ? new Date(Number(renderHealthAuditCleanupState.nextAtMs || 0)).toISOString()
-      : '';
-    let currentCount = 0;
-    try {
-      const row = stmts.countAuditEntriesByAction.get(POSTPROD_RENDER_HEALTH_AUDIT_ACTION);
-      currentCount = Number.isFinite(Number(row?.n)) ? Math.max(0, Math.trunc(Number(row.n))) : 0;
-    } catch {
-      currentCount = 0;
-    }
-    return {
-      action: POSTPROD_RENDER_HEALTH_AUDIT_ACTION,
-      enabled,
-      retentionDays: renderHealthEventRetentionDays,
-      cleanupIntervalMs: renderHealthEventCleanupIntervalMs,
-      now: String(now || '').trim() || nowIso(),
-      nextCleanupAt,
-      lastRunAt: String(renderHealthAuditCleanupState.lastRunAt || '').trim(),
-      lastDeleted: Math.max(0, Math.trunc(Number(renderHealthAuditCleanupState.lastDeleted) || 0)),
-      currentCount,
-    };
+  startUsersSyncPollLoop();
+  const usersSyncBootTimer = setTimeout(() => {
+    runUsersSyncPoll().catch(() => {});
+  }, 1200);
+  if (typeof usersSyncBootTimer?.unref === 'function') {
+    usersSyncBootTimer.unref();
   }
+  const {
+    getRenderHealthAuditMaintenanceSnapshot,
+    maybePurgeRenderHealthAuditEvents,
+  } = createRenderHealthAuditMaintenanceHelpers({
+    nowIso,
+    stmts,
+    logLine,
+    subtractDays,
+    POSTPROD_RENDER_HEALTH_AUDIT_ACTION,
+    renderHealthEventRetentionDays,
+    renderHealthEventCleanupIntervalMs,
+    DEFAULT_RENDER_HEALTH_EVENT_RETENTION_DAYS,
+  });
 
-  function maybePurgeRenderHealthAuditEvents(now = nowIso(), { force = false } = {}) {
-    if (!Number.isFinite(renderHealthEventRetentionDays) || renderHealthEventRetentionDays <= 0) {
-      return {
-        deleted: 0,
-        cutoff: '',
-        skipped: true,
-        reason: 'disabled',
-      };
-    }
-    const nowMs = Date.parse(String(now || ''));
-    const safeNowMs = Number.isFinite(nowMs) ? nowMs : Date.now();
-    if (!force && safeNowMs < Number(renderHealthAuditCleanupState.nextAtMs || 0)) {
-      return {
-        deleted: 0,
-        cutoff: '',
-        skipped: true,
-        reason: 'interval',
-      };
-    }
-    renderHealthAuditCleanupState.nextAtMs = safeNowMs + renderHealthEventCleanupIntervalMs;
-    const cutoff = subtractDays(now, renderHealthEventRetentionDays, DEFAULT_RENDER_HEALTH_EVENT_RETENTION_DAYS);
-    let deleted = 0;
-    try {
-      const result = stmts.deleteAuditEntriesByActionBefore.run(
-        POSTPROD_RENDER_HEALTH_AUDIT_ACTION,
-        cutoff
-      );
-      deleted = Math.max(0, Math.trunc(Number(result?.changes || 0)));
-    } catch {
-      deleted = 0;
-    }
-    renderHealthAuditCleanupState.lastRunAt = String(now || '').trim();
-    renderHealthAuditCleanupState.lastDeleted = deleted;
-    if (deleted > 0) {
-      logLine({
-        level: 'info',
-        src: 'postprod',
-        action: 'render_health_audit_purged',
-        message: `Purge audit render health: ${deleted} entree(s) supprimee(s)`,
-        data: {
-          action: POSTPROD_RENDER_HEALTH_AUDIT_ACTION,
-          retentionDays: renderHealthEventRetentionDays,
-          cutoff,
-          deleted,
-        },
-      });
-    }
-    return {
-      deleted,
-      cutoff,
-      skipped: false,
-      reason: '',
-    };
-  }
-
-  function asCount(value) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return 0;
-    return Math.max(0, Math.trunc(n));
-  }
-
-  function requireSession(req, res, sendJSON, { tokenFallback = '' } = {}) {
-    const token = getAuthToken(req, tokenFallback);
-    if (!token) {
-      sendJSON(res, 401, { ok: false, error: 'missing_token' });
-      return null;
-    }
-    const now = nowIso();
-    const session = stmts.findActiveSessionByToken.get(token, now);
-    if (!session) {
-      sendJSON(res, 401, { ok: false, error: 'invalid_session' });
-      return null;
-    }
-    stmts.touchSession.run(now, token);
-    return { token, now, session };
-  }
-
-  function requireManageUsers(sessionWrap, res, sendJSON) {
-    if (!sessionWrap || !sessionWrap.session) return false;
-    const perms = rolePermissions(sessionWrap.session.role, rolesCache);
-    if (!perms.canManageUsers) {
-      sendJSON(res, 403, { ok: false, error: 'forbidden' });
-      return false;
-    }
-    return perms;
-  }
-
-  function requireBanUsers(sessionWrap, res, sendJSON) {
-    if (!sessionWrap || !sessionWrap.session) return false;
-    const perms = rolePermissions(sessionWrap.session.role, rolesCache);
-    if (perms.canBanUsers !== true) {
-      sendJSON(res, 403, { ok: false, error: 'forbidden_ban_users' });
-      return false;
-    }
-    return perms;
-  }
-
-  function requireManageProjectPermissions(sessionWrap, res, sendJSON) {
-    if (!sessionWrap || !sessionWrap.session) return false;
-    const perms = rolePermissions(sessionWrap.session.role, rolesCache);
-    if (perms.canManageProjectPermissions !== true) {
-      sendJSON(res, 403, { ok: false, error: 'forbidden_project_permissions_manage' });
-      return false;
-    }
-    return perms;
-  }
-
-  function requireManageRoles(sessionWrap, res, sendJSON) {
-    if (!sessionWrap || !sessionWrap.session) return false;
-    const perms = rolePermissions(sessionWrap.session.role, rolesCache);
-    if (!perms.canManageRoles) {
-      sendJSON(res, 403, { ok: false, error: 'forbidden' });
-      return false;
-    }
-    return perms;
-  }
-
-  function requireRenderTemplateManage(sessionWrap, res, sendJSON) {
-    if (!sessionWrap || !sessionWrap.session) return false;
-    const perms = rolePermissions(sessionWrap.session.role, rolesCache);
-    if (perms.canManageForms !== true) {
-      sendJSON(res, 403, { ok: false, error: 'forbidden_template_manage' });
-      return false;
-    }
-    return perms;
-  }
-
-  function requireRenderTemplateManageForProject(sessionWrap, res, sendJSON, rawProjectRef) {
-    const perms = requireRenderTemplateManage(sessionWrap, res, sendJSON);
-    if (!perms) return null;
-
-    const roleKey =
-      resolveRoleInput(sessionWrap?.session?.role, rolesCache, DEFAULT_FALLBACK_ROLE) || DEFAULT_FALLBACK_ROLE;
-    if (roleKey === SYSTEM_MAINTENANCE_ROLE) {
-      return {
-        perms,
-        projectRef: sanitizeProjectRef(rawProjectRef),
-        project: null,
-        projectPermissions: null,
-      };
-    }
-
-    if (perms.canLaunchRenders !== true) {
-      sendJSON(res, 403, { ok: false, error: 'forbidden_template_manage_project' });
-      return null;
-    }
-
-    const projectResolved = resolveProjectForApi(sharedStore, rawProjectRef, stmts);
-    if (!projectResolved.ok) {
-      sendJSON(res, 400, { ok: false, error: projectResolved.error || 'invalid_project_id' });
-      return null;
-    }
-    const projectRef = sanitizeProjectRef(projectResolved.projectRef || rawProjectRef);
-    if (!projectRef) {
-      sendJSON(res, 400, { ok: false, error: 'invalid_project_id' });
-      return null;
-    }
-
-    const actorUserId = Number(sessionWrap?.session?.user_id || 0);
-    if (!Number.isFinite(actorUserId) || actorUserId <= 0) {
-      sendJSON(res, 403, { ok: false, error: 'forbidden_template_manage_project' });
-      return null;
-    }
-    const projectPerms = stmts.findProjectUserRole.get(actorUserId, projectRef);
-    if (Number(projectPerms?.can_launch_render) !== 1) {
-      sendJSON(res, 403, { ok: false, error: 'forbidden_template_manage_project' });
-      return null;
-    }
-
-    return {
-      perms,
-      projectRef,
-      project: projectResolved.project,
-      projectPermissions: buildProjectPermissionPayload(projectPerms),
-    };
-  }
-
-  function requireRenderLaunchForProject(
-    sessionWrap,
-    res,
-    sendJSON,
-    rawProjectRef,
-    {
-      forbiddenError = 'forbidden_project_render_launch',
-    } = {}
-  ) {
-    if (!sessionWrap || !sessionWrap.session) return null;
-    const projectRefInput = sanitizeProjectRef(rawProjectRef);
-    if (!projectRefInput) {
-      sendJSON(res, 400, { ok: false, error: 'invalid_project_id' });
-      return null;
-    }
-
-    const roleKey =
-      resolveRoleInput(sessionWrap?.session?.role, rolesCache, DEFAULT_FALLBACK_ROLE) || DEFAULT_FALLBACK_ROLE;
-    const perms = rolePermissions(roleKey, rolesCache);
-    if (perms.canLaunchRenders !== true) {
-      sendJSON(res, 403, { ok: false, error: 'forbidden' });
-      return null;
-    }
-    if (roleKey === SYSTEM_MAINTENANCE_ROLE) {
-      return {
-        perms,
-        projectRef: projectRefInput,
-        project: null,
-        projectPermissions: null,
-      };
-    }
-
-    const projectResolved = resolveProjectForApi(sharedStore, projectRefInput, stmts);
-    if (!projectResolved.ok) {
-      sendJSON(res, 400, { ok: false, error: projectResolved.error || 'invalid_project_id' });
-      return null;
-    }
-    const projectRef = sanitizeProjectRef(projectResolved.projectRef || projectRefInput);
-    if (!projectRef) {
-      sendJSON(res, 400, { ok: false, error: 'invalid_project_id' });
-      return null;
-    }
-
-    const actorUserId = Number(sessionWrap?.session?.user_id || 0);
-    if (!Number.isFinite(actorUserId) || actorUserId <= 0) {
-      sendJSON(res, 403, { ok: false, error: forbiddenError });
-      return null;
-    }
-
-    const projectPerms = stmts.findProjectUserRole.get(actorUserId, projectRef);
-    if (Number(projectPerms?.can_launch_render) !== 1) {
-      sendJSON(res, 403, { ok: false, error: forbiddenError });
-      return null;
-    }
-
-    return {
-      perms,
-      projectRef,
-      project: projectResolved.project,
-      projectPermissions: buildProjectPermissionPayload(projectPerms),
-    };
-  }
-
-  function requireRenderDispatch(sessionWrap, res, sendJSON) {
-    if (!sessionWrap || !sessionWrap.session) return false;
-    const perms = rolePermissions(sessionWrap.session.role, rolesCache);
-    if (perms.canLaunchRenders !== true) {
-      sendJSON(res, 403, { ok: false, error: 'forbidden_dispatch' });
-      return false;
-    }
-    return perms;
-  }
-
-  function sweepStaleWorkersAndRequeue(now, cutoff, actorUserId = 0) {
-    const staleRunning = stmts.listStaleRunningRenderJobs.all(cutoff);
-    stmts.markStaleRenderWorkersOffline.run(now, cutoff);
-    if (!Array.isArray(staleRunning) || staleRunning.length === 0) return 0;
-    const safeActorUserId = Number.isFinite(Number(actorUserId))
-      ? Math.trunc(Number(actorUserId))
-      : 0;
-    const requeued = db.transaction(() => {
-      let count = 0;
-      for (const row of staleRunning) {
-        const renderId = Number(row?.id || 0);
-        if (!Number.isFinite(renderId) || renderId <= 0) continue;
-        const updated = stmts.requeueRenderJobForOfflineWorker.run(now, renderId);
-        if (Number(updated?.changes || 0) <= 0) continue;
-        stmts.clearRenderWorkerCurrentJobByRenderId.run(now, renderId);
-        if (safeActorUserId > 0) {
-          stmts.insertRenderJobEvent.run(
-            renderId,
-            'Running',
-            'Queued',
-            safeActorUserId,
-            'worker_offline_requeue',
-            now
-          );
-        }
-        count += 1;
-      }
-      return count;
-    })();
-    if (requeued > 0 && safeActorUserId > 0) {
-      audit(
-        safeActorUserId,
-        'renders_requeued_worker_offline',
-        { count: requeued },
-        'render',
-        ''
-      );
-    }
-    return requeued;
-  }
-
-  function listTaskProjectRefsFromRelations(taskId, fallbackRefs = []) {
-    if (!Number.isFinite(Number(taskId)) || Number(taskId) <= 0) {
-      return normalizeTaskRefsInput(fallbackRefs);
-    }
-    if (!stmts || typeof stmts.listTaskProjectRefsByTaskId?.all !== 'function') {
-      return normalizeTaskRefsInput(fallbackRefs);
-    }
-    let rows = [];
-    try {
-      rows = stmts.listTaskProjectRefsByTaskId.all(Number(taskId));
-    } catch {
-      rows = [];
-    }
-    const refs = (Array.isArray(rows) ? rows : [])
-      .map((row) => sanitizeTaskRefForStorage(row?.project_ref))
-      .filter(Boolean);
-    if (refs.length > 0) return normalizeTaskRefsInput(refs);
-    return normalizeTaskRefsInput(fallbackRefs);
-  }
-
-  function listTaskResourceRefsFromRelations(taskId, fallbackRefs = []) {
-    if (!Number.isFinite(Number(taskId)) || Number(taskId) <= 0) {
-      return normalizeTaskRefsInput(fallbackRefs);
-    }
-    if (!stmts || typeof stmts.listTaskResourceRefsByTaskId?.all !== 'function') {
-      return normalizeTaskRefsInput(fallbackRefs);
-    }
-    let rows = [];
-    try {
-      rows = stmts.listTaskResourceRefsByTaskId.all(Number(taskId));
-    } catch {
-      rows = [];
-    }
-    const refs = (Array.isArray(rows) ? rows : [])
-      .map((row) => sanitizeTaskRefForStorage(row?.resource_ref))
-      .filter(Boolean);
-    if (refs.length > 0) return normalizeTaskRefsInput(refs);
-    return normalizeTaskRefsInput(fallbackRefs);
-  }
-
-  function replaceTaskRefsRelations(taskId, projectRefs = [], resourceRefs = [], createdAt = nowIso()) {
-    const safeTaskId = Number(taskId);
-    if (!Number.isFinite(safeTaskId) || safeTaskId <= 0) return;
-    if (!stmts
-      || typeof stmts.deleteTaskProjectRefsByTaskId?.run !== 'function'
-      || typeof stmts.deleteTaskResourceRefsByTaskId?.run !== 'function'
-      || typeof stmts.insertTaskProjectRef?.run !== 'function'
-      || typeof stmts.insertTaskResourceRef?.run !== 'function') {
-      return;
-    }
-    const normalizedProjectRefs = normalizeTaskRefsInput(projectRefs);
-    const normalizedResourceRefs = normalizeTaskRefsInput(resourceRefs);
-    const safeCreatedAt = parseIsoDateOrNull(createdAt) || nowIso();
-    const tx = db.transaction(() => {
-      stmts.deleteTaskProjectRefsByTaskId.run(safeTaskId);
-      stmts.deleteTaskResourceRefsByTaskId.run(safeTaskId);
-      for (const projectRef of normalizedProjectRefs) {
-        const safeRef = sanitizeTaskRefForStorage(projectRef);
-        if (!safeRef) continue;
-        stmts.insertTaskProjectRef.run(safeTaskId, safeRef, safeCreatedAt);
-        if (typeof stmts.upsertProjectById?.run === 'function') {
-          stmts.upsertProjectById.run(
-            safeRef,
-            '',
-            safeRef,
-            '',
-            'other',
-            null,
-            safeCreatedAt,
-            nowIso()
-          );
-        }
-      }
-      for (const resourceRef of normalizedResourceRefs) {
-        const safeRef = sanitizeTaskRefForStorage(resourceRef);
-        if (!safeRef) continue;
-        stmts.insertTaskResourceRef.run(safeTaskId, safeRef, safeCreatedAt);
-      }
-    });
-    tx();
-  }
-
-  function buildTaskPayloadWithRelations(row) {
-    const payload = buildTaskPayload(row);
-    const taskId = Number(payload?.id || 0);
-    payload.projectRefs = listTaskProjectRefsFromRelations(taskId, payload.projectRefs);
-    payload.resourceRefs = listTaskResourceRefsFromRelations(taskId, payload.resourceRefs);
-    return payload;
-  }
-
-function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions) {
-  const toStatus = normalizeTaskStatus(toStatusRaw, '');
-    if (!TASK_STATUSES.includes(toStatus)) {
-      return { ok: false, error: 'invalid_status' };
-    }
-    const fromStatus = normalizeTaskStatus(taskRow?.status, 'A faire');
-    if (fromStatus === toStatus) {
-      return { ok: false, error: 'no_changes' };
-    }
-  if ((toStatus === 'Validee' || toStatus === 'Rejetee') && actorPermissions?.canValidate !== true) {
-    return { ok: false, error: 'forbidden_validation' };
-  }
-  if (toStatus === 'En cours') {
-    const assigneeUserId = Number(taskRow?.assignee_user_id || 0);
-    if (!Number.isFinite(assigneeUserId) || assigneeUserId <= 0) {
-      return { ok: false, error: 'assignee_required_for_in_progress' };
-    }
-  }
-
-    const nextSubmittedAt = toStatus === 'A valider'
-      ? now
-      : (taskRow?.submitted_at || null);
-    const nextValidatedAt = toStatus === 'Validee' ? now : (taskRow?.validated_at || null);
-    const nextRejectedAt = toStatus === 'Rejetee' ? now : (taskRow?.rejected_at || null);
-    const nextStartedAt = toStatus === 'En cours'
-      ? (taskRow?.started_at || now)
-      : (taskRow?.started_at || null);
-    const nextFinishedAt = toStatus === 'Validee' ? now : (taskRow?.finished_at || null);
-
-    return {
-      ok: true,
-      fromStatus,
-      toStatus,
-      submittedAt: nextSubmittedAt,
-      validatedAt: nextValidatedAt,
-      rejectedAt: nextRejectedAt,
-      startedAt: nextStartedAt,
-      finishedAt: nextFinishedAt,
-    };
-  }
-
-  function computeRenderTransitionState(renderRow, toStatusRaw, body, now, actorPermissions, actorUserId, actorRoleRaw = '') {
-    const action = String(body?.action || '').trim().toLowerCase();
-    const fromStatus = normalizeRenderStatus(renderRow?.status, 'Queued');
-    const requesterId = Number(renderRow?.requested_by_user_id || 0);
-    const actorId = Number(actorUserId || 0);
-    const canReview = canRenderValidate(actorRoleRaw);
-    const isOwner = requesterId > 0 && requesterId === actorId;
-
-    if (action === 'validate') {
-      if (!canReview) {
-        return { ok: false, error: 'forbidden_render_review_role' };
-      }
-      const hasValidator = Number.isFinite(Number(renderRow?.validated_by_user_id))
-        && Number(renderRow?.validated_by_user_id) > 0;
-      if (hasValidator) {
-        return { ok: false, error: 'render_already_validated' };
-      }
-      if (fromStatus !== 'Done') {
-        return { ok: false, error: 'render_validation_requires_done' };
-      }
-      return {
-        ok: true,
-        fromStatus,
-        toStatus: fromStatus,
-        reviewStatus: 'validated',
-        validatedByUserId: actorId > 0 ? actorId : null,
-        outputPath: sanitizeRenderOutputPath(renderRow?.output_path),
-        errorMessage: sanitizeRenderErrorMessage(renderRow?.error_message),
-        startedAt: renderRow?.started_at || null,
-        finishedAt: renderRow?.finished_at || now,
-        commentDefault: 'render_validated',
-      };
-    }
-
-    if (action === 'mark_pending') {
-      if (!canReview) {
-        return { ok: false, error: 'forbidden_render_review_role' };
-      }
-      if (fromStatus !== 'Done') {
-        return { ok: false, error: 'render_validation_requires_done' };
-      }
-      return {
-        ok: true,
-        fromStatus,
-        toStatus: fromStatus,
-        reviewStatus: 'to_validate',
-        validatedByUserId: null,
-        outputPath: sanitizeRenderOutputPath(renderRow?.output_path),
-        errorMessage: sanitizeRenderErrorMessage(renderRow?.error_message),
-        startedAt: renderRow?.started_at || null,
-        finishedAt: renderRow?.finished_at || now,
-        commentDefault: 'render_marked_pending',
-      };
-    }
-
-    const toStatus = normalizeRenderStatus(toStatusRaw, '');
-    if (!RENDER_STATUSES.includes(toStatus)) {
-      return { ok: false, error: 'invalid_render_status' };
-    }
-    if (fromStatus === toStatus) {
-      return { ok: false, error: 'no_changes' };
-    }
-
-    if (!canReview && !isOwner) {
-      return { ok: false, error: 'forbidden_render_transition' };
-    }
-    if ((toStatus === 'Done' || toStatus === 'Failed' || toStatus === 'Canceled') && !canReview) {
-      return { ok: false, error: 'forbidden_render_review_role' };
-    }
-
-    let nextStartedAt = renderRow?.started_at || null;
-    let nextFinishedAt = renderRow?.finished_at || null;
-    let nextOutputPath = sanitizeRenderOutputPath(renderRow?.output_path);
-    let nextErrorMessage = sanitizeRenderErrorMessage(renderRow?.error_message);
-    let nextValidatedByUserId = renderRow?.validated_by_user_id == null
-      ? null
-      : Number(renderRow.validated_by_user_id);
-
-    if (toStatus === 'Queued') {
-      nextStartedAt = null;
-      nextFinishedAt = null;
-      nextOutputPath = '';
-      nextErrorMessage = '';
-      nextValidatedByUserId = null;
-    } else if (toStatus === 'Running') {
-      nextStartedAt = nextStartedAt || now;
-      nextFinishedAt = null;
-      nextOutputPath = '';
-      nextErrorMessage = '';
-      nextValidatedByUserId = null;
-    } else if (toStatus === 'Done') {
-      nextStartedAt = nextStartedAt || now;
-      nextFinishedAt = now;
-      nextOutputPath = sanitizeRenderOutputPath(body?.outputPath || renderRow?.output_path);
-      nextErrorMessage = '';
-      nextValidatedByUserId = null;
-    } else if (toStatus === 'Failed') {
-      nextStartedAt = nextStartedAt || now;
-      nextFinishedAt = now;
-      nextOutputPath = '';
-      nextErrorMessage = sanitizeRenderErrorMessage(body?.errorMessage || renderRow?.error_message);
-      nextValidatedByUserId = null;
-    } else if (toStatus === 'Canceled') {
-      nextFinishedAt = now;
-      nextOutputPath = '';
-      nextErrorMessage = '';
-      nextValidatedByUserId = null;
-    }
-    const nextReviewStatus = inferRenderReviewStatus(toStatus, nextValidatedByUserId);
-
-    return {
-      ok: true,
-      fromStatus,
-      toStatus,
-      reviewStatus: nextReviewStatus,
-      validatedByUserId: Number.isFinite(nextValidatedByUserId) && nextValidatedByUserId > 0
-        ? nextValidatedByUserId
-        : null,
-      outputPath: nextOutputPath,
-      errorMessage: nextErrorMessage,
-      startedAt: nextStartedAt,
-      finishedAt: nextFinishedAt,
-    };
-  }
-
-  const postprodRouteDispatchDeps = {
+  const {
+    asCount,
+    requireSession,
+    requireManageUsers,
+    requireBanUsers,
+    requireManageProjectPermissions,
+    requireManageRoles,
+    requireRenderTemplateManage,
+    requireRenderTemplateManageForProject,
+    requireRenderLaunchForProject,
+    requireRenderDispatch,
+    sweepStaleWorkersAndRequeue,
+  } = createPostprodAuthGuards({
+    getAuthToken,
+    nowIso,
+    stmts,
+    rolePermissions,
+    getRolesCache: () => rolesCache,
+    resolveRoleInput,
+    DEFAULT_FALLBACK_ROLE,
+    SYSTEM_MAINTENANCE_ROLE,
+    sanitizeProjectRef,
+    resolveProjectForApi,
+    sharedStore,
+    buildProjectPermissionPayload,
+    db,
+    audit,
+  });
+  const {
+    listTaskProjectRefsFromRelations,
+    listTaskResourceRefsFromRelations,
+    replaceTaskRefsRelations,
+    buildTaskPayloadWithRelations,
+    computeTaskTransitionState,
+    computeRenderTransitionState,
+  } = createTaskRenderStateHelpers({
+    stmts,
+    db,
+    nowIso,
+    parseIsoDateOrNull,
+    normalizeTaskRefsInput,
+    sanitizeTaskRefForStorage,
+    buildTaskPayload,
+    normalizeTaskStatus,
+    TASK_STATUSES,
+    normalizeRenderStatus,
+    RENDER_STATUSES,
+    canRenderValidate,
+    sanitizeRenderOutputPath,
+    sanitizeRenderErrorMessage,
+    inferRenderReviewStatus,
+  });
+  const {
+    postprodRouteHandlerDeps,
+    postprodRouteCoreDeps,
+    postprodRouteAuthIdentityDeps,
+    postprodRouteActivityAuditDeps,
+    postprodRouteUserProfileDeps,
+    postprodRouteProjectCatalogDeps,
+    postprodRouteDataDeps,
+    postprodRouteResourcesDeps,
+    postprodRouteTaskDeps,
+    postprodRouteRenderFormsTemplatesDeps,
+    postprodRouteRenderExecutionDeps,
+    postprodRouteRenderStateDeps,
+    postprodRouteUsersRolesDeps,
+  } = buildPostprodRouteDispatchGroups({
     handlePostprodAuthAndHealthRoutes,
     handlePostprodActivityAndAuditMaintenanceRoutes,
     handlePostprodAuditRoutes,
@@ -9036,12 +8144,11 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     buildRenderDispatchPolicyPayload,
     audit,
     asCount,
-    renderDetectedAutoScanBusy,
     renderDetectedScanIntervalMs,
     renderDetectedScanMaxFiles,
     renderDetectedExtensions,
     renderDetectedScanState,
-    get rolesCache() { return rolesCache; },
+    logLine,
     normalizeUsername,
     sanitizeEmail,
     MAX_USERNAME_LEN,
@@ -9054,6 +8161,7 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     getRequestIp,
     buildUserPayload,
     getAuthToken,
+    usersSyncFetchLimit,
     requireManageRoles,
     parseActivityFilters,
     buildUserActivityPayload,
@@ -9109,7 +8217,6 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     fetchWrcObjectPropertyFromHost,
     extractWrcLayoutFieldIds,
     buildRenderFormFieldsFromWrcLayoutFieldIds,
-    logLine,
     fetchWrcPresetPropertyMetadataValueFromHost,
     isLikelyOpaqueWrcIdentifier,
     sanitizeRenderFormFieldLabel,
@@ -9176,6 +8283,8 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     buildRenderFormPayload,
     normalizeRenderFormFields,
     replaceRenderFormFieldsTx,
+    mergeRenderFormFieldsTx,
+    removeWrcFileFieldsTx,
     buildRenderFormFieldPayload,
     parseJsonValue,
     sanitizeRenderPresetName,
@@ -9237,7 +8346,28 @@ function computeTaskTransitionState(taskRow, toStatusRaw, now, actorPermissions)
     normalizeRoleLookupKey,
     sanitizeRoleNote,
     refreshRolesCache,
-  };
+    emitUserSyncUpsert,
+    emitUserSyncDelete,
+    emitRoleSyncUpsert,
+  });
+
+  const postprodRouteDispatchDeps = createPostprodRouteDispatchDeps({
+    postprodRouteHandlerDeps,
+    postprodRouteCoreDeps,
+    postprodRouteAuthIdentityDeps,
+    postprodRouteActivityAuditDeps,
+    postprodRouteUserProfileDeps,
+    postprodRouteProjectCatalogDeps,
+    postprodRouteDataDeps,
+    postprodRouteResourcesDeps,
+    postprodRouteTaskDeps,
+    postprodRouteRenderFormsTemplatesDeps,
+    postprodRouteRenderExecutionDeps,
+    postprodRouteRenderStateDeps,
+    postprodRouteUsersRolesDeps,
+    getRenderDetectedAutoScanBusy: isRenderDetectedAutoScanBusy,
+    getRolesCache: () => rolesCache,
+  });
   async function handleRoutes(req, res, url, { sendJSON, parseBody }) {
     const pathname = String(url?.pathname || '');
     if (!pathname.startsWith('/agent/postprod')) return false;
@@ -9300,6 +8430,8 @@ module.exports = {
   createPostprodAuth,
   normalizeRole,
 };
+
+
 
 
 

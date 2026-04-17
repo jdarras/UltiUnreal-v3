@@ -30,8 +30,6 @@ function RenderFormsFieldsEditorCard({
   onPersistEditableFields = null,
   onMoveEditableField = null,
   onRemoveEditableField = null,
-  onOpenReimportDialog = null,
-  onOpenDeleteDialog = null,
   metaError = "",
   metaInfo = "",
 }) {
@@ -41,7 +39,7 @@ function RenderFormsFieldsEditorCard({
         className="uu-row"
         style={{ justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}
       >
-        <div style={{ fontWeight: 600 }}>
+        <div className="uu-h3 uu-block-title">
           {safeT(t, "postprod.data.forms.fieldsEditorVisual", "Champs du formulaire")}
         </div>
         <RenderFormsFieldsEditorModeToggle
@@ -51,7 +49,6 @@ function RenderFormsFieldsEditorCard({
         />
       </div>
       {fieldsLoading ? <div className="uu-muted mt-8">{safeT(t, "common.loading", "Chargement…")}</div> : null}
-      {fieldsError ? <div className="uu-msg warn mt-8">{fieldsError}</div> : null}
 
       {!fieldsAdvancedMode ? (
         <RenderFormsFieldsTable
@@ -81,40 +78,6 @@ function RenderFormsFieldsEditorCard({
         />
       )}
 
-      {fieldsImportError ? <div className="uu-msg warn mt-8">{fieldsImportError}</div> : null}
-      {fieldsImportInfo ? <div className="uu-msg ok mt-8">{fieldsImportInfo}</div> : null}
-      {fieldsSaveError ? <div className="uu-msg warn mt-8">{fieldsSaveError}</div> : null}
-      {fieldsSaveInfo ? <div className="uu-msg ok mt-8">{fieldsSaveInfo}</div> : null}
-
-      {editorIntent !== "create" && selectedForm ? (
-        <div className="uu-row mt-12" style={{ justifyContent: "flex-end", gap: "8px" }}>
-          <button
-            className="uu-btn"
-            type="button"
-            disabled={metaBusy || fieldsImportBusy || !canManageRenderTemplates}
-            onClick={() => {
-              if (typeof onOpenReimportDialog === "function") onOpenReimportDialog();
-            }}
-          >
-            {fieldsImportBusy
-              ? safeT(t, "common.loading", "Chargement…")
-              : safeT(t, "postprod.data.forms.action.reimportWrc", "Reimporter preset WRC")}
-          </button>
-          <button
-            className="uu-btn-ghost"
-            type="button"
-            disabled={metaBusy || !canManageRenderTemplates}
-            onClick={() => {
-              if (typeof onOpenDeleteDialog === "function") onOpenDeleteDialog();
-            }}
-          >
-            {safeT(t, "common.delete", "Supprimer")}
-          </button>
-        </div>
-      ) : null}
-
-      {metaError ? <div className="uu-msg warn mt-8">{metaError}</div> : null}
-      {metaInfo ? <div className="uu-msg ok mt-8">{metaInfo}</div> : null}
     </div>
   );
 }

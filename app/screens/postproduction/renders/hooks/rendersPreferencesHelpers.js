@@ -1,5 +1,5 @@
 import { useDebouncedLocalStorage } from "../../shared/useDebouncedLocalStorage";
-import { readStorageJsonObject, readStorageString } from "../../shared/storage";
+import { readStorageString } from "../../shared/storage";
 
 const STORAGE_KEYS = Object.freeze({
   view: "uu_postprod_renders_validation_view",
@@ -11,14 +11,29 @@ const STORAGE_KEYS = Object.freeze({
   reviewFilter: "uu_postprod_renders_validation_review_filter",
   projectFilter: "uu_postprod_renders_validation_project_filter",
   stationFilter: "uu_postprod_renders_validation_station_filter",
-  favoriteOnly: "uu_postprod_renders_validation_favorite_only",
-  favorites: "uu_postprod_renders_validation_favorites",
+  taskFilter: "uu_postprod_renders_validation_task_filter",
+  formFilter: "uu_postprod_renders_validation_form_filter",
+  requesterFilter: "uu_postprod_renders_validation_requester_filter",
+  statusFilter: "uu_postprod_renders_validation_status_filter",
+  sequenceFilter: "uu_postprod_renders_validation_sequence_filter",
 });
 
-const REVIEW_FILTER_SET = new Set(["to_validate", "validated", "to_modify", "canceled"]);
 const LIST_SORT_KEY_SET = new Set(["file", "project", "linkedTask", "requester", "station", "updatedAt", "reviewStatus"]);
 const SORT_DIR_SET = new Set(["asc", "desc"]);
-const QUEUE_SORT_KEY_SET = new Set(["task", "project", "template", "worker", "status", "priority"]);
+const QUEUE_SORT_KEY_SET = new Set(["startAt", "task", "sequence", "worker", "status"]);
+
+function normalizeMultiFilterValues(value = []) {
+  const source = Array.isArray(value) ? value : [value];
+  const seen = new Set();
+  const out = [];
+  for (const entry of source) {
+    const normalized = String(entry || "").trim().toLowerCase();
+    if (!normalized || normalized === "all" || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
 
 function readEnumLowerStorage(key, allowedSet, fallback) {
   const raw = readStorageString(key).trim().toLowerCase();
@@ -34,24 +49,46 @@ function getInitialSearchQuery() {
   return readStorageString(STORAGE_KEYS.searchQuery);
 }
 
+function readMultiFilterStorage(key) {
+  const raw = readStorageString(key).trim();
+  if (!raw || raw.toLowerCase() === "all") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return normalizeMultiFilterValues(parsed);
+  } catch {}
+  return normalizeMultiFilterValues([raw]);
+}
+
 function getInitialReviewFilter() {
-  return readEnumLowerStorage(STORAGE_KEYS.reviewFilter, REVIEW_FILTER_SET, "all");
+  return readMultiFilterStorage(STORAGE_KEYS.reviewFilter);
 }
 
 function getInitialProjectFilter() {
-  return readStorageString(STORAGE_KEYS.projectFilter).trim().toLowerCase() || "all";
+  return readMultiFilterStorage(STORAGE_KEYS.projectFilter);
 }
 
 function getInitialStationFilter() {
-  return readStorageString(STORAGE_KEYS.stationFilter).trim().toLowerCase() || "all";
+  return readMultiFilterStorage(STORAGE_KEYS.stationFilter);
 }
 
-function getInitialFavoriteOnly() {
-  return readStorageString(STORAGE_KEYS.favoriteOnly).trim() === "true";
+function getInitialTaskFilter() {
+  return readMultiFilterStorage(STORAGE_KEYS.taskFilter);
 }
 
-function getInitialRenderFavorites() {
-  return readStorageJsonObject(STORAGE_KEYS.favorites, {});
+function getInitialFormFilter() {
+  return readMultiFilterStorage(STORAGE_KEYS.formFilter);
+}
+
+function getInitialRequesterFilter() {
+  return readMultiFilterStorage(STORAGE_KEYS.requesterFilter);
+}
+
+function getInitialStatusFilter() {
+  return readMultiFilterStorage(STORAGE_KEYS.statusFilter);
+}
+
+function getInitialSequenceFilter() {
+  return readMultiFilterStorage(STORAGE_KEYS.sequenceFilter);
 }
 
 function getInitialViewMode() {
@@ -70,7 +107,7 @@ function getInitialListSortDir() {
 }
 
 function getInitialQueueSortKey() {
-  return readEnumStorage(STORAGE_KEYS.queueSortKey, QUEUE_SORT_KEY_SET, "status");
+  return readEnumStorage(STORAGE_KEYS.queueSortKey, QUEUE_SORT_KEY_SET, "startAt");
 }
 
 function getInitialQueueSortDir() {
@@ -80,41 +117,51 @@ function getInitialQueueSortDir() {
 function usePersistRendersPreferences({
   searchQuery = "",
   viewMode = "thumbs",
-  reviewFilter = "all",
-  projectFilter = "all",
-  stationFilter = "all",
-  favoriteOnly = false,
-  renderFavorites = {},
+  reviewFilter = [],
+  projectFilter = [],
+  stationFilter = [],
+  taskFilter = [],
+  formFilter = [],
+  requesterFilter = [],
+  statusFilter = [],
+  sequenceFilter = [],
   listSortKey = "updatedAt",
   listSortDir = "desc",
-  queueSortKey = "status",
+  queueSortKey = "startAt",
   queueSortDir = "asc",
 } = {}) {
   useDebouncedLocalStorage(STORAGE_KEYS.searchQuery, String(searchQuery || ""), 280);
   useDebouncedLocalStorage(STORAGE_KEYS.view, String(viewMode || "thumbs"), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.reviewFilter, String(reviewFilter || "all"), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.projectFilter, String(projectFilter || "all"), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.stationFilter, String(stationFilter || "all"), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.favoriteOnly, favoriteOnly ? "true" : "false", 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.favorites, JSON.stringify(renderFavorites || {}), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.reviewFilter, JSON.stringify(normalizeMultiFilterValues(reviewFilter)), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.projectFilter, JSON.stringify(normalizeMultiFilterValues(projectFilter)), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.stationFilter, JSON.stringify(normalizeMultiFilterValues(stationFilter)), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.taskFilter, JSON.stringify(normalizeMultiFilterValues(taskFilter)), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.formFilter, JSON.stringify(normalizeMultiFilterValues(formFilter)), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.requesterFilter, JSON.stringify(normalizeMultiFilterValues(requesterFilter)), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.statusFilter, JSON.stringify(normalizeMultiFilterValues(statusFilter)), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.sequenceFilter, JSON.stringify(normalizeMultiFilterValues(sequenceFilter)), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.listSortKey, String(listSortKey || "updatedAt"), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.listSortDir, String(listSortDir || "desc"), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.queueSortKey, String(queueSortKey || "status"), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.queueSortKey, String(queueSortKey || "startAt"), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.queueSortDir, String(queueSortDir || "asc"), 180);
 }
 
 export {
-  getInitialFavoriteOnly,
+  getInitialFormFilter,
   getInitialListSortDir,
   getInitialListSortKey,
   getInitialProjectFilter,
+  getInitialRequesterFilter,
   getInitialStationFilter,
+  getInitialStatusFilter,
+  getInitialTaskFilter,
   getInitialQueueSortDir,
   getInitialQueueSortKey,
-  getInitialRenderFavorites,
   getInitialReviewFilter,
+  getInitialSequenceFilter,
   getInitialSearchQuery,
   getInitialViewMode,
+  normalizeMultiFilterValues,
   STORAGE_KEYS,
   usePersistRendersPreferences,
 };

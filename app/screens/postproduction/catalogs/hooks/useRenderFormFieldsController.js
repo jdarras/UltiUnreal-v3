@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   inferFieldValueTypeFromInputKind,
   normalizeLiveOptionList,
@@ -13,7 +13,7 @@ export function useRenderFormFieldsController({
   selectedForm = null,
   selectedProjectRef = "",
   selectedFormProjectRef = "",
-  metaPresetName = "",
+  metaWrcFiles = [],
   canManageRenderTemplates = false,
   onLoadProjectWrcFields = null,
   onLoadRenderFormFields = null,
@@ -63,7 +63,7 @@ export function useRenderFormFieldsController({
     selectedForm,
     selectedProjectRef,
     selectedFormProjectRef,
-    metaPresetName,
+    metaWrcFiles,
     canManageRenderTemplates,
     onLoadProjectWrcFields,
     onReplaceRenderFormFields,
@@ -78,6 +78,58 @@ export function useRenderFormFieldsController({
     setFieldsSaveError,
     setFieldsSaveInfo,
   });
+
+  // Auto-import from cache only for empty forms with selected WRC files.
+  // This keeps "manual refresh from Unreal" via the explicit "Load Preset WRC" button.
+  const autoCacheImportDoneRef = useRef(0);
+  const wasLoadingRef = useRef(false);
+
+  useEffect(() => {
+    autoCacheImportDoneRef.current = 0;
+    wasLoadingRef.current = false;
+  }, [selectedFormId]);
+
+  useEffect(() => {
+    if (fieldsLoading) wasLoadingRef.current = true;
+  }, [fieldsLoading]);
+
+  const metaWrcFilesKey = Array.isArray(metaWrcFiles) ? metaWrcFiles.join(",") : "";
+
+  useEffect(() => {
+    if (fieldsLoading) return;
+    if (!wasLoadingRef.current) return;
+    if (autoCacheImportDoneRef.current === selectedFormId) return;
+    const hasExistingFields = Array.isArray(fieldsRef.current) && fieldsRef.current.length > 0;
+    if (hasExistingFields) {
+      autoCacheImportDoneRef.current = selectedFormId;
+      return;
+    }
+    const wrcFiles = Array.isArray(metaWrcFiles) ? metaWrcFiles.filter(Boolean) : [];
+    const projectRef = String(selectedProjectRef || selectedFormProjectRef || "").trim();
+    if (!wrcFiles.length || !projectRef || !selectedFormId) return;
+    autoCacheImportDoneRef.current = selectedFormId;
+    (async () => {
+      for (const wrcFile of wrcFiles) {
+        try {
+          await importFieldsFromWrcPreset({
+            formId: selectedFormId,
+            projectRef,
+            wrcFile,
+            loadOptions: { refreshSnapshot: false },
+          });
+        } catch {
+          // Keep existing behavior: do not crash UI on background import failure.
+        }
+      }
+    })();
+  }, [
+    fieldsLoading,
+    selectedFormId,
+    metaWrcFilesKey,
+    selectedProjectRef,
+    selectedFormProjectRef,
+    importFieldsFromWrcPreset,
+  ]);
 
   function resetEditorDraftForCreate() {
     setFields([]);
@@ -100,6 +152,34 @@ export function useRenderFormFieldsController({
   );
 
   const fieldInputKindOptions = useMemo(() => buildFieldInputKindOptions(t), [t]);
+
+  const reloadRenderFormFields = useCallback(async () => {
+    const formId = Number(selectedForm?.id || 0);
+    if (!Number.isFinite(formId) || formId <= 0 || typeof onLoadRenderFormFields !== "function") return [];
+    setFieldsLoading(true);
+    setFieldsError("");
+    try {
+      const loaded = await Promise.resolve(onLoadRenderFormFields(formId));
+      const list = Array.isArray(loaded) ? loaded : [];
+      setFields(list);
+      const defaults = {};
+      for (const field of list) {
+        const key = String(field?.fieldKey || "").trim();
+        if (!key) continue;
+        defaults[key] = field?.defaultValue ?? "";
+      }
+      setLiveValues(defaults);
+      return list;
+    } catch (e) {
+      setFieldsError(String(
+        e?.message
+        || "Impossible de recharger les champs du formulaire."
+      ));
+      return [];
+    } finally {
+      setFieldsLoading(false);
+    }
+  }, [selectedForm?.id, onLoadRenderFormFields, setLiveValues]);
 
   return {
     fields,
@@ -128,6 +208,7 @@ export function useRenderFormFieldsController({
     removeEditableField,
     importFieldsFromWrcPreset,
     handleImportFieldsFromWrcPreset,
+    reloadRenderFormFields,
     resetEditorDraftForCreate,
   };
 }

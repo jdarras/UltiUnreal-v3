@@ -8,8 +8,6 @@ import {
   buildQueueWorkerLabelByKey,
   getQueueEntryLaunchMeta as deriveQueueEntryLaunchMeta,
   queueEntryWorkerLabel as deriveQueueEntryWorkerLabel,
-  queueTaskPriorityLabel as deriveQueueTaskPriorityLabel,
-  queueTaskPriorityValue,
 } from "./queueDerivedDataHelpers";
 
 export function useRenderQueueDerivedData({
@@ -18,7 +16,7 @@ export function useRenderQueueDerivedData({
   renders = [],
   renderWorkers = [],
   searchQuery = "",
-  queueSortKey = "status",
+  queueSortKey = "startAt",
   queueSortDir = "asc",
 } = {}) {
   const autoRenderStateByTaskId = useMemo(
@@ -41,10 +39,6 @@ export function useRenderQueueDerivedData({
     return deriveQueueEntryLaunchMeta(queueEntry);
   }, []);
 
-  const queueTaskPriorityLabel = useCallback((priorityRaw) => {
-    return deriveQueueTaskPriorityLabel(priorityRaw, t);
-  }, [t]);
-
   const queueEntryWorkerLabel = useCallback((queueEntry) => {
     return deriveQueueEntryWorkerLabel(queueEntry, queueWorkerLabelByKey, t);
   }, [queueWorkerLabelByKey, t]);
@@ -63,9 +57,8 @@ export function useRenderQueueDerivedData({
       queueSortDir,
       queueSortKey,
       queueEntryWorkerLabel,
-      queueTaskPriorityValue,
     });
-  }, [filteredRenderQueueTasks, queueSortDir, queueSortKey, queueEntryWorkerLabel, queueTaskPriorityValue]);
+  }, [filteredRenderQueueTasks, queueSortDir, queueSortKey, queueEntryWorkerLabel]);
 
   const queueStateSummary = useMemo(() => {
     return summarizeQueueStates({
@@ -81,7 +74,6 @@ export function useRenderQueueDerivedData({
     queueStateSummary,
     queueEntryWorkerLabel,
     getQueueEntryLaunchMeta,
-    queueTaskPriorityLabel,
   };
 }
 

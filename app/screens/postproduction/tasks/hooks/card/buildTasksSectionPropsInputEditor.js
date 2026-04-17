@@ -18,12 +18,16 @@ const DATA_KEYS = [
   "autoRenderWorkerKey",
   "availableRenderWorkers",
   "autoRenderLaunchMode",
+  "autoRenderScheduledMode",
+  "autoRenderScheduledAt",
   "autoRenderFormFieldsLoading",
   "autoRenderFormFieldsError",
   "visibleAutoRenderFormFields",
   "autoRenderFormValues",
   "autoExpectedRenderName",
   "formError",
+  "taskSequenceName",
+  "projectCatalogSequenceOptions",
 ];
 
 const LIFECYCLE_KEYS = [
@@ -44,6 +48,9 @@ const UI_KEYS = [
   "changeAutoRenderTemplate",
   "changeAutoRenderWorker",
   "changeAutoRenderLaunchMode",
+  "changeAutoRenderScheduledMode",
+  "changeAutoRenderScheduledAt",
+  "changeAutoRenderSequence",
 ];
 
 export function buildTasksSectionPropsInputEditor({

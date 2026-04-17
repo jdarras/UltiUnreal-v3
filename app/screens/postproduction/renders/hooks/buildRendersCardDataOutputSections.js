@@ -12,9 +12,17 @@ function buildPreferencesOutput({
     setProjectFilter: preferences.setProjectFilter,
     stationFilter: preferences.stationFilter,
     setStationFilter: preferences.setStationFilter,
+    taskFilter: preferences.taskFilter,
+    setTaskFilter: preferences.setTaskFilter,
+    formFilter: preferences.formFilter,
+    setFormFilter: preferences.setFormFilter,
+    requesterFilter: preferences.requesterFilter,
+    setRequesterFilter: preferences.setRequesterFilter,
+    statusFilter: preferences.statusFilter,
+    setStatusFilter: preferences.setStatusFilter,
+    sequenceFilter: preferences.sequenceFilter,
+    setSequenceFilter: preferences.setSequenceFilter,
     searchExpanded: preferences.searchExpanded,
-    favoriteOnly: preferences.favoriteOnly,
-    toggleFavoriteOnly: toolbar.toggleFavoriteOnly,
     viewMode: preferences.viewMode,
     setViewMode: preferences.setViewMode,
     listSortKey: preferences.listSortKey,
@@ -34,11 +42,15 @@ function buildReviewOutput({ review = {} } = {}) {
 function buildListOutput({ list = {} } = {}) {
   return {
     projectFilterOptions: list.projectFilterOptions,
+    reviewFilterOptions: list.reviewFilterOptions,
     stationFilterOptions: list.stationFilterOptions,
+    taskFilterOptions: list.taskFilterOptions,
+    formFilterOptions: list.formFilterOptions,
+    requesterFilterOptions: list.requesterFilterOptions,
+    statusFilterOptions: list.statusFilterOptions,
+    sequenceFilterOptions: list.sequenceFilterOptions,
     hasActiveFilters: list.hasActiveFilters,
     sortedDisplayedRenders: list.sortedDisplayedRenders,
-    isRenderFavorite: list.isRenderFavorite,
-    toggleRenderFavorite: list.toggleRenderFavorite,
     listSortIndicator: list.listSortIndicator,
     toggleListSort: list.toggleListSort,
   };
@@ -62,7 +74,7 @@ function buildDetailOutput({ detail = {} } = {}) {
   };
 }
 
-function buildQueueOutput({ queue = {} } = {}) {
+function buildQueueOutput({ queue = {}, preferences = {} } = {}) {
   return {
     busyScheduledTaskId: queue.busyScheduledTaskId,
     queueBatchBusyMode: queue.queueBatchBusyMode,
@@ -75,11 +87,12 @@ function buildQueueOutput({ queue = {} } = {}) {
     launchableQueueTaskIdSet: queue.launchableQueueTaskIdSet,
     selectedLaunchableQueueEntries: queue.selectedLaunchableQueueEntries,
     queueStateSummary: queue.queueStateSummary,
+    queueSortKey: preferences.queueSortKey,
+    queueSortDir: preferences.queueSortDir,
     queueSortIndicator: queue.queueSortIndicator,
     canLaunchRenders: queue.canLaunchRenders,
     queueEntryWorkerLabel: queue.queueEntryWorkerLabel,
     getQueueEntryLaunchMeta: queue.getQueueEntryLaunchMeta,
-    queueTaskPriorityLabel: queue.queueTaskPriorityLabel,
     toggleSelectAllQueueEntries: queue.toggleSelectAllQueueEntries,
     launchQueueBatch: queue.launchQueueBatch,
     toggleQueueSort: queue.toggleQueueSort,

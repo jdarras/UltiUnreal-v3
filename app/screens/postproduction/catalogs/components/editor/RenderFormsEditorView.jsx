@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { safeT } from "../../../shared/helpers";
 import { RenderFormsCreateCard } from "../RenderFormsCreateCard";
 import { RenderFormsEditorChips } from "../RenderFormsEditorChips";
 import { RenderFormsEditorDialogs } from "../RenderFormsEditorDialogs";
@@ -17,6 +19,7 @@ function RenderFormsEditorView({
   editorController = {},
   deleteDialog = null,
   reimportDialog = null,
+  onNavigateToProject = null,
 }) {
   const {
     mode = "edit",
@@ -31,6 +34,7 @@ function RenderFormsEditorView({
   const {
     projectCatalogLevelOptions = [],
     projectCatalogSequenceOptions = [],
+    projectCatalogPresetOptions = [],
     projectCatalogWrcPresetOptions = [],
     projectCatalogLoading = false,
     projectCatalogError = "",
@@ -42,10 +46,6 @@ function RenderFormsEditorView({
     setNewFormName = null,
     newMapName = "",
     setNewMapName = null,
-    newSequenceName = "",
-    setNewSequenceName = null,
-    newPresetName = "",
-    setNewPresetName = null,
     creating = false,
     createError = "",
     createInfo = "",
@@ -53,12 +53,16 @@ function RenderFormsEditorView({
     setMetaName = null,
     metaMapName = "",
     setMetaMapName = null,
-    metaSequenceName = "",
-    setMetaSequenceName = null,
-    metaPresetName = "",
-    setMetaPresetName = null,
+    metaWrcFiles = [],
+    setMetaWrcFiles = null,
     metaActive = false,
     setMetaActive = null,
+    metaAllowedSequences = [],
+    setMetaAllowedSequences = null,
+    metaAllowedPresets = [],
+    setMetaAllowedPresets = null,
+    metaNote = "",
+    setMetaNote = null,
     metaBusy = false,
     metaError = "",
     metaInfo = "",
@@ -86,15 +90,39 @@ function RenderFormsEditorView({
     updateEditableField = null,
     moveEditableField = null,
     removeEditableField = null,
+    importFieldsFromWrcPreset = null,
     handleCreateForm = null,
     handleSaveFormMeta = null,
     handleDeleteForm = null,
     handleImportFieldsFromWrcPreset = null,
   } = editorController || {};
 
+  const [isMetaFormBlocked, setIsMetaFormBlocked] = useState(false);
+  const topMessages = [
+    { kind: "warn", text: String(fieldsError || "").trim() },
+    { kind: "warn", text: String(fieldsImportError || "").trim() },
+    { kind: "ok", text: String(fieldsImportInfo || "").trim() },
+    { kind: "warn", text: String(fieldsSaveError || "").trim() },
+    { kind: "ok", text: String(fieldsSaveInfo || "").trim() },
+    { kind: "warn", text: String(createError || "").trim() },
+    { kind: "ok", text: String(createInfo || "").trim() },
+    { kind: "warn", text: String(metaError || "").trim() },
+    { kind: "ok", text: String(metaInfo || "").trim() },
+  ].filter((entry) => entry.text);
+
   return (
     <>
-      <RenderFormsEditorModeBar t={t} mode={mode} onChangeMode={setMode} onBack={backToList} />
+      <RenderFormsEditorModeBar
+        t={t}
+        mode={mode}
+        onChangeMode={setMode}
+        onBack={backToList}
+        selectedForm={selectedForm}
+        metaActive={metaActive}
+        onSetMetaActive={setMetaActive}
+        onSaveMeta={handleSaveFormMeta}
+        isAvailabilityBlocked={isMetaFormBlocked}
+      />
 
       {editorIntent !== "create" ? (
         <RenderFormsEditorChips
@@ -102,6 +130,19 @@ function RenderFormsEditorView({
           selectedFormId={selectedFormId}
           onSelectFormId={selectFormFromChips}
         />
+      ) : null}
+
+      {mode === "edit" && topMessages.length > 0 ? (
+        <div className="mt-12">
+          {topMessages.map((entry, index) => (
+            <div
+              key={`render-forms-editor-msg-${entry.kind}-${index}`}
+              className={`uu-msg ${entry.kind}${index > 0 ? " mt-8" : ""}`}
+            >
+              {entry.text}
+            </div>
+          ))}
+        </div>
       ) : null}
 
       {mode === "edit" ? (
@@ -116,13 +157,7 @@ function RenderFormsEditorView({
               onSetNewFormName={setNewFormName}
               newMapName={newMapName}
               onSetNewMapName={setNewMapName}
-              newSequenceName={newSequenceName}
-              onSetNewSequenceName={setNewSequenceName}
-              newPresetName={newPresetName}
-              onSetNewPresetName={setNewPresetName}
               projectCatalogLevelOptions={projectCatalogLevelOptions}
-              projectCatalogSequenceOptions={projectCatalogSequenceOptions}
-              projectCatalogWrcPresetOptions={projectCatalogWrcPresetOptions}
               projectCatalogLoading={projectCatalogLoading}
               projectCatalogError={projectCatalogError}
               creating={creating}
@@ -134,27 +169,59 @@ function RenderFormsEditorView({
           ) : null}
 
           {editorIntent !== "create" ? (
-            <RenderFormsMetaCard
-              t={t}
-              selectedForm={selectedForm}
-              selectedFormProjectDisplayLabel={selectedFormProjectDisplayLabel}
-              metaName={metaName}
-              onSetMetaName={setMetaName}
-              onSaveMeta={handleSaveFormMeta}
-              metaMapName={metaMapName}
-              onSetMetaMapName={setMetaMapName}
-              metaSequenceName={metaSequenceName}
-              onSetMetaSequenceName={setMetaSequenceName}
-              metaPresetName={metaPresetName}
-              onSetMetaPresetName={setMetaPresetName}
-              metaActive={metaActive}
-              onSetMetaActive={setMetaActive}
-              projectCatalogLevelOptions={projectCatalogLevelOptions}
-              projectCatalogSequenceOptions={projectCatalogSequenceOptions}
-              projectCatalogWrcPresetOptions={projectCatalogWrcPresetOptions}
-              projectCatalogLoading={projectCatalogLoading}
-              projectCatalogError={projectCatalogError}
-            />
+            <div>
+              <RenderFormsMetaCard
+                t={t}
+                selectedForm={selectedForm}
+                selectedFormProjectDisplayLabel={selectedFormProjectDisplayLabel}
+                metaName={metaName}
+                onSetMetaName={setMetaName}
+                onSaveMeta={handleSaveFormMeta}
+                metaMapName={metaMapName}
+                onSetMetaMapName={setMetaMapName}
+                metaWrcFiles={metaWrcFiles}
+                onSetMetaWrcFiles={setMetaWrcFiles}
+                metaActive={metaActive}
+                onSetMetaActive={setMetaActive}
+                metaAllowedSequences={metaAllowedSequences}
+                onSetMetaAllowedSequences={setMetaAllowedSequences}
+                metaAllowedPresets={metaAllowedPresets}
+                onSetMetaAllowedPresets={setMetaAllowedPresets}
+                projectCatalogSequenceOptions={projectCatalogSequenceOptions}
+                projectCatalogPresetOptions={projectCatalogPresetOptions}
+                projectCatalogLevelOptions={projectCatalogLevelOptions}
+                projectCatalogWrcPresetOptions={projectCatalogWrcPresetOptions}
+                projectCatalogLoading={projectCatalogLoading}
+                projectCatalogError={projectCatalogError}
+                onNavigateToProject={onNavigateToProject}
+                onAvailabilityBlockedChange={setIsMetaFormBlocked}
+                canManageRenderTemplates={canManageRenderTemplates}
+                fieldsImportBusy={fieldsImportBusy}
+                onImportWrcFile={(wrcFile) => importFieldsFromWrcPreset?.({
+                  wrcFile,
+                  loadOptions: { refreshSnapshot: true },
+                })}
+              />
+            </div>
+          ) : null}
+
+          {editorIntent !== "create" && selectedForm ? (
+            <div className="uu-card">
+              <div className="uu-h3 uu-block-title mb-4">
+                {safeT(t, "postprod.data.forms.note", "Note")}
+              </div>
+              <textarea
+                className="uu-input"
+                rows={10}
+                style={{ resize: "vertical", width: "100%" }}
+                value={metaNote}
+                onChange={(e) => setMetaNote?.(e.target.value)}
+                onBlur={(e) => {
+                  void handleSaveFormMeta?.({ note: e.target.value }, { importIfEmpty: false });
+                }}
+                placeholder={safeT(t, "postprod.data.forms.note.placeholder", "Note visible par l'opérateur lors de la création d'une tâche.")}
+              />
+            </div>
           ) : null}
 
           <RenderFormsFieldsEditorCard
@@ -184,8 +251,6 @@ function RenderFormsEditorView({
             onPersistEditableFields={persistEditableFields}
             onMoveEditableField={moveEditableField}
             onRemoveEditableField={removeEditableField}
-            onOpenReimportDialog={reimportDialog?.openDialog}
-            onOpenDeleteDialog={deleteDialog?.openDialog}
             metaError={metaError}
             metaInfo={metaInfo}
           />

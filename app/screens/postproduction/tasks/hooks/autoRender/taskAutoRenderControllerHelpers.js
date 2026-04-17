@@ -32,6 +32,9 @@ function applyAutoRenderStateSetters(stateSetters = {}, nextState = {}) {
   stateSetters.setAutoRenderTemplateId?.(nextState.autoRenderTemplateId);
   stateSetters.setAutoRenderFormValues?.(nextState.autoRenderFormValues);
   stateSetters.setAutoRenderLaunchMode?.(nextState.autoRenderLaunchMode);
+  stateSetters.setAutoRenderScheduledMode?.(nextState.autoRenderScheduledMode ?? "");
+  stateSetters.setAutoRenderScheduledAt?.(nextState.autoRenderScheduledAt ?? "");
+  stateSetters.setTaskSequenceName?.(nextState.taskSequenceName ?? "");
 }
 
 export {

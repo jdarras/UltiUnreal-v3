@@ -6,6 +6,7 @@ import { TaskEditorTitleFields } from "./editor/TaskEditorTitleFields";
 function TaskEditorPanel({
   t,
   isEditingTask = false,
+  editingTaskId = 0,
   tasksLoading = false,
   title = "",
   description = "",
@@ -32,8 +33,15 @@ function TaskEditorPanel({
   availableRenderWorkers = [],
   renderWorkersLoading = false,
   renderWorkersError = "",
-  autoRenderLaunchMode = "scheduled",
+  autoRenderLaunchMode = "",
   onChangeAutoRenderLaunchMode = null,
+  autoRenderScheduledMode = "",
+  onChangeAutoRenderScheduledMode = null,
+  autoRenderScheduledAt = "",
+  onChangeAutoRenderScheduledAt = null,
+  taskSequenceName = "",
+  onChangeAutoRenderSequence = null,
+  projectCatalogSequenceOptions = [],
   autoRenderFormFieldsLoading = false,
   autoRenderFormFieldsError = "",
   visibleAutoRenderFormFields = [],
@@ -61,6 +69,7 @@ function TaskEditorPanel({
       <TaskEditorTitleFields
         t={t}
         isEditingTask={isEditingTask}
+        editingTaskId={editingTaskId}
         tasksLoading={tasksLoading}
         title={title}
         description={description}
@@ -93,6 +102,13 @@ function TaskEditorPanel({
         renderWorkersError={renderWorkersError}
         autoRenderLaunchMode={autoRenderLaunchMode}
         onChangeAutoRenderLaunchMode={onChangeAutoRenderLaunchMode}
+        autoRenderScheduledMode={autoRenderScheduledMode}
+        onChangeAutoRenderScheduledMode={onChangeAutoRenderScheduledMode}
+        autoRenderScheduledAt={autoRenderScheduledAt}
+        onChangeAutoRenderScheduledAt={onChangeAutoRenderScheduledAt}
+        taskSequenceName={taskSequenceName}
+        onChangeAutoRenderSequence={onChangeAutoRenderSequence}
+        projectCatalogSequenceOptions={projectCatalogSequenceOptions}
         isEditingTask={isEditingTask}
       />
 
@@ -109,6 +125,7 @@ function TaskEditorPanel({
 
       <TaskEditorFooter
         t={t}
+        isEditingTask={isEditingTask}
         renderOutputDir={renderOutputDir}
         autoExpectedRenderName={autoExpectedRenderName}
         formError={formError}

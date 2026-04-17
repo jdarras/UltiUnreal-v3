@@ -121,6 +121,7 @@ export default function PostProductionScreen({
   editUserIdRequest = null,
   onEditUserIdHandled = null,
   onOpenActivityTarget = null,
+  onNavigateToProject = null,
   onRequestOpenTasks = null,
   onRefreshProjects = null,
   onUserEditorModeChange = null,
@@ -140,6 +141,8 @@ export default function PostProductionScreen({
   onSaveDispatchPolicy = null,
   onScheduleRender = null,
   onReorderRenders = null,
+  onDeleteRender = null,
+  onPatchWorkerAptitude = null,
   onCreateRenderForm = null,
   onUpdateRenderForm = null,
   onDeleteRenderForm = null,
@@ -323,6 +326,7 @@ export default function PostProductionScreen({
           onDeleteRenderForm={onDeleteRenderForm}
           onLoadRenderFormFields={onLoadRenderFormFields}
           onReplaceRenderFormFields={onReplaceRenderFormFields}
+          onNavigateToProject={onNavigateToProject}
         />
       ) : null}
       {tabKey === "Datas" && !canManageRenderTemplates ? (
@@ -347,6 +351,8 @@ export default function PostProductionScreen({
           tasks={tasks}
           tasksLoading={tasksLoading}
           renderWorkers={renderWorkers}
+          renderWorkersLoading={renderWorkersLoading}
+          onPatchWorkerAptitude={onPatchWorkerAptitude}
           health={renderHealth}
           onCreateRender={onCreateRender}
           onTransitionRender={onTransitionRender}
@@ -356,6 +362,10 @@ export default function PostProductionScreen({
           onSaveDispatchPolicy={onSaveDispatchPolicy}
           onScheduleRender={onScheduleRender}
           onReorderRenders={onReorderRenders}
+          onDeleteTask={canCreateTasks ? onDeleteTask : null}
+          onDeleteRender={onDeleteRender}
+          onRequestOpenTasks={onRequestOpenTasks}
+          onNavigateToProject={onNavigateToProject}
         />
       ) : null}
 

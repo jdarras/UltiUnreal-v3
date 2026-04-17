@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { safeT } from "../../../shared/helpers";
+import { RenderFormsConfirmDialog } from "../RenderFormsConfirmDialog";
 import { RenderFormsListPanel } from "../RenderFormsListPanel";
 import { RenderFormsListToolbar } from "../RenderFormsListToolbar";
 
@@ -14,7 +16,10 @@ function RenderFormsBrowseView({
   selectedProjectRef = "",
   onSelectProjectRef = null,
   startEdit = null,
+  onDeleteRenderForm = null,
 }) {
+  const [formToDelete, setFormToDelete] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const {
     formsSortMode = "name_asc",
     formsSortDir = "asc",
@@ -32,6 +37,7 @@ function RenderFormsBrowseView({
   } = preferences || {};
   const {
     normalizedProjectOptions = [],
+    visibleForms = [],
     sortedForms = [],
     canClearFormsFilters = false,
     handleFormsListSort = null,
@@ -69,9 +75,8 @@ function RenderFormsBrowseView({
         formsSearchExpanded={formsSearchExpanded}
         onCloseAdvancedSearch={() => setFormsSearchExpanded?.(false)}
         sortedForms={sortedForms}
-        selectedProjectRef={selectedProjectRef}
+        visibleForms={visibleForms}
         normalizedProjectOptions={normalizedProjectOptions}
-        onSelectProjectRef={onSelectProjectRef}
         formsSearchAdvanced={formsSearchAdvanced}
         onFormsSearchAdvancedChange={(patch) => {
           setFormsSearchAdvanced?.((prev) => ({ ...(prev || {}), ...(patch || {}) }));
@@ -83,6 +88,32 @@ function RenderFormsBrowseView({
         onToggleFormFavorite={toggleFormFavorite}
         formProjectLabel={formProjectLabel}
         onEditForm={startEdit}
+        onDeleteForm={canManageRenderTemplates ? setFormToDelete : null}
+      />
+
+      <RenderFormsConfirmDialog
+        t={t}
+        open={formToDelete !== null}
+        title={safeT(t, "postprod.data.forms.deleteDialog.title", "Confirmation")}
+        message={safeT(
+          t,
+          "postprod.data.forms.deleteDialog.message",
+          "Supprimer ce formulaire ? Cette action est irreversible."
+        )}
+        busy={deleteBusy}
+        cancelLabel={safeT(t, "common.cancel", "Annuler")}
+        confirmLabel={deleteBusy ? safeT(t, "common.loading", "Chargement…") : safeT(t, "common.delete", "Supprimer")}
+        onCancel={() => { if (!deleteBusy) setFormToDelete(null); }}
+        onConfirm={async () => {
+          if (!formToDelete || typeof onDeleteRenderForm !== "function") return;
+          setDeleteBusy(true);
+          try {
+            await onDeleteRenderForm(Number(formToDelete.id));
+          } finally {
+            setDeleteBusy(false);
+            setFormToDelete(null);
+          }
+        }}
       />
     </>
   );

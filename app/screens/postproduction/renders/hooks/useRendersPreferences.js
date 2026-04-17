@@ -1,14 +1,17 @@
 import { useState } from "react";
 import {
-  getInitialFavoriteOnly,
+  getInitialFormFilter,
   getInitialListSortDir,
   getInitialListSortKey,
   getInitialProjectFilter,
+  getInitialRequesterFilter,
   getInitialStationFilter,
+  getInitialStatusFilter,
+  getInitialTaskFilter,
   getInitialQueueSortDir,
   getInitialQueueSortKey,
-  getInitialRenderFavorites,
   getInitialReviewFilter,
+  getInitialSequenceFilter,
   getInitialSearchQuery,
   getInitialViewMode,
   usePersistRendersPreferences,
@@ -19,9 +22,12 @@ export function useRendersPreferences() {
   const [reviewFilter, setReviewFilter] = useState(getInitialReviewFilter);
   const [projectFilter, setProjectFilter] = useState(getInitialProjectFilter);
   const [stationFilter, setStationFilter] = useState(getInitialStationFilter);
+  const [taskFilter, setTaskFilter] = useState(getInitialTaskFilter);
+  const [formFilter, setFormFilter] = useState(getInitialFormFilter);
+  const [requesterFilter, setRequesterFilter] = useState(getInitialRequesterFilter);
+  const [statusFilter, setStatusFilter] = useState(getInitialStatusFilter);
+  const [sequenceFilter, setSequenceFilter] = useState(getInitialSequenceFilter);
   const [searchExpanded, setSearchExpanded] = useState(false);
-  const [favoriteOnly, setFavoriteOnly] = useState(getInitialFavoriteOnly);
-  const [renderFavorites, setRenderFavorites] = useState(getInitialRenderFavorites);
   const [viewMode, setViewMode] = useState(getInitialViewMode);
   const [listSortKey, setListSortKey] = useState(getInitialListSortKey);
   const [listSortDir, setListSortDir] = useState(getInitialListSortDir);
@@ -34,8 +40,11 @@ export function useRendersPreferences() {
     reviewFilter,
     projectFilter,
     stationFilter,
-    favoriteOnly,
-    renderFavorites,
+    taskFilter,
+    formFilter,
+    requesterFilter,
+    statusFilter,
+    sequenceFilter,
     listSortKey,
     listSortDir,
     queueSortKey,
@@ -51,12 +60,18 @@ export function useRendersPreferences() {
     setProjectFilter,
     stationFilter,
     setStationFilter,
+    taskFilter,
+    setTaskFilter,
+    formFilter,
+    setFormFilter,
+    requesterFilter,
+    setRequesterFilter,
+    statusFilter,
+    setStatusFilter,
+    sequenceFilter,
+    setSequenceFilter,
     searchExpanded,
     setSearchExpanded,
-    favoriteOnly,
-    setFavoriteOnly,
-    renderFavorites,
-    setRenderFavorites,
     viewMode,
     setViewMode,
     listSortKey,

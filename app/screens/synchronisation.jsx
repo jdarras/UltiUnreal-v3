@@ -1554,12 +1554,12 @@ export default function SynchronisationScreen() {
           )}
 
           {!hostsLoading && !hostsError && hasHosts && (() => {
-            const excludedHosts = clientHosts.filter((h) => h && h.eligible === false);
+            const excludedHosts = clientHosts.filter((h) => h && (h.renderAvailability === 'excluded' || h.eligible === false));
             const localProjectHosts = clientHosts.filter(
-              (h) => h && h.eligible !== false && !h.syncEnabled
+              (h) => h && h.renderAvailability !== 'excluded' && h.eligible !== false && !h.syncEnabled
             );
             const syncHosts = clientHosts.filter(
-              (h) => h && h.eligible !== false && !!h.syncEnabled
+              (h) => h && h.renderAvailability !== 'excluded' && h.eligible !== false && !!h.syncEnabled
             );
 
             const renderHostHeader = (h, idx) => {

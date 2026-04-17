@@ -4,6 +4,7 @@ function TasksEditorSection({
   t,
   showCreateForm = false,
   isEditingTask = false,
+  editingTaskId = 0,
   tasksLoading = false,
   title = "",
   description = "",
@@ -32,6 +33,13 @@ function TasksEditorSection({
   renderWorkersError = "",
   autoRenderLaunchMode = "scheduled",
   onChangeAutoRenderLaunchMode = null,
+  autoRenderScheduledMode = "",
+  onChangeAutoRenderScheduledMode = null,
+  autoRenderScheduledAt = "",
+  onChangeAutoRenderScheduledAt = null,
+  taskSequenceName = "",
+  onChangeAutoRenderSequence = null,
+  projectCatalogSequenceOptions = [],
   autoRenderFormFieldsLoading = false,
   autoRenderFormFieldsError = "",
   visibleAutoRenderFormFields = [],
@@ -50,6 +58,7 @@ function TasksEditorSection({
     <TaskEditorPanel
       t={t}
       isEditingTask={isEditingTask}
+      editingTaskId={editingTaskId}
       tasksLoading={tasksLoading}
       title={title}
       description={description}
@@ -78,6 +87,13 @@ function TasksEditorSection({
       renderWorkersError={renderWorkersError}
       autoRenderLaunchMode={autoRenderLaunchMode}
       onChangeAutoRenderLaunchMode={onChangeAutoRenderLaunchMode}
+      autoRenderScheduledMode={autoRenderScheduledMode}
+      onChangeAutoRenderScheduledMode={onChangeAutoRenderScheduledMode}
+      autoRenderScheduledAt={autoRenderScheduledAt}
+      onChangeAutoRenderScheduledAt={onChangeAutoRenderScheduledAt}
+      taskSequenceName={taskSequenceName}
+      onChangeAutoRenderSequence={onChangeAutoRenderSequence}
+      projectCatalogSequenceOptions={projectCatalogSequenceOptions}
       autoRenderFormFieldsLoading={autoRenderFormFieldsLoading}
       autoRenderFormFieldsError={autoRenderFormFieldsError}
       visibleAutoRenderFormFields={visibleAutoRenderFormFields}

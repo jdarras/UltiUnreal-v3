@@ -15,6 +15,7 @@ function buildTaskListLabelResolvers({
   taskRenderStateByTaskId = new Map(),
   taskRenderWorkerLabelByKey = new Map(),
   renderFormLabelById = new Map(),
+  projectLabelsByRef = new Map(),
 } = {}) {
   const taskVisualStatus = (task) => (
     buildTaskVisualStatus(task, t, taskRenderStateByTaskId, resolveTaskAutoRenderState)
@@ -34,12 +35,23 @@ function buildTaskListLabelResolvers({
 
   const taskExpectedRenderName = (task) => buildTaskExpectedRenderName(task);
 
+  const taskProjectLabel = (task) => {
+    const ref = String(
+      task?.autoRenderConfig?.projectName
+      || (Array.isArray(task?.projectRefs) ? task.projectRefs[0] : "")
+      || ""
+    ).trim();
+    if (!ref) return "-";
+    return String(projectLabelsByRef.get(ref) || projectLabelsByRef.get(ref.toLowerCase()) || ref).trim() || ref;
+  };
+
   return {
     taskVisualStatus,
     taskRenderFormLabel,
     taskLaunchModeLabel,
     taskRenderWorkerLabel,
     taskExpectedRenderName,
+    taskProjectLabel,
     taskRenderModeName,
     resolveTaskAutoRenderState,
   };

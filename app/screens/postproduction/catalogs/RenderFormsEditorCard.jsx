@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { RenderFormsBrowseView } from "./components/editor/RenderFormsBrowseView";
 import { RenderFormsEditorView } from "./components/editor/RenderFormsEditorView";
 import { useRenderFormsEditorPageController } from "./hooks/useRenderFormsEditorPageController";
@@ -20,6 +20,7 @@ function RenderFormsEditorCard({
   onLoadProjectUnrealCatalog = null,
   onLoadRenderFormFields = null,
   onReplaceRenderFormFields = null,
+  onNavigateToProject = null,
 }) {
   const {
     editorState,
@@ -48,6 +49,11 @@ function RenderFormsEditorCard({
   const showEditor = editorState?.showEditor === true;
   const startEdit = editorState?.startEdit;
 
+  const wrappedHandleStartCreate = useCallback(() => {
+    handleStartCreate();
+    if (typeof onSelectProjectRef === "function") onSelectProjectRef("");
+  }, [handleStartCreate, onSelectProjectRef]);
+
   useEffect(() => {
     if (showEditor) editorState.backToList();
   }, [tabKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -60,13 +66,14 @@ function RenderFormsEditorCard({
           renderFormsLoading={renderFormsLoading}
           renderFormsError={renderFormsError}
           canManageRenderTemplates={canManageRenderTemplates}
-          handleStartCreate={handleStartCreate}
+          handleStartCreate={wrappedHandleStartCreate}
           clearListFilters={clearListFilters}
           preferences={preferences}
           listController={listController}
           selectedProjectRef={selectedProjectRef}
           onSelectProjectRef={onSelectProjectRef}
           startEdit={startEdit}
+          onDeleteRenderForm={onDeleteRenderForm}
         />
       ) : (
         <RenderFormsEditorView
@@ -80,6 +87,7 @@ function RenderFormsEditorCard({
           editorController={editorController}
           deleteDialog={deleteDialog}
           reimportDialog={reimportDialog}
+          onNavigateToProject={onNavigateToProject}
         />
       )}
     </div>

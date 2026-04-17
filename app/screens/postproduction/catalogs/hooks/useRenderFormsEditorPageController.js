@@ -93,12 +93,20 @@ function useRenderFormsEditorPageController({
     onReplaceRenderFormFields,
   });
 
-  const { resetEditorDraftForCreate, fieldsImportBusy, metaBusy } = editorController;
+  const {
+    resetEditorDraftForCreate,
+    fieldsImportBusy,
+    metaBusy,
+    setNewFormName,
+    setNewMapName,
+  } = editorController;
 
   const handleStartCreate = useCallback(() => {
     resetEditorDraftForCreate();
+    setNewFormName?.("");
+    setNewMapName?.("");
     editorState.startCreate();
-  }, [editorState, resetEditorDraftForCreate]);
+  }, [editorState, resetEditorDraftForCreate, setNewFormName, setNewMapName]);
 
   const deleteDialog = useConfirmDialogState({
     canOpen: Number.isFinite(Number(selectedFormId || 0)) && Number(selectedFormId || 0) > 0,
@@ -117,9 +125,11 @@ function useRenderFormsEditorPageController({
     preferences.setFormsFavoriteOnly(false);
     preferences.setFormsSearchAdvanced({
       active: "all",
-      mapName: "",
-      sequenceName: "",
-      presetName: "",
+      projects: [],
+      mapNames: [],
+      sequences: [],
+      presets: [],
+      wrcFiles: [],
     });
     preferences.setFormsSearchExpanded(false);
   }, [preferences]);

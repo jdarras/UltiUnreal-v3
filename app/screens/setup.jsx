@@ -109,8 +109,15 @@ function hostArrayToEditList(list, locale = 'fr') {
       status: 'unknown',
       lastMsg: '',
       lastMsgType: '',
-      eligible: h.eligible === false ? false : true,
-      renderEnabled: h.renderEnabled === false ? false : true,
+      renderAvailability: (() => {
+        const VALID = ['capable', 'busy', 'excluded'];
+        if (VALID.includes(h.renderAvailability)) return h.renderAvailability;
+        if (h.eligible === false || h.renderEnabled === false) return 'excluded';
+        return 'capable';
+      })(),
+      renderReturnAt: typeof h.renderReturnAt === 'string' && h.renderReturnAt.trim()
+        ? h.renderReturnAt.trim()
+        : null,
       sortIndex,
     });
   }
@@ -148,6 +155,71 @@ function buildEditorsSignature(map = {}) {
     })
   );
   return keys.map((k) => `${k}:${norm[k]}`).join('|');
+}
+
+// ---- Composant sélecteur de date de retour (renderReturnAt) ----
+const RETURN_PRESETS_MIN = [30, 60, 120, 240, 480];
+
+function ReturnAtPicker({ value, onChange, t }) {
+  // value: ISO string | null
+  // Convertit ISO -> valeur pour datetime-local (YYYY-MM-DDTHH:mm)
+  const isoToLocal = (iso) => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      if (!Number.isFinite(d.getTime())) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch { return ''; }
+  };
+
+  const localToIso = (local) => {
+    if (!local) return null;
+    try {
+      const d = new Date(local);
+      if (!Number.isFinite(d.getTime())) return null;
+      return d.toISOString();
+    } catch { return null; }
+  };
+
+  const applyPreset = (minutes) => {
+    const iso = new Date(Date.now() + minutes * 60000).toISOString();
+    onChange(iso);
+  };
+
+  return (
+    <div className="uu-row" style={{ gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+      <span style={{ fontSize: '0.82em', color: 'var(--uu-text-muted, #888)', whiteSpace: 'nowrap' }}>
+        {t('renderReturnAt.label')}
+      </span>
+      <input
+        type="datetime-local"
+        className="uu-input"
+        style={{ minWidth: 170, fontSize: '0.9em' }}
+        value={isoToLocal(value)}
+        onChange={(e) => onChange(localToIso(e.target.value))}
+      />
+      {RETURN_PRESETS_MIN.map((m) => (
+        <button
+          key={m}
+          className="uu-btn"
+          style={{ fontSize: '0.8em', padding: '2px 6px' }}
+          onClick={() => applyPreset(m)}
+          title={t('renderReturnAt.presetTitle', { m: m >= 60 ? `${m/60}h` : `${m}m` })}
+        >
+          {m >= 60 ? `${m/60}h` : `${m}m`}
+        </button>
+      ))}
+      {value && (
+        <button
+          className="uu-btn"
+          style={{ fontSize: '0.8em', padding: '2px 6px' }}
+          onClick={() => onChange(null)}
+          title={t('renderReturnAt.clear')}
+        >✕</button>
+      )}
+    </div>
+  );
 }
 
 export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
@@ -739,7 +811,6 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
           ...prev,
           rcHttpPort: c.rcHttpPort ?? prev.rcHttpPort,
           rcWsPort: c.rcWsPort ?? prev.rcWsPort,
-          webRemoteControlName: c.webRemoteControlName ?? prev.webRemoteControlName,
           refreshSec: c.refreshSec ?? prev.refreshSec,
           agentPort: c.agentPort ?? prev.agentPort,
         }));
@@ -831,8 +902,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
             status: 'unknown',
             lastMsg: '',
             lastMsgType: '',
-            eligible: true,
-            renderEnabled: true,
+            renderAvailability: 'capable',
             sortIndex: nextIndex,
             prevIp: '',
           },
@@ -1031,19 +1101,26 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
       : idxInState >= 0
         ? idxInState
         : Number(m.sortIndex);
-    const eligibleFlag =
-      stateMatch?.eligible === false
-        ? false
-        : m?.eligible === false
-          ? false
-          : true;
+    const renderAvailability = (() => {
+      const VALID = ['capable', 'busy', 'excluded'];
+      const val = stateMatch?.renderAvailability ?? m?.renderAvailability;
+      if (VALID.includes(val)) return val;
+      // Migration depuis les anciens champs
+      if (stateMatch?.eligible === false || m?.eligible === false) return 'excluded';
+      return 'capable';
+    })();
+    const renderReturnAt = renderAvailability === 'busy'
+      ? (typeof (stateMatch?.renderReturnAt ?? m?.renderReturnAt) === 'string'
+          ? (stateMatch?.renderReturnAt ?? m?.renderReturnAt) || null
+          : null)
+      : null;
     const payload = {
       ip,
       name: String(stateMatch.name ?? m.name ?? '').trim(),
       color: String(stateMatch.color ?? m.color ?? '').trim(),
       args,
-      eligible: eligibleFlag,
-      renderEnabled: stateMatch?.renderEnabled === false ? false : true,
+      renderAvailability,
+      renderReturnAt,
       sortIndex: Number.isFinite(sortIndex) ? sortIndex : undefined,
     };
 
@@ -1087,8 +1164,8 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
     return <span className={`uu-dot ${cls}`} title={title} />;
   }
 
-  const eligibleList = cfg.machines.map((m, idx) => ({ ...m, _idx: idx })).filter((m) => m.eligible !== false);
-  const excludedList = cfg.machines.map((m, idx) => ({ ...m, _idx: idx })).filter((m) => m.eligible === false);
+  const capableList = cfg.machines.map((m, idx) => ({ ...m, _idx: idx })).filter((m) => m.renderAvailability !== 'excluded');
+  const excludedList = cfg.machines.map((m, idx) => ({ ...m, _idx: idx })).filter((m) => m.renderAvailability === 'excluded');
 
   const dragInfo = React.useRef(null);
 
@@ -1106,13 +1183,17 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
         const ip = String(vm?.ip || '').trim();
         if (!ip) continue;
         try {
+          const VALID_AVAIL = ['capable', 'busy', 'excluded'];
+          const vmAvail = VALID_AVAIL.includes(vm.renderAvailability) ? vm.renderAvailability : 'capable';
           await postHost(ip, {
             ip,
             name: String(vm.name || '').trim(),
             color: String(vm.color || '').trim(),
             args: normalizeArgsForServer(vm.args || {}),
-            eligible: vm.eligible === false ? false : true,
-            renderEnabled: vm.renderEnabled === false ? false : true,
+            renderAvailability: vmAvail,
+            renderReturnAt: vmAvail === 'busy'
+              ? (typeof vm.renderReturnAt === 'string' ? vm.renderReturnAt || null : null)
+              : null,
             sortIndex: Number(vm.sortIndex),
           });
         } catch {}
@@ -1148,8 +1229,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
         status: 'unknown',
         lastMsg: '',
         lastMsgType: '',
-        eligible: true,
-        renderEnabled: true,
+        renderAvailability: 'capable',
         sortIndex: base.length,
         prevIp: '',
       };
@@ -1162,35 +1242,36 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
     [reindexAndPersist]
   );
 
-  // Bascule eligible/Excluded via bouton et force le sortIndex en fin de segment cible
-  const toggleEligibility = React.useCallback(
-    async (idxInState, toEligible) => {
+  // Change renderAvailability d'une machine et force le sortIndex en fin de segment cible
+  const setRenderAvailability = React.useCallback(
+    async (idxInState, avail) => {
+      const VALID = ['capable', 'busy', 'excluded'];
+      if (!VALID.includes(avail)) return;
       const list = Array.isArray(cfgRef.current?.machines)
         ? [...cfgRef.current.machines]
         : [];
       if (idxInState < 0 || idxInState >= list.length) return;
 
-      const target = { ...list[idxInState], eligible: !!toEligible };
+      const target = {
+        ...list[idxInState],
+        renderAvailability: avail,
+        renderReturnAt: avail === 'busy' ? (list[idxInState]?.renderReturnAt || null) : null,
+      };
       const rest = list.filter((_, i) => i !== idxInState);
 
-      const eligible = rest.filter((m) => m.eligible !== false);
-      const excluded = rest.filter((m) => m.eligible === false);
+      const capable = rest.filter((m) => m.renderAvailability !== 'excluded');
+      const excluded = rest.filter((m) => m.renderAvailability === 'excluded');
 
-      if (toEligible) {
-        eligible.push(target);
-      } else {
-        excluded.push(target);
-      }
+      const merged = avail === 'excluded'
+        ? [...capable, ...excluded, target]
+        : [...capable, target, ...excluded];
 
-      const merged = [...eligible, ...excluded].map((m, idx) => ({
-        ...m,
-        sortIndex: idx,
-      }));
+      const reindexed = merged.map((m, idx) => ({ ...m, sortIndex: idx }));
 
-      setCfg((prev) => ({ ...prev, machines: merged }));
-      cfgRef.current = { ...cfgRef.current, machines: merged };
+      setCfg((prev) => ({ ...prev, machines: reindexed }));
+      cfgRef.current = { ...cfgRef.current, machines: reindexed };
 
-      await reindexAndPersist(merged);
+      await reindexAndPersist(reindexed);
     },
     [reindexAndPersist]
   );
@@ -1221,13 +1302,13 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
     let next = null;
     setCfg((prev) => {
       const list = [...prev.machines];
-      const eligible = list.filter((m) => m.eligible !== false);
-      const excluded = list.filter((m) => m.eligible === false);
-      const arr = segment === 'eligible' ? eligible : excluded;
+      const capable = list.filter((m) => m.renderAvailability !== 'excluded');
+      const excluded = list.filter((m) => m.renderAvailability === 'excluded');
+      const arr = segment === 'capable' ? capable : excluded;
       if (fromIdx < 0 || fromIdx >= arr.length || toIdx < 0 || toIdx >= arr.length) return prev;
       const [item] = arr.splice(fromIdx, 1);
       arr.splice(toIdx, 0, item);
-      const merged = [...eligible, ...excluded].map((m, idx) => ({ ...m, sortIndex: idx }));
+      const merged = [...capable, ...excluded].map((m, idx) => ({ ...m, sortIndex: idx }));
       next = merged;
       return { ...prev, machines: merged };
     });
@@ -1333,23 +1414,43 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
             </button>
           ) : null}
 
-          {segment === 'eligible' ? (
-            <button
-              onClick={() => toggleEligibility(m._idx, false)}
-              className="uu-btn"
+          {isRenderMode ? (
+            <select
+              className="uu-input"
+              style={{ width: 110, minWidth: 0, flexShrink: 0 }}
+              value={m.renderAvailability || 'capable'}
+              onChange={(e) => setRenderAvailability(m._idx, e.target.value)}
             >
-              {isRenderMode ? t('setup.render.exclude') : t('setup.launchControl.exclude')}
-            </button>
+              <option value="capable">{t('renderAvailability.capable')}</option>
+              <option value="busy">{t('renderAvailability.busy')}</option>
+              <option value="excluded">{t('renderAvailability.excluded')}</option>
+            </select>
           ) : (
-            <button
-              onClick={() => toggleEligibility(m._idx, true)}
-              className="uu-btn"
-            >
-              {isRenderMode ? t('setup.render.reinclude') : t('setup.launchControl.reinclude')}
-            </button>
+            segment === 'capable' ? (
+              <button onClick={() => setRenderAvailability(m._idx, 'excluded')} className="uu-btn">
+                {t('setup.launchControl.exclude')}
+              </button>
+            ) : (
+              <button onClick={() => setRenderAvailability(m._idx, 'capable')} className="uu-btn">
+                {t('setup.launchControl.reinclude')}
+              </button>
+            )
           )}
 
           <button onClick={()=>removeMachine(m._idx)} className="uu-btn">{t('common.delete')}</button>
+
+          {isRenderMode && m.renderAvailability === 'busy' && (
+            <ReturnAtPicker
+              value={m.renderReturnAt || null}
+              onChange={(iso) => {
+                updateMachine(m._idx, { renderReturnAt: iso });
+                const updated = { ...cfgRef.current?.machines?.[m._idx], renderReturnAt: iso };
+                saveArgsToServer(m._idx, updated);
+              }}
+              t={t}
+            />
+          )}
+
           <span
             style={{ marginLeft: 'auto', cursor: 'grab', opacity: 0.6 }}
             title={t('setup.launchControl.dragToReorder')}
@@ -1510,18 +1611,6 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
                 />
               </div>
             </div>
-            <div className="uu-grid-field mt-8">
-              <label className="uu-check" style={{ alignItems: 'center', whiteSpace: 'nowrap', width: 'max-content' }}>
-                <input
-                  type="checkbox"
-                  checked={m.renderEnabled !== false}
-                  onChange={(e) =>
-                    updateMachine(m._idx, { renderEnabled: !!e.target.checked })
-                  }
-                />
-                {t('setup.server.renderEnabled')}
-              </label>
-            </div>
           </div>
           </>
         )}
@@ -1549,10 +1638,10 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
         <h3 className="uu-h3 uu-block-title">
           {isRenderMode ? t('setup.server.machinesRenderEligible') : t('setup.server.machinesEligible')}
         </h3>
-        {eligibleList.length === 0 ? (
+        {capableList.length === 0 ? (
           <div className="uu-muted">{t('setup.server.noEligible')}</div>
         ) : (
-          eligibleList.map((m, idx) => renderCard(m, 'eligible', idx))
+          capableList.map((m, idx) => renderCard(m, 'capable', idx))
         )}
       </div>
 

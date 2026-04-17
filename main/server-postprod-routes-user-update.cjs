@@ -37,6 +37,8 @@ async function handlePostprodUserUpdateRoutes({
   pbkdf2Iters,
   audit,
   buildUserAdminPayload,
+  emitUserSyncUpsert,
+  emitUserSyncDelete,
 }) {
   const userUpdateMatch = /^\/agent\/postprod\/users\/(\d+)(?:\/profile)?$/.exec(pathname);
   if (!userUpdateMatch) return false;
@@ -123,6 +125,14 @@ async function handlePostprodUserUpdateRoutes({
       'user',
       String(userId)
     );
+    if (typeof emitUserSyncDelete === 'function') {
+      try {
+        emitUserSyncDelete(currentUser, {
+          actorUserId: auth.session.user_id,
+          reason: 'user_deleted',
+        });
+      } catch {}
+    }
 
     sendJSON(res, 200, { ok: true, deletedUserId: userId });
     return true;
@@ -471,6 +481,14 @@ async function handlePostprodUserUpdateRoutes({
     'user',
     String(userId)
   );
+  if (typeof emitUserSyncUpsert === 'function' && updated) {
+    try {
+      emitUserSyncUpsert(updated, {
+        actorUserId: auth.session.user_id,
+        reason: 'user_updated',
+      });
+    } catch {}
+  }
   sendJSON(res, 200, { ok: true, user: buildUserAdminPayload(updated, rolesCache) });
   return true;
 }

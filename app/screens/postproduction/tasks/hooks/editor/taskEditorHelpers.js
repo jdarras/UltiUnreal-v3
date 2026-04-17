@@ -9,12 +9,20 @@ import {
   toPayloadSignature,
 } from "./taskEditorAutosaveHelpers";
 
+function isValidFutureDate(value) {
+  if (!value) return false;
+  const d = new Date(value);
+  return !isNaN(d.getTime()) && d.getTime() > Date.now();
+}
+
 function canSubmitTaskForm({
   tasksLoading = false,
   canCreateTasks = false,
   taskSaveHandler = null,
   isEditingTask = false,
-  autoRenderLaunchMode = "scheduled",
+  autoRenderLaunchMode = "",
+  autoRenderScheduledMode = "",
+  autoRenderScheduledAt = "",
   onCreateRender = null,
   title = "",
   autoRenderProjectRef = "",
@@ -22,11 +30,21 @@ function canSubmitTaskForm({
   autoRenderFormId = "",
   renderOutputDir = "",
 } = {}) {
+  const launchModeOk = isEditingTask || !!String(autoRenderLaunchMode || "").trim();
+  const scheduledModeOk = isEditingTask
+    || autoRenderLaunchMode !== "scheduled"
+    || !!String(autoRenderScheduledMode || "").trim();
+  const scheduledAtOk = isEditingTask
+    || !(autoRenderLaunchMode === "scheduled" && autoRenderScheduledMode === "datetime")
+    || isValidFutureDate(autoRenderScheduledAt);
   return (
     !tasksLoading
     && canCreateTasks === true
     && !!taskSaveHandler
     && !(!isEditingTask && autoRenderLaunchMode === "now" && !onCreateRender)
+    && launchModeOk
+    && scheduledModeOk
+    && scheduledAtOk
     && !!String(title || "").trim()
     && !!String(autoRenderProjectRef || "").trim()
     && !(filteredAutoRenderForms.length > 0 && !String(autoRenderFormId || "").trim())

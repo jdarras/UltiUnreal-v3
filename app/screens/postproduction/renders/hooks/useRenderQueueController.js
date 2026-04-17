@@ -16,7 +16,7 @@ export function useRenderQueueController({
   renders = [],
   renderWorkers = [],
   searchQuery = "",
-  queueSortKey = "status",
+  queueSortKey = "startAt",
   queueSortDir = "asc",
   setQueueSortKey = null,
   setQueueSortDir = null,

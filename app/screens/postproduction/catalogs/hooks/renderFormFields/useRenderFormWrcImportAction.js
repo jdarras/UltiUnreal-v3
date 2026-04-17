@@ -7,7 +7,7 @@ export function useRenderFormWrcImportAction({
   selectedForm = null,
   selectedProjectRef = "",
   selectedFormProjectRef = "",
-  metaPresetName = "",
+  metaWrcFiles = [],
   canManageRenderTemplates = false,
   onLoadProjectWrcFields = null,
   onReplaceRenderFormFields = null,
@@ -18,11 +18,15 @@ export function useRenderFormWrcImportAction({
   setFieldsSaveError = null,
   setFieldsSaveInfo = null,
 } = {}) {
+  // Import fields for a single WRC file (opts.wrcFile) or all metaWrcFiles when reimporting.
   const importFieldsFromWrcPreset = useCallback(async (options = null) => {
     const opts = options && typeof options === "object" && !Array.isArray(options) ? options : {};
     const formId = Number(opts.formId || selectedForm?.id || 0);
     const projectRef = String(opts.projectRef || selectedProjectRef || selectedFormProjectRef || "").trim();
-    const presetName = String(opts.presetName || metaPresetName || selectedForm?.presetName || "").trim();
+    const wrcFile = String(opts.wrcFile || "").trim();
+    const loadOptions = opts.loadOptions && typeof opts.loadOptions === "object" && !Array.isArray(opts.loadOptions)
+      ? opts.loadOptions
+      : {};
     setFieldsImportError?.("");
     setFieldsImportInfo?.("");
     setFieldsSaveError?.("");
@@ -36,7 +40,8 @@ export function useRenderFormWrcImportAction({
         onReplaceRenderFormFields,
         formId,
         projectRef,
-        presetName,
+        wrcFile,
+        loadOptions,
       });
       if (!result?.ok) {
         if (result?.error) setFieldsImportError?.(String(result.error));
@@ -50,11 +55,7 @@ export function useRenderFormWrcImportAction({
       setFieldsImportError?.(
         String(
           e?.message
-          || safeT(
-            t,
-            "postprod.data.forms.error.import.failed",
-            "Import WRC impossible."
-          )
+          || safeT(t, "postprod.data.forms.error.import.failed", "Import WRC impossible.")
         )
       );
       return false;
@@ -65,8 +66,6 @@ export function useRenderFormWrcImportAction({
     selectedForm?.id,
     selectedProjectRef,
     selectedFormProjectRef,
-    metaPresetName,
-    selectedForm?.presetName,
     t,
     canManageRenderTemplates,
     onLoadProjectWrcFields,
@@ -79,9 +78,80 @@ export function useRenderFormWrcImportAction({
     setFields,
   ]);
 
+  // Reimport all checked WRC files (used by the reimport dialog button)
   const handleImportFieldsFromWrcPreset = useCallback(async () => {
-    await importFieldsFromWrcPreset();
-  }, [importFieldsFromWrcPreset]);
+    const formId = Number(selectedForm?.id || 0);
+    const projectRef = String(selectedProjectRef || selectedFormProjectRef || "").trim();
+    const wrcFiles = Array.isArray(metaWrcFiles) ? metaWrcFiles.filter(Boolean) : [];
+    if (!wrcFiles.length) {
+      setFieldsImportError?.(safeT(t, "postprod.data.forms.error.import.noWrcFiles", "Aucun fichier WRC selectionne."));
+      return;
+    }
+    setFieldsImportError?.("");
+    setFieldsImportInfo?.("");
+    setFieldsSaveError?.("");
+    setFieldsSaveInfo?.("");
+    setFieldsImportBusy?.(true);
+    try {
+      let lastFields = null;
+      let totalCount = 0;
+      for (const wrcFile of wrcFiles) {
+        const result = await importRenderFormFieldsFromWrc({
+          t,
+          canManageRenderTemplates,
+          onLoadProjectWrcFields,
+          onReplaceRenderFormFields,
+          formId,
+          projectRef,
+          wrcFile,
+          loadOptions: { refreshSnapshot: true },
+        });
+        if (result?.ok && Array.isArray(result?.fields)) {
+          lastFields = result.fields;
+          totalCount = lastFields.length;
+        }
+      }
+      if (lastFields !== null) {
+        setFields?.(lastFields);
+        setFieldsImportInfo?.(
+          safeT(
+            t,
+            "postprod.data.forms.msg.import.success.multi",
+            "Import WRC terminé ({count} champs, {files} fichier(s)).",
+            { count: totalCount, files: wrcFiles.length }
+          )
+        );
+      } else {
+        setFieldsImportError?.(
+          safeT(
+            t,
+            "postprod.data.forms.msg.import.empty",
+            "Aucun champ importable trouvé dans le preset WRC '{wrcFile}'.",
+            { wrcFile: "-" }
+          )
+        );
+      }
+    } catch (e) {
+      setFieldsImportError?.(String(e?.message || safeT(t, "postprod.data.forms.error.import.failed", "Import WRC impossible.")));
+    } finally {
+      setFieldsImportBusy?.(false);
+    }
+  }, [
+    selectedForm?.id,
+    selectedProjectRef,
+    selectedFormProjectRef,
+    metaWrcFiles,
+    t,
+    canManageRenderTemplates,
+    onLoadProjectWrcFields,
+    onReplaceRenderFormFields,
+    setFieldsImportError,
+    setFieldsImportInfo,
+    setFieldsSaveError,
+    setFieldsSaveInfo,
+    setFieldsImportBusy,
+    setFields,
+  ]);
 
   return {
     importFieldsFromWrcPreset,
@@ -90,4 +160,3 @@ export function useRenderFormWrcImportAction({
 }
 
 export default useRenderFormWrcImportAction;
-

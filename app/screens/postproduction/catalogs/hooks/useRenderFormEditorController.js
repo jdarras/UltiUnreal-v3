@@ -58,7 +58,7 @@ export function useRenderFormEditorController({
     selectedForm,
     selectedProjectRef,
     selectedFormProjectRef,
-    metaPresetName: metaController.metaPresetName,
+    metaWrcFiles: metaController.metaWrcFiles,
     canManageRenderTemplates,
     onLoadProjectWrcFields,
     onLoadRenderFormFields,
@@ -74,6 +74,7 @@ export function useRenderFormEditorController({
     saveRenderFormMeta: metaController.saveRenderFormMeta,
     deleteRenderForm: metaController.deleteRenderForm,
     importFieldsFromWrcPreset: fieldsController.importFieldsFromWrcPreset,
+    reloadRenderFormFields: fieldsController.reloadRenderFormFields,
     editableFields: fieldsController.editableFields,
   });
 

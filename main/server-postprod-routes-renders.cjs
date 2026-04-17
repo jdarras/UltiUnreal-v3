@@ -372,7 +372,7 @@ async function handlePostprodRendersRoutes({
 
   const renderByIdMatch = /^\/agent\/postprod\/(?:renders|render-jobs)\/(\d+)$/.exec(pathname);
   if (renderByIdMatch) {
-    if (req.method !== 'GET') {
+    if (req.method !== 'GET' && req.method !== 'DELETE') {
       sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
       return true;
     }
@@ -388,6 +388,39 @@ async function handlePostprodRendersRoutes({
       sendJSON(res, 404, { ok: false, error: 'render_not_found' });
       return true;
     }
+
+    if (req.method === 'DELETE') {
+      const actorPerms = rolePermissions(auth.session.role, rolesCache);
+      if (actorPerms.canLaunchRenders !== true) {
+        sendJSON(res, 403, { ok: false, error: 'forbidden_render_transition' });
+        return true;
+      }
+      if (String(render.status || '') === 'Running') {
+        sendJSON(res, 409, { ok: false, error: 'render_running_cannot_delete' });
+        return true;
+      }
+      const deleted = stmts.deleteRenderJobById.run(renderId);
+      if (Number(deleted?.changes || 0) <= 0) {
+        sendJSON(res, 404, { ok: false, error: 'render_not_found' });
+        return true;
+      }
+      audit(
+        auth.session.user_id,
+        'render_deleted',
+        {
+          renderId,
+          projectName: String(render?.project_name || ''),
+          templateName: String(render?.template_name || ''),
+          status: String(render?.status || ''),
+          reviewStatus: String(render?.review_status || ''),
+        },
+        'render',
+        String(renderId)
+      );
+      sendJSON(res, 200, { ok: true, renderId });
+      return true;
+    }
+
     const payload = buildRenderJobPayload(render);
     sendJSON(res, 200, { ok: true, render: payload, renderJob: payload });
     return true;

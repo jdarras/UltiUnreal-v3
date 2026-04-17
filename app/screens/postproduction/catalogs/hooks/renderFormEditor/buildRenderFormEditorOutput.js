@@ -11,10 +11,7 @@ export function buildRenderFormEditorOutput({
     deleteRenderForm: _ignoredDeleteRenderForm,
     ...metaState
   } = meta || {};
-  const {
-    importFieldsFromWrcPreset: _ignoredImportFieldsFromWrcPreset,
-    ...fieldsState
-  } = fieldsController || {};
+  const fieldsState = fieldsController || {};
 
   return {
     selectedForm,

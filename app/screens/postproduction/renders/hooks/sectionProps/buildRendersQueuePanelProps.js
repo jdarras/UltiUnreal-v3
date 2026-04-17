@@ -14,12 +14,13 @@ const DIRECT_KEYS = [
   "queueBatchBusyMode",
   "queueBatchError",
   "queueBatchFeedback",
+  "queueSortKey",
+  "queueSortDir",
   "queueSortIndicator",
   "canLaunchRenders",
   "busyScheduledTaskId",
   "queueEntryWorkerLabel",
   "getQueueEntryLaunchMeta",
-  "queueTaskPriorityLabel",
 ];
 
 const ALIASES = {

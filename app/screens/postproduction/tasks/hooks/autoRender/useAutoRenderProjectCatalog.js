@@ -11,13 +11,7 @@ export function useAutoRenderProjectCatalog({
   const [autoRenderProjectCatalogLoading, setAutoRenderProjectCatalogLoading] = useState(false);
   const [autoRenderProjectCatalogError, setAutoRenderProjectCatalogError] = useState("");
 
-  const loadProjectUnrealCatalogRef = useRef(onLoadProjectUnrealCatalog);
   const autoRenderProjectCatalogCacheRef = useRef(new Map());
-
-  useEffect(() => {
-    loadProjectUnrealCatalogRef.current = onLoadProjectUnrealCatalog;
-    autoRenderProjectCatalogCacheRef.current.clear();
-  }, [onLoadProjectUnrealCatalog]);
 
   useEffect(() => {
     autoRenderProjectCatalogCacheRef.current.clear();
@@ -25,8 +19,7 @@ export function useAutoRenderProjectCatalog({
 
   useEffect(() => {
     const projectRef = String(selectedAutoRenderProjectRef || "").trim();
-    const loader = loadProjectUnrealCatalogRef.current;
-    if (!projectRef || typeof loader !== "function") {
+    if (!projectRef || typeof onLoadProjectUnrealCatalog !== "function") {
       setAutoRenderProjectCatalog(null);
       setAutoRenderProjectCatalogLoading(false);
       setAutoRenderProjectCatalogError("");
@@ -45,7 +38,7 @@ export function useAutoRenderProjectCatalog({
     setAutoRenderProjectCatalogError("");
     (async () => {
       try {
-        const loaded = await Promise.resolve(loader(projectRef));
+        const loaded = await Promise.resolve(onLoadProjectUnrealCatalog(projectRef));
         if (cancelled) return;
         const safeCatalog = loaded && typeof loaded === "object" ? loaded : {};
         const normalizedCatalog = {
@@ -70,7 +63,7 @@ export function useAutoRenderProjectCatalog({
     return () => {
       cancelled = true;
     };
-  }, [selectedAutoRenderProjectRef, t]);
+  }, [selectedAutoRenderProjectRef, onLoadProjectUnrealCatalog, t]);
 
   return {
     autoRenderProjectCatalog,

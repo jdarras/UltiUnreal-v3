@@ -15,6 +15,12 @@ const STATE_KEYS = [
   "setAutoRenderFormValues",
   "autoRenderLaunchMode",
   "setAutoRenderLaunchMode",
+  "autoRenderScheduledMode",
+  "setAutoRenderScheduledMode",
+  "autoRenderScheduledAt",
+  "setAutoRenderScheduledAt",
+  "taskSequenceName",
+  "setTaskSequenceName",
 ];
 
 const DATA_KEYS = [
@@ -35,6 +41,7 @@ const DATA_KEYS = [
   "projectOptionByRef",
   "projectLookupByAny",
   "availableRenderWorkers",
+  "projectCatalogSequenceOptions",
   "resetAutoRenderState",
   "hydrateAutoRenderFromTask",
 ];

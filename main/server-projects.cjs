@@ -310,7 +310,11 @@ function enrichProjectForClient(p, opts = {}) {
     if (meta.fileVersion !== undefined) out.metaFileVersion = meta.fileVersion;
     if (Array.isArray(meta.keywords)) out.metaKeywords = meta.keywords;
     out.favorite = meta.favorite === true;
-    if (typeof meta.wrcName === 'string') out.wrcName = meta.wrcName;
+    if (Array.isArray(meta.wrcNames)) {
+      out.wrcNames = meta.wrcNames;
+    } else if (typeof meta.wrcName === 'string' && meta.wrcName.trim()) {
+      out.wrcNames = [meta.wrcName.trim()];
+    }
     if (meta.referents && typeof meta.referents === 'object') {
       out.metaReferents = {
         director: String(meta.referents.director || ''),
@@ -331,9 +335,14 @@ function enrichProjectForClient(p, opts = {}) {
       else if (p.metaFavorite !== undefined) out.favorite = p.metaFavorite === true;
     }
   }
-  if (out.wrcName === undefined && p && typeof p === 'object' && typeof p.wrcName === 'string') {
-    out.wrcName = p.wrcName;
+  if (out.wrcNames === undefined && p && typeof p === 'object') {
+    if (Array.isArray(p.wrcNames)) {
+      out.wrcNames = p.wrcNames;
+    } else if (typeof p.wrcName === 'string' && p.wrcName.trim()) {
+      out.wrcNames = [p.wrcName.trim()];
+    }
   }
+  if (!Array.isArray(out.wrcNames)) out.wrcNames = [];
 
   if (!up) return out;
 

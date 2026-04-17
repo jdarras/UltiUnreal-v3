@@ -7,8 +7,10 @@ async function importRenderFormFieldsFromWrc({
   onReplaceRenderFormFields = null,
   formId = 0,
   projectRef = "",
-  presetName = "",
+  wrcFile = "",
+  loadOptions = null,
 }) {
+  const safeWrcFile = String(wrcFile || "").trim();
   if (
     !canManageRenderTemplates ||
     typeof onLoadProjectWrcFields !== "function" ||
@@ -30,31 +32,48 @@ async function importRenderFormFieldsFromWrc({
       error: safeT(t, "postprod.data.forms.error.import.noProject", "Selectionne un projet."),
     };
   }
-  if (!String(presetName || "").trim()) {
+  if (!String(wrcFile || "").trim()) {
     return {
       ok: false,
-      kind: "invalid_preset",
-      error: safeT(t, "postprod.data.forms.error.import.noPreset", "Renseigne le preset WRC du formulaire."),
+      kind: "invalid_wrc_file",
+      error: safeT(t, "postprod.data.forms.error.import.noWrcFile", "Fichier WRC non specifie."),
     };
   }
 
-  const imported = await Promise.resolve(onLoadProjectWrcFields(String(projectRef).trim(), String(presetName).trim()));
+  const imported = await onLoadProjectWrcFields(
+    String(projectRef).trim(),
+    String(wrcFile).trim(),
+    loadOptions && typeof loadOptions === "object" && !Array.isArray(loadOptions)
+      ? loadOptions
+      : undefined
+  );
   const importedFields = Array.isArray(imported) ? imported : [];
   if (importedFields.length <= 0) {
     return {
       ok: false,
       kind: "empty",
-      error: safeT(t, "postprod.data.forms.msg.import.empty", "Aucun champ importable trouve dans le preset WRC."),
+      error: safeT(
+        t,
+        "postprod.data.forms.msg.import.empty",
+        "Aucun champ importable trouvé dans le preset WRC '{wrcFile}'.",
+        { wrcFile: safeWrcFile || "-" }
+      ),
     };
   }
-  const saved = await Promise.resolve(onReplaceRenderFormFields(Number(formId), importedFields));
+  const saved = await onReplaceRenderFormFields(Number(formId), importedFields, String(wrcFile).trim());
   const savedFields = Array.isArray(saved) ? saved : importedFields;
   return {
     ok: true,
     fields: savedFields,
-    info: safeT(t, "postprod.data.forms.msg.import.success", "Import WRC termine ({count} champs).", {
-      count: savedFields.length,
-    }),
+    info: safeT(
+      t,
+      "postprod.data.forms.msg.import.success",
+      "Import WRC '{wrcFile}' terminé ({count} champs).",
+      {
+        wrcFile: safeWrcFile || "-",
+        count: savedFields.length,
+      }
+    ),
   };
 }
 

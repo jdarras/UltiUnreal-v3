@@ -47,6 +47,7 @@ function buildTaskPayloadBuilderInput({
     projectOptionByRef: autoRender.projectOptionByRef,
     projectLookupByAny: autoRender.projectLookupByAny,
     availableRenderWorkers: autoRender.availableRenderWorkers,
+    taskSequenceName: autoRender.taskSequenceName,
   };
 }
 

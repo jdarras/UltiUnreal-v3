@@ -1,3 +1,11 @@
+const RENDER_AVAILABILITY_VALID = ['capable', 'busy', 'excluded'];
+
+function resolveWorkerRenderAvailability(entry) {
+  if (RENDER_AVAILABILITY_VALID.includes(entry?.renderAvailability)) return entry.renderAvailability;
+  if (entry?.canRender === false) return 'excluded';
+  return 'capable';
+}
+
 function normalizeRenderWorkers(renderWorkers = []) {
   const list = Array.isArray(renderWorkers) ? renderWorkers : [];
   const byKey = new Map();
@@ -15,11 +23,16 @@ function normalizeRenderWorkers(renderWorkers = []) {
       || ""
     ).trim();
 
+    const renderAvailability = resolveWorkerRenderAvailability(entry);
+    const isOnline = entry?.isOnline !== false;
     const normalized = {
       workerKey,
       displayName: displayName || workerKey,
-      isOnline: entry?.isOnline !== false,
-      canRender: entry?.canRender !== false,
+      isOnline,
+      canRender: renderAvailability !== 'excluded', // backward compat alias
+      renderAvailability,
+      isCapable: renderAvailability !== 'excluded',
+      availableNow: isOnline && renderAvailability !== 'excluded',
     };
 
     if (!byKey.has(dedupeKey)) {
@@ -28,15 +41,48 @@ function normalizeRenderWorkers(renderWorkers = []) {
     }
 
     const prev = byKey.get(dedupeKey);
+    const mergedIsOnline = !!(prev?.isOnline || normalized.isOnline);
+    const mergedAvail = (() => {
+      // Prefer 'busy' or 'capable' over 'excluded' when merging duplicates
+      if (prev?.renderAvailability !== 'excluded') return prev.renderAvailability;
+      return normalized.renderAvailability;
+    })();
     byKey.set(dedupeKey, {
       workerKey: String(prev?.workerKey || normalized.workerKey).trim() || normalized.workerKey,
       displayName: String(prev?.displayName || "").trim() || normalized.displayName,
-      isOnline: !!(prev?.isOnline || normalized.isOnline),
-      canRender: !!(prev?.canRender || normalized.canRender),
+      isOnline: mergedIsOnline,
+      canRender: mergedAvail !== 'excluded',
+      renderAvailability: mergedAvail,
+      isCapable: mergedAvail !== 'excluded',
+      availableNow: mergedIsOnline && mergedAvail !== 'excluded',
     });
   }
 
-  return [...byKey.values()].sort((a, b) => (
+  // Second pass: dedup by displayName — same physical machine registered with different keys
+  const score = (e) => {
+    if (e.isOnline && e.renderAvailability === 'capable') return 3;
+    if (e.isOnline && e.renderAvailability === 'busy') return 2;
+    if (e.isOnline) return 1;
+    return 0;
+  };
+  const byName = new Map();
+  for (const entry of byKey.values()) {
+    const nameKey = String(entry.displayName || "").toLowerCase();
+    if (!byName.has(nameKey)) {
+      byName.set(nameKey, entry);
+      continue;
+    }
+    const prev = byName.get(nameKey);
+    const winner = score(entry) > score(prev) ? entry : prev;
+    const mergedIsOnline = !!(prev.isOnline || entry.isOnline);
+    byName.set(nameKey, {
+      ...winner,
+      isOnline: mergedIsOnline,
+      availableNow: mergedIsOnline && winner.renderAvailability !== 'excluded',
+    });
+  }
+
+  return [...byName.values()].sort((a, b) => (
     String(a.displayName || "").localeCompare(String(b.displayName || ""))
   ));
 }

@@ -353,8 +353,12 @@ async function handleProjectConfigRoutes(req, res, url, ctx = {}) {
           );
       const hasNote = Object.prototype.hasOwnProperty.call(incoming, 'note');
       const note = hasNote ? String(incoming.note || '') : String(prevMeta.note || '');
-      const hasWrcName = Object.prototype.hasOwnProperty.call(incoming, 'wrcName');
-      const wrcName = hasWrcName ? String(incoming.wrcName || '').trim() : String(prevMeta.wrcName || '');
+      const hasWrcNames = Object.prototype.hasOwnProperty.call(incoming, 'wrcNames');
+      const wrcNames = hasWrcNames
+        ? (Array.isArray(incoming.wrcNames) ? incoming.wrcNames.map(v => String(v || '').trim()).filter(Boolean) : [])
+        : (Array.isArray(prevMeta.wrcNames)
+            ? prevMeta.wrcNames
+            : (prevMeta.wrcName ? [String(prevMeta.wrcName).trim()].filter(Boolean) : []));
       const hasCategory = Object.prototype.hasOwnProperty.call(incoming, 'category');
       const category = hasCategory ? String(incoming.category || '') : String(prevMeta.category || '');
       const hasFavorite = Object.prototype.hasOwnProperty.call(incoming, 'favorite');
@@ -379,7 +383,7 @@ async function handleProjectConfigRoutes(req, res, url, ctx = {}) {
         referents,
         keywords,
         note,
-        wrcName
+        wrcNames
       };
       if (hasFavorite) meta.favorite = favorite;
       writeProjectMeta(pid, meta);

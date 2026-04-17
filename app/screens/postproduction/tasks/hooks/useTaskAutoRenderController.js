@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   buildHydratedAutoRenderState,
   DEFAULT_AUTO_RENDER_STATE,
@@ -31,7 +31,10 @@ export function useTaskAutoRenderController({
   const [autoRenderFormId, setAutoRenderFormId] = useState("");
   const [autoRenderTemplateId, setAutoRenderTemplateId] = useState("");
   const [autoRenderFormValues, setAutoRenderFormValues] = useState({});
-  const [autoRenderLaunchMode, setAutoRenderLaunchMode] = useState("scheduled");
+  const [autoRenderLaunchMode, setAutoRenderLaunchMode] = useState("");
+  const [autoRenderScheduledMode, setAutoRenderScheduledMode] = useState("");
+  const [autoRenderScheduledAt, setAutoRenderScheduledAt] = useState("");
+  const [taskSequenceName, setTaskSequenceName] = useState("");
   const autoRenderStateSetters = useMemo(() => (
     buildTaskAutoRenderStateSetters({
       setExpectedRenderCountInput,
@@ -41,6 +44,9 @@ export function useTaskAutoRenderController({
       setAutoRenderTemplateId,
       setAutoRenderFormValues,
       setAutoRenderLaunchMode,
+      setAutoRenderScheduledMode,
+      setAutoRenderScheduledAt,
+      setTaskSequenceName,
     })
   ), [
     setExpectedRenderCountInput,
@@ -50,6 +56,9 @@ export function useTaskAutoRenderController({
     setAutoRenderTemplateId,
     setAutoRenderFormValues,
     setAutoRenderLaunchMode,
+    setAutoRenderScheduledMode,
+    setAutoRenderScheduledAt,
+    setTaskSequenceName,
   ]);
 
   const {
@@ -110,6 +119,31 @@ export function useTaskAutoRenderController({
     [autoRenderFormFields]
   );
 
+  const projectCatalogSequenceOptions = useMemo(() => {
+    const seqs = Array.isArray(autoRenderProjectCatalog?.sequences)
+      ? autoRenderProjectCatalog.sequences
+      : [];
+    const allOptions = seqs
+      .map((s) => {
+        const val = String(s?.assetPath || s?.path || s?.name || s || "").trim();
+        const label = String(s?.name || s?.assetPath || s?.path || s || "").trim();
+        return val ? { value: val, label: label || val } : null;
+      })
+      .filter(Boolean);
+    const allowedSequences = Array.isArray(selectedAutoRenderForm?.allowedSequences)
+      ? selectedAutoRenderForm.allowedSequences
+      : [];
+    if (allowedSequences.length === 0) return allOptions;
+    const allowedSet = new Set(allowedSequences.map((v) => String(v).toLowerCase()));
+    return allOptions.filter((opt) => allowedSet.has(String(opt.value).toLowerCase()));
+  }, [autoRenderProjectCatalog, selectedAutoRenderForm]);
+
+  useEffect(() => {
+    if (!taskSequenceName || projectCatalogSequenceOptions.length === 0) return;
+    const inList = projectCatalogSequenceOptions.some((opt) => opt.value === taskSequenceName);
+    if (!inList) setTaskSequenceName("");
+  }, [projectCatalogSequenceOptions, taskSequenceName, setTaskSequenceName]);
+
   const {
     expectedRenderCountForForm,
     expectedRenderNamesPreview,
@@ -147,6 +181,12 @@ export function useTaskAutoRenderController({
     autoRenderProjectCatalogError,
     autoRenderLaunchMode,
     setAutoRenderLaunchMode,
+    autoRenderScheduledMode,
+    setAutoRenderScheduledMode,
+    autoRenderScheduledAt,
+    setAutoRenderScheduledAt,
+    taskSequenceName,
+    setTaskSequenceName,
     filteredAutoRenderForms,
     selectedAutoRenderForm,
     visibleAutoRenderFormFields,
@@ -159,6 +199,7 @@ export function useTaskAutoRenderController({
     projectOptionByRef,
     projectLookupByAny,
     availableRenderWorkers,
+    projectCatalogSequenceOptions,
     resetAutoRenderState,
     hydrateAutoRenderFromTask,
   });

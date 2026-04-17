@@ -2,16 +2,21 @@ import { useEffect, useMemo } from "react";
 
 function useTaskFocusRequestController({
   taskFocusRequest = null,
+  tasks = [],
   onTaskFocusHandled = null,
   setListProjectFilter = null,
   setListResourceFilter = null,
   setListStatusFilter = null,
   setEditingTaskId = null,
   setShowCreateForm = null,
+  setTitle = null,
+  setDescription = null,
+  setSelectedResourceRefs = null,
   setAutoRenderProjectRef = null,
   setAutoRenderFormId = null,
   setAutoRenderTemplateId = null,
   setAutoRenderFormValues = null,
+  hydrateAutoRenderFromTask = null,
   setViewMode = null,
   setFormError = null,
 }) {
@@ -23,7 +28,10 @@ function useTaskFocusRequestController({
     if (!ref) return null;
     if (type !== "project" && type !== "resource" && type !== "task" && type !== "project_create") return null;
     const id = String(taskFocusRequest?.id || `${type}:${action}:${ref}:${Date.now()}`);
-    return { id, type, ref, action };
+    const task = taskFocusRequest?.task && typeof taskFocusRequest.task === "object" && !Array.isArray(taskFocusRequest.task)
+      ? taskFocusRequest.task
+      : null;
+    return { id, type, ref, action, task };
   }, [taskFocusRequest]);
 
   useEffect(() => {
@@ -54,8 +62,27 @@ function useTaskFocusRequestController({
     } else if (normalizedTaskFocusRequest.type === "task") {
       const taskId = Number(normalizedTaskFocusRequest.ref || 0);
       if (Number.isFinite(taskId) && taskId > 0) {
+        const taskFromPayload = normalizedTaskFocusRequest.task;
+        const taskFromList = (Array.isArray(tasks) ? tasks : []).find((entry) => {
+          const entryId = Number(entry?.id || 0);
+          return Number.isFinite(entryId) && Math.trunc(entryId) === Math.trunc(taskId);
+        }) || null;
+        const taskToEdit = taskFromPayload && typeof taskFromPayload === "object"
+          ? taskFromPayload
+          : taskFromList;
+
         setEditingTaskId?.(Math.trunc(taskId));
         setShowCreateForm?.(true);
+        if (taskToEdit && typeof taskToEdit === "object") {
+          setTitle?.(String(taskToEdit?.title || ""));
+          setDescription?.(String(taskToEdit?.description || ""));
+          setSelectedResourceRefs?.(
+            (Array.isArray(taskToEdit?.resourceRefs) ? taskToEdit.resourceRefs : [])
+              .map((value) => String(value || "").trim())
+              .filter(Boolean)
+          );
+          hydrateAutoRenderFromTask?.(taskToEdit);
+        }
       } else {
         setEditingTaskId?.(0);
         setShowCreateForm?.(false);
@@ -85,6 +112,11 @@ function useTaskFocusRequestController({
     setAutoRenderFormId,
     setAutoRenderTemplateId,
     setAutoRenderFormValues,
+    setTitle,
+    setDescription,
+    setSelectedResourceRefs,
+    hydrateAutoRenderFromTask,
+    tasks,
     setViewMode,
     setFormError,
   ]);

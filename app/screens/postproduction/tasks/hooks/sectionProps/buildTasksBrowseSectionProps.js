@@ -26,6 +26,7 @@ const DIRECT_KEYS = [
   "taskVisualStatus",
   "taskExpectedRenderName",
   "taskRenderWorkerLabel",
+  "taskProjectLabel",
   "taskLaunchModeLabel",
   "taskRenderFormLabel",
   "taskRenderModeName",

@@ -43,6 +43,7 @@ function TasksBrowseSection({
   taskVisualStatus = null,
   taskExpectedRenderName = null,
   taskRenderWorkerLabel = null,
+  taskProjectLabel = null,
   taskLaunchModeLabel = null,
   taskRenderFormLabel = null,
   taskRenderModeName = null,
@@ -73,9 +74,12 @@ function TasksBrowseSection({
           viewMode={viewMode}
           onSetViewMode={onSetViewMode}
         />
+      </div>
+
+      {!showCreateForm ? (
         <TasksAdvancedSearchPanel
           t={t}
-          visible={!showCreateForm && searchExpanded}
+          visible={searchExpanded}
           displayedCount={displayedTasks.length}
           tasksLoading={tasksLoading}
           listStatusFilter={listStatusFilter}
@@ -95,12 +99,12 @@ function TasksBrowseSection({
           listRenderModeFilter={listRenderModeFilter}
           onSetListRenderModeFilter={onSetListRenderModeFilter}
           taskRenderModeFilterOptions={taskRenderModeFilterOptions}
-          onClose={onCloseAdvancedSearch}
+          onClose={onClearFilters}
         />
-      </div>
+      ) : null}
 
       {!showCreateForm ? (
-        <div className="uu-col mt-12">
+        <div className="uu-card mt-12">
           <TaskListPanel
             t={t}
             displayedTasks={displayedTasks}
@@ -111,6 +115,7 @@ function TasksBrowseSection({
             taskVisualStatus={taskVisualStatus}
             taskExpectedRenderName={taskExpectedRenderName}
             taskRenderWorkerLabel={taskRenderWorkerLabel}
+            taskProjectLabel={taskProjectLabel}
             taskLaunchModeLabel={taskLaunchModeLabel}
             taskRenderFormLabel={taskRenderFormLabel}
             taskRenderModeName={taskRenderModeName}

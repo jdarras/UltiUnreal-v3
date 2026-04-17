@@ -16,8 +16,6 @@ export function buildRendersListInput({
   canReviewRenders = false,
   applyReviewStatus = null,
   openRenderDetail = null,
-  isRenderFavorite = null,
-  toggleRenderFavorite = null,
 } = {}) {
   return {
     t,
@@ -37,8 +35,6 @@ export function buildRendersListInput({
     canReviewRenders,
     applyReviewStatus,
     openRenderDetail,
-    isRenderFavorite,
-    toggleRenderFavorite,
   };
 }
 

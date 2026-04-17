@@ -40,6 +40,7 @@ async function handlePostprodAuthAndHealthRoutes(options = {}) {
     getRequestIp,
     buildUserPayload,
     getAuthToken,
+    usersSyncFetchLimit,
   } = options;
 
   if (!req || !res || !pathname) return false;
@@ -53,6 +54,60 @@ async function handlePostprodAuthAndHealthRoutes(options = {}) {
       ok: true,
       dbPath,
       sessionTtlSec,
+    });
+    return true;
+  }
+
+  if (pathname === '/agent/postprod/remote/users-sync/events') {
+    if (req.method !== 'GET') {
+      sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
+      return true;
+    }
+    const requestUrl = new URL(String(req?.url || ''), 'http://127.0.0.1');
+    const sinceRaw = Number(requestUrl.searchParams.get('since'));
+    const since = Number.isFinite(sinceRaw) && sinceRaw > 0
+      ? Math.trunc(sinceRaw)
+      : 0;
+    const limitRaw = Number(requestUrl.searchParams.get('limit'));
+    const defaultLimit = Number.isFinite(Number(usersSyncFetchLimit))
+      ? Math.max(1, Math.trunc(Number(usersSyncFetchLimit)))
+      : 250;
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0
+      ? Math.max(1, Math.min(1000, Math.trunc(limitRaw)))
+      : Math.max(1, Math.min(1000, defaultLimit));
+    const rows = stmts.listUserSyncEventsSinceVersion.all(since, limit);
+    const events = Array.isArray(rows)
+      ? rows.map((row) => {
+        let payload = {};
+        try {
+          payload = JSON.parse(String(row?.payload_json || '{}'));
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload)) payload = {};
+        } catch {
+          payload = {};
+        }
+        return {
+          version: Number(row?.version || 0),
+          sourceStation: String(row?.source_station || '').trim(),
+          sourceVersion: Number(row?.source_version || 0),
+          opId: String(row?.op_id || '').trim(),
+          entityType: String(row?.entity_type || '').trim(),
+          entityPublicId: String(row?.entity_public_id || '').trim(),
+          entityKey: String(row?.entity_key || '').trim(),
+          op: String(row?.op || '').trim(),
+          occurredAt: String(row?.occurred_at || '').trim(),
+          payload,
+        };
+      })
+      : [];
+    const latestRow = stmts.getMaxUserSyncEventVersion.get();
+    const latestVersion = Number.isFinite(Number(latestRow?.n))
+      ? Math.max(0, Math.trunc(Number(latestRow.n)))
+      : 0;
+    sendJSON(res, 200, {
+      ok: true,
+      events,
+      latestVersion,
+      count: events.length,
     });
     return true;
   }

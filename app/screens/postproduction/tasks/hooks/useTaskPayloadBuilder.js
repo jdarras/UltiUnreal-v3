@@ -20,6 +20,7 @@ export function useTaskPayloadBuilder({
   projectOptionByRef = new Map(),
   projectLookupByAny = new Map(),
   availableRenderWorkers = [],
+  taskSequenceName = "",
 }) {
   const buildTaskPayloadFromCurrentForm = useCallback(() => (
     buildTaskPayloadFromForm({
@@ -41,6 +42,7 @@ export function useTaskPayloadBuilder({
       projectOptionByRef,
       projectLookupByAny,
       availableRenderWorkers,
+      taskSequenceName,
     })
   ), [
     t,
@@ -61,6 +63,7 @@ export function useTaskPayloadBuilder({
     projectOptionByRef,
     projectLookupByAny,
     availableRenderWorkers,
+    taskSequenceName,
   ]);
 
   return {

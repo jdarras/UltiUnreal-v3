@@ -22,6 +22,24 @@ const VALIDATION_ACTIONS = new Set([
   "render_worker_complete",
 ]);
 
+const USER_ACTIONS = new Set([
+  "user_created",
+  "user_updated",
+  "user_deleted",
+  "users_sync_user_created_applied",
+  "users_sync_user_updated_applied",
+  "users_sync_user_deleted_applied",
+]);
+
+const PROFILE_ACTIONS = new Set([
+  "role_created",
+  "role_updated",
+  "role_deleted",
+  "users_sync_role_created_applied",
+  "users_sync_role_updated_applied",
+  "users_sync_role_deleted_applied",
+]);
+
 function activityLabelContainsModeRender(detail = "") {
   const normalized = String(detail || "")
     .normalize("NFD")
@@ -50,6 +68,12 @@ function activityActionTypeLabel(t, type) {
   if (key === "validation") {
     return safeT(t, "postprod.users.activity.filter.actionType.validation", "Validation");
   }
+  if (key === "user") {
+    return safeT(t, "postprod.users.activity.filter.actionType.user", "Utilisateur");
+  }
+  if (key === "profile") {
+    return safeT(t, "postprod.users.activity.filter.actionType.profile", "Profil");
+  }
   return safeT(t, "postprod.users.activity.filter.actionType.other", "Autres");
 }
 
@@ -59,6 +83,8 @@ function activityTypeChipLevel(type) {
   if (key === "form") return "lvl-success";
   if (key === "task") return "lvl-debug";
   if (key === "validation") return "lvl-warn";
+  if (key === "user") return "lvl-info";
+  if (key === "profile") return "lvl-success";
   if (key === "other") return "lvl-error";
   return "lvl-info";
 }
@@ -74,6 +100,8 @@ function activityActionTypeFromAction(action, activity = null) {
   if (TASK_ACTIONS.has(normalized)) return "task";
   if (FORM_ACTIONS.has(normalized)) return "form";
   if (VALIDATION_ACTIONS.has(normalized)) return "validation";
+  if (USER_ACTIONS.has(normalized)) return "user";
+  if (PROFILE_ACTIONS.has(normalized)) return "profile";
 
   if (PROJECT_ACTIONS.has(normalized)) return "project";
 
@@ -116,7 +144,7 @@ function activityActionTypeFromAction(action, activity = null) {
 }
 
 function getActivityTypeSummary(summary, activities = []) {
-  const result = { project: 0, form: 0, task: 0, validation: 0, other: 0 };
+  const result = { project: 0, form: 0, task: 0, validation: 0, user: 0, profile: 0, other: 0 };
 
   const list = Array.isArray(activities) ? activities : [];
   for (const item of list) {

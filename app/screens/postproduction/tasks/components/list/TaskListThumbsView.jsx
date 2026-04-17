@@ -77,13 +77,13 @@ function TaskThumbCard({
       </div>
 
       <div className="uu-muted mt-8">
-        {safeT(t, "postprod.tasks.form.autoRenderWorker", "Station de rendu")}:{" "}
+        {safeT(t, "postprod.tasks.form.autoRenderWorker.short", "Station")}:{" "}
         <span style={{ color: "#fff" }}>
           {typeof taskRenderWorkerLabel === "function" ? taskRenderWorkerLabel(task) : "-"}
         </span>
       </div>
       <div className="uu-muted mt-8">
-        {safeT(t, "postprod.tasks.form.autoRenderLaunchMode", "Mode de lancement")}:{" "}
+        {safeT(t, "postprod.tasks.form.autoRenderLaunchMode.short", "Lancement")}:{" "}
         <span style={{ color: "#fff" }}>
           {typeof taskLaunchModeLabel === "function" ? taskLaunchModeLabel(task) : "-"}
         </span>

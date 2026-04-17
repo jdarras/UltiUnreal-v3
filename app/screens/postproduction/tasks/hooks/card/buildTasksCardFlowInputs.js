@@ -44,6 +44,8 @@ function buildTaskEditorControllerInput({
     title: data.title,
     autoRenderProjectRef: data.autoRenderProjectRef,
     autoRenderLaunchMode: data.autoRenderLaunchMode,
+    autoRenderScheduledMode: data.autoRenderScheduledMode,
+    autoRenderScheduledAt: data.autoRenderScheduledAt,
     filteredAutoRenderForms: data.filteredAutoRenderForms,
     autoRenderFormId: data.autoRenderFormId,
     renderOutputDir,
@@ -92,6 +94,9 @@ function buildTasksUiActionsInput({
     setFormError: data.setFormError,
     setAutoRenderWorkerKey: data.setAutoRenderWorkerKey,
     setAutoRenderLaunchMode: data.setAutoRenderLaunchMode,
+    setAutoRenderScheduledMode: data.setAutoRenderScheduledMode,
+    setAutoRenderScheduledAt: data.setAutoRenderScheduledAt,
+    setTaskSequenceName: data.setTaskSequenceName,
   };
 }
 

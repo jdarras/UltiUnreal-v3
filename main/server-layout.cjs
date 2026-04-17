@@ -420,6 +420,8 @@ async function handleLayoutRoutes(req, res, url, ctx = {}) {
     const { layouts, activeLayoutId } = normalizeLayoutDoc(prev);
     const activeLayout = pickActiveLayout(layouts, activeLayoutId);
     const baseDoc = prev && typeof prev === 'object' ? prev : {};
+    const prevPresets = baseDoc.presets && typeof baseDoc.presets === 'object' ? baseDoc.presets : {};
+    const ts = new Date().toISOString();
     const doc = {
       ...baseDoc,
       projectId: pid,
@@ -427,14 +429,14 @@ async function handleLayoutRoutes(req, res, url, ctx = {}) {
       layouts,
       activeLayoutId,
       layout: Array.isArray(activeLayout?.layout) ? activeLayout.layout : [],
-      preset: { presetName, ts: new Date().toISOString(), presetHash: hash, data }
+      presets: { ...prevPresets, [presetName]: { presetName, ts, presetHash: hash, data } }
     };
     try {
       writeProjectDoc(pid, doc);
     } catch (e) {
       logLine({ level: 'error', src: 'projects', action: 'preset_snapshot', message: `Failed to save preset snapshot for project ${pid}`, data: { error: String(e?.message || e) } });
     }
-    return sendJSON(res, 200, { ok:true, projectId: pid, ts: doc.preset.ts, presetHash: hash });
+    return sendJSON(res, 200, { ok:true, projectId: pid, ts, presetHash: hash });
   }
 
   return false;

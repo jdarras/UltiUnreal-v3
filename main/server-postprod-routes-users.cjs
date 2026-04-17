@@ -35,6 +35,7 @@ async function handlePostprodUsersRoutes({
   hashPassword,
   pbkdf2Iters,
   audit,
+  emitUserSyncUpsert,
 }) {
   if (pathname !== '/agent/postprod/users') return false;
 
@@ -226,6 +227,9 @@ async function handlePostprodUsersRoutes({
         'user',
         String(created?.id || '')
       );
+      if (typeof emitUserSyncUpsert === 'function' && created) {
+        try { emitUserSyncUpsert(created, { actorUserId: auth.session.user_id, reason: 'user_created' }); } catch {}
+      }
       sendJSON(res, 201, { ok: true, user: buildUserAdminPayload(created, rolesCache) });
       return true;
     } catch (err) {

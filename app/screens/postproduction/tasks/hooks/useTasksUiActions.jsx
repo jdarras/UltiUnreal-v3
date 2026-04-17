@@ -24,6 +24,9 @@ function useTasksUiActions({
   setFormError = null,
   setAutoRenderWorkerKey = null,
   setAutoRenderLaunchMode = null,
+  setAutoRenderScheduledMode = null,
+  setAutoRenderScheduledAt = null,
+  setTaskSequenceName = null,
 }) {
   const renderTaskActions = useCallback((task) => (
     <TaskRowActions
@@ -101,8 +104,33 @@ function useTasksUiActions({
   }, [setAutoRenderWorkerKey, setFormError]);
 
   const changeAutoRenderLaunchMode = useCallback((value) => {
-    setAutoRenderLaunchMode?.(value === "now" ? "now" : "scheduled");
-  }, [setAutoRenderLaunchMode]);
+    const next = value === "now" ? "now" : (value === "scheduled" ? "scheduled" : "");
+    setAutoRenderLaunchMode?.(next);
+    if (next !== "scheduled") {
+      setAutoRenderScheduledMode?.("");
+      setAutoRenderScheduledAt?.("");
+    }
+  }, [setAutoRenderLaunchMode, setAutoRenderScheduledMode, setAutoRenderScheduledAt]);
+
+  const changeAutoRenderScheduledMode = useCallback((value) => {
+    const VALID = ["datetime", "any_station", "specific_station"];
+    const next = VALID.includes(value) ? value : "";
+    setAutoRenderScheduledMode?.(next);
+    if (next !== "datetime") {
+      setAutoRenderScheduledAt?.("");
+    }
+    if (next === "any_station") {
+      setAutoRenderWorkerKey?.("auto");
+    }
+  }, [setAutoRenderScheduledMode, setAutoRenderScheduledAt, setAutoRenderWorkerKey]);
+
+  const changeAutoRenderScheduledAt = useCallback((value) => {
+    setAutoRenderScheduledAt?.(String(value || "").trim());
+  }, [setAutoRenderScheduledAt]);
+
+  const changeAutoRenderSequence = useCallback((value) => {
+    setTaskSequenceName?.(String(value || "").trim());
+  }, [setTaskSequenceName]);
 
   return {
     renderTaskActions,
@@ -115,6 +143,9 @@ function useTasksUiActions({
     changeAutoRenderTemplate,
     changeAutoRenderWorker,
     changeAutoRenderLaunchMode,
+    changeAutoRenderScheduledMode,
+    changeAutoRenderScheduledAt,
+    changeAutoRenderSequence,
   };
 }
 

@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { sortIndicator as sortArrowIndicator } from "../../../shared/helpers";
 
 export function useRenderQueueSorting({
-  queueSortKey = "status",
+  queueSortKey = "startAt",
   queueSortDir = "asc",
   setQueueSortKey = null,
   setQueueSortDir = null,

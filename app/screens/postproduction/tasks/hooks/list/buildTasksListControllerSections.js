@@ -102,6 +102,7 @@ function buildTasksListControllerOutput({
     taskVisualStatus: labels.taskVisualStatus,
     taskExpectedRenderName: labels.taskExpectedRenderName,
     taskRenderWorkerLabel: labels.taskRenderWorkerLabel,
+    taskProjectLabel: labels.taskProjectLabel,
     taskLaunchModeLabel: labels.taskLaunchModeLabel,
     taskRenderFormLabel: labels.taskRenderFormLabel,
     taskRenderModeName: labels.taskRenderModeName,

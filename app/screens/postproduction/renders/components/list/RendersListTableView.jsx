@@ -18,22 +18,20 @@ function RendersListTableView({
   canReviewRenders = false,
   onApplyReviewStatus = null,
   onOpenRenderDetail = null,
-  isRenderFavorite = null,
-  onToggleRenderFavorite = null,
+  onDeleteRender = null,
+  onRequestOpenTasks = null,
 }) {
   return (
     <div style={{ overflowX: "auto" }}>
       <table className="uu-table" style={{ width: "100%", tableLayout: "fixed" }}>
         <colgroup>
           <col style={{ width: "8%" }} />
+          <col style={{ width: "24%" }} />
           <col style={{ width: "20%" }} />
           <col style={{ width: "11%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "10%" }} />
-          <col style={{ width: "18%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "4%" }} />
-          <col style={{ width: "4%" }} />
+          <col style={{ width: "9%" }} />
+          <col style={{ width: "16%" }} />
+          <col style={{ width: "12%" }} />
         </colgroup>
         <thead>
           <tr>
@@ -42,12 +40,6 @@ function RendersListTableView({
               <button type="button" className="uu-link" onClick={() => toggleListSort?.("file")}>
                 {safeT(t, "postprod.renders.table.file", "Fichier")}
                 {typeof listSortIndicator === "function" ? listSortIndicator("file") : ""}
-              </button>
-            </th>
-            <th style={{ textAlign: "left" }}>
-              <button type="button" className="uu-link" onClick={() => toggleListSort?.("project")}>
-                {safeT(t, "postprod.renders.table.project", "Projet")}
-                {typeof listSortIndicator === "function" ? listSortIndicator("project") : ""}
               </button>
             </th>
             <th style={{ textAlign: "left" }}>
@@ -74,10 +66,7 @@ function RendersListTableView({
                 {typeof listSortIndicator === "function" ? listSortIndicator("reviewStatus") : ""}
               </button>
             </th>
-            <th style={{ textAlign: "center" }}>
-              {safeT(t, "resources.detail.labels.favorite", "Favoris")}
-            </th>
-            <th style={{ textAlign: "center" }}>
+            <th style={{ textAlign: "right" }}>
               {safeT(t, "postprod.renders.table.actions", "Actions")}
             </th>
           </tr>
@@ -100,8 +89,8 @@ function RendersListTableView({
               canReviewRenders={canReviewRenders}
               onApplyReviewStatus={onApplyReviewStatus}
               onOpenRenderDetail={onOpenRenderDetail}
-              isRenderFavorite={isRenderFavorite}
-              onToggleRenderFavorite={onToggleRenderFavorite}
+              onDeleteRender={onDeleteRender}
+              onRequestOpenTasks={onRequestOpenTasks}
             />
           ))}
         </tbody>

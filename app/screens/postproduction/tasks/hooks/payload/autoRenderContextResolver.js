@@ -8,10 +8,11 @@ export function resolveAutoRenderContext({
   autoRenderWorkerKey = "",
   renderOutputDir = "",
   autoRenderFormId = "",
+  taskSequenceName = "",
 } = {}) {
   const formProjectRef = String(selectedAutoRenderProjectRef || selectedForm?.projectName || "").trim();
   const effectiveMapName = String(selectedForm?.mapName || selectedAutoRenderTemplate?.mapName || "").trim();
-  const effectiveSequenceName = String(selectedForm?.sequenceName || selectedAutoRenderTemplate?.sequenceName || "").trim();
+  const effectiveSequenceName = String(taskSequenceName || selectedAutoRenderTemplate?.sequenceName || "").trim();
   const effectiveOutputProfile = String(selectedAutoRenderTemplate?.outputProfile || selectedForm?.outputProfile || "").trim();
   const effectiveWrcPresetName = String(selectedForm?.presetName || "").trim();
   const effectiveRenderPresetName = String(selectedAutoRenderTemplate?.presetName || "").trim();

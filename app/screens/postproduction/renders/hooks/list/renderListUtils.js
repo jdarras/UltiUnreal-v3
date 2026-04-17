@@ -22,18 +22,180 @@ const REVIEW_STATUS_RANK = {
   canceled: 3,
 };
 
+function resolveRenderPayload(render = null) {
+  const payload = render?.payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
+  return payload;
+}
+
+function firstNonEmptyString(values = []) {
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = String(value || "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function normalizeFilterValue(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+export function normalizeMultiFilterValues(value = []) {
+  const source = Array.isArray(value) ? value : [value];
+  const seen = new Set();
+  const out = [];
+  for (const entry of source) {
+    const normalized = normalizeFilterValue(entry);
+    if (!normalized || normalized === "all" || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function simplifySequenceName(raw = "") {
+  const source = String(raw || "").trim();
+  if (!source) return "";
+  const tail = source.split("/").filter(Boolean).pop() || source;
+  const shortName = (tail.split(".")[0] || "").trim();
+  return shortName || source;
+}
+
 export function isDetectedRender(render) {
   return String(render?.origin || "").trim().toLowerCase() === "detected";
+}
+
+export function resolveRenderProjectMeta(render = null) {
+  const payload = resolveRenderPayload(render);
+  const projectName = firstNonEmptyString([
+    render?.projectName,
+    payload?.projectName,
+  ]);
+  const projectRef = firstNonEmptyString([
+    render?.projectId,
+    render?.projectRef,
+    payload?.projectId,
+    payload?.projectRef,
+  ]);
+  const key = normalizeFilterValue(projectRef || projectName);
+  const normalizedName = normalizeFilterValue(projectName);
+  const normalizedRef = normalizeFilterValue(projectRef);
+  const label = (
+    projectName
+    && projectRef
+    && normalizedName
+    && normalizedRef
+    && normalizedName !== normalizedRef
+  )
+    ? `${projectName} [${projectRef}]`
+    : (projectName || projectRef || "-");
+  return { key, label, projectName, projectRef };
+}
+
+export function resolveRenderTaskMeta(render = null) {
+  const payload = resolveRenderPayload(render);
+  const taskIdRaw = Number(render?.linkedTaskId || payload?.taskId || 0);
+  const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
+  const taskTitle = firstNonEmptyString([
+    render?.linkedTaskTitle,
+    payload?.taskTitle,
+  ]);
+  const key = taskId > 0 ? `id:${taskId}` : normalizeFilterValue(taskTitle);
+  const label = taskId > 0
+    ? (taskTitle ? `${taskTitle} (${taskId})` : `(${taskId})`)
+    : (taskTitle || "-");
+  return { key, label, taskId, taskTitle };
+}
+
+export function resolveRenderFormMeta(render = null) {
+  const payload = resolveRenderPayload(render);
+  const formIdRaw = Number(
+    render?.formId
+    || render?.renderFormId
+    || payload?.formId
+    || payload?.renderFormId
+    || 0
+  );
+  const formId = Number.isFinite(formIdRaw) && formIdRaw > 0 ? Math.trunc(formIdRaw) : 0;
+  const formName = firstNonEmptyString([
+    render?.formName,
+    render?.renderFormName,
+    payload?.formName,
+    payload?.renderFormName,
+    payload?.formLabel,
+  ]);
+  const key = formId > 0 ? `id:${formId}` : normalizeFilterValue(formName);
+  const label = formId > 0
+    ? (formName ? `${formName} (#${formId})` : `#${formId}`)
+    : (formName || "-");
+  return { key, label, formId, formName };
+}
+
+export function resolveRenderRequesterMeta(render = null) {
+  const requester = firstNonEmptyString([
+    render?.requestedByUsername,
+    render?.requestedByDisplayName,
+    render?.requestedBy,
+  ]);
+  return {
+    key: normalizeFilterValue(requester),
+    label: requester || "-",
+    requester,
+  };
+}
+
+export function resolveRenderStatusMeta(render = null) {
+  const status = String(render?.status || "").trim();
+  return {
+    key: normalizeFilterValue(status),
+    label: status || "-",
+    status,
+  };
+}
+
+export function resolveRenderStationMeta(render = null) {
+  const name = firstNonEmptyString([
+    render?.stationName,
+    render?.renderStationName,
+    render?.assignedWorkerName,
+  ]);
+  const fallbackStationKey = String(
+    render?.assignedWorkerKey
+    || render?.renderStation
+    || ""
+  ).trim();
+  const stationLabel = name || (normalizeFilterValue(fallbackStationKey) === "local" ? "" : fallbackStationKey);
+  return {
+    key: normalizeFilterValue(stationLabel),
+    label: stationLabel || "-",
+    station: stationLabel,
+  };
+}
+
+export function resolveRenderSequenceMeta(render = null) {
+  const payload = resolveRenderPayload(render);
+  const rawSequence = firstNonEmptyString([
+    render?.sequenceName,
+    payload?.sequenceName,
+    payload?.levelSequence,
+    payload?.levelSequenceName,
+  ]);
+  const sequenceName = simplifySequenceName(rawSequence);
+  return {
+    key: normalizeFilterValue(sequenceName),
+    label: sequenceName || "-",
+    sequenceName,
+  };
 }
 
 export function buildProjectFilterOptions(renders = []) {
   const map = new Map();
   const list = Array.isArray(renders) ? renders : [];
   for (const render of list) {
-    const raw = String(render?.projectName || "").trim();
-    if (!raw) continue;
-    const key = raw.toLowerCase();
-    if (!map.has(key)) map.set(key, raw);
+    const meta = resolveRenderProjectMeta(render);
+    const key = String(meta?.key || "").trim();
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, String(meta?.label || "").trim() || key);
   }
   return [...map.entries()]
     .sort((a, b) => String(a[1] || "").localeCompare(String(b[1] || "")))
@@ -50,18 +212,35 @@ export function renderFavoriteStorageKey(render) {
 }
 
 export function buildRenderSearchHaystack(render) {
+  const payload = resolveRenderPayload(render);
+  const projectMeta = resolveRenderProjectMeta(render);
+  const taskMeta = resolveRenderTaskMeta(render);
+  const formMeta = resolveRenderFormMeta(render);
+  const requesterMeta = resolveRenderRequesterMeta(render);
+  const statusMeta = resolveRenderStatusMeta(render);
+  const stationMeta = resolveRenderStationMeta(render);
+  const sequenceMeta = resolveRenderSequenceMeta(render);
   return [
     renderOutputFilename(render),
     String(render?.templateName || ""),
     String(render?.projectName || ""),
+    String(projectMeta?.projectRef || ""),
+    String(projectMeta?.label || ""),
     String(render?.requestedByUsername || ""),
+    String(requesterMeta?.label || ""),
     String(render?.outputPath || ""),
     renderLinkedTaskValue(render),
+    String(taskMeta?.label || ""),
     String(render?.matchedExpectedRenderName || ""),
     String(render?.errorMessage || ""),
     String(render?.stationName || ""),
     String(render?.stationIp || ""),
     String(render?.stationStatus || ""),
+    String(stationMeta?.label || ""),
+    String(statusMeta?.status || ""),
+    String(formMeta?.label || ""),
+    String(sequenceMeta?.label || ""),
+    String(payload?.sequenceName || ""),
   ]
     .join(" ")
     .toLowerCase();

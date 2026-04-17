@@ -284,7 +284,6 @@ function normalizeTaskAutoRenderConfig(
   const templateNameFromForm = sanitizeRenderTemplateName(linkedForm?.template_name || '', '');
   const outputProfileFromForm = sanitizeRenderOutputProfile(linkedForm?.output_profile || '', '');
   const mapNameFromForm = sanitizeRenderMapName(linkedForm?.map_name || '', '');
-  const sequenceNameFromForm = sanitizeRenderSequenceName(linkedForm?.sequence_name || '', '');
   let templateName = templateNameFromForm;
   if (!templateName && outputProfileFromForm) {
     const tail = outputProfileFromForm.split('/').filter(Boolean).pop() || outputProfileFromForm;
@@ -337,7 +336,7 @@ function normalizeTaskAutoRenderConfig(
   }
   if (targetWorkerKey) config.targetWorkerKey = targetWorkerKey;
   if (mapNameFromForm || mapName) config.mapName = mapNameFromForm || mapName;
-  if (sequenceNameFromForm || sequenceName) config.sequenceName = sequenceNameFromForm || sequenceName;
+  if (sequenceName) config.sequenceName = sequenceName;
   if (outputProfileFromForm || outputProfile) config.outputProfile = outputProfileFromForm || outputProfile;
   if (outputDir) config.outputDir = outputDir;
   if (textValue) config.textValue = textValue;

@@ -8,6 +8,7 @@ function RenderFormsThumbsView({
   onToggleFormFavorite = null,
   formProjectLabel = null,
   onEditForm = null,
+  onDeleteForm = null,
 }) {
   return (
     <div
@@ -44,12 +45,12 @@ function RenderFormsThumbsView({
                 ★
               </button>
             </div>
-            <div className="uu-muted mt-8">{safeT(t, "postprod.data.project", "Projet")}: {formProjectLabel?.(form) || "-"}</div>
-            <div className="uu-muted mt-4">{safeT(t, "postprod.data.forms.level", "Level")}: {simplifyUnrealAssetName(form?.mapName)}</div>
-            <div className="uu-muted mt-4">{safeT(t, "postprod.data.forms.sequence", "Level Sequence")}: {simplifyUnrealAssetName(form?.sequenceName)}</div>
-            <div className="uu-muted mt-4">{safeT(t, "postprod.data.forms.preset", "Preset WRC")}: {String(form?.presetName || "-")}</div>
-            <div className="uu-muted mt-4">{safeT(t, "common.updatedAt", "Maj")}: {formatDate(form?.updatedAt || form?.createdAt)}</div>
-            <div className="mt-8">
+            <div className="mt-8"><span className="uu-muted">{safeT(t, "postprod.data.project", "Projet")}: </span>{formProjectLabel?.(form) || "-"}</div>
+            <div className="mt-4"><span className="uu-muted">{safeT(t, "postprod.data.forms.level", "Level")}: </span>{simplifyUnrealAssetName(form?.mapName)}</div>
+            <div className="mt-4"><span className="uu-muted">{safeT(t, "postprod.data.forms.levelSequence", "LS")}: </span>{Array.isArray(form?.allowedSequences) && form.allowedSequences.length > 0 ? form.allowedSequences.map(simplifyUnrealAssetName).join(", ") : "-"}</div>
+            <div className="mt-4"><span className="uu-muted">{safeT(t, "postprod.data.forms.wrcFiles", "WRC")}: </span>{Array.isArray(form?.wrcFiles) && form.wrcFiles.length > 0 ? form.wrcFiles.map(simplifyUnrealAssetName).join(", ") : "-"}</div>
+            <div className="mt-4"><span className="uu-muted">{safeT(t, "common.updatedAt", "Maj")}: </span>{formatDate(form?.updatedAt || form?.createdAt)}</div>
+            <div className="mt-8 uu-row" style={{ gap: "8px" }}>
               <button
                 type="button"
                 className="uu-btn-ghost"
@@ -57,6 +58,15 @@ function RenderFormsThumbsView({
               >
                 {safeT(t, "common.edit", "Modifier")}
               </button>
+              {onDeleteForm ? (
+                <button
+                  type="button"
+                  className="uu-btn-ghost"
+                  onClick={() => onDeleteForm?.(form)}
+                >
+                  {safeT(t, "common.delete", "Supprimer")}
+                </button>
+              ) : null}
             </div>
           </div>
         );

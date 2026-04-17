@@ -267,24 +267,32 @@ function resolveExeForVersion(cfg = {}, version = '') {
 
 /** Accepte map IP->config ou array, et renvoie toujours un array normalisé */
 function normalizeHosts(raw) {
-  const toStd = (cfg = {}, ip = '') => ({
-    ip: cfg.ip || ip || '',
-    name: (cfg && (cfg.name || cfg.hostname)) || (ip || ''),
-    color: cfg?.color || '',
-    unreal_editor: pickUEPath(cfg),
-    unrealEditors: extractUnrealEditors(cfg),
-    uproject: cfg?.uproject || cfg?.project || cfg?.uprojectPath || '',
-    args: cfg?.args || {},
-    // Synchronisation pour cette machine
-    syncRoot: cfg?.syncRoot || cfg?.sync_root || '',
-    syncEnabled: (typeof cfg?.syncEnabled === 'boolean')
-      ? cfg.syncEnabled
-      : !!(cfg?.syncRoot || cfg?.sync_root),
-
-    eligible: cfg?.eligible === false ? false : true,
-    renderEnabled: cfg?.renderEnabled === false || cfg?.render_enabled === false ? false : true,
-    sortIndex: Number.isFinite(Number(cfg?.sortIndex)) ? Number(cfg.sortIndex) : null,
-  });
+  const toStd = (cfg = {}, ip = '') => {
+    const VALID_AVAIL = ['capable', 'busy', 'excluded'];
+    const renderAvailability = (() => {
+      if (VALID_AVAIL.includes(cfg?.renderAvailability)) return cfg.renderAvailability;
+      if (cfg?.eligible === false || cfg?.renderEnabled === false || cfg?.render_enabled === false) return 'excluded';
+      return 'capable';
+    })();
+    return {
+      ip: cfg.ip || ip || '',
+      name: (cfg && (cfg.name || cfg.hostname)) || (ip || ''),
+      color: cfg?.color || '',
+      unreal_editor: pickUEPath(cfg),
+      unrealEditors: extractUnrealEditors(cfg),
+      uproject: cfg?.uproject || cfg?.project || cfg?.uprojectPath || '',
+      args: cfg?.args || {},
+      syncRoot: cfg?.syncRoot || cfg?.sync_root || '',
+      syncEnabled: (typeof cfg?.syncEnabled === 'boolean')
+        ? cfg.syncEnabled
+        : !!(cfg?.syncRoot || cfg?.sync_root),
+      renderAvailability,
+      // Alias de rétrocompatibilité — sera supprimé lors de la migration frontend (Points 4-6)
+      eligible: renderAvailability !== 'excluded',
+      renderEnabled: renderAvailability !== 'excluded',
+      sortIndex: Number.isFinite(Number(cfg?.sortIndex)) ? Number(cfg.sortIndex) : null,
+    };
+  };
 
   if (Array.isArray(raw)) return raw.map((cfg) => toStd(cfg, cfg?.ip));
   if (raw && typeof raw === 'object') {
@@ -1087,7 +1095,13 @@ export async function postprodGetProjectUnrealCatalog(token = '', projectId = ''
   return res.json || { ok: true, catalog: { levels: [], sequences: [], presets: [], wrcPresets: [] } };
 }
 
-export async function postprodGetProjectWrcFields(token = '', projectId = '', presetName = '', timeoutMs = 10000) {
+export async function postprodGetProjectWrcFields(
+  token = '',
+  projectId = '',
+  wrcFile = '',
+  timeoutMs = 10000,
+  options = null
+) {
   const authToken = assertPostprodToken(token);
   const projectRef = String(projectId || '').trim();
   if (!projectRef) {
@@ -1096,9 +1110,21 @@ export async function postprodGetProjectWrcFields(token = '', projectId = '', pr
     err.status = 400;
     throw err;
   }
+  const opts = options && typeof options === 'object' && !Array.isArray(options)
+    ? options
+    : {};
   const params = new URLSearchParams();
-  const preset = String(presetName || '').trim();
-  if (preset) params.set('preset', preset);
+  const preset = String(wrcFile || '').trim();
+  if (preset) params.set('wrcFile', preset);
+  if (opts.refreshSnapshot === true || opts.refresh === true) {
+    params.set('refreshSnapshot', '1');
+  }
+  const host = String(opts.host || '').trim();
+  if (host) params.set('host', host);
+  const portRaw = Number(opts.port);
+  if (Number.isFinite(portRaw) && portRaw > 0) {
+    params.set('port', String(Math.trunc(portRaw)));
+  }
   const suffix = params.toString();
   const res = await httpRequest(
     `/agent/postprod/projects/${encodeURIComponent(projectRef)}/wrc-fields${suffix ? `?${suffix}` : ''}`,
@@ -1741,7 +1767,7 @@ export async function postprodListRenderFormFields(token = '', formId, timeoutMs
   return res.json || { ok: true, fields: [] };
 }
 
-export async function postprodReplaceRenderFormFields(token = '', formId, fields = [], timeoutMs = 8000) {
+export async function postprodReplaceRenderFormFields(token = '', formId, fields = [], wrcFile = '', timeoutMs = 8000) {
   const authToken = assertPostprodToken(token);
   const idNum = Number(formId);
   if (!Number.isFinite(idNum) || idNum <= 0) {
@@ -1750,7 +1776,10 @@ export async function postprodReplaceRenderFormFields(token = '', formId, fields
     err.status = 400;
     throw err;
   }
-  const body = { fields: Array.isArray(fields) ? fields : [] };
+  const body = {
+    fields: Array.isArray(fields) ? fields : [],
+    wrcFile: String(wrcFile || '').trim(),
+  };
   const res = await httpRequest(`/agent/postprod/render-forms/${Math.trunc(idNum)}/fields`, {
     method: 'PUT',
     headers: {
@@ -1863,6 +1892,26 @@ export async function postprodScheduleRenderJob(token = '', renderId = 0, payloa
   return res.json || { ok: true };
 }
 
+export async function postprodDeleteRenderJob(token = '', renderId = 0, timeoutMs = 6000) {
+  const authToken = assertPostprodToken(token);
+  const idNum = Number(renderId);
+  if (!Number.isFinite(idNum) || idNum <= 0) {
+    const err = new Error('invalid_render_id');
+    err.code = 'invalid_render_id';
+    err.status = 400;
+    throw err;
+  }
+  const res = await httpRequest(`/agent/postprod/renders/${Math.trunc(idNum)}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+    },
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true, renderId: Math.trunc(idNum) };
+}
+
 export async function postprodReorderRenderJobs(token = '', payload = {}, timeoutMs = 6000) {
   const authToken = assertPostprodToken(token);
   const body = payload && typeof payload === 'object' ? payload : {};
@@ -1934,6 +1983,28 @@ export async function postprodUpsertRenderWorker(token = '', payload = {}, timeo
       Authorization: `Bearer ${authToken}`,
     },
     body,
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true };
+}
+
+export async function postprodPatchRenderWorkerAptitude(token = '', workerKey = '', apte = false, timeoutMs = 8000) {
+  const authToken = assertPostprodToken(token);
+  const key = String(workerKey || '').trim();
+  if (!key) {
+    const err = new Error('invalid_worker_key');
+    err.code = 'invalid_worker_key';
+    err.status = 400;
+    throw err;
+  }
+  const res = await httpRequest(`/agent/postprod/render-workers/${encodeURIComponent(key)}/aptitude`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: { apte: !!apte },
     timeoutMs,
   });
   if (!res.ok) throw toRequestError(res);
@@ -2382,11 +2453,21 @@ export async function getOnlineMap() {
         online = true;
       }
 
+      const VALID_AVAIL = ['capable', 'busy', 'excluded'];
+      const renderAvailability = VALID_AVAIL.includes(it.renderAvailability)
+        ? it.renderAvailability
+        : 'capable';
+      const renderReturnAt = typeof it.renderReturnAt === 'string' && it.renderReturnAt
+        ? it.renderReturnAt
+        : null;
       out[ipRaw] = {
         online,
         unrealRunning,
         rtt: it.rtt ?? null,
+        renderAvailability,
+        renderReturnAt,
         ts: it.ts || now,
+        name: String(h?.name || '').trim() || ipRaw,
       };
     }
 

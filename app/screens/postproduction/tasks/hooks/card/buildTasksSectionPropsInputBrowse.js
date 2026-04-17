@@ -31,6 +31,7 @@ const DATA_KEYS = [
   "taskVisualStatus",
   "taskExpectedRenderName",
   "taskRenderWorkerLabel",
+  "taskProjectLabel",
   "taskLaunchModeLabel",
   "taskRenderFormLabel",
   "taskRenderModeName",

@@ -5,17 +5,36 @@ function useRendersToolbarActions({
   setProjectFilter = null,
   setStationFilter = null,
   setReviewFilter = null,
-  setFavoriteOnly = null,
+  setTaskFilter = null,
+  setFormFilter = null,
+  setRequesterFilter = null,
+  setStatusFilter = null,
+  setSequenceFilter = null,
   setSearchExpanded = null,
 }) {
   const clearFilters = useCallback(() => {
     setSearchQuery?.("");
-    setProjectFilter?.("all");
-    setStationFilter?.("all");
-    setReviewFilter?.("all");
-    setFavoriteOnly?.(false);
+    setProjectFilter?.([]);
+    setStationFilter?.([]);
+    setReviewFilter?.([]);
+    setTaskFilter?.([]);
+    setFormFilter?.([]);
+    setRequesterFilter?.([]);
+    setStatusFilter?.([]);
+    setSequenceFilter?.([]);
     setSearchExpanded?.(false);
-  }, [setSearchQuery, setProjectFilter, setStationFilter, setReviewFilter, setFavoriteOnly, setSearchExpanded]);
+  }, [
+    setSearchQuery,
+    setProjectFilter,
+    setStationFilter,
+    setReviewFilter,
+    setTaskFilter,
+    setFormFilter,
+    setRequesterFilter,
+    setStatusFilter,
+    setSequenceFilter,
+    setSearchExpanded,
+  ]);
 
   const openAdvancedSearch = useCallback(() => {
     setSearchExpanded?.(true);
@@ -25,15 +44,10 @@ function useRendersToolbarActions({
     setSearchExpanded?.(false);
   }, [setSearchExpanded]);
 
-  const toggleFavoriteOnly = useCallback(() => {
-    setFavoriteOnly?.((prev) => !prev);
-  }, [setFavoriteOnly]);
-
   return {
     clearFilters,
     openAdvancedSearch,
     closeAdvancedSearch,
-    toggleFavoriteOnly,
   };
 }
 

@@ -13,7 +13,6 @@ async function handlePostprodRenderFormsRoutes({
   sanitizeRenderMapName,
   sanitizeRenderSequenceName,
   sanitizeRenderOutputProfile,
-  sanitizeRenderFormPresetName,
   normalizeRenderFormModeDefault,
   parseBooleanFlag,
   normalizeRenderFormLayout,
@@ -24,7 +23,8 @@ async function handlePostprodRenderFormsRoutes({
   audit,
   buildRenderFormPayload,
   normalizeRenderFormFields,
-  replaceRenderFormFieldsTx,
+  mergeRenderFormFieldsTx,
+  removeWrcFileFieldsTx,
   buildRenderFormFieldPayload,
   parseJsonValue,
 }) {
@@ -45,9 +45,8 @@ async function handlePostprodRenderFormsRoutes({
       const projectName = sanitizeRenderProjectName(body?.projectName);
       const templateName = sanitizeRenderTemplateName(body?.templateName, '');
       const mapName = sanitizeRenderMapName(body?.mapName, '');
-      const sequenceName = sanitizeRenderSequenceName(body?.sequenceName, '');
       const outputProfile = sanitizeRenderOutputProfile(body?.outputProfile, '');
-      const presetName = sanitizeRenderFormPresetName(body?.presetName ?? body?.preset, '');
+      const wrcFiles = Array.isArray(body?.wrcFiles) ? body.wrcFiles.map(String).filter(Boolean) : [];
       const modeDefault = normalizeRenderFormModeDefault(body?.modeDefault ?? body?.mode, 'edit');
       const isActive = parseBooleanFlag(body?.isActive, true);
       const normalizedLayout = normalizeRenderFormLayout(
@@ -90,18 +89,27 @@ async function handlePostprodRenderFormsRoutes({
         return true;
       }
 
+      const allowedSequences = Array.isArray(body?.allowedSequences) ? body.allowedSequences : [];
+      const allowedPresets = Array.isArray(body?.allowedPresets) ? body.allowedPresets : [];
+      const allowedSequencesJson = JSON.stringify(allowedSequences.map(String).filter(Boolean));
+      const allowedPresetsJson = JSON.stringify(allowedPresets.map(String).filter(Boolean));
+      const noteText = String(body?.note || '').trim().slice(0, 2000);
+
       const now = nowIso();
       stmts.insertRenderForm.run(
         name,
         projectName,
         templateName,
         mapName,
-        sequenceName,
+        '',
         outputProfile,
-        presetName,
+        JSON.stringify(wrcFiles),
         modeDefault,
         isActive ? 1 : 0,
         normalizedLayout.json,
+        allowedSequencesJson,
+        allowedPresetsJson,
+        noteText,
         Number(auth.session.user_id),
         now,
         now
@@ -115,9 +123,8 @@ async function handlePostprodRenderFormsRoutes({
           projectName,
           templateName,
           mapName,
-          sequenceName,
           outputProfile,
-          presetName,
+          wrcFiles,
           modeDefault,
           isActive: isActive === true,
         },
@@ -164,6 +171,8 @@ async function handlePostprodRenderFormsRoutes({
         existingForm?.project_name || ''
       )) return true;
       const body = await parseBody(req);
+      // wrcFile scopes the merge to a single WRC file (leave empty for unscoped)
+      const wrcFile = String(body?.wrcFile ?? '').trim();
       const fieldsInput = (
         body && typeof body === 'object' && !Array.isArray(body) &&
         Object.prototype.hasOwnProperty.call(body, 'fields')
@@ -182,7 +191,7 @@ async function handlePostprodRenderFormsRoutes({
       }
 
       const now = nowIso();
-      replaceRenderFormFieldsTx(formId, normalizedFields.fields, now);
+      mergeRenderFormFieldsTx(formId, normalizedFields.fields, wrcFile, now, stmts);
       stmts.updateRenderFormById.run(
         String(existingForm?.name || ''),
         String(existingForm?.project_name || ''),
@@ -190,10 +199,13 @@ async function handlePostprodRenderFormsRoutes({
         String(existingForm?.map_name || ''),
         String(existingForm?.sequence_name || ''),
         String(existingForm?.output_profile || ''),
-        String(existingForm?.preset_name || ''),
+        String(existingForm?.wrc_files_json || '[]'),
         normalizeRenderFormModeDefault(existingForm?.mode_default, 'edit'),
         Number(existingForm?.is_active) === 1 ? 1 : 0,
         String(existingForm?.layout_json || '{}'),
+        String(existingForm?.allowed_sequences_json || '[]'),
+        String(existingForm?.allowed_presets_json || '[]'),
+        String(existingForm?.note_text || ''),
         now,
         formId
       );
@@ -202,8 +214,39 @@ async function handlePostprodRenderFormsRoutes({
         'render_form_fields_replaced',
         {
           formId,
+          wrcFile: wrcFile || null,
           fieldsCount: normalizedFields.fields.length,
         },
+        'render_form',
+        String(formId)
+      );
+      const fields = stmts.listRenderFormFieldsByFormId
+        .all(formId)
+        .map((row) => buildRenderFormFieldPayload(row));
+      sendJSON(res, 200, { ok: true, fields });
+      return true;
+    }
+
+    // DELETE /fields?wrcFile=xxx — remove all fields for a WRC file
+    if (req.method === 'DELETE') {
+      if (!requireRenderTemplateManage(auth, res, sendJSON)) return true;
+      if (!requireRenderTemplateManageForProject(
+        auth,
+        res,
+        sendJSON,
+        existingForm?.project_name || ''
+      )) return true;
+      const url = new URL(req.url, 'http://localhost');
+      const wrcFile = String(url.searchParams.get('wrcFile') ?? '').trim();
+      if (!wrcFile) {
+        sendJSON(res, 400, { ok: false, error: 'missing_wrc_file' });
+        return true;
+      }
+      removeWrcFileFieldsTx(formId, wrcFile, stmts);
+      audit(
+        auth.session.user_id,
+        'render_form_wrc_fields_removed',
+        { formId, wrcFile },
         'render_form',
         String(formId)
       );
@@ -261,14 +304,11 @@ async function handlePostprodRenderFormsRoutes({
     const hasBodyMap = body && typeof body === 'object'
       ? Object.prototype.hasOwnProperty.call(body, 'mapName')
       : false;
-    const hasBodySequence = body && typeof body === 'object'
-      ? Object.prototype.hasOwnProperty.call(body, 'sequenceName')
-      : false;
     const hasBodyOutputProfile = body && typeof body === 'object'
       ? Object.prototype.hasOwnProperty.call(body, 'outputProfile')
       : false;
-    const hasBodyPreset = body && typeof body === 'object'
-      ? (Object.prototype.hasOwnProperty.call(body, 'presetName') || Object.prototype.hasOwnProperty.call(body, 'preset'))
+    const hasBodyWrcFiles = body && typeof body === 'object'
+      ? Object.prototype.hasOwnProperty.call(body, 'wrcFiles')
       : false;
     const hasBodyMode = body && typeof body === 'object'
       ? (Object.prototype.hasOwnProperty.call(body, 'modeDefault') || Object.prototype.hasOwnProperty.call(body, 'mode'))
@@ -279,14 +319,25 @@ async function handlePostprodRenderFormsRoutes({
     const hasBodyLayout = body && typeof body === 'object'
       ? (Object.prototype.hasOwnProperty.call(body, 'layout') || Object.prototype.hasOwnProperty.call(body, 'layoutJson'))
       : false;
+    const hasBodyAllowedSequences = body && typeof body === 'object'
+      ? Object.prototype.hasOwnProperty.call(body, 'allowedSequences')
+      : false;
+    const hasBodyAllowedPresets = body && typeof body === 'object'
+      ? Object.prototype.hasOwnProperty.call(body, 'allowedPresets')
+      : false;
+    const hasBodyNote = body && typeof body === 'object'
+      ? Object.prototype.hasOwnProperty.call(body, 'note')
+      : false;
 
     const currentName = sanitizeRenderFormName(existingForm?.name, '');
     const currentProjectName = sanitizeRenderProjectName(existingForm?.project_name);
     const currentTemplateName = sanitizeRenderTemplateName(existingForm?.template_name, '');
     const currentMapName = sanitizeRenderMapName(existingForm?.map_name, '');
-    const currentSequenceName = sanitizeRenderSequenceName(existingForm?.sequence_name, '');
     const currentOutputProfile = sanitizeRenderOutputProfile(existingForm?.output_profile, '');
-    const currentPresetName = sanitizeRenderFormPresetName(existingForm?.preset_name, '');
+    const currentWrcFiles = (() => {
+      try { return JSON.parse(String(existingForm?.wrc_files_json || '[]')).filter(Boolean); }
+      catch { return []; }
+    })();
     const currentModeDefault = normalizeRenderFormModeDefault(existingForm?.mode_default, 'edit');
     const currentIsActive = Number(existingForm?.is_active) === 1;
     const currentLayoutInput = parseJsonValue(existingForm?.layout_json, {});
@@ -301,18 +352,32 @@ async function handlePostprodRenderFormsRoutes({
       hasBodyMap ? body?.mapName : currentMapName,
       currentMapName
     );
-    const nextSequenceName = sanitizeRenderSequenceName(
-      hasBodySequence ? body?.sequenceName : currentSequenceName,
-      currentSequenceName
-    );
     const nextOutputProfile = sanitizeRenderOutputProfile(
       hasBodyOutputProfile ? body?.outputProfile : currentOutputProfile,
       currentOutputProfile
     );
-    const nextPresetName = sanitizeRenderFormPresetName(
-      hasBodyPreset ? (body?.presetName ?? body?.preset) : currentPresetName,
-      currentPresetName
-    );
+    const nextWrcFiles = hasBodyWrcFiles
+      ? (Array.isArray(body.wrcFiles) ? body.wrcFiles.map(String).filter(Boolean) : [])
+      : currentWrcFiles;
+    const normalizeWrcFileList = (input) => {
+      const out = [];
+      const seen = new Set();
+      const list = Array.isArray(input) ? input : [];
+      for (const rawValue of list) {
+        const value = String(rawValue || '').trim();
+        if (!value) continue;
+        const key = value.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(value);
+      }
+      return out;
+    };
+    const normalizedCurrentWrcFiles = normalizeWrcFileList(currentWrcFiles);
+    const normalizedNextWrcFiles = normalizeWrcFileList(nextWrcFiles);
+    const removedWrcFiles = hasBodyWrcFiles
+      ? normalizedCurrentWrcFiles.filter((value) => !normalizedNextWrcFiles.some((nextValue) => nextValue.toLowerCase() === value.toLowerCase()))
+      : [];
     const nextModeDefault = normalizeRenderFormModeDefault(
       hasBodyMode ? (body?.modeDefault ?? body?.mode) : currentModeDefault,
       currentModeDefault
@@ -321,6 +386,17 @@ async function handlePostprodRenderFormsRoutes({
     const nextLayoutInput = hasBodyLayout
       ? (Object.prototype.hasOwnProperty.call(body || {}, 'layout') ? body?.layout : body?.layoutJson)
       : currentLayoutInput;
+    const currentAllowedSequences = JSON.parse(String(existingForm?.allowed_sequences_json || '[]').trim() || '[]').filter?.(Boolean) || [];
+    const currentAllowedPresets = JSON.parse(String(existingForm?.allowed_presets_json || '[]').trim() || '[]').filter?.(Boolean) || [];
+    const nextAllowedSequences = hasBodyAllowedSequences
+      ? (Array.isArray(body.allowedSequences) ? body.allowedSequences.map(String).filter(Boolean) : [])
+      : currentAllowedSequences;
+    const nextAllowedPresets = hasBodyAllowedPresets
+      ? (Array.isArray(body.allowedPresets) ? body.allowedPresets.map(String).filter(Boolean) : [])
+      : currentAllowedPresets;
+    const nextNoteText = hasBodyNote
+      ? String(body.note || '').trim().slice(0, 2000)
+      : String(existingForm?.note_text || '').trim();
 
     if (!nextName) {
       sendJSON(res, 400, { ok: false, error: 'missing_render_form_name' });
@@ -359,17 +435,25 @@ async function handlePostprodRenderFormsRoutes({
     }
 
     const now = nowIso();
+    if (removedWrcFiles.length > 0) {
+      for (const removedWrcFile of removedWrcFiles) {
+        removeWrcFileFieldsTx(formId, removedWrcFile, stmts);
+      }
+    }
     const updated = stmts.updateRenderFormById.run(
       nextName,
       nextProjectName,
       nextTemplateName,
       nextMapName,
-      nextSequenceName,
+      String(existingForm?.sequence_name || ''),
       nextOutputProfile,
-      nextPresetName,
+      JSON.stringify(normalizedNextWrcFiles),
       nextModeDefault,
       nextIsActive ? 1 : 0,
       normalizedLayout.json,
+      JSON.stringify(nextAllowedSequences),
+      JSON.stringify(nextAllowedPresets),
+      nextNoteText,
       now,
       formId
     );
@@ -387,9 +471,9 @@ async function handlePostprodRenderFormsRoutes({
         projectName: nextProjectName,
         templateName: nextTemplateName,
         mapName: nextMapName,
-        sequenceName: nextSequenceName,
         outputProfile: nextOutputProfile,
-        presetName: nextPresetName,
+        wrcFiles: normalizedNextWrcFiles,
+        removedWrcFiles,
         modeDefault: nextModeDefault,
         isActive: nextIsActive === true,
       },
@@ -423,9 +507,7 @@ async function handlePostprodRenderFormsRoutes({
         projectName: String(existingForm?.project_name || ''),
         templateName: String(existingForm?.template_name || ''),
         mapName: String(existingForm?.map_name || ''),
-        sequenceName: String(existingForm?.sequence_name || ''),
         outputProfile: String(existingForm?.output_profile || ''),
-        presetName: String(existingForm?.preset_name || ''),
       },
       'render_form',
       String(formId)

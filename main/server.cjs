@@ -1,6 +1,7 @@
 // main/server.cjs
 // Endpoints principaux :
 //   GET  /agent/ping
+//   PUT  /agent/availability
 //   GET  /agent/info
 //   GET  /agent/common
 //   POST /agent/common
@@ -85,6 +86,7 @@ const { handleLibraryRoutes } = require('./server-library.cjs');
 const { handleLayoutRoutes } = require('./server-layout.cjs');
 const { handleProjectConfigRoutes, ensureHttpServerBindAddress } = require('./server-project-config.cjs');
 const { handleHostsOnlineRoutes, heartbeatLoop } = require('./server-hosts-online.cjs');
+const { resolveRenderAvailability, RENDER_AVAILABILITY_VALUES } = require('./server-normalize.cjs');
 const { createPostprodAuth } = require('./server-postprod-auth.cjs');
 const { handlePostprodRemoteJobRoutes } = require('./server-postprod-routes-remote-jobs.cjs');
 const { notifyJobStatusUpdate } = require('./server-postprod-remote-dispatcher.cjs');
@@ -455,6 +457,7 @@ function getLogStorageStatus() {
 applyLogStorageLimitsFromCommon(readJSON(COMMON_FILE) || {});
 refreshLogStorageStateFromDisk({ resetDropNotice: true });
 
+
 function purgeLogsFile() {
   try {
     fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
@@ -518,6 +521,93 @@ function logLine(entry = {}) {
 
 // ---------- Launch local process state ----------
 let CURRENT_PID = null;
+
+// ---------- Render availability (état local de cette machine) ----------
+let RENDER_AVAILABILITY = 'capable';
+let RENDER_RETURN_AT = null;   // ISO string | null — retour automatique à 'capable'
+let _autoReturnTimer = null;   // setTimeout handle
+
+// Initialise renderAvailability depuis hosts_server.json (best-effort)
+try {
+  const os = require('os');
+  const rawHosts = readJSON(HOSTS_FILE) || {};
+  const localIps = new Set(['127.0.0.1', 'localhost']);
+  try {
+    const ifaces = os.networkInterfaces() || {};
+    for (const arr of Object.values(ifaces)) {
+      for (const addr of arr || []) {
+        const a = String(addr?.address || '').trim();
+        if (a) localIps.add(a);
+      }
+    }
+  } catch {}
+  const entries = Array.isArray(rawHosts)
+    ? rawHosts
+    : Object.entries(rawHosts).map(([ip, cfg]) => ({ ip, ...(cfg || {}) }));
+  const localEntry = entries.find(h => localIps.has(String(h?.ip || '').trim()));
+  if (localEntry) {
+    RENDER_AVAILABILITY = resolveRenderAvailability(localEntry);
+    const rat = typeof localEntry?.renderReturnAt === 'string' ? localEntry.renderReturnAt.trim() : '';
+    RENDER_RETURN_AT = rat || null;
+    if (RENDER_RETURN_AT && RENDER_AVAILABILITY === 'busy') {
+      scheduleAutoReturn(RENDER_RETURN_AT);
+    }
+  }
+} catch {}
+
+function scheduleAutoReturn(returnAtIso) {
+  if (_autoReturnTimer !== null) {
+    clearTimeout(_autoReturnTimer);
+    _autoReturnTimer = null;
+  }
+  if (!returnAtIso || typeof returnAtIso !== 'string') return;
+  const target = Date.parse(returnAtIso);
+  if (!Number.isFinite(target)) return;
+  const delayMs = target - Date.now();
+  if (delayMs <= 0) {
+    // Already past the return time — apply immediately
+    applyAutoReturn();
+    return;
+  }
+  _autoReturnTimer = setTimeout(() => {
+    _autoReturnTimer = null;
+    applyAutoReturn();
+  }, Math.min(delayMs, 2147483647)); // cap to max setTimeout value (~24.8 days)
+}
+
+function applyAutoReturn() {
+  if (RENDER_AVAILABILITY !== 'busy') return;
+  RENDER_AVAILABILITY = 'capable';
+  RENDER_RETURN_AT = null;
+  try {
+    const os = require('os');
+    const localIps = new Set(['127.0.0.1', 'localhost']);
+    try {
+      const ifaces = os.networkInterfaces() || {};
+      for (const arr of Object.values(ifaces)) {
+        for (const addr of arr || []) {
+          const a = String(addr?.address || '').trim();
+          if (a) localIps.add(a);
+        }
+      }
+    } catch {}
+    const rawHosts = readJSON(HOSTS_FILE) || {};
+    const entries = Array.isArray(rawHosts)
+      ? rawHosts
+      : Object.entries(rawHosts).map(([ip, cfg]) => ({ ip, ...(cfg || {}) }));
+    const localEntry = entries.find(h => localIps.has(String(h?.ip || '').trim()));
+    if (localEntry) {
+      const localIp = String(localEntry.ip || '').trim();
+      const hostsObj = Array.isArray(rawHosts)
+        ? Object.fromEntries(rawHosts.map(h => [String(h?.ip || ''), h]))
+        : rawHosts;
+      writeJSONIfChanged(HOSTS_FILE, {
+        ...hostsObj,
+        [localIp]: { ...(hostsObj[localIp] || {}), renderAvailability: 'capable', renderReturnAt: null },
+      });
+    }
+  } catch {}
+}
 
 function isPidAlive(pid) {
   const n = Number(pid);
@@ -853,8 +943,57 @@ const server = http.createServer(async (req, res) => {
         version: VERSION,
         port: PORT,
         unrealRunning: running,
+        renderAvailability: RENDER_AVAILABILITY,
+        renderReturnAt: RENDER_RETURN_AT || null,
         pid
       });
+    }
+
+    // ---- Availability ----
+    if (req.method === 'PUT' && url.pathname === '/agent/availability') {
+      const body = await parseBody(req);
+      const next = body?.renderAvailability;
+      if (!RENDER_AVAILABILITY_VALUES.includes(next)) {
+        return sendJSON(res, 400, { ok: false, error: 'invalid renderAvailability, expected: capable | busy | excluded' });
+      }
+      // renderReturnAt: only relevant when busy; clear otherwise
+      const rawRat = body?.renderReturnAt;
+      const nextRat = (next === 'busy' && typeof rawRat === 'string' && rawRat.trim())
+        ? rawRat.trim()
+        : null;
+      RENDER_AVAILABILITY = next;
+      RENDER_RETURN_AT = nextRat;
+      scheduleAutoReturn(nextRat);
+      // Persiste dans hosts_server.json pour cette machine
+      try {
+        const os = require('os');
+        const localIps = new Set(['127.0.0.1', 'localhost']);
+        try {
+          const ifaces = os.networkInterfaces() || {};
+          for (const arr of Object.values(ifaces)) {
+            for (const addr of arr || []) {
+              const a = String(addr?.address || '').trim();
+              if (a) localIps.add(a);
+            }
+          }
+        } catch {}
+        const rawHosts = readJSON(HOSTS_FILE) || {};
+        const entries = Array.isArray(rawHosts)
+          ? rawHosts
+          : Object.entries(rawHosts).map(([ip, cfg]) => ({ ip, ...(cfg || {}) }));
+        const localEntry = entries.find(h => localIps.has(String(h?.ip || '').trim()));
+        if (localEntry) {
+          const localIp = String(localEntry.ip || '').trim();
+          const hostsObj = Array.isArray(rawHosts)
+            ? Object.fromEntries(rawHosts.map(h => [String(h?.ip || ''), h]))
+            : rawHosts;
+          writeJSONIfChanged(HOSTS_FILE, {
+            ...hostsObj,
+            [localIp]: { ...(hostsObj[localIp] || {}), renderAvailability: next, renderReturnAt: nextRat },
+          });
+        }
+      } catch {}
+      return sendJSON(res, 200, { ok: true, renderAvailability: RENDER_AVAILABILITY, renderReturnAt: RENDER_RETURN_AT });
     }
 
     // ---- Info ----
@@ -880,7 +1019,6 @@ const server = http.createServer(async (req, res) => {
         const hasRenderOutputDirsInBody = Object.prototype.hasOwnProperty.call(body || {}, 'render_output_dirs')
           || Object.prototype.hasOwnProperty.call(body || {}, 'renderOutputDirs');
                   const ALLOWED = [
-                    'webRemoteControlName',
                     'rcHttpPort',
                     'rcWsPort',
                     'agentPort',
@@ -1160,9 +1298,6 @@ const server = http.createServer(async (req, res) => {
         : Array.isArray(body?.paths)
           ? body.paths
           : [];
-      const commonCfg = readJSON(COMMON_FILE) || {};
-      const defaultWrcName = String(commonCfg.webRemoteControlName || '').trim();
-
       const unique = new Map();
       for (const raw of rawList) {
         const up = String(raw || '').trim();
@@ -1202,14 +1337,17 @@ const server = http.createServer(async (req, res) => {
           note: '',
           createdAt: new Date().toISOString(),
           engineVersion: '',
-          wrcName: defaultWrcName || '',
+          wrcNames: [],
         });
 
-        // Créer/mettre à jour le meta avec WRC et maps détectées
+        // Créer/mettre à jour le meta avec WRC détectés et maps
         try {
           const meta = readProjectMeta(zp4(nextId)) || {};
-          if (!meta.wrcName && defaultWrcName) meta.wrcName = defaultWrcName;
           const insights = extractProjectInsights(up) || {};
+          const detectedWrcNames = Array.isArray(insights.wrcPresets?.list)
+            ? insights.wrcPresets.list.map(p => String(p?.name || '').trim()).filter(Boolean)
+            : [];
+          meta.wrcNames = detectedWrcNames;
           if (insights.maps) {
             meta.maps = {
               defaultGame: insights.maps.defaultGame || '',
@@ -1313,11 +1451,11 @@ const server = http.createServer(async (req, res) => {
             // ⬇️ ICI on garde enfin note + createdAt dans le JSON
             list.push({ id, name, uproject: up, createdAt, engineVersion });
 
-            // Mettre à jour les métadonnées projet (note / wrcName / favorite éventuel)
+            // Mettre à jour les métadonnées projet (note / wrcNames / favorite éventuel)
             const meta = readProjectMeta(id) || {};
             let metaChanged = false;
             if (typeof it?.note === 'string') { meta.note = it.note; metaChanged = true; }
-            if (typeof it?.wrcName === 'string') { meta.wrcName = String(it.wrcName).trim(); metaChanged = true; }
+            if (Array.isArray(it?.wrcNames)) { meta.wrcNames = it.wrcNames; metaChanged = true; }
             if (Object.prototype.hasOwnProperty.call(it || {}, 'favorite')) {
               meta.favorite = it.favorite === true;
               metaChanged = true;

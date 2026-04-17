@@ -1314,10 +1314,8 @@ async function handleWidgets(req, res, url, context) {
       const common = readJSON(COMMON_FILE) || {};
       const rcPort = Number(common.rcHttpPort || 30010);
       const projectMeta = readProjectMeta(pid) || {};
-      const projectPresetName = String(projectMeta?.wrcName || '').trim();
-      const presetName =
-        projectPresetName ||
-        String(common.webRemoteControlName || 'RemoteControlPreset');
+      const projectWrcNames = Array.isArray(projectMeta?.wrcNames) ? projectMeta.wrcNames : [];
+      const presetName = String(projectWrcNames[0] || '').trim() || 'RemoteControlPreset';
 
       const results = [];
 

@@ -12,6 +12,7 @@ function TaskListPanel({
   taskVisualStatus = null,
   taskExpectedRenderName = null,
   taskRenderWorkerLabel = null,
+  taskProjectLabel = null,
   taskLaunchModeLabel = null,
   taskRenderFormLabel = null,
   taskRenderModeName = null,
@@ -34,6 +35,7 @@ function TaskListPanel({
         taskVisualStatus={taskVisualStatus}
         taskExpectedRenderName={taskExpectedRenderName}
         taskRenderWorkerLabel={taskRenderWorkerLabel}
+        taskProjectLabel={taskProjectLabel}
         isTaskFavorite={isTaskFavorite}
         toggleTaskFavorite={toggleTaskFavorite}
         renderTaskActions={renderTaskActions}

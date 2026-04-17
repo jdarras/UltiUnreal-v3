@@ -1,4 +1,3 @@
-import { safeT } from "../../../shared/helpers";
 import { resolveAutoRenderTargetWorkerKey } from "../../../shared/autoRenderHelpers";
 
 function buildQueueWorkerLabelByKey(renderWorkers = []) {
@@ -29,22 +28,6 @@ function getQueueEntryLaunchMeta(queueEntry = null) {
   };
 }
 
-function queueTaskPriorityValue(task = null) {
-  const raw = Number(task?.priority || 0);
-  if (!Number.isFinite(raw)) return 3;
-  const normalized = Math.trunc(raw);
-  if (normalized < 1 || normalized > 4) return 3;
-  return normalized;
-}
-
-function queueTaskPriorityLabel(priorityRaw, t) {
-  const priority = queueTaskPriorityValue({ priority: priorityRaw });
-  if (priority === 1) return safeT(t, "postprod.renders.queue.priority.p1", "Urgente");
-  if (priority === 2) return safeT(t, "postprod.renders.queue.priority.p2", "Haute");
-  if (priority === 4) return safeT(t, "postprod.renders.queue.priority.p4", "Basse");
-  return safeT(t, "postprod.renders.queue.priority.p3", "Normale");
-}
-
 function queueEntryWorkerLabel(queueEntry = null, queueWorkerLabelByKey = new Map(), t) {
   const workerName = String(queueEntry?.workerName || "").trim();
   const workerKey = String(queueEntry?.workerKey || "").trim();
@@ -64,8 +47,6 @@ function queueEntryWorkerLabel(queueEntry = null, queueWorkerLabelByKey = new Ma
 export {
   buildQueueWorkerLabelByKey,
   getQueueEntryLaunchMeta,
-  queueTaskPriorityValue,
-  queueTaskPriorityLabel,
   queueEntryWorkerLabel,
 };
 

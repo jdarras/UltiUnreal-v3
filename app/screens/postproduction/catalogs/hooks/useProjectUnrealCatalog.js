@@ -98,6 +98,21 @@ export function useProjectUnrealCatalog({
     return out.sort((a, b) => String(a.label || "").localeCompare(String(b.label || "")));
   }, [projectCatalog]);
 
+  const projectCatalogPresetOptions = useMemo(() => {
+    const out = [];
+    const seen = new Set();
+    const list = Array.isArray(projectCatalog?.presets) ? projectCatalog.presets : [];
+    for (const entry of list) {
+      const value = normalizeAssetPath(entry);
+      if (!value) continue;
+      const key = value.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ value, label: normalizeAssetLabel(entry) || value });
+    }
+    return out.sort((a, b) => String(a.label || "").localeCompare(String(b.label || "")));
+  }, [projectCatalog]);
+
   const projectCatalogWrcPresetOptions = useMemo(() => {
     const byValue = new Map();
     const list = Array.isArray(projectCatalog?.wrcPresets) ? projectCatalog.wrcPresets : [];
@@ -108,8 +123,11 @@ export function useProjectUnrealCatalog({
       if (!value) continue;
       const dedupeKey = String(value || "").trim().toLowerCase();
       if (!byValue.has(dedupeKey)) {
+        const resolvedName = name || value;
         byValue.set(dedupeKey, {
           value,
+          name: resolvedName,
+          assetPath,
           label: name && assetPath ? `${name} (${assetPath})` : (name || assetPath),
         });
       }
@@ -123,6 +141,7 @@ export function useProjectUnrealCatalog({
     projectCatalogError,
     projectCatalogLevelOptions,
     projectCatalogSequenceOptions,
+    projectCatalogPresetOptions,
     projectCatalogWrcPresetOptions,
   };
 }

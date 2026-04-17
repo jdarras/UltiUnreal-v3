@@ -35,6 +35,7 @@ async function handlePostprodMeRoutes(options = {}) {
     hashPassword,
     pbkdf2Iters,
     audit,
+    emitUserSyncUpsert,
   } = options;
 
   if (!req || !res || pathname !== '/agent/postprod/me') return false;
@@ -281,6 +282,14 @@ async function handlePostprodMeRoutes(options = {}) {
       'user',
       String(userId)
     );
+    if (typeof emitUserSyncUpsert === 'function' && updated) {
+      try {
+        emitUserSyncUpsert(updated, {
+          actorUserId: userId,
+          reason: 'me_updated',
+        });
+      } catch {}
+    }
     sendJSON(res, 200, {
       ok: true,
       user: buildUserPayload(updated, rolesCache),
@@ -306,4 +315,3 @@ async function handlePostprodMeRoutes(options = {}) {
 module.exports = {
   handlePostprodMeRoutes,
 };
-

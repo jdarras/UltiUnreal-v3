@@ -20,7 +20,7 @@ import { NoticeContext } from '../NoticeContext';
 function sortHosts(list, locale = 'fr') {
   const collator = new Intl.Collator(locale || 'fr', { numeric: true, sensitivity: 'base' });
   return [...(Array.isArray(list) ? list : [])]
-    .filter((h) => h && h.eligible !== false)
+    .filter((h) => h && h.renderAvailability !== 'excluded' && h.eligible !== false)
     .sort((a, b) => {
       const ai = Number(a?.sortIndex);
       const bi = Number(b?.sortIndex);
@@ -53,11 +53,11 @@ function buildHostsSignature(list) {
       const color = String(h?.color || '').trim();
       const uproject = String(h?.uproject || '').trim();
       const syncRoot = String(h?.syncRoot || '').trim();
-      const eligible = h?.eligible === false ? '0' : '1';
+      const avail = h?.renderAvailability || (h?.eligible === false ? 'excluded' : 'capable');
       const syncEnabled = h?.syncEnabled ? '1' : '0';
       const sortIndexRaw = Number(h?.sortIndex);
       const sortIndex = Number.isFinite(sortIndexRaw) ? String(sortIndexRaw) : '';
-      return `${ip}|${name}|${color}|${uproject}|${syncRoot}|${eligible}|${syncEnabled}|${sortIndex}`;
+      return `${ip}|${name}|${color}|${uproject}|${syncRoot}|${avail}|${syncEnabled}|${sortIndex}`;
     })
     .sort()
     .join('||');
@@ -224,10 +224,8 @@ export default function LaunchControlScreen({ isVisible = true }) {
 
     const ip = server?.ip || localIp || '127.0.0.1';
     const port = Number(rcHttpPortRef.current || 30010);
-    const preset =
-      String(activeProject?.wrcName || '').trim() ||
-      String(commonCfgRef.current?.webRemoteControlName || '').trim() ||
-      'RemoteControlPreset';
+    const wrcNames = Array.isArray(activeProject?.wrcNames) ? activeProject.wrcNames : (activeProject?.wrcName ? [activeProject.wrcName] : []);
+    const preset = String(wrcNames[0] || '').trim() || 'RemoteControlPreset';
 
     return { ip, port, preset };
   }, []);
@@ -806,6 +804,7 @@ export default function LaunchControlScreen({ isVisible = true }) {
           const syncTargets = h.filter(
             (host) =>
               host &&
+              host.renderAvailability !== 'excluded' &&
               host.eligible !== false &&
               host.syncEnabled &&
               String(host.syncRoot || '').trim()
@@ -862,7 +861,7 @@ export default function LaunchControlScreen({ isVisible = true }) {
           Array.isArray(h) &&
           activeId &&
           h.some((host) => {
-            if (!host || host.eligible === false) return false;
+            if (!host || host.renderAvailability === 'excluded' || host.eligible === false) return false;
             const ip = String(host.ip || '').trim();
             if (!ip || ip === localIp) return false;
             if (host.syncEnabled) return false;
@@ -942,10 +941,8 @@ export default function LaunchControlScreen({ isVisible = true }) {
           ) ||
           null;
 
-        const presetName =
-          String(activeProject?.wrcName || '').trim() ||
-          String(commonCfgRef.current?.webRemoteControlName || '').trim() ||
-          'RemoteControlPreset';
+        const activeWrcNames = Array.isArray(activeProject?.wrcNames) ? activeProject.wrcNames : (activeProject?.wrcName ? [activeProject.wrcName] : []);
+        const presetName = String(activeWrcNames[0] || '').trim() || 'RemoteControlPreset';
         const entry = (map || {})[ip] || {};
         const alreadyRunning = !!entry.unrealRunning;
 

@@ -58,6 +58,123 @@ async function handlePostprodProjectRoutes(options = {}) {
 
   if (!req || !res || !pathname) return false;
 
+  const normalizePresetKey = (value) => String(value || '').trim();
+  const normalizeSnapshotRenderFormFields = (rawFields = []) => {
+    const list = Array.isArray(rawFields) ? rawFields : [];
+    const out = [];
+    for (const rawField of list) {
+      if (!rawField || typeof rawField !== 'object' || Array.isArray(rawField)) continue;
+      out.push({ ...rawField });
+    }
+    return out;
+  };
+
+  const buildPresetLookupCandidates = (rawValues = []) => {
+    const out = [];
+    const seen = new Set();
+    const append = (rawValue) => {
+      const value = normalizePresetKey(rawValue);
+      if (!value) return;
+      const key = value.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(value);
+    };
+    const list = Array.isArray(rawValues) ? rawValues : [rawValues];
+    for (const entry of list) {
+      append(entry);
+      const displayMatch = /^([^()]+?)\s*\((\/Game\/[^)]+)\)\s*$/i.exec(String(entry || ''));
+      if (displayMatch) {
+        append(displayMatch[1]);
+        append(displayMatch[2]);
+      }
+      const withGamePath = /\((\/Game\/[^)]+)\)\s*$/i.exec(String(entry || ''));
+      if (withGamePath?.[1]) append(withGamePath[1]);
+      if (String(entry || '').startsWith('/Game/')) {
+        const shortName = String(entry).split('.').pop()?.split('/').pop();
+        append(shortName);
+      }
+    }
+    return out;
+  };
+
+  const resolvePresetSnapshotFromProjectDoc = (projectIdRaw, presetCandidatesRaw = []) => {
+    const projectId = normalizePresetKey(projectIdRaw);
+    if (!projectId || !sharedStore || typeof sharedStore.readProjectDoc !== 'function') return null;
+    try {
+      const doc = sharedStore.readProjectDoc(projectId) || {};
+      const presets = doc && typeof doc.presets === 'object' ? doc.presets : {};
+      const lookup = new Map();
+      for (const [rawKey, rawRecord] of Object.entries(presets)) {
+        const key = normalizePresetKey(rawKey);
+        if (!key) continue;
+        lookup.set(key.toLowerCase(), { key, rawRecord });
+      }
+      const candidates = buildPresetLookupCandidates(presetCandidatesRaw);
+      for (const candidate of candidates) {
+        const match = lookup.get(candidate.toLowerCase());
+        if (!match) continue;
+        const record = match.rawRecord && typeof match.rawRecord === 'object' ? match.rawRecord : {};
+        const payload = (
+          record.data && typeof record.data === 'object'
+            ? record.data
+            : (record.payload && typeof record.payload === 'object' ? record.payload : null)
+        );
+        if (!payload) continue;
+        const cachedFields = normalizeSnapshotRenderFormFields(
+          record.renderFormFields
+          || record.render_form_fields
+          || record.fields
+        );
+        return {
+          key: match.key,
+          payload,
+          fetchedAt: String(record.fetchedAt || record.ts || '').trim() || null,
+          cachedFields,
+        };
+      }
+    } catch {}
+    return null;
+  };
+
+  const writePresetSnapshotToProjectDoc = (
+    projectIdRaw,
+    presetCandidatesRaw = [],
+    payload = null,
+    fields = null
+  ) => {
+    const projectId = normalizePresetKey(projectIdRaw);
+    if (!projectId || !payload || typeof payload !== 'object') return false;
+    if (!sharedStore || typeof sharedStore.readProjectDoc !== 'function' || typeof sharedStore.writeProjectDoc !== 'function') {
+      return false;
+    }
+    const candidates = buildPresetLookupCandidates(presetCandidatesRaw);
+    if (candidates.length <= 0) return false;
+    try {
+      const doc = sharedStore.readProjectDoc(projectId) || {};
+      const presets = doc.presets && typeof doc.presets === 'object' ? doc.presets : {};
+      const fetchedAt = new Date().toISOString();
+      const normalizedFields = normalizeSnapshotRenderFormFields(fields);
+      for (const key of candidates) {
+        const previousRecord = presets[key] && typeof presets[key] === 'object' ? presets[key] : {};
+        const nextRecord = {
+          ...previousRecord,
+          data: payload,
+          fetchedAt,
+        };
+        // Keep last known importable fields if current payload has none (e.g. preset loaded on wrong level).
+        if (normalizedFields.length > 0) {
+          nextRecord.renderFormFields = normalizedFields;
+        }
+        presets[key] = nextRecord;
+      }
+      doc.presets = presets;
+      sharedStore.writeProjectDoc(projectId, doc);
+      return true;
+    } catch {}
+    return false;
+  };
+
   if (pathname === '/agent/postprod/projects') {
     const auth = requireSession(req, res, sendJSON);
     if (!auth) return true;
@@ -180,7 +297,10 @@ async function handlePostprodProjectRoutes(options = {}) {
           const loadedMeta = sharedStore.readProjectMeta(key) || {};
           if (loadedMeta && typeof loadedMeta === 'object' && Object.keys(loadedMeta).length > 0) {
             projectMeta = loadedMeta;
-            if (String(loadedMeta?.wrcName || '').trim()) break;
+            const hasWrc = Array.isArray(loadedMeta?.wrcNames)
+              ? loadedMeta.wrcNames.length > 0
+              : !!String(loadedMeta?.wrcName || '').trim();
+            if (hasWrc) break;
           }
         } catch {}
       }
@@ -198,9 +318,14 @@ async function handlePostprodProjectRoutes(options = {}) {
       });
     };
 
-    appendFallbackWrc(projectMeta?.wrcName, 'project_meta');
-    appendFallbackWrc(projectResolved?.project?.wrcName, 'project_resolved');
-    appendFallbackWrc(projectEntry?.wrcName, 'project_entry');
+    const resolveFirstWrc = (obj) => {
+      if (!obj) return '';
+      if (Array.isArray(obj.wrcNames) && obj.wrcNames.length > 0) return String(obj.wrcNames[0] || '').trim();
+      return String(obj.wrcName || '').trim();
+    };
+    appendFallbackWrc(resolveFirstWrc(projectMeta), 'project_meta');
+    appendFallbackWrc(resolveFirstWrc(projectResolved?.project), 'project_resolved');
+    appendFallbackWrc(resolveFirstWrc(projectEntry), 'project_entry');
 
     if (fallbackWrcEntries.length <= 0) {
       const catalogPresets = Array.isArray(catalog?.presets) ? catalog.presets : [];
@@ -278,12 +403,26 @@ async function handlePostprodProjectRoutes(options = {}) {
     }
 
     const commonConfig = readCommonServerConfigFile(commonServerFile);
-    const requestedPresetName = String(
-      url?.searchParams?.get('preset')
+    const requestedWrcFile = String(
+      url?.searchParams?.get('wrcFile')
+      || url?.searchParams?.get('preset')
       || url?.searchParams?.get('presetName')
     ).trim();
+    const refreshRaw = String(
+      url?.searchParams?.get('refreshSnapshot')
+      || url?.searchParams?.get('refresh')
+      || ''
+    ).trim().toLowerCase();
+    const refreshSnapshot = (
+      refreshRaw === '1'
+      || refreshRaw === 'true'
+      || refreshRaw === 'yes'
+      || refreshRaw === 'oui'
+    );
+    // wrcFile is the individual WRC filename (e.g. "MyPreset" or "/Game/..."); also used as presetName for RC queries
+    const requestedPresetName = requestedWrcFile;
     if (!requestedPresetName) {
-      sendJSON(res, 400, { ok: false, error: 'missing_preset_name' });
+      sendJSON(res, 400, { ok: false, error: 'missing_wrc_file' });
       return true;
     }
     const presetCandidates = [];
@@ -337,6 +476,72 @@ async function handlePostprodProjectRoutes(options = {}) {
         }
       }
     }
+    const projectIdForSnapshot = projectResolved.project?.id || projectResolved.project?.name || rawProjectRef;
+    const sendSnapshotFieldsResponse = ({
+      snapshot = null,
+      usingLastKnownPreset = false,
+      rawError = '',
+      rcPort = null,
+      endpoint = null,
+      fallbackSource = 'snapshot_cache',
+      attempts = [],
+      hostsTried = [],
+      includeFetchDetails = false,
+    } = {}) => {
+      if (!snapshot?.payload) return false;
+      let cachedFields = buildRenderFormFieldsFromWrcPreset(snapshot.payload, requestedWrcFile);
+      let effectiveFallbackSource = String(fallbackSource || 'snapshot_cache').trim() || 'snapshot_cache';
+      if (
+        (!Array.isArray(cachedFields) || cachedFields.length <= 0)
+        && Array.isArray(snapshot?.cachedFields)
+        && snapshot.cachedFields.length > 0
+      ) {
+        cachedFields = snapshot.cachedFields.map((field) => {
+          const row = field && typeof field === 'object' ? { ...field } : {};
+          if (!String(row.wrcFile || '').trim()) row.wrcFile = requestedWrcFile;
+          return row;
+        });
+        effectiveFallbackSource = 'snapshot_fields_cache';
+      }
+      const payload = {
+        ok: true,
+        project: projectResolved.project,
+        usageMode: String(projectResolved.usageMode || ''),
+        wrcFile: requestedWrcFile,
+        presetName: snapshot.key || requestedWrcFile,
+        fields: cachedFields,
+        fallbackSource: effectiveFallbackSource,
+        fromCache: true,
+        fromSnapshot: true,
+        usingLastKnownPreset: usingLastKnownPreset === true,
+        refreshedFromUnreal: false,
+        fetchedAt: snapshot.fetchedAt,
+      };
+      if (endpoint) payload.endpoint = endpoint;
+      if (Number.isFinite(Number(rcPort)) && Number(rcPort) > 0) payload.rcPort = Math.trunc(Number(rcPort));
+      if (rawError) payload.rawError = String(rawError);
+      if (includeFetchDetails) {
+        payload.hostsTried = Array.isArray(hostsTried) ? hostsTried : [];
+        payload.attempts = Array.isArray(attempts) ? attempts.slice(-25) : [];
+      }
+      sendJSON(res, 200, payload);
+      return true;
+    };
+    const snapshotCandidates = [requestedWrcFile, ...presetCandidates];
+    const initialSnapshot = resolvePresetSnapshotFromProjectDoc(projectIdForSnapshot, snapshotCandidates);
+    if (!refreshSnapshot) {
+      if (sendSnapshotFieldsResponse({ snapshot: initialSnapshot, fallbackSource: 'snapshot_cache' })) {
+        return true;
+      }
+      sendJSON(res, 404, {
+        ok: false,
+        error: 'wrc_preset_unreachable_no_snapshot',
+        presetName: requestedPresetName,
+        presetCandidates,
+      });
+      return true;
+    }
+
     const rcPortQuery = Number(url?.searchParams?.get('port') || 0);
     const rcPort = Number.isFinite(rcPortQuery) && rcPortQuery > 0
       ? Math.trunc(rcPortQuery)
@@ -346,46 +551,89 @@ async function handlePostprodProjectRoutes(options = {}) {
           : 30010
       );
     const requestHost = parseHostFromRequestHeader(req?.headers?.host);
-    const hostCandidates = [];
-    const seenHostCandidate = new Set();
+    const primaryHostCandidates = [];
+    const seenPrimaryHostCandidate = new Set();
+    const allHostCandidates = [];
+    const seenAllHostCandidate = new Set();
     const appendHostCandidate = (rawHost) => {
       const host = normalizeHostCandidate(rawHost);
       if (!host) return;
+      const primaryKey = host.toLowerCase();
+      if (!seenPrimaryHostCandidate.has(primaryKey)) {
+        seenPrimaryHostCandidate.add(primaryKey);
+        primaryHostCandidates.push(host);
+      }
+    };
+    const appendAllHostCandidate = (rawHost) => {
+      const host = normalizeHostCandidate(rawHost);
+      if (!host) return;
       const key = host.toLowerCase();
-      if (seenHostCandidate.has(key)) return;
-      seenHostCandidate.add(key);
-      hostCandidates.push(host);
+      if (seenAllHostCandidate.has(key)) return;
+      seenAllHostCandidate.add(key);
+      allHostCandidates.push(host);
     };
     const hostFromQuery = String(url?.searchParams?.get('host') || '').trim();
     appendHostCandidate(hostFromQuery);
     appendHostCandidate(requestHost);
     appendHostCandidate(commonConfig?.serverIp);
+    appendHostCandidate('127.0.0.1');
+    appendHostCandidate('localhost');
+
+    for (const host of primaryHostCandidates) appendAllHostCandidate(host);
     const hostsConfig = readHostsServerConfigFile(hostsServerFile);
     if (hostsConfig && typeof hostsConfig === 'object') {
       for (const [hostKey, hostRawEntry] of Object.entries(hostsConfig)) {
         const hostEntry = hostRawEntry && typeof hostRawEntry === 'object' ? hostRawEntry : {};
-        const renderEnabled = hostEntry?.renderEnabled !== false;
-        const eligible = hostEntry?.eligible !== false;
-        if (!renderEnabled && !eligible) continue;
-        appendHostCandidate(hostEntry?.ip);
-        appendHostCandidate(hostEntry?.host);
-        appendHostCandidate(hostKey);
+        const avail = hostEntry?.renderAvailability;
+        // Migration : exclure les hosts marqués 'excluded' ou les anciens hosts non-eligibles
+        if (avail === 'excluded') continue;
+        if (!avail && hostEntry?.eligible === false && hostEntry?.renderEnabled === false) continue;
+        appendAllHostCandidate(hostEntry?.ip);
+        appendAllHostCandidate(hostEntry?.host);
+        appendAllHostCandidate(hostKey);
       }
     }
-    appendHostCandidate('127.0.0.1');
-    appendHostCandidate('localhost');
+    const hasSnapshotForQuickFallback = !!initialSnapshot?.payload;
+    const hostCandidates = hasSnapshotForQuickFallback
+      ? primaryHostCandidates.slice(0, 2)
+      : allHostCandidates;
+    const fetchTimeoutMs = hasSnapshotForQuickFallback ? 800 : 3000;
 
     const fetchedPreset = await fetchWrcPresetPayloadFromHosts({
       hosts: hostCandidates,
       rcPort,
       presetName: requestedPresetName,
       presetNames: presetCandidates,
-      timeoutMs: 3000,
+      timeoutMs: fetchTimeoutMs,
     });
     if (!fetchedPreset.ok) {
+      const cachedSnapshot = resolvePresetSnapshotFromProjectDoc(projectIdForSnapshot, snapshotCandidates);
+      if (sendSnapshotFieldsResponse({
+        snapshot: cachedSnapshot,
+        usingLastKnownPreset: true,
+        rawError: String(fetchedPreset.error || ''),
+        rcPort,
+        endpoint: null,
+        fallbackSource: 'snapshot_cache',
+        attempts: fetchedPreset?.attempts,
+        hostsTried: hostCandidates,
+        includeFetchDetails: true,
+      })) {
+        return true;
+      }
+      const baseError = String(fetchedPreset.error || 'wrc_preset_unreachable');
+      const noSnapshotError = (
+        baseError === 'wrc_preset_unreachable'
+        || baseError === 'wrc_fetch_failed'
+        || baseError === 'wrc_timeout'
+        || baseError.startsWith('wrc_http_')
+      )
+        ? 'wrc_preset_unreachable_no_snapshot'
+        : baseError;
       sendJSON(res, 502, {
         ok: false,
-        error: fetchedPreset.error || 'wrc_preset_unreachable',
+        error: noSnapshotError,
+        rawError: baseError,
         presetName: requestedPresetName,
         presetCandidates,
         rcPort,
@@ -397,7 +645,7 @@ async function handlePostprodProjectRoutes(options = {}) {
       return true;
     }
 
-    let fields = buildRenderFormFieldsFromWrcPreset(fetchedPreset.payload);
+    let fields = buildRenderFormFieldsFromWrcPreset(fetchedPreset.payload, requestedWrcFile);
     let fallbackSource = '';
     const resolvedPresetName = String(fetchedPreset?.endpoint?.presetName || requestedPresetName).trim();
     const endpointHost = String(fetchedPreset?.endpoint?.host || '').trim();
@@ -539,15 +787,39 @@ async function handlePostprodProjectRoutes(options = {}) {
       }
       fields = enrichedFields;
     }
+    // Save preset snapshot to project doc for offline use
+    if (projectIdForSnapshot && fetchedPreset.payload) {
+      const snapshotSaved = writePresetSnapshotToProjectDoc(
+        projectIdForSnapshot,
+        [requestedWrcFile, resolvedPresetName, ...presetCandidates],
+        fetchedPreset.payload,
+        fields
+      );
+      if (!snapshotSaved) {
+        logLine({
+          level: 'warn',
+          src: 'postprod',
+          action: 'wrc_fields_snapshot_failed',
+          message: 'Unable to persist WRC snapshot in project doc',
+          wrcFile: requestedWrcFile,
+        });
+      }
+    }
+
     sendJSON(res, 200, {
       ok: true,
       project: projectResolved.project,
       usageMode: String(projectResolved.usageMode || ''),
-      presetName: resolvedPresetName || String(requestedPresetName || ''),
+      wrcFile: requestedWrcFile,
+      presetName: resolvedPresetName || requestedWrcFile,
       rcPort,
       endpoint: fetchedPreset.endpoint || null,
       fields,
       fallbackSource: fallbackSource || undefined,
+      refreshedFromUnreal: true,
+      fromSnapshot: false,
+      usingLastKnownPreset: false,
+      fromCache: false,
     });
     return true;
   }
@@ -672,4 +944,3 @@ async function handlePostprodProjectRoutes(options = {}) {
 module.exports = {
   handlePostprodProjectRoutes,
 };
-

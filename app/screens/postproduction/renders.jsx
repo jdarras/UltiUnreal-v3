@@ -3,8 +3,7 @@ import { useRendersCardController } from "./renders/hooks/useRendersCardControll
 import { RenderDetailModal } from "./renders/components/RenderDetailModal";
 import { RendersListPanel } from "./renders/components/RendersListPanel";
 import { RendersQueuePanel } from "./renders/components/RendersQueuePanel";
-import { RenderJobsQueuePanel } from "./renders/components/RenderJobsQueuePanel";
-import { RendersToolbar } from "./renders/components/RendersToolbar";
+import { RendersAdvancedSearchPanel, RendersToolbar } from "./renders/components/RendersToolbar";
 
 function RendersValidationCard({
   t,
@@ -22,6 +21,10 @@ function RendersValidationCard({
   onDispatchRenders = null,
   onScheduleRender = null,
   onReorderRenders = null,
+  onDeleteTask = null,
+  onDeleteRender = null,
+  onRequestOpenTasks = null,
+  onNavigateToProject = null,
 }) {
   const {
     canReviewRenders,
@@ -53,6 +56,7 @@ function RendersValidationCard({
       {!hasRenderDetailPage ? (
         <>
           <RendersToolbar {...toolbarProps} />
+          <RendersAdvancedSearchPanel {...toolbarProps} />
 
           {!canReviewRenders ? (
             <div className="uu-msg info mt-12">
@@ -66,21 +70,48 @@ function RendersValidationCard({
 
           {rendersError ? <div className="uu-msg error mt-12">{rendersError}</div> : null}
 
-          <RenderJobsQueuePanel
-            t={t}
-            renders={renders}
-            rendersLoading={rendersLoading}
-            onScheduleRender={onScheduleRender}
+          <RendersQueuePanel
+            {...queuePanelProps}
+            onRequestOpenTasks={onRequestOpenTasks}
             onReorderRenders={onReorderRenders}
+            onEditQueueTask={(task) => {
+              const taskId = Number(task?.id || 0);
+              if (typeof onRequestOpenTasks !== "function") return;
+              if (!Number.isFinite(taskId) || taskId <= 0) return;
+              onRequestOpenTasks({
+                type: "task",
+                action: "edit",
+                ref: String(Math.trunc(taskId)),
+                task: task && typeof task === "object" ? task : null,
+              });
+            }}
+            onDeleteQueueTask={async (task, queueEntry = null) => {
+              if (typeof onDeleteTask !== "function") return false;
+              const taskId = Number(task?.id || 0);
+              if (!Number.isFinite(taskId) || taskId <= 0) return false;
+              const linkedRenderId = Number(queueEntry?.linkedRender?.id || 0);
+              const linkedRenderStatus = String(queueEntry?.linkedRender?.status || "").trim().toLowerCase();
+              if (
+                typeof onDeleteRender === "function"
+                && Number.isFinite(linkedRenderId)
+                && linkedRenderId > 0
+                && linkedRenderStatus === "queued"
+              ) {
+                const deletedLinkedRender = await Promise.resolve(
+                  onDeleteRender(linkedRenderId, queueEntry?.linkedRender)
+                );
+                if (deletedLinkedRender === false) return false;
+              }
+              return onDeleteTask(taskId);
+            }}
           />
 
-          <RendersQueuePanel {...queuePanelProps} />
-
-          {rendersLoading ? (
-            <div className="uu-muted mt-12">{safeT(t, "postprod.renders.loading", "Chargement des rendus...")}</div>
-          ) : null}
-
-          <RendersListPanel {...listPanelProps} />
+          <RendersListPanel
+            {...listPanelProps}
+            onDeleteRender={onDeleteRender}
+            onRequestOpenTasks={onRequestOpenTasks}
+            onNavigateToProject={onNavigateToProject}
+          />
         </>
       ) : null}
 

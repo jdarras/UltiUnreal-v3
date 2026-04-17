@@ -8,14 +8,24 @@ const DIRECT_KEYS = [
   "listSortDir",
   "searchQuery",
   "hasActiveFilters",
-  "favoriteOnly",
   "viewMode",
   "searchExpanded",
   "projectFilter",
   "stationFilter",
   "reviewFilter",
+  "taskFilter",
+  "formFilter",
+  "requesterFilter",
+  "statusFilter",
+  "sequenceFilter",
   "projectFilterOptions",
+  "reviewFilterOptions",
   "stationFilterOptions",
+  "taskFilterOptions",
+  "formFilterOptions",
+  "requesterFilterOptions",
+  "statusFilterOptions",
+  "sequenceFilterOptions",
 ];
 
 const ALIASES = {
@@ -23,11 +33,15 @@ const ALIASES = {
   onSetSearchQuery: "setSearchQuery",
   onClearFilters: "clearFilters",
   onOpenAdvancedSearch: "openAdvancedSearch",
-  onToggleFavoriteOnly: "toggleFavoriteOnly",
   onSetViewMode: "setViewMode",
   onSetProjectFilter: "setProjectFilter",
   onSetStationFilter: "setStationFilter",
   onSetReviewFilter: "setReviewFilter",
+  onSetTaskFilter: "setTaskFilter",
+  onSetFormFilter: "setFormFilter",
+  onSetRequesterFilter: "setRequesterFilter",
+  onSetStatusFilter: "setStatusFilter",
+  onSetSequenceFilter: "setSequenceFilter",
 };
 
 function buildToolbarProps(input = {}) {

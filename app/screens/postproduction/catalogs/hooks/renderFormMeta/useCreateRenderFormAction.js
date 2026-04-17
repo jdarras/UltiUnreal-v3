@@ -12,15 +12,11 @@ export function useCreateRenderFormAction({
   selectedProjectRef = "",
   newTemplateName = "",
   newMapName = "",
-  newSequenceName = "",
   newOutputProfile = "",
-  newPresetName = "",
   setNewFormName = null,
   setNewTemplateName = null,
   setNewMapName = null,
-  setNewSequenceName = null,
   setNewOutputProfile = null,
-  setNewPresetName = null,
   setCreating = null,
   setCreateError = null,
   setCreateInfo = null,
@@ -34,9 +30,7 @@ export function useCreateRenderFormAction({
       projectRef: selectedProjectRef,
       templateName: newTemplateName,
       mapName: newMapName,
-      sequenceName: newSequenceName,
       outputProfile: newOutputProfile,
-      presetName: newPresetName,
     });
     if (!payload.name) {
       setCreateError?.(safeT(t, "postprod.data.forms.error.missingName", "Nom du formulaire requis."));
@@ -57,14 +51,15 @@ export function useCreateRenderFormAction({
       setNewFormName?.("");
       setNewTemplateName?.("");
       setNewMapName?.("");
-      setNewSequenceName?.("");
       setNewOutputProfile?.("");
-      setNewPresetName?.("");
       setCreateInfo?.(safeT(t, "postprod.data.forms.msg.created", "Formulaire cree."));
+      const createdWrcFiles = Array.isArray(created?.wrcFiles)
+        ? created.wrcFiles.filter(Boolean)
+        : (Array.isArray(created?.form?.wrcFiles) ? created.form.wrcFiles.filter(Boolean) : []);
       return {
         createdId: Number.isFinite(createdId) && createdId > 0 ? Math.trunc(createdId) : 0,
         projectRef: payload.projectName,
-        presetName: payload.presetName,
+        wrcFiles: createdWrcFiles,
       };
     } catch (e) {
       setCreateError?.(String(e?.message || safeT(t, "postprod.data.forms.error.create", "Creation impossible.")));
@@ -79,9 +74,7 @@ export function useCreateRenderFormAction({
     selectedProjectRef,
     newTemplateName,
     newMapName,
-    newSequenceName,
     newOutputProfile,
-    newPresetName,
     t,
     setCreateError,
     setCreateInfo,
@@ -91,13 +84,10 @@ export function useCreateRenderFormAction({
     setNewFormName,
     setNewTemplateName,
     setNewMapName,
-    setNewSequenceName,
     setNewOutputProfile,
-    setNewPresetName,
   ]);
 
   return { createRenderForm };
 }
 
 export default useCreateRenderFormAction;
-

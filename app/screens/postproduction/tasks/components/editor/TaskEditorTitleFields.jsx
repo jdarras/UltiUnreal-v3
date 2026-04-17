@@ -3,12 +3,14 @@
 function TaskEditorTitleFields({
   t,
   isEditingTask = false,
+  editingTaskId = 0,
   tasksLoading = false,
   title = "",
   description = "",
   onTitleChange = null,
   onDescriptionChange = null,
 }) {
+  const taskIdNum = Number(editingTaskId || 0);
   return (
     <>
       <h4 className="uu-h3 uu-block-title" style={{ marginBottom: "10px" }}>
@@ -30,6 +32,11 @@ function TaskEditorTitleFields({
               onChange={(e) => onTitleChange?.(e.target.value)}
             />
           </div>
+          {isEditingTask && taskIdNum > 0 ? (
+            <span className="uu-muted" style={{ whiteSpace: "nowrap", fontSize: "0.85em" }}>
+              #{taskIdNum}
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="uu-grid-field mt-12">

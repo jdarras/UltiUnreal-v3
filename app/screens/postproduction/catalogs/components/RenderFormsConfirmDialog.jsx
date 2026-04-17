@@ -43,9 +43,9 @@ function RenderFormsConfirmDialog({
         }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div style={{ fontWeight: 600, marginBottom: "10px" }}>
-          {title || safeT(t, "common.confirmation", "Confirmation")}
-        </div>
+        {title ? (
+          <div style={{ fontWeight: 600, marginBottom: "10px" }}>{title}</div>
+        ) : null}
         <div style={{ marginBottom: "14px", lineHeight: 1.35 }}>
           {message}
         </div>

@@ -24,6 +24,7 @@ const {
   saveProjects,
   readProjectDoc,
   writeProjectDoc,
+  readProjectMeta,
   setProjectLock,
   clearProjectLock,
   clearProjectLockByIp,
@@ -348,19 +349,26 @@ async function handleLaunch(req, res, url, context) {
 
       const syncEnabled = !!syncEnabledRaw;
 
-      const eligible =
-        typeof body.eligible === 'boolean'
-          ? body.eligible
-          : (typeof curr.eligible === 'boolean' ? curr.eligible : true);
+      const renderReturnAt = (() => {
+        const fromBody = body?.renderReturnAt;
+        if (typeof fromBody === 'string' && fromBody.trim()) return fromBody.trim();
+        if (fromBody === null || fromBody === '') return null;
+        const fromCurr = curr?.renderReturnAt;
+        if (typeof fromCurr === 'string' && fromCurr.trim()) return fromCurr.trim();
+        return null;
+      })();
 
-      const renderEnabled =
-        typeof body.renderEnabled === 'boolean'
-          ? body.renderEnabled
-          : (typeof body.render_enabled === 'boolean'
-            ? body.render_enabled
-            : (typeof curr.renderEnabled === 'boolean'
-              ? curr.renderEnabled
-              : (typeof curr.render_enabled === 'boolean' ? curr.render_enabled : true)));
+      const renderAvailability = (() => {
+        const VALID = ['capable', 'busy', 'excluded'];
+        if (VALID.includes(body.renderAvailability)) return body.renderAvailability;
+        // Migration depuis les anciens champs du body
+        if (body.eligible === false || body.renderEnabled === false || body.render_enabled === false) return 'excluded';
+        // Conserver la valeur actuelle
+        if (VALID.includes(curr.renderAvailability)) return curr.renderAvailability;
+        // Migration depuis les anciens champs stockés
+        if (curr.eligible === false || curr.renderEnabled === false) return 'excluded';
+        return 'capable';
+      })();
 
       const sortIndex = (() => {
         const incoming = Number(body.sortIndex);
@@ -378,8 +386,8 @@ async function handleLaunch(req, res, url, context) {
         syncRoot: normPath(syncRoot),
         syncEnabled,
         unrealEditors: mergedEditors,
-        eligible,
-        renderEnabled,
+        renderAvailability,
+        renderReturnAt: renderReturnAt || null,
         sortIndex,
       };
 
@@ -519,12 +527,14 @@ async function handleLaunch(req, res, url, context) {
         });
       }
 
+      const projectMeta = readProjectMeta(activeId) || {};
+      const projectWrcNames = Array.isArray(projectMeta.wrcNames) ? projectMeta.wrcNames : [];
       const payload = {
         exe: uePath,
         uproject: normPath(uproject),
         args: cfg.args || {},
         activeName,
-        webRemoteControlName: common.webRemoteControlName || '',
+        webRemoteControlName: String(projectWrcNames[0] || '').trim(),
         rcHttpPort: common.rcHttpPort || '',
         rcWsPort: common.rcWsPort || '',
         mode: launchMode,

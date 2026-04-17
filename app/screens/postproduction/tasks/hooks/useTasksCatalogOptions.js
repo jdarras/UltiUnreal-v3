@@ -22,8 +22,10 @@ function useTasksCatalogOptions({
     return normalizeRenderWorkers(renderWorkers);
   }, [renderWorkers]);
 
+  // Toutes les stations capables (non-excluded) — inclut offline et busy
+  // La vue "now" filtre sur availableNow ; la vue "scheduled" utilise la liste complète
   const availableRenderWorkers = useMemo(
-    () => normalizedRenderWorkers.filter((entry) => entry.isOnline && entry.canRender),
+    () => normalizedRenderWorkers.filter((entry) => entry.isCapable),
     [normalizedRenderWorkers]
   );
 

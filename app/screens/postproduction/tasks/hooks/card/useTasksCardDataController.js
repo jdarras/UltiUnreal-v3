@@ -46,16 +46,21 @@ export function useTasksCardDataController({
 
   useTaskFocusRequestController({
     taskFocusRequest,
+    tasks,
     onTaskFocusHandled,
     setListProjectFilter: listData.setListProjectFilter,
     setListResourceFilter: listData.setListResourceFilter,
     setListStatusFilter: listData.setListStatusFilter,
     setEditingTaskId: listData.setEditingTaskId,
     setShowCreateForm: listData.setShowCreateForm,
+    setTitle: listData.setTitle,
+    setDescription: listData.setDescription,
+    setSelectedResourceRefs: listData.setSelectedResourceRefs,
     setAutoRenderProjectRef: autoRenderData.setAutoRenderProjectRef,
     setAutoRenderFormId: autoRenderData.setAutoRenderFormId,
     setAutoRenderTemplateId: autoRenderData.setAutoRenderTemplateId,
     setAutoRenderFormValues: autoRenderData.setAutoRenderFormValues,
+    hydrateAutoRenderFromTask: autoRenderData.hydrateAutoRenderFromTask,
     setViewMode: listData.setViewMode,
     setFormError: listData.setFormError,
   });

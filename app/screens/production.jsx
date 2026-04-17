@@ -438,14 +438,14 @@ export default function ProductionScreen({ canManageLayouts = true }) {
               String(p?.name || '').trim().toLowerCase() === name.toLowerCase()
           )
         : null;
-    return String((byId || byName)?.wrcName || '').trim();
+    const proj = byId || byName;
+    const wrcNames = Array.isArray(proj?.wrcNames) ? proj.wrcNames : (proj?.wrcName ? [proj.wrcName] : []);
+    return String(wrcNames[0] || '').trim();
   }, [projectsList, activeId, activeName]);
 
   const effectivePresetName = useMemo(() => {
-    const override = String(activeProjectWrcName || '').trim();
-    const fallback = String(common?.webRemoteControlName || '').trim();
-    return override || fallback || 'RemoteControlPreset';
-  }, [activeProjectWrcName, common]);
+    return String(activeProjectWrcName || '').trim() || 'RemoteControlPreset';
+  }, [activeProjectWrcName]);
 
   const commonForProject = useMemo(() => {
     if (common && typeof common === 'object') {
@@ -580,9 +580,10 @@ export default function ProductionScreen({ canManageLayouts = true }) {
               lastSavedLayoutRef.current[`${projectKey}::${nextActiveLayoutId}`] = serialized;
             }
 
-            const savedPreset = data?.preset && typeof data.preset === 'object'
-              ? data.preset
-              : null;
+            const presetsMap = data?.presets && typeof data.presets === 'object' ? data.presets : null;
+            const savedPreset = (presetsMap && effectivePresetName && presetsMap[effectivePresetName])
+              ? presetsMap[effectivePresetName]
+              : (data?.preset && typeof data.preset === 'object' ? data.preset : null);
             presetSnapshotRef.current = {
               exists: !!savedPreset,
               hash: String(savedPreset?.presetHash || '').trim(),

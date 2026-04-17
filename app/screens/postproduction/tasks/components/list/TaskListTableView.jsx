@@ -1,5 +1,30 @@
 import { safeT, sortIndicator as sortArrowIndicator } from "../../../shared/helpers";
 
+function simplifySequenceName(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "-";
+  const tail = s.split("/").filter(Boolean).pop() || s;
+  return (tail.split(".")[0] || "").trim() || s;
+}
+
+function getTaskSequenceName(task) {
+  const raw = String(
+    task?.autoRenderConfig?.sequenceName
+    || task?.autoRenderConfig?.payload?.sequenceName
+    || ""
+  ).trim();
+  return simplifySequenceName(raw);
+}
+
+function getTaskProjectName(task) {
+  const raw = String(
+    task?.autoRenderConfig?.projectName
+    || (Array.isArray(task?.projectRefs) ? task.projectRefs[0] : "")
+    || ""
+  ).trim();
+  return raw || "-";
+}
+
 function TaskListTableView({
   t,
   displayedTasks = [],
@@ -7,8 +32,8 @@ function TaskListTableView({
   listSortDir = "desc",
   toggleListSort = null,
   taskVisualStatus = null,
-  taskExpectedRenderName = null,
   taskRenderWorkerLabel = null,
+  taskProjectLabel = null,
   isTaskFavorite = null,
   toggleTaskFavorite = null,
   renderTaskActions = null,
@@ -17,59 +42,46 @@ function TaskListTableView({
     <div style={{ overflowX: "auto" }}>
       <table className="uu-table" style={{ width: "100%", tableLayout: "fixed" }}>
         <colgroup>
-          <col style={{ width: "30%" }} />
-          <col style={{ width: "10%" }} />
-          <col style={{ width: "22%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "4%" }} />
-          <col style={{ width: "22%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "17%" }} />
+          <col style={{ width: "17%" }} />
+          <col style={{ width: "17%" }} />
+          <col style={{ width: "20%" }} />
         </colgroup>
         <thead>
           <tr>
             <th style={{ textAlign: "left" }}>
-              <button
-                type="button"
-                className="uu-link"
-                onClick={() => toggleListSort?.("title")}
-              >
+              <button type="button" className="uu-link" onClick={() => toggleListSort?.("title")}>
                 {safeT(t, "postprod.tasks.form.title", "Titre")}
                 {sortArrowIndicator("title", listSortKey, listSortDir, true)}
               </button>
             </th>
             <th style={{ textAlign: "left" }}>
-              <button
-                type="button"
-                className="uu-link"
-                onClick={() => toggleListSort?.("status")}
-              >
+              <button type="button" className="uu-link" onClick={() => toggleListSort?.("status")}>
                 {safeT(t, "postprod.tasks.currentStatusShort", "Statut")}
                 {sortArrowIndicator("status", listSortKey, listSortDir, true)}
               </button>
             </th>
             <th style={{ textAlign: "left" }}>
-              <button
-                type="button"
-                className="uu-link"
-                onClick={() => toggleListSort?.("renderName")}
-              >
-                {safeT(t, "postprod.tasks.table.renderName", "Nom du rendu")}
-                {sortArrowIndicator("renderName", listSortKey, listSortDir, true)}
+              <button type="button" className="uu-link" onClick={() => toggleListSort?.("projectName")}>
+                {safeT(t, "postprod.data.project", "Projet")}
+                {sortArrowIndicator("projectName", listSortKey, listSortDir, true)}
               </button>
             </th>
             <th style={{ textAlign: "left" }}>
-              <button
-                type="button"
-                className="uu-link"
-                onClick={() => toggleListSort?.("renderWorker")}
-              >
+              <button type="button" className="uu-link" onClick={() => toggleListSort?.("sequenceName")}>
+                {safeT(t, "postprod.data.forms.levelSequence", "LS")}
+                {sortArrowIndicator("sequenceName", listSortKey, listSortDir, true)}
+              </button>
+            </th>
+            <th style={{ textAlign: "left" }}>
+              <button type="button" className="uu-link" onClick={() => toggleListSort?.("renderWorker")}>
                 {safeT(t, "postprod.tasks.form.autoRenderWorker", "Station de rendu")}
                 {sortArrowIndicator("renderWorker", listSortKey, listSortDir, true)}
               </button>
             </th>
-            <th style={{ textAlign: "left" }}>
-              {safeT(t, "resources.detail.labels.favorite", "Favoris")}
-            </th>
-            <th style={{ textAlign: "left", paddingLeft: "8px" }}>
+            <th style={{ textAlign: "right" }}>
               {safeT(t, "postprod.tasks.table.actions", "Actions")}
             </th>
           </tr>
@@ -81,8 +93,8 @@ function TaskListTableView({
               t={t}
               task={task}
               taskVisualStatus={taskVisualStatus}
-              taskExpectedRenderName={taskExpectedRenderName}
               taskRenderWorkerLabel={taskRenderWorkerLabel}
+              taskProjectLabel={taskProjectLabel}
               isTaskFavorite={isTaskFavorite}
               toggleTaskFavorite={toggleTaskFavorite}
               renderTaskActions={renderTaskActions}
@@ -98,8 +110,8 @@ function TaskListTableRow({
   t,
   task = null,
   taskVisualStatus = null,
-  taskExpectedRenderName = null,
   taskRenderWorkerLabel = null,
+  taskProjectLabel = null,
   isTaskFavorite = null,
   toggleTaskFavorite = null,
   renderTaskActions = null,
@@ -118,26 +130,29 @@ function TaskListTableRow({
         <span className={visualStatus.className}>{visualStatus.label}</span>
       </td>
       <td style={{ overflowWrap: "anywhere" }}>
-        {typeof taskExpectedRenderName === "function" ? taskExpectedRenderName(task) : "-"}
+        {typeof taskProjectLabel === "function" ? taskProjectLabel(task) : getTaskProjectName(task)}
+      </td>
+      <td style={{ overflowWrap: "anywhere" }}>
+        {getTaskSequenceName(task)}
       </td>
       <td style={{ overflowWrap: "anywhere" }}>
         {typeof taskRenderWorkerLabel === "function" ? taskRenderWorkerLabel(task) : "-"}
       </td>
       <td>
-        <button
-          type="button"
-          className={`uu-fav-filter ${favorite ? "active" : ""}`}
-          onClick={() => toggleTaskFavorite?.(task)}
-          aria-pressed={favorite ? "true" : "false"}
-          title={favorite
-            ? safeT(t, "postprod.tasks.favorite.remove", "Retirer des favoris")
-            : safeT(t, "postprod.tasks.favorite.add", "Ajouter aux favoris")}
-        >
-          ★
-        </button>
-      </td>
-      <td style={{ paddingLeft: "8px", whiteSpace: "nowrap" }}>
-        {typeof renderTaskActions === "function" ? renderTaskActions(task) : null}
+        <div className="uu-row" style={{ gap: "6px", justifyContent: "flex-end", flexWrap: "nowrap" }}>
+          {typeof renderTaskActions === "function" ? renderTaskActions(task) : null}
+          <button
+            type="button"
+            className={`uu-fav-btn ${favorite ? "active" : ""}`}
+            onClick={() => toggleTaskFavorite?.(task)}
+            aria-pressed={favorite ? "true" : "false"}
+            title={favorite
+              ? safeT(t, "postprod.tasks.favorite.remove", "Retirer des favoris")
+              : safeT(t, "postprod.tasks.favorite.add", "Ajouter aux favoris")}
+          >
+            ★
+          </button>
+        </div>
       </td>
     </tr>
   );

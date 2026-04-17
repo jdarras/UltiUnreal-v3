@@ -114,7 +114,8 @@ export function useTasksListController({
     taskRenderStateByTaskId,
     taskRenderWorkerLabelByKey,
     renderFormLabelById,
-  }), [t, taskRenderStateByTaskId, taskRenderWorkerLabelByKey, renderFormLabelById]);
+    projectLabelsByRef,
+  }), [t, taskRenderStateByTaskId, taskRenderWorkerLabelByKey, renderFormLabelById, projectLabelsByRef]);
 
   const sorting = useTaskListSorting(
     buildTaskListSortingInput({

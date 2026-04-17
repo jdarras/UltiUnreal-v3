@@ -6,6 +6,9 @@ function buildTaskAutoRenderStateSetters({
   setAutoRenderTemplateId = null,
   setAutoRenderFormValues = null,
   setAutoRenderLaunchMode = null,
+  setAutoRenderScheduledMode = null,
+  setAutoRenderScheduledAt = null,
+  setTaskSequenceName = null,
 } = {}) {
   return {
     setExpectedRenderCountInput,
@@ -15,6 +18,9 @@ function buildTaskAutoRenderStateSetters({
     setAutoRenderTemplateId,
     setAutoRenderFormValues,
     setAutoRenderLaunchMode,
+    setAutoRenderScheduledMode,
+    setAutoRenderScheduledAt,
+    setTaskSequenceName,
   };
 }
 

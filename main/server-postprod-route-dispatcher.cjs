@@ -63,6 +63,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     getRequestIp,
     buildUserPayload,
     getAuthToken,
+    usersSyncFetchLimit,
     requireManageRoles,
     parseActivityFilters,
     buildUserActivityPayload,
@@ -178,13 +179,13 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     sanitizeRenderMapName,
     sanitizeRenderSequenceName,
     sanitizeRenderOutputProfile,
-    sanitizeRenderFormPresetName,
     normalizeRenderFormModeDefault,
     parseBooleanFlag,
     normalizeRenderFormLayout,
     buildRenderFormPayload,
     normalizeRenderFormFields,
-    replaceRenderFormFieldsTx,
+    mergeRenderFormFieldsTx,
+    removeWrcFileFieldsTx,
     buildRenderFormFieldPayload,
     parseJsonValue,
     sanitizeRenderPresetName,
@@ -247,6 +248,9 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     normalizeRoleLookupKey,
     sanitizeRoleNote,
     refreshRolesCache,
+    emitUserSyncUpsert,
+    emitUserSyncDelete,
+    emitRoleSyncUpsert,
   } = deps;
 
   const {
@@ -290,6 +294,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     getRequestIp,
     buildUserPayload,
     getAuthToken,
+    usersSyncFetchLimit,
   });
   if (authAndHealthRoutesHandled) return true;
 
@@ -369,6 +374,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     hashPassword,
     pbkdf2Iters,
     audit,
+    emitUserSyncUpsert,
   });
   if (meRoutesHandled) return true;
 
@@ -529,7 +535,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     sanitizeRenderMapName,
     sanitizeRenderSequenceName,
     sanitizeRenderOutputProfile,
-    sanitizeRenderFormPresetName,
     normalizeRenderFormModeDefault,
     parseBooleanFlag,
     normalizeRenderFormLayout,
@@ -540,7 +545,8 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     audit,
     buildRenderFormPayload,
     normalizeRenderFormFields,
-    replaceRenderFormFieldsTx,
+    mergeRenderFormFieldsTx,
+    removeWrcFileFieldsTx,
     buildRenderFormFieldPayload,
     parseJsonValue,
   });
@@ -737,6 +743,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     hashPassword,
     pbkdf2Iters,
     audit,
+    emitUserSyncUpsert,
   });
   if (usersRoutesHandled) return true;
 
@@ -825,6 +832,8 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     pbkdf2Iters,
     audit,
     buildUserAdminPayload,
+    emitUserSyncUpsert,
+    emitUserSyncDelete,
   });
   if (userUpdateRoutesHandled) return true;
 
@@ -850,6 +859,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     refreshRolesCache,
     audit,
     nowIso,
+    emitRoleSyncUpsert,
   });
   if (roleRoutesHandled) return true;
 

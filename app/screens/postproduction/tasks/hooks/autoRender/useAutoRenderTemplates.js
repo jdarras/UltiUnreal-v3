@@ -21,39 +21,58 @@ export function useAutoRenderTemplates({
       if (!projectName) return false;
       return projectAliases.has(projectName);
     });
-    if (dbTemplates.length > 0) return dbTemplates;
 
-    const catalogPresets = Array.isArray(autoRenderProjectCatalog?.presets) ? autoRenderProjectCatalog.presets : [];
-    const seen = new Set();
-    const out = [];
-    for (const preset of catalogPresets) {
-      const assetPath = normalizeAssetPath(preset);
-      const label = normalizeAssetLabel(preset);
-      const templateName = String(label || "").trim();
-      if (!templateName) continue;
-      const dedupeKey = String(assetPath || templateName).trim().toLowerCase();
-      if (!dedupeKey || seen.has(dedupeKey)) continue;
-      seen.add(dedupeKey);
-      out.push({
-        id: 0,
-        key: `catalog:${projectLower}:${dedupeKey}`,
-        source: "catalog",
-        projectName: projectRef,
-        templateName,
-        outputProfile: assetPath,
-        presetName: templateName,
-        mapName: "",
-        sequenceName: "",
-        label: templateName,
+    let result;
+    if (dbTemplates.length > 0) {
+      result = dbTemplates;
+    } else {
+      const catalogPresets = Array.isArray(autoRenderProjectCatalog?.presets) ? autoRenderProjectCatalog.presets : [];
+      const seen = new Set();
+      const out = [];
+      for (const preset of catalogPresets) {
+        const assetPath = normalizeAssetPath(preset);
+        const label = normalizeAssetLabel(preset);
+        const templateName = String(label || "").trim();
+        if (!templateName) continue;
+        const dedupeKey = String(assetPath || templateName).trim().toLowerCase();
+        if (!dedupeKey || seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        out.push({
+          id: 0,
+          key: `catalog:${projectLower}:${dedupeKey}`,
+          source: "catalog",
+          projectName: projectRef,
+          templateName,
+          outputProfile: assetPath,
+          presetName: templateName,
+          mapName: "",
+          sequenceName: "",
+          label: templateName,
+        });
+      }
+      out.sort((a, b) => String(a?.label || "").localeCompare(String(b?.label || "")));
+      result = out;
+    }
+
+    const allowedPresets = Array.isArray(selectedAutoRenderForm?.allowedPresets)
+      ? selectedAutoRenderForm.allowedPresets
+      : [];
+    if (allowedPresets.length > 0) {
+      const allowedSet = new Set(allowedPresets.map((v) => String(v).toLowerCase()));
+      result = result.filter((entry) => {
+        const pn = String(entry?.presetName || "").toLowerCase();
+        const op = String(entry?.outputProfile || "").toLowerCase();
+        return allowedSet.has(pn) || allowedSet.has(op);
       });
     }
-    out.sort((a, b) => String(a?.label || "").localeCompare(String(b?.label || "")));
-    return out;
+
+    return result;
   }, [
     selectedAutoRenderProjectRef,
     normalizedRenderTemplateOptions,
     projectOptionByRef,
     autoRenderProjectCatalog,
+    selectedAutoRenderForm,
   ]);
 
   const selectedAutoRenderTemplate = useMemo(() => {
@@ -70,12 +89,7 @@ export function useAutoRenderTemplates({
 
   useEffect(() => {
     const options = Array.isArray(renderTemplatesForSelectedAutoForm) ? renderTemplatesForSelectedAutoForm : [];
-    if (options.length <= 0) {
-      if (String(autoRenderTemplateId || "").trim() && typeof setAutoRenderTemplateId === "function") {
-        setAutoRenderTemplateId("");
-      }
-      return;
-    }
+    if (options.length <= 0) return;
     const currentKey = String(autoRenderTemplateId || "").trim();
     if (!currentKey) return;
     const exists = options.some((entry) => String(entry?.key || "").trim() === currentKey);

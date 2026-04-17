@@ -20,7 +20,7 @@ export function buildRendersCardDataOutput({
     ...buildReviewOutput({ review }),
     ...buildListOutput({ list }),
     ...buildDetailOutput({ detail }),
-    ...buildQueueOutput({ queue }),
+    ...buildQueueOutput({ queue, preferences }),
     ...buildToolbarOutput({ toolbar }),
   };
 }

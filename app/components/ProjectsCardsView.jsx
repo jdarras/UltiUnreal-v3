@@ -98,7 +98,9 @@ export default function ProjectsCardsView({
             <div className="uu-row wrap mt-8">
               <div className="uu-label w-160">{t('projects.server.card.wrcNameLabel')}</div>
               <div className="uu-value uu-muted">
-                {p.wrcName || '—'}
+                {Array.isArray(p.wrcNames) && p.wrcNames.length > 0
+                  ? p.wrcNames.join(', ')
+                  : '—'}
               </div>
             </div>
 

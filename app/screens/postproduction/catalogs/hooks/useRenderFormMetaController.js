@@ -16,9 +16,7 @@ export function useRenderFormMetaController({
   const [newFormName, setNewFormName] = useState("");
   const [newTemplateName, setNewTemplateName] = useState("");
   const [newMapName, setNewMapName] = useState("");
-  const [newSequenceName, setNewSequenceName] = useState("");
   const [newOutputProfile, setNewOutputProfile] = useState("");
-  const [newPresetName, setNewPresetName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [createInfo, setCreateInfo] = useState("");
@@ -26,10 +24,12 @@ export function useRenderFormMetaController({
   const [metaName, setMetaName] = useState("");
   const [metaTemplateName, setMetaTemplateName] = useState("");
   const [metaMapName, setMetaMapName] = useState("");
-  const [metaSequenceName, setMetaSequenceName] = useState("");
   const [metaOutputProfile, setMetaOutputProfile] = useState("");
-  const [metaPresetName, setMetaPresetName] = useState("");
+  const [metaWrcFiles, setMetaWrcFiles] = useState([]);
   const [metaActive, setMetaActive] = useState(true);
+  const [metaAllowedSequences, setMetaAllowedSequences] = useState([]);
+  const [metaAllowedPresets, setMetaAllowedPresets] = useState([]);
+  const [metaNote, setMetaNote] = useState("");
   const [metaBusy, setMetaBusy] = useState(false);
   const [metaError, setMetaError] = useState("");
   const [metaInfo, setMetaInfo] = useState("");
@@ -38,13 +38,15 @@ export function useRenderFormMetaController({
     setMetaName(String(selectedForm?.name || ""));
     setMetaTemplateName(String(selectedForm?.templateName || ""));
     setMetaMapName(String(selectedForm?.mapName || ""));
-    setMetaSequenceName(String(selectedForm?.sequenceName || ""));
     setMetaOutputProfile(String(selectedForm?.outputProfile || ""));
-    setMetaPresetName(String(selectedForm?.presetName || ""));
+    setMetaWrcFiles(Array.isArray(selectedForm?.wrcFiles) ? selectedForm.wrcFiles : []);
     setMetaActive(selectedForm?.isActive !== false);
+    setMetaAllowedSequences(Array.isArray(selectedForm?.allowedSequences) ? selectedForm.allowedSequences : []);
+    setMetaAllowedPresets(Array.isArray(selectedForm?.allowedPresets) ? selectedForm.allowedPresets : []);
+    setMetaNote(String(selectedForm?.note || ""));
     setMetaError("");
     setMetaInfo("");
-  }, [selectedForm]);
+  }, [selectedForm?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const {
     createRenderForm,
@@ -67,22 +69,20 @@ export function useRenderFormMetaController({
     setNewTemplateName,
     newMapName,
     setNewMapName,
-    newSequenceName,
-    setNewSequenceName,
     newOutputProfile,
     setNewOutputProfile,
-    newPresetName,
-    setNewPresetName,
     setCreating,
     setCreateError,
     setCreateInfo,
     metaName,
     metaTemplateName,
     metaMapName,
-    metaSequenceName,
     metaOutputProfile,
-    metaPresetName,
+    metaWrcFiles,
     metaActive,
+    metaAllowedSequences,
+    metaAllowedPresets,
+    metaNote,
     metaBusy,
     setMetaBusy,
     setMetaError,
@@ -96,12 +96,8 @@ export function useRenderFormMetaController({
     setNewTemplateName,
     newMapName,
     setNewMapName,
-    newSequenceName,
-    setNewSequenceName,
     newOutputProfile,
     setNewOutputProfile,
-    newPresetName,
-    setNewPresetName,
     creating,
     createError,
     createInfo,
@@ -111,14 +107,18 @@ export function useRenderFormMetaController({
     setMetaTemplateName,
     metaMapName,
     setMetaMapName,
-    metaSequenceName,
-    setMetaSequenceName,
     metaOutputProfile,
     setMetaOutputProfile,
-    metaPresetName,
-    setMetaPresetName,
+    metaWrcFiles,
+    setMetaWrcFiles,
     metaActive,
     setMetaActive,
+    metaAllowedSequences,
+    setMetaAllowedSequences,
+    metaAllowedPresets,
+    setMetaAllowedPresets,
+    metaNote,
+    setMetaNote,
     metaBusy,
     metaError,
     metaInfo,

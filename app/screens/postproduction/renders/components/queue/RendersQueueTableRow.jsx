@@ -1,79 +1,134 @@
-import { useState } from "react";
 import { safeT } from "../../../shared/helpers";
 import { taskAutoRenderStateLevel } from "../../../tasks/helpers";
 import { queueRenderStateShortLabel } from "../../helpers";
 
-function nowDatetimeLocalValue() {
-  const now = new Date();
-  // datetime-local format: YYYY-MM-DDTHH:MM
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+function simplifySequenceName(raw) {
+  const source = String(raw || "").trim();
+  if (!source) return "";
+  const tail = source.split("/").filter(Boolean).pop() || source;
+  const shortName = (tail.split(".")[0] || "").trim();
+  return shortName || source;
 }
 
 function RendersQueueTableRow({
   t,
   queueEntry,
-  selectedQueueEntrySet = new Set(),
   busyScheduledTaskId = 0,
+  deleteBusyTaskId = 0,
   rendersLoading = false,
   canLaunchRenders = false,
   queueEntryWorkerLabel = null,
   getQueueEntryLaunchMeta = null,
-  queueTaskPriorityLabel = null,
-  onToggleQueueTaskSelection = null,
   onLaunchScheduledTaskRender = null,
-  onOpenRenderDetail = null,
+  onEditQueueTask = null,
+  onRequestDeleteQueueTask = null,
+  onRequestOpenTasks = null,
+  queueReorderBusy = false,
+  canMoveQueueEntry = null,
+  onMoveQueueEntry = null,
+  actionsGroupWidth = 192,
+  stationOffsetPx = 32,
 }) {
-  const [launchMode, setLaunchMode] = useState("immediate");
-  const [scheduledAt, setScheduledAt] = useState("");
-
   const task = queueEntry?.task && typeof queueEntry.task === "object"
     ? queueEntry.task
     : {};
   const taskId = Number(task?.id || 0);
+  const normalizedTaskId = Number.isFinite(taskId) && taskId > 0 ? Math.trunc(taskId) : 0;
   const autoRenderConfig = task?.autoRenderConfig && typeof task.autoRenderConfig === "object" && !Array.isArray(task.autoRenderConfig)
     ? task.autoRenderConfig
     : null;
-  const queueProjectName = String(queueEntry?.projectName || autoRenderConfig?.projectName || "").trim();
-  const queueTemplateName = String(queueEntry?.templateName || autoRenderConfig?.templateName || "").trim();
+  const queueSequenceName = simplifySequenceName(
+    autoRenderConfig?.sequenceName
+      || autoRenderConfig?.payload?.sequenceName
+      || task?.payload?.sequenceName
+      || ""
+  );
   const queueWorker = typeof queueEntryWorkerLabel === "function" ? queueEntryWorkerLabel(queueEntry) : "";
   const isBusy = busyScheduledTaskId === taskId;
+  const deleteBusy = deleteBusyTaskId === taskId;
   const queueLaunchMeta = typeof getQueueEntryLaunchMeta === "function"
     ? getQueueEntryLaunchMeta(queueEntry)
     : { renderState: "waiting", canLaunchFromQueue: false };
   const renderState = queueLaunchMeta.renderState;
   const canLaunchFromQueue = queueLaunchMeta.canLaunchFromQueue;
-  const isSelectable = canLaunchFromQueue;
-  const isSelected = selectedQueueEntrySet?.has?.(Math.trunc(taskId)) === true;
-  const linkedRenderIdRaw = Number(queueEntry?.linkedRender?.id || 0);
-  const hasLinkedRender = Number.isFinite(linkedRenderIdRaw) && linkedRenderIdRaw > 0;
-
-  const minDatetimeLocal = nowDatetimeLocalValue();
+  const canEditQueueTask = (
+    typeof onEditQueueTask === "function"
+    && Number.isFinite(taskId)
+    && taskId > 0
+  );
+  const canDeleteQueueTask = (
+    typeof onRequestDeleteQueueTask === "function"
+    && Number.isFinite(taskId)
+    && taskId > 0
+  );
+  const canMoveUp = typeof canMoveQueueEntry === "function" ? canMoveQueueEntry(queueEntry, -1) : false;
+  const canMoveDown = typeof canMoveQueueEntry === "function" ? canMoveQueueEntry(queueEntry, 1) : false;
+  const canOpenTaskLink = typeof onRequestOpenTasks === "function" && normalizedTaskId > 0;
+  const actionSlotStyle = {
+    width: "74px",
+    minWidth: "74px",
+    display: "inline-flex",
+    justifyContent: "center",
+  };
 
   const handleLaunch = () => {
-    let resolvedScheduledAt = null;
-    if (launchMode === "scheduled" && scheduledAt) {
-      const d = new Date(scheduledAt);
-      if (!isNaN(d.getTime()) && d.getTime() > Date.now()) {
-        resolvedScheduledAt = d.toISOString();
-      }
-    }
-    onLaunchScheduledTaskRender?.(task, queueEntry, { scheduledAt: resolvedScheduledAt });
+    onLaunchScheduledTaskRender?.(task, queueEntry);
+  };
+
+  const handleOpenTask = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!canOpenTaskLink) return;
+    onRequestOpenTasks?.({
+      type: "task",
+      action: "edit",
+      ref: String(normalizedTaskId),
+      task: task && typeof task === "object" ? task : null,
+    });
+  };
+
+  const handleRequestDelete = () => {
+    if (!canDeleteQueueTask || deleteBusy || rendersLoading || isBusy) return;
+    onRequestDeleteQueueTask?.(task, queueEntry);
+  };
+
+  const handleMoveUp = () => {
+    if (!canMoveUp || queueReorderBusy || rendersLoading || isBusy || deleteBusy) return;
+    void onMoveQueueEntry?.(queueEntry, -1);
+  };
+
+  const handleMoveDown = () => {
+    if (!canMoveDown || queueReorderBusy || rendersLoading || isBusy || deleteBusy) return;
+    void onMoveQueueEntry?.(queueEntry, 1);
   };
 
   return (
     <tr>
-      <td style={{ textAlign: "center" }}>
-        <input
-          type="checkbox"
-          checked={isSelected}
-          disabled={!Number.isFinite(taskId) || taskId <= 0 || !isSelectable}
-          onChange={() => onToggleQueueTaskSelection?.(taskId)}
-          aria-label={safeT(t, "postprod.renders.queue.table.select", "Sel.")}
-          title={isSelectable
-            ? safeT(t, "postprod.renders.queue.selection.available", "Selectionnable")
-            : safeT(t, "postprod.renders.queue.selection.locked", "Verrouille (deja en cours ou deja lance)")}
-        />
+      <td style={{ textAlign: "left", whiteSpace: "nowrap" }}>
+        <div className="uu-row" style={{ gap: "4px", justifyContent: "flex-start", flexWrap: "nowrap" }}>
+          <button
+            className="uu-btn-ghost"
+            type="button"
+            disabled={!canMoveUp || queueReorderBusy || rendersLoading || isBusy || deleteBusy}
+            title={safeT(t, "postprod.renders.queue.moveUp", "Monter")}
+            aria-label={safeT(t, "postprod.renders.queue.moveUp", "Monter")}
+            onClick={handleMoveUp}
+            style={{ padding: "2px 6px", minWidth: "28px" }}
+          >
+            ↑
+          </button>
+          <button
+            className="uu-btn-ghost"
+            type="button"
+            disabled={!canMoveDown || queueReorderBusy || rendersLoading || isBusy || deleteBusy}
+            title={safeT(t, "postprod.renders.queue.moveDown", "Descendre")}
+            aria-label={safeT(t, "postprod.renders.queue.moveDown", "Descendre")}
+            onClick={handleMoveDown}
+            style={{ padding: "2px 6px", minWidth: "28px" }}
+          >
+            ↓
+          </button>
+        </div>
       </td>
       <td style={{ overflowWrap: "anywhere" }}>
         <div
@@ -86,78 +141,92 @@ function RendersQueueTableRow({
           }}
         >
           <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{String(task?.title || "-")}</span>
-          <span className="uu-muted" style={{ whiteSpace: "nowrap" }}>#{taskId}</span>
+          {normalizedTaskId > 0 ? (
+            canOpenTaskLink ? (
+              <button
+                type="button"
+                className="uu-link"
+                style={{ whiteSpace: "nowrap" }}
+                onClick={handleOpenTask}
+              >
+                ({normalizedTaskId})
+              </button>
+            ) : (
+              <span style={{ whiteSpace: "nowrap" }}>({normalizedTaskId})</span>
+            )
+          ) : null}
         </div>
       </td>
-      <td style={{ overflowWrap: "anywhere" }}>{queueProjectName || "-"}</td>
-      <td style={{ overflowWrap: "anywhere" }}>{queueTemplateName || "-"}</td>
-      <td style={{ overflowWrap: "anywhere" }}>{queueWorker || "-"}</td>
-      <td style={{ overflowWrap: "anywhere" }}>
+      <td style={{ overflowWrap: "anywhere", textAlign: "center" }}>{queueSequenceName || "-"}</td>
+      <td style={{ overflowWrap: "anywhere", paddingLeft: `${stationOffsetPx}px` }}>{queueWorker || "-"}</td>
+      <td style={{ overflowWrap: "anywhere", textAlign: "right" }}>
         <span className={`uu-chip lvl-${taskAutoRenderStateLevel(renderState)} chip-on`}>
           {queueRenderStateShortLabel(t, renderState)}
         </span>
       </td>
-      <td>{typeof queueTaskPriorityLabel === "function" ? queueTaskPriorityLabel(task?.priority) : "-"}</td>
-      <td style={{ overflowWrap: "anywhere" }}>
-        <div className="uu-col" style={{ gap: "6px" }}>
-          {canLaunchFromQueue ? (
-            <>
-              <div className="uu-row" style={{ gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                <select
-                  className="uu-select"
-                  style={{ height: "30px", fontSize: "0.85em" }}
-                  value={launchMode}
-                  disabled={rendersLoading || isBusy || !canLaunchRenders}
-                  onChange={(e) => {
-                    setLaunchMode(e.target.value);
-                    if (e.target.value === "immediate") setScheduledAt("");
-                  }}
-                >
-                  <option value="immediate">{safeT(t, "postprod.renders.launchMode.immediate", "Lancer immédiatement")}</option>
-                  <option value="scheduled">{safeT(t, "postprod.renders.launchMode.scheduled", "Programmer, lancer plus tard")}</option>
-                </select>
+      <td style={{ overflowWrap: "anywhere", textAlign: "right" }}>
+        {!canLaunchFromQueue && !canEditQueueTask && !canDeleteQueueTask ? (
+          <span className="uu-muted">-</span>
+        ) : (
+          <div
+            className="uu-row"
+            style={{
+              gap: "6px",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              flexWrap: "nowrap",
+              width: `${actionsGroupWidth}px`,
+              maxWidth: "100%",
+              marginLeft: "auto",
+            }}
+          >
+            <span style={actionSlotStyle}>
+              {canLaunchFromQueue ? (
                 <button
                   className="uu-btn"
                   type="button"
-                  disabled={
-                    rendersLoading
-                    || isBusy
-                    || !canLaunchRenders
-                    || (launchMode === "scheduled" && !scheduledAt)
-                  }
+                  style={{ width: "100%" }}
+                  disabled={rendersLoading || isBusy || deleteBusy || !canLaunchRenders}
                   onClick={handleLaunch}
                 >
-                  {renderState === "error"
-                    ? safeT(t, "postprod.renders.queue.relaunch", "Relancer")
-                    : safeT(t, "postprod.renders.queue.launch", "Lancer")}
+                  {safeT(t, "postprod.renders.queue.launch", "Lancer")}
                 </button>
-              </div>
-              {launchMode === "scheduled" ? (
-                <input
-                  type="datetime-local"
-                  className="uu-input"
-                  style={{ height: "30px", fontSize: "0.85em", width: "100%" }}
-                  min={minDatetimeLocal}
-                  value={scheduledAt}
-                  disabled={rendersLoading || isBusy || !canLaunchRenders}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                />
               ) : null}
-            </>
-          ) : null}
-          {hasLinkedRender ? (
+            </span>
+            <span style={actionSlotStyle}>
+              {canEditQueueTask ? (
+                <button
+                  className="uu-btn-ghost"
+                  type="button"
+                  style={{ width: "100%" }}
+                  disabled={rendersLoading || isBusy || deleteBusy}
+                  onClick={() => onEditQueueTask?.(task, queueEntry)}
+                >
+                  {safeT(t, "projects.actions.edit", "Editer")}
+                </button>
+              ) : null}
+            </span>
             <button
               className="uu-btn-ghost"
               type="button"
-              onClick={() => onOpenRenderDetail?.(queueEntry.linkedRender)}
+              disabled={rendersLoading || isBusy || deleteBusy || !canDeleteQueueTask}
+              onClick={handleRequestDelete}
+              title={safeT(t, "postprod.renders.queue.deleteTask.button", "Supprimer tache")}
+              aria-label={safeT(t, "postprod.renders.queue.deleteTask.button", "Supprimer tache")}
+              style={{
+                width: "32px",
+                minWidth: "32px",
+                height: "32px",
+                padding: "0",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
-              {safeT(t, "postprod.renders.detail.view", "Voir")}
+              {deleteBusy ? "..." : "X"}
             </button>
-          ) : null}
-          {!canLaunchFromQueue && !hasLinkedRender ? (
-            <span className="uu-muted">-</span>
-          ) : null}
-        </div>
+          </div>
+        )}
       </td>
     </tr>
   );

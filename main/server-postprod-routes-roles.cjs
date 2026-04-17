@@ -20,6 +20,7 @@ async function handlePostprodRoleRoutes({
   refreshRolesCache,
   audit,
   nowIso,
+  emitRoleSyncUpsert,
 }) {
   if (pathname === '/agent/postprod/roles') {
     const auth = requireSession(req, res, sendJSON);
@@ -163,6 +164,14 @@ async function handlePostprodRoleRoutes({
         'role',
         roleKey
       );
+      if (typeof emitRoleSyncUpsert === 'function' && created) {
+        try {
+          emitRoleSyncUpsert(created, {
+            actorUserId: auth.session.user_id,
+            reason: 'role_created',
+          });
+        } catch {}
+      }
       sendJSON(res, 201, { ok: true, role: buildRolePayload(created) });
       return true;
     }
@@ -414,6 +423,14 @@ async function handlePostprodRoleRoutes({
     'role',
     current.key
   );
+  if (typeof emitRoleSyncUpsert === 'function' && updated) {
+    try {
+      emitRoleSyncUpsert(updated, {
+        actorUserId: auth.session.user_id,
+        reason: 'role_updated',
+      });
+    } catch {}
+  }
 
   sendJSON(res, 200, { ok: true, role: buildRolePayload(updated) });
   return true;

@@ -10,18 +10,19 @@ function RenderFormsTableView({
   onToggleFormFavorite = null,
   formProjectLabel = null,
   onEditForm = null,
+  onDeleteForm = null,
 }) {
   return (
     <div style={{ overflowX: "auto" }}>
       <table className="uu-table" style={{ width: "100%" }}>
         <colgroup>
-          <col style={{ width: "6%" }} />
-          <col style={{ width: "24%" }} />
-          <col style={{ width: "22%" }} />
-          <col style={{ width: "20%" }} />
+          <col style={{ width: "4%" }} />
+          <col style={{ width: "14%" }} />
           <col style={{ width: "16%" }} />
-          <col style={{ width: "5%" }} />
-          <col style={{ width: "7%" }} />
+          <col style={{ width: "16%" }} />
+          <col style={{ width: "16%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "23%" }} />
         </colgroup>
         <thead>
           <tr>
@@ -46,25 +47,32 @@ function RenderFormsTableView({
               </button>
             </th>
             <th style={{ textAlign: "left" }}>
+              <button className="uu-link" type="button" onClick={() => onSortColumn?.("allowedSequences")}>
+                {safeT(t, "postprod.data.forms.levelSequence", "LS")} {formsSortArrowFor?.("allowedSequences") || ""}
+              </button>
+            </th>
+            <th style={{ textAlign: "left" }}>
               <button className="uu-link" type="button" onClick={() => onSortColumn?.("updatedAt")}>
                 {safeT(t, "common.updatedAt", "Maj")} {formsSortArrowFor?.("updatedAt") || ""}
               </button>
             </th>
-            <th style={{ textAlign: "center" }}>{safeT(t, "resources.detail.labels.favorite", "Favoris")}</th>
-            <th style={{ textAlign: "center" }}>{safeT(t, "common.actions", "Actions")}</th>
+            <th>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div style={{ minWidth: "140px", textAlign: "center" }}>
+                  {safeT(t, "common.actions", "Actions")}
+                </div>
+              </div>
+            </th>
           </tr>
         </thead>
         <tbody>
           {sortedForms.map((form) => {
             const id = Number(form?.id || 0);
             const isActive = form?.isActive !== false;
-            const hasPreset = String(form?.presetName || "").trim().length > 0;
-            const availabilityClass = !isActive ? "fail" : (hasPreset ? "ok" : "warn");
-            const availabilityTitle = !isActive
-              ? safeT(t, "common.unavailable", "Indisponible")
-              : (hasPreset
-                ? safeT(t, "common.available", "Disponible")
-                : safeT(t, "common.warning", "Probleme"));
+            const availabilityClass = isActive ? "ok" : "fail";
+            const availabilityTitle = isActive
+              ? safeT(t, "common.available", "Disponible")
+              : safeT(t, "common.unavailable", "Indisponible");
             const favorite = isFormFavorite?.(form) || false;
             return (
               <tr key={`render-form-list-row-${id || String(form?.name || "")}`}>
@@ -76,28 +84,38 @@ function RenderFormsTableView({
                   {formProjectLabel?.(form) || "-"}
                 </td>
                 <td style={{ overflowWrap: "anywhere" }}>{simplifyUnrealAssetName(form?.mapName)}</td>
-                <td>{formatDate(form?.updatedAt || form?.createdAt)}</td>
-                <td style={{ textAlign: "center" }}>
-                  <button
-                    type="button"
-                    className={`uu-fav-filter ${favorite ? "active" : ""}`}
-                    onClick={() => onToggleFormFavorite?.(form)}
-                    aria-pressed={favorite ? "true" : "false"}
-                    title={favorite
-                      ? safeT(t, "postprod.data.forms.favorite.remove", "Retirer des favoris")
-                      : safeT(t, "postprod.data.forms.favorite.add", "Ajouter aux favoris")}
-                  >
-                    ★
-                  </button>
-                </td>
-                <td style={{ textAlign: "center" }}>
-                  <button
-                    type="button"
-                    className="uu-btn-ghost"
-                    onClick={() => onEditForm?.(form)}
-                  >
-                    {safeT(t, "common.edit", "Modifier")}
-                  </button>
+                <td style={{ overflowWrap: "anywhere" }}>{Array.isArray(form?.allowedSequences) && form.allowedSequences.length > 0 ? form.allowedSequences.map(simplifyUnrealAssetName).join(", ") : "-"}</td>
+                <td style={{ whiteSpace: "nowrap" }}>{formatDate(form?.updatedAt || form?.createdAt)}</td>
+                <td>
+                  <div className="uu-row" style={{ gap: "6px", justifyContent: "flex-end" }}>
+                    <button
+                      type="button"
+                      className="uu-btn-ghost"
+                      onClick={() => onEditForm?.(form)}
+                    >
+                      {safeT(t, "common.edit", "Modifier")}
+                    </button>
+                    {onDeleteForm ? (
+                      <button
+                        type="button"
+                        className="uu-btn-ghost"
+                        onClick={() => onDeleteForm?.(form)}
+                      >
+                        {safeT(t, "common.delete", "Supprimer")}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={`uu-fav-btn ${favorite ? "active" : ""}`}
+                      onClick={() => onToggleFormFavorite?.(form)}
+                      aria-pressed={favorite ? "true" : "false"}
+                      title={favorite
+                        ? safeT(t, "postprod.data.forms.favorite.remove", "Retirer des favoris")
+                        : safeT(t, "postprod.data.forms.favorite.add", "Ajouter aux favoris")}
+                    >
+                      ★
+                    </button>
+                  </div>
                 </td>
               </tr>
             );

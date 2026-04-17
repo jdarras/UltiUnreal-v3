@@ -22,9 +22,29 @@ export default function AuthGateScreen({
   }, [error]);
 
   return (
-    <div className="uu-page uu-page-compact">
-      <section className="uu-section uu-maxw-420" style={{ margin: "24px auto" }}>
-        <h2 className="uu-h3 uu-block-title">
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0, 0, 0, 0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px",
+        zIndex: 2000,
+      }}
+    >
+      <section
+        className="uu-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={safeT(t, "app.auth.title", "Connexion utilisateur")}
+        style={{
+          width: "min(460px, calc(100vw - 32px))",
+          padding: "16px",
+        }}
+      >
+        <h2 className="uu-h3 uu-block-title" style={{ marginBottom: "10px" }}>
           {safeT(t, "app.auth.title", "Connexion utilisateur")}
         </h2>
 

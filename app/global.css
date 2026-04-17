@@ -1468,6 +1468,20 @@ button:not(.uu-reset-btn):not(.uu-btn-delete):not(.uu-rating-btn):not(.uu-fav-bt
   max-height: calc(100vh - 48px);
   overflow: auto;
 }
+.uu-confirm-dialog {
+  width: min(440px, 96vw);
+  padding: 24px;
+}
+.uu-confirm-dialog-body {
+  margin: 12px 0 20px;
+  color: var(--uu-color-text);
+  line-height: 1.5;
+}
+.uu-confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .uu-render-detail-preview-block {
   margin-top: 12px;
 }

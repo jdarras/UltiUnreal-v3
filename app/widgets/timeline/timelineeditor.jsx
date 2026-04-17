@@ -1236,9 +1236,8 @@ export function TimelineEditorRight({
       .map((h) => h && h.ip)
       .filter(Boolean)
       .join('|');
-    const commonSig = common?.webRemoteControlName || '';
-    return `${hostSig}::${commonSig}::${JSON.stringify(timelineDraft)}`;
-  }, [hosts, common, timelineDraft]);
+    return `${hostSig}::${JSON.stringify(timelineDraft)}`;
+  }, [hosts, timelineDraft]);
 
   const ensureLivePlayer = useCallback(
     (frame) => {

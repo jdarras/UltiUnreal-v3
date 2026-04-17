@@ -3,6 +3,7 @@ import { safeT } from "../../../shared/helpers";
 import {
   buildSaveMetaPayload,
   normalizeTextValue,
+  normalizeStringArray,
 } from "./metaPayloadHelpers";
 
 export function useSaveRenderFormMetaAction({
@@ -14,10 +15,12 @@ export function useSaveRenderFormMetaAction({
   metaName = "",
   metaTemplateName = "",
   metaMapName = "",
-  metaSequenceName = "",
   metaOutputProfile = "",
-  metaPresetName = "",
+  metaWrcFiles = [],
   metaActive = true,
+  metaAllowedSequences = [],
+  metaAllowedPresets = [],
+  metaNote = "",
   metaBusy = false,
   setMetaBusy = null,
   setMetaError = null,
@@ -36,10 +39,12 @@ export function useSaveRenderFormMetaAction({
       metaName,
       metaTemplateName,
       metaMapName,
-      metaSequenceName,
       metaOutputProfile,
-      metaPresetName,
+      metaWrcFiles,
       metaActive,
+      metaAllowedSequences,
+      metaAllowedPresets,
+      metaNote,
     });
     if (next.noChanges) return { saved: false };
 
@@ -49,12 +54,21 @@ export function useSaveRenderFormMetaAction({
     try {
       await Promise.resolve(onUpdateRenderForm(formId, next.payload));
       setMetaInfo?.("");
+      const previousWrcFiles = normalizeStringArray(selectedForm?.wrcFiles);
+      const nextWrcFiles = normalizeStringArray(next.nextWrcFiles);
+      const nextWrcFilesSet = new Set(nextWrcFiles.map((value) => String(value || "").trim().toLowerCase()));
+      const wrcFilesChanged = (
+        previousWrcFiles.length !== nextWrcFiles.length
+        || previousWrcFiles.some((value) => !nextWrcFilesSet.has(String(value || "").trim().toLowerCase()))
+      );
       return {
         saved: true,
         importIfEmpty,
         formId,
         projectRef: normalizeTextValue(selectedProjectRef || selectedForm?.projectName),
-        presetName: next.nextPresetName,
+        wrcFiles: nextWrcFiles,
+        previousWrcFiles,
+        wrcFilesChanged,
       };
     } catch (e) {
       setMetaError?.(String(e?.message || safeT(t, "postprod.data.forms.error.update", "Mise a jour impossible.")));
@@ -70,10 +84,12 @@ export function useSaveRenderFormMetaAction({
     metaName,
     metaTemplateName,
     metaMapName,
-    metaSequenceName,
     metaOutputProfile,
-    metaPresetName,
+    metaWrcFiles,
     metaActive,
+    metaAllowedSequences,
+    metaAllowedPresets,
+    metaNote,
     selectedProjectRef,
     t,
     setMetaError,
@@ -85,4 +101,3 @@ export function useSaveRenderFormMetaAction({
 }
 
 export default useSaveRenderFormMetaAction;
-
