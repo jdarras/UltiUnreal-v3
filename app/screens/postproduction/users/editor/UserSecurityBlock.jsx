@@ -12,11 +12,14 @@ function UserSecurityBlock({
       <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
         {safeT(t, "postprod.users.blocks.security", "Mot de passe et securite")}
       </h3>
-      <div className="uu-grid-field mt-8">
-        <label className="uu-label">{safeT(t, "postprod.users.form.password", "Mot de passe")}</label>
+      <div className="uu-grid-field mt-8" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+          {safeT(t, "postprod.users.form.password", "Mot de passe")}
+        </label>
         <input
           className="uu-input"
           type="password"
+          style={{ maxWidth: 260 }}
           value={String(draft?.password || "")}
           onChange={(e) => setDraft((prev) => ({ ...(prev || {}), password: e.target.value }))}
           placeholder={!isCreate

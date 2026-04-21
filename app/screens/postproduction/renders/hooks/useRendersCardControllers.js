@@ -16,6 +16,8 @@ export function useRendersCardControllers({
   onDispatchRenders = null,
   preferences = {},
 } = {}) {
+  const canLaunchRendersForUser = user?.permissions?.canLaunchRenders === true;
+
   const review = useRenderReviewController({
     user,
     onTransitionRender,
@@ -65,10 +67,12 @@ export function useRendersCardControllers({
     searchQuery: preferences.searchQuery,
     queueSortKey: preferences.queueSortKey,
     queueSortDir: preferences.queueSortDir,
+    queueRuntimeMode: preferences.queueRuntimeMode,
     setQueueSortKey: preferences.setQueueSortKey,
     setQueueSortDir: preferences.setQueueSortDir,
     onCreateRender,
     onDispatchRenders,
+    canLaunchRendersForUser,
   });
 
   const toolbar = useRendersToolbarActions({

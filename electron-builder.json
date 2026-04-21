@@ -17,6 +17,16 @@
     "!tools/**",
     "!data/**"
   ],
+  "extraResources": [
+    {
+      "from": "tools/ffmpeg/win/ffmpeg.exe",
+      "to": "ffmpeg/ffmpeg.exe"
+    },
+    {
+      "from": "tools/ffmpeg/win/ffprobe.exe",
+      "to": "ffmpeg/ffprobe.exe"
+    }
+  ],
   "win": {
     "artifactName": "UltiUnreal 2026.3.${ext}",
     "target": [

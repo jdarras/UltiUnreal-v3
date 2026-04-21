@@ -236,6 +236,7 @@ function buildPostprodRouteDispatchGroups(options = {}) {
     emitUserSyncUpsert,
     emitUserSyncDelete,
     emitRoleSyncUpsert,
+    getAuditStorageStatus,
   } = options;
 
   const postprodRouteHandlerDeps = {
@@ -312,6 +313,7 @@ function buildPostprodRouteDispatchGroups(options = {}) {
     buildAuditEntryPayload,
     matchesAuditSearch,
     buildAuditCsvLine,
+    getAuditStorageStatus,
   };
 
   const postprodRouteUserProfileDeps = {

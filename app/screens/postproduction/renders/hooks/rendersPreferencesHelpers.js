@@ -7,6 +7,7 @@ const STORAGE_KEYS = Object.freeze({
   listSortDir: "uu_postprod_renders_validation_list_sort_dir",
   queueSortKey: "uu_postprod_renders_validation_queue_sort_key",
   queueSortDir: "uu_postprod_renders_validation_queue_sort_dir",
+  queueRuntimeMode: "uu_postprod_renders_validation_queue_runtime_mode",
   searchQuery: "uu_postprod_renders_validation_search_query",
   reviewFilter: "uu_postprod_renders_validation_review_filter",
   projectFilter: "uu_postprod_renders_validation_project_filter",
@@ -21,6 +22,7 @@ const STORAGE_KEYS = Object.freeze({
 const LIST_SORT_KEY_SET = new Set(["file", "project", "linkedTask", "requester", "station", "updatedAt", "reviewStatus"]);
 const SORT_DIR_SET = new Set(["asc", "desc"]);
 const QUEUE_SORT_KEY_SET = new Set(["startAt", "task", "sequence", "worker", "status"]);
+const QUEUE_RUNTIME_MODE_SET = new Set(["active", "paused"]);
 
 function normalizeMultiFilterValues(value = []) {
   const source = Array.isArray(value) ? value : [value];
@@ -114,6 +116,10 @@ function getInitialQueueSortDir() {
   return readEnumLowerStorage(STORAGE_KEYS.queueSortDir, SORT_DIR_SET, "asc");
 }
 
+function getInitialQueueRuntimeMode() {
+  return readEnumLowerStorage(STORAGE_KEYS.queueRuntimeMode, QUEUE_RUNTIME_MODE_SET, "active");
+}
+
 function usePersistRendersPreferences({
   searchQuery = "",
   viewMode = "thumbs",
@@ -129,6 +135,7 @@ function usePersistRendersPreferences({
   listSortDir = "desc",
   queueSortKey = "startAt",
   queueSortDir = "asc",
+  queueRuntimeMode = "active",
 } = {}) {
   useDebouncedLocalStorage(STORAGE_KEYS.searchQuery, String(searchQuery || ""), 280);
   useDebouncedLocalStorage(STORAGE_KEYS.view, String(viewMode || "thumbs"), 180);
@@ -144,6 +151,13 @@ function usePersistRendersPreferences({
   useDebouncedLocalStorage(STORAGE_KEYS.listSortDir, String(listSortDir || "desc"), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.queueSortKey, String(queueSortKey || "startAt"), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.queueSortDir, String(queueSortDir || "asc"), 180);
+  useDebouncedLocalStorage(
+    STORAGE_KEYS.queueRuntimeMode,
+    QUEUE_RUNTIME_MODE_SET.has(String(queueRuntimeMode || "").trim().toLowerCase())
+      ? String(queueRuntimeMode).trim().toLowerCase()
+      : "active",
+    180
+  );
 }
 
 export {
@@ -157,6 +171,7 @@ export {
   getInitialTaskFilter,
   getInitialQueueSortDir,
   getInitialQueueSortKey,
+  getInitialQueueRuntimeMode,
   getInitialReviewFilter,
   getInitialSequenceFilter,
   getInitialSearchQuery,

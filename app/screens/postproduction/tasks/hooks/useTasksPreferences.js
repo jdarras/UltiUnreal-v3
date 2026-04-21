@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   getInitialFavoriteOnly,
   getInitialFormFilter,
+  getInitialShowHistory,
   getInitialListRenderWorkerFilter,
   getInitialListSortDir,
   getInitialListSortKey,
@@ -17,6 +18,7 @@ import {
 
 export function useTasksPreferences({ taskStatusFlow = [] } = {}) {
   const [viewMode, setViewMode] = useState(getInitialViewMode);
+  const [showHistory, setShowHistory] = useState(getInitialShowHistory);
   const [listSortKey, setListSortKey] = useState(getInitialListSortKey);
   const [listSortDir, setListSortDir] = useState(getInitialListSortDir);
   const [searchQuery, setSearchQuery] = useState(getInitialSearchQuery);
@@ -32,6 +34,7 @@ export function useTasksPreferences({ taskStatusFlow = [] } = {}) {
 
   usePersistTasksPreferences({
     viewMode,
+    showHistory,
     searchQuery,
     favoriteOnly,
     taskFavorites,
@@ -48,6 +51,8 @@ export function useTasksPreferences({ taskStatusFlow = [] } = {}) {
   return {
     viewMode,
     setViewMode,
+    showHistory,
+    setShowHistory,
     listSortKey,
     setListSortKey,
     listSortDir,

@@ -18,8 +18,10 @@ function RenderFormsListPanel({
   isFormFavorite = null,
   onToggleFormFavorite = null,
   formProjectLabel = null,
+  formProjectId = null,
   onEditForm = null,
   onDeleteForm = null,
+  onNavigateToProject = null,
 }) {
   return (
     <>
@@ -48,8 +50,10 @@ function RenderFormsListPanel({
           isFormFavorite={isFormFavorite}
           onToggleFormFavorite={onToggleFormFavorite}
           formProjectLabel={formProjectLabel}
+          formProjectId={formProjectId}
           onEditForm={onEditForm}
           onDeleteForm={onDeleteForm}
+          onNavigateToProject={onNavigateToProject}
         />
       ) : (
         <RenderFormsThumbsView
@@ -58,8 +62,10 @@ function RenderFormsListPanel({
           isFormFavorite={isFormFavorite}
           onToggleFormFavorite={onToggleFormFavorite}
           formProjectLabel={formProjectLabel}
+          formProjectId={formProjectId}
           onEditForm={onEditForm}
           onDeleteForm={onDeleteForm}
+          onNavigateToProject={onNavigateToProject}
         />
       )}
     </div>

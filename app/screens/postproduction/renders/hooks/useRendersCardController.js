@@ -8,7 +8,7 @@ import {
   renderReviewStatusLabel,
 } from "../helpers";
 
-const RENDER_REVIEW_FLOW = ["to_validate", "validated", "to_modify", "canceled"];
+const RENDER_REVIEW_FLOW = ["to_validate", "validated", "rejected"];
 
 export function useRendersCardController({
   t,

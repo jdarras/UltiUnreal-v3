@@ -23,6 +23,7 @@ public class UltiUnrealRenderBridge : ModuleRules
                 "HTTP",
                 "Json",
                 "JsonUtilities",
+                "MovieRenderPipelineCore",
                 "Projects"
             }
         );

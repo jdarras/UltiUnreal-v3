@@ -17,6 +17,7 @@ export function useTasksCardController({
   renderWorkersLoading = false,
   renderWorkersError = "",
   renderOutputDir = "",
+  renderExportDestinationOptions = [],
   taskFocusRequest = null,
   onTaskFocusHandled = null,
   tasksLoading = false,
@@ -25,6 +26,7 @@ export function useTasksCardController({
   onUpdateTask = null,
   onDeleteTask = null,
   onCreateRender = null,
+  onReserveRenderId = null,
   onLoadRenderFormFields = null,
   onLoadProjectUnrealCatalog = null,
   onFormModeChange = null,
@@ -39,6 +41,7 @@ export function useTasksCardController({
     renderForms,
     renderWorkers,
     renderOutputDir,
+    renderExportDestinationOptions,
     taskFocusRequest,
     onTaskFocusHandled,
     onLoadRenderFormFields,
@@ -67,6 +70,7 @@ export function useTasksCardController({
     onUpdateTask,
     onDeleteTask,
     onCreateRender,
+    onReserveRenderId,
     data,
   });
 

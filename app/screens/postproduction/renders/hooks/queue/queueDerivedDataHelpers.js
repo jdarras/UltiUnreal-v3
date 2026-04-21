@@ -1,4 +1,5 @@
 import { resolveAutoRenderTargetWorkerKey } from "../../../shared/autoRenderHelpers";
+import { safeT } from "../../../shared/helpers";
 
 function buildQueueWorkerLabelByKey(renderWorkers = []) {
   const out = new Map();

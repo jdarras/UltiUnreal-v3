@@ -1,4 +1,4 @@
-import { resolveTaskAutoRenderState } from "../../helpers";
+import { resolveTaskAutoRenderState, resolveTaskVisualStatus } from "../../helpers";
 import {
   buildTaskExpectedRenderName,
   buildTaskLaunchModeLabel,
@@ -18,7 +18,7 @@ function buildTaskListLabelResolvers({
   projectLabelsByRef = new Map(),
 } = {}) {
   const taskVisualStatus = (task) => (
-    buildTaskVisualStatus(task, t, taskRenderStateByTaskId, resolveTaskAutoRenderState)
+    buildTaskVisualStatus(task, t, taskRenderStateByTaskId, resolveTaskVisualStatus)
   );
 
   const taskRenderFormLabel = (task) => (
@@ -34,6 +34,10 @@ function buildTaskListLabelResolvers({
   );
 
   const taskExpectedRenderName = (task) => buildTaskExpectedRenderName(task);
+
+  const resolveTaskVisualStatusKey = (task) => (
+    resolveTaskVisualStatus(task, taskRenderStateByTaskId)
+  );
 
   const taskProjectLabel = (task) => {
     const ref = String(
@@ -54,6 +58,8 @@ function buildTaskListLabelResolvers({
     taskProjectLabel,
     taskRenderModeName,
     resolveTaskAutoRenderState,
+    resolveTaskVisualStatus,
+    resolveTaskVisualStatusKey,
   };
 }
 

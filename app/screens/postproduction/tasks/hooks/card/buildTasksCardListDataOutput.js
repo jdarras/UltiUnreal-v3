@@ -20,6 +20,8 @@ const FORM_STATE_KEYS = [
 const BROWSE_PREFERENCE_KEYS = [
   "viewMode",
   "setViewMode",
+  "showHistory",
+  "setShowHistory",
   "listSortKey",
   "setListSortKey",
   "listSortDir",
@@ -64,6 +66,7 @@ const LIST_KEYS = [
   "taskLaunchModeLabel",
   "taskRenderFormLabel",
   "taskRenderModeName",
+  "resolveTaskVisualStatusKey",
   "setListSortFromSelect",
   "toggleListSort",
 ];

@@ -76,7 +76,7 @@ function RenderFormsEditorModeBar({
               }
             }}
           >
-            {safeT(t, "postprod.data.forms.backToList", "Retour liste")}
+            {safeT(t, "postprod.data.forms.backToList", "Retour")}
           </button>
         </div>
       </div>

@@ -26,6 +26,8 @@ export function buildTaskPayloadFromForm({
   projectLookupByAny = new Map(),
   availableRenderWorkers = [],
   taskSequenceName = "",
+  autoRenderOffscreen = false,
+  autoRenderExportDestinationIds = [],
 } = {}) {
   const selectedForm = selectedAutoRenderForm;
   const inputValidationError = validateTaskPayloadInputs({
@@ -60,6 +62,8 @@ export function buildTaskPayloadFromForm({
     autoRenderFormFields,
     autoRenderFormValues,
     taskSequenceName,
+    autoRenderOffscreen,
+    autoRenderExportDestinationIds,
   });
 
   if (!context.ok) {

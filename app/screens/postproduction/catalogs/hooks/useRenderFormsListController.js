@@ -70,6 +70,15 @@ export function useRenderFormsListController({
     return getFormProjectLabel(form, selectedProjectRef, projectLabelByAnyKey);
   }
 
+  function formProjectId(form) {
+    const ref = String(form?.projectName || "").trim().toLowerCase();
+    if (!ref) return 0;
+    const project = normalizedProjectOptions.find(
+      (p) => String(p?.ref || "").trim().toLowerCase() === ref
+    );
+    return Number(project?.id || 0);
+  }
+
   const normalizedFormsSearchQuery = useMemo(
     () => normalizeFormsSearchQuery(formsSearchQuery),
     [formsSearchQuery]
@@ -132,6 +141,7 @@ export function useRenderFormsListController({
     visibleForms,
     selectedFormProjectRef,
     formProjectLabel,
+    formProjectId,
     isFormFavorite,
     toggleFormFavorite,
     hasFormsAdvancedFilters,

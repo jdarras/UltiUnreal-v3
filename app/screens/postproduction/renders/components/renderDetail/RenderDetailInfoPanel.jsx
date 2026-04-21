@@ -1,5 +1,418 @@
-import { useState } from "react";
-import { formatDate, safeT } from "../../../shared/helpers";
+import { useEffect, useState } from "react";
+import MultiSelectDropdown from "../../../../../components/MultiSelectDropdown";
+import { formatDate, safeT, simplifyUnrealAssetDisplayName } from "../../../shared/helpers";
+
+const DESTINATION_DROPDOWN_STYLE = {
+  flex: "none",
+  minWidth: "220px",
+  width: "100%",
+  maxWidth: "360px",
+};
+
+function firstNonEmptyString(values = []) {
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = String(value || "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function normalizeProjectLookupKey(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeProjectNumericKey(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw || !/^\d+$/.test(raw)) return "";
+  return String(Math.trunc(Number(raw)));
+}
+
+function readProjectLabel(projectLabelByRef = new Map(), rawValue = "") {
+  if (!(projectLabelByRef instanceof Map)) return "";
+  const key = normalizeProjectLookupKey(rawValue);
+  if (!key) return "";
+  const direct = String(projectLabelByRef.get(key) || "").trim();
+  if (direct) return direct;
+  const numericKey = normalizeProjectNumericKey(rawValue);
+  if (!numericKey) return "";
+  return String(projectLabelByRef.get(numericKey) || "").trim();
+}
+
+function readProjectRefFromLabel(projectLabelByRef = new Map(), rawLabel = "") {
+  if (!(projectLabelByRef instanceof Map)) return "";
+  const normalizedLabel = normalizeProjectLookupKey(rawLabel);
+  if (!normalizedLabel) return "";
+  for (const [rawKey, rawValue] of projectLabelByRef.entries()) {
+    const valueLabel = normalizeProjectLookupKey(rawValue);
+    if (!valueLabel || valueLabel !== normalizedLabel) continue;
+    const key = String(rawKey || "").trim();
+    if (!key) continue;
+    return normalizeProjectNumericKey(key) || key;
+  }
+  return "";
+}
+
+function resolveRenderPayload(render = null) {
+  const payload = render?.payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
+  return payload;
+}
+
+function resolveProjectMeta(render = null, projectLabelByRef = new Map()) {
+  const payload = resolveRenderPayload(render);
+  const rawProjectRef = firstNonEmptyString([
+    render?.projectId,
+    render?.projectRef,
+    payload?.projectId,
+    payload?.projectRef,
+  ]);
+  const rawProjectName = firstNonEmptyString([
+    render?.projectDisplayName,
+    payload?.projectDisplayName,
+    render?.projectTitle,
+    payload?.projectTitle,
+    render?.projectLabel,
+    payload?.projectLabel,
+    render?.projectName,
+    payload?.projectName,
+  ]);
+  const fallbackProjectRef = firstNonEmptyString([
+    normalizeProjectNumericKey(rawProjectName),
+    readProjectRefFromLabel(projectLabelByRef, rawProjectName),
+  ]);
+  const projectRef = rawProjectRef || fallbackProjectRef;
+  const projectName = firstNonEmptyString([
+    readProjectLabel(projectLabelByRef, projectRef),
+    readProjectLabel(projectLabelByRef, rawProjectName),
+    rawProjectName,
+    projectRef,
+    "-",
+  ]);
+  const hasDistinctRef = !!(
+    projectRef
+    && projectName
+    && normalizeProjectLookupKey(projectRef) !== normalizeProjectLookupKey(projectName)
+  );
+  return {
+    projectRef,
+    projectName,
+    hasDistinctRef,
+  };
+}
+
+function resolveTaskMeta(render = null, linkedTaskValue = null) {
+  const payload = resolveRenderPayload(render);
+  const taskIdRaw = Number(render?.linkedTaskId || payload?.taskId || 0);
+  const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
+  const taskTitle = firstNonEmptyString([
+    render?.linkedTaskTitle,
+    payload?.taskTitle,
+  ]);
+  const fallbackRaw = typeof linkedTaskValue === "function"
+    ? String(linkedTaskValue(render) || "").trim()
+    : "";
+  const fallback = fallbackRaw.replace(/#(\d+)/g, "$1").trim();
+  return {
+    taskId,
+    taskTitle: taskTitle || fallback || "-",
+  };
+}
+
+function resolveLinkedTaskEntry(taskId = 0, tasks = []) {
+  const normalizedTaskId = Number.isFinite(Number(taskId)) && Number(taskId) > 0
+    ? Math.trunc(Number(taskId))
+    : 0;
+  if (normalizedTaskId <= 0) return null;
+  const list = Array.isArray(tasks) ? tasks : [];
+  return list.find((entry) => Number(entry?.id || 0) === normalizedTaskId) || null;
+}
+
+function resolveLinkedRenderFormEntry(formId = 0, renderForms = []) {
+  const normalizedFormId = Number.isFinite(Number(formId)) && Number(formId) > 0
+    ? Math.trunc(Number(formId))
+    : 0;
+  if (normalizedFormId <= 0) return null;
+  const list = Array.isArray(renderForms) ? renderForms : [];
+  return list.find((entry) => Number(entry?.id || 0) === normalizedFormId) || null;
+}
+
+function toPositiveInt(value = 0) {
+  if (Number.isFinite(Number(value)) && Number(value) > 0) return Math.trunc(Number(value));
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  if (/^\#?\d+$/.test(raw)) return Math.trunc(Number(raw.replace(/^#/, "")));
+  return 0;
+}
+
+function firstPositiveInt(values = []) {
+  const list = Array.isArray(values) ? values : [];
+  for (const value of list) {
+    const parsed = toPositiveInt(value);
+    if (parsed > 0) return parsed;
+  }
+  return 0;
+}
+
+function extractFormIdFromTemplateLike(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  const match = /^form[\s\-_#]*(\d+)$/i.exec(raw);
+  if (!match) return 0;
+  return toPositiveInt(match[1]);
+}
+
+function resolveTaskDescription(render = null, taskId = 0, tasks = []) {
+  const payload = resolveRenderPayload(render);
+  const direct = firstNonEmptyString([
+    render?.linkedTaskDescription,
+    payload?.taskDescription,
+    payload?.task_description,
+    render?.taskDescription,
+    payload?.description,
+  ]);
+  if (direct) return direct;
+  const task = resolveLinkedTaskEntry(taskId, tasks);
+  const fromTask = String(task?.description || "").trim();
+  return fromTask || "-";
+}
+
+function resolveSequenceLabel(render = null) {
+  const payload = resolveRenderPayload(render);
+  const raw = firstNonEmptyString([
+    render?.sequenceName,
+    payload?.sequenceName,
+    payload?.levelSequence,
+    payload?.levelSequenceName,
+  ]);
+  const simplified = simplifyUnrealAssetDisplayName(raw);
+  return simplified || raw || "-";
+}
+
+function resolveFormMeta(render = null, linkedTask = null, renderForms = []) {
+  const payload = resolveRenderPayload(render);
+  const taskAutoConfig = linkedTask?.autoRenderConfig
+    && typeof linkedTask.autoRenderConfig === "object"
+    && !Array.isArray(linkedTask.autoRenderConfig)
+    ? linkedTask.autoRenderConfig
+    : {};
+  const taskAutoPayload = taskAutoConfig?.payload
+    && typeof taskAutoConfig.payload === "object"
+    && !Array.isArray(taskAutoConfig.payload)
+    ? taskAutoConfig.payload
+    : {};
+  const formId = firstPositiveInt([
+    render?.formId,
+    render?.renderFormId,
+    render?.formRef,
+    render?.renderFormRef,
+    payload?.formId,
+    payload?.renderFormId,
+    payload?.formRef,
+    payload?.renderFormRef,
+    taskAutoConfig?.formId,
+    taskAutoConfig?.renderFormId,
+    taskAutoConfig?.formRef,
+    taskAutoPayload?.formId,
+    taskAutoPayload?.renderFormId,
+    taskAutoPayload?.formRef,
+    linkedTask?.formId,
+    linkedTask?.renderFormId,
+    extractFormIdFromTemplateLike(render?.templateName),
+    extractFormIdFromTemplateLike(payload?.templateName),
+  ]);
+  const formEntry = resolveLinkedRenderFormEntry(formId, renderForms);
+  const formName = firstNonEmptyString([
+    render?.formName,
+    render?.renderFormName,
+    payload?.formName,
+    payload?.renderFormName,
+    payload?.formLabel,
+    taskAutoConfig?.formName,
+    taskAutoConfig?.renderFormName,
+    taskAutoConfig?.formLabel,
+    taskAutoPayload?.formName,
+    taskAutoPayload?.renderFormName,
+    taskAutoPayload?.formLabel,
+    linkedTask?.formName,
+    linkedTask?.renderFormName,
+    linkedTask?.formLabel,
+    formEntry?.name,
+    formEntry?.label,
+  ]);
+  return {
+    formId,
+    formName,
+  };
+}
+
+function resolveRenderPresetLabel(render = null, linkedTask = null) {
+  const payload = resolveRenderPayload(render);
+  const taskAutoConfig = linkedTask?.autoRenderConfig
+    && typeof linkedTask.autoRenderConfig === "object"
+    && !Array.isArray(linkedTask.autoRenderConfig)
+    ? linkedTask.autoRenderConfig
+    : {};
+  const taskAutoPayload = taskAutoConfig?.payload
+    && typeof taskAutoConfig.payload === "object"
+    && !Array.isArray(taskAutoConfig.payload)
+    ? taskAutoConfig.payload
+    : {};
+
+  const explicitPreset = firstNonEmptyString([
+    render?.presetName,
+    payload?.presetName,
+    payload?.renderModeName,
+    render?.renderModeName,
+    taskAutoConfig?.presetName,
+    taskAutoConfig?.renderModeName,
+    taskAutoPayload?.presetName,
+    taskAutoPayload?.renderModeName,
+  ]);
+  if (explicitPreset) {
+    return simplifyUnrealAssetDisplayName(explicitPreset) || explicitPreset;
+  }
+
+  const presetPathLike = firstNonEmptyString([
+    render?.presetPath,
+    payload?.presetPath,
+    payload?.preset_path,
+    taskAutoConfig?.presetPath,
+    taskAutoConfig?.preset_path,
+    taskAutoPayload?.presetPath,
+    taskAutoPayload?.preset_path,
+    render?.outputProfile,
+    payload?.outputProfile,
+    taskAutoConfig?.outputProfile,
+    taskAutoPayload?.outputProfile,
+  ]);
+  const simplified = simplifyUnrealAssetDisplayName(presetPathLike);
+  return simplified || presetPathLike || "-";
+}
+
+function resolveStationLabel(render = null) {
+  const payload = resolveRenderPayload(render);
+  const requesterName = firstNonEmptyString([
+    render?.requestedByUsername,
+    payload?.requestedByUsername,
+  ]).toLowerCase();
+  const sanitizeStationName = (value = "") => {
+    const normalized = String(value || "").trim();
+    if (!normalized) return "";
+    const lower = normalized.toLowerCase();
+    if (lower === "local" || lower === "localhost" || lower === "station locale") return "";
+    if (requesterName && lower === requesterName) return "";
+    if (lower.startsWith("user:")) return "";
+    return normalized;
+  };
+  const named = firstNonEmptyString([
+    render?.stationName,
+    render?.renderStationName,
+    payload?.stationName,
+  ]);
+  const sanitizedNamed = sanitizeStationName(named);
+  if (sanitizedNamed) return sanitizedNamed;
+  const rawFallback = firstNonEmptyString([
+    render?.assignedWorkerKey,
+    render?.stationKey,
+    render?.renderStation,
+  ]);
+  const sanitizedFallback = sanitizeStationName(rawFallback);
+  if (!sanitizedFallback) return "-";
+  return sanitizedFallback;
+}
+
+function formatIdTag(value = "", minDigits = 4) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\d+$/.test(raw)) return `#${raw.padStart(minDigits, "0")}`;
+  return `#${raw}`;
+}
+
+function reviewStatusClassName(reviewStatus = "") {
+  const key = String(reviewStatus || "").trim().toLowerCase();
+  if (key === "validated") return "status-validated";
+  if (key === "rejected" || key === "to_modify" || key === "canceled") return "status-rejected";
+  return "status-to-validate";
+}
+
+function normalizeExportDestinationOptions(options = []) {
+  const source = Array.isArray(options) ? options : [];
+  const out = [];
+  const seen = new Set();
+  for (const entry of source) {
+    const rawValue = entry?.value ?? entry?.id ?? "";
+    const value = String(rawValue || "").trim().toLowerCase();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    const label = String(entry?.label || entry?.name || rawValue || "").trim();
+    out.push({
+      value,
+      label: label || value,
+    });
+  }
+  return out;
+}
+
+function normalizeExportDestinationValues(values = []) {
+  const source = Array.isArray(values) ? values : [values];
+  const out = [];
+  const seen = new Set();
+  for (const rawValue of source) {
+    const value = String(rawValue || "").trim().toLowerCase();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
+
+function resolveRenderExportDestinationIds(render = null, linkedTask = null) {
+  const payload = resolveRenderPayload(render);
+  const hasPayloadDestinationIds = Object.prototype.hasOwnProperty.call(payload, "exportDestinationIds");
+  if (hasPayloadDestinationIds) {
+    return normalizeExportDestinationValues(payload?.exportDestinationIds);
+  }
+  const hasPayloadLegacyDestinationIds = Object.prototype.hasOwnProperty.call(payload, "destinationIds");
+  if (hasPayloadLegacyDestinationIds) {
+    return normalizeExportDestinationValues(payload?.destinationIds);
+  }
+  const taskAutoConfig = linkedTask?.autoRenderConfig
+    && typeof linkedTask.autoRenderConfig === "object"
+    && !Array.isArray(linkedTask.autoRenderConfig)
+    ? linkedTask.autoRenderConfig
+    : {};
+  const taskAutoPayload = taskAutoConfig?.payload
+    && typeof taskAutoConfig.payload === "object"
+    && !Array.isArray(taskAutoConfig.payload)
+    ? taskAutoConfig.payload
+    : {};
+  const candidates = [
+    render?.exportDestinationIds,
+    render?.destinationIds,
+    taskAutoConfig?.exportDestinationIds,
+    taskAutoPayload?.exportDestinationIds,
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizeExportDestinationValues(candidate);
+    if (normalized.length > 0) return normalized;
+  }
+  return [];
+}
+
+function DetailInfoRow({
+  label = "",
+  className = "",
+  children = null,
+}) {
+  return (
+    <div className={`uu-render-detail-info-field ${className}`.trim()}>
+      <div className="uu-render-detail-info-row">
+        <span className="uu-render-detail-info-label">{label}</span>
+        <div className="uu-render-detail-info-value">{children}</div>
+      </div>
+    </div>
+  );
+}
 
 function nowDatetimeLocalValue() {
   const now = new Date();
@@ -28,16 +441,88 @@ function RenderDetailInfoPanel({
   busyRenderId = 0,
   onApplyReviewStatus = null,
   onScheduleRender = null,
+  projectLabelByRef = new Map(),
+  onNavigateToProject = null,
+  onNavigateToRenderForm = null,
+  onRequestOpenTasks = null,
+  tasks = [],
+  renderForms = [],
+  renderExportDestinationOptions = [],
+  onUpdateRenderExportDestinations = null,
 } = {}) {
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [scheduleValue, setScheduleValue] = useState("");
+  const [destinationValues, setDestinationValues] = useState([]);
+  const [savingDestinations, setSavingDestinations] = useState(false);
 
-  if (!render) return null;
   const renderId = Number(render?.id || 0);
   const reviewItems = Array.isArray(reviewFlow) ? reviewFlow : [];
   const isQueued = String(render?.status || "") === "Queued";
   const scheduledAt = render?.scheduledAt || null;
   const minDatetimeLocal = nowDatetimeLocalValue();
+  const projectMeta = resolveProjectMeta(render, projectLabelByRef);
+  const taskMeta = resolveTaskMeta(render, linkedTaskValue);
+  const linkedTask = resolveLinkedTaskEntry(taskMeta.taskId, tasks);
+  const taskDescription = resolveTaskDescription(render, taskMeta.taskId, tasks);
+  const resolvedDestinationValues = resolveRenderExportDestinationIds(render, linkedTask);
+  const normalizedDestinationOptions = normalizeExportDestinationOptions(renderExportDestinationOptions);
+  const resolvedDestinationKey = resolvedDestinationValues.join("|");
+  const sequenceLabel = resolveSequenceLabel(render);
+  const formMeta = resolveFormMeta(render, linkedTask, renderForms);
+  const renderPresetLabel = resolveRenderPresetLabel(render, linkedTask);
+  const stationLabel = resolveStationLabel(render);
+  const canOpenProjectLink = typeof onNavigateToProject === "function" && !!projectMeta.projectRef;
+  const canOpenTaskLink = typeof onRequestOpenTasks === "function" && taskMeta.taskId > 0;
+  const canOpenFormLink = typeof onNavigateToRenderForm === "function" && formMeta.formId > 0;
+  const projectIdTag = formatIdTag(projectMeta.projectRef, 4);
+  const taskIdTag = taskMeta.taskId > 0 ? formatIdTag(taskMeta.taskId, 4) : "";
+  const formIdTag = formMeta.formId > 0 ? formatIdTag(formMeta.formId, 4) : "";
+  const hasFormName = Boolean(String(formMeta.formName || "").trim());
+  const canEditExportDestinations = (
+    typeof onUpdateRenderExportDestinations === "function"
+    && !rendersLoading
+    && !savingDestinations
+    && busyRenderId !== renderId
+  );
+
+  useEffect(() => {
+    setDestinationValues(resolvedDestinationValues);
+    setSavingDestinations(false);
+  }, [renderId, resolvedDestinationKey]);
+
+  if (!render) return null;
+
+  const handleOpenProject = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!canOpenProjectLink) return;
+    onNavigateToProject?.(projectMeta.projectRef);
+  };
+
+  const handleOpenTask = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!canOpenTaskLink) return;
+    onRequestOpenTasks?.({
+      type: "task",
+      action: "edit",
+      ref: String(taskMeta.taskId),
+      task: null,
+    });
+  };
+
+  const handleOpenForm = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!canOpenFormLink) return;
+    onNavigateToRenderForm?.({ id: formMeta.formId, name: formMeta.formName || "" });
+  };
+
+  const handleInlineLinkKeyDown = (event, handler) => {
+    if (event?.key !== "Enter" && event?.key !== " ") return;
+    event.preventDefault();
+    handler?.(event);
+  };
 
   const handleStartEditSchedule = () => {
     setScheduleValue(toDatetimeLocalValue(scheduledAt));
@@ -66,122 +551,231 @@ function RenderDetailInfoPanel({
     if (e.key === "Escape") handleCancelSchedule();
   };
 
+  const handleChangeExportDestinations = async (nextValues = []) => {
+    if (!canEditExportDestinations) return;
+    const normalized = normalizeExportDestinationValues(nextValues);
+    setDestinationValues(normalized);
+    if (renderId <= 0) return;
+    setSavingDestinations(true);
+    try {
+      await onUpdateRenderExportDestinations(renderId, normalized, render);
+    } finally {
+      setSavingDestinations(false);
+    }
+  };
+
   return (
     <section className="uu-render-detail-info-block">
-      <div className="uu-grid-field">
-        <label className="uu-label">{safeT(t, "postprod.renders.table.project", "Projet")}</label>
-        <div>{String(render?.projectName || "-")}</div>
-      </div>
-      <div className="uu-grid-field mt-8">
-        <label className="uu-label">{safeT(t, "postprod.renders.table.file", "Fichier")}</label>
-        <div>{renderOutputName}</div>
-      </div>
-      <div className="uu-grid-field mt-8">
-        <label className="uu-label">{safeT(t, "postprod.renders.table.linkedTask", "Tache")}</label>
-        <div>{typeof linkedTaskValue === "function" ? (linkedTaskValue(render) || "-") : "-"}</div>
-      </div>
-      <div className="uu-grid-field mt-8">
-        <label className="uu-label">{safeT(t, "postprod.renders.table.requester", "Demandeur")}</label>
-        <div>{String(render?.requestedByUsername || "-")}</div>
-      </div>
-      <div className="uu-grid-field mt-8">
-        <label className="uu-label">{safeT(t, "postprod.renders.table.updated", "Mise a jour")}</label>
-        <div>{formatDate(render?.updatedAt)}</div>
-      </div>
-      <div className="uu-grid-field mt-8">
-        <label className="uu-label">{safeT(t, "postprod.renders.detail.error", "Derniere erreur")}</label>
-        <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-          {String(render?.errorMessage || "").trim() || "-"}
-        </div>
-      </div>
-      <div className="uu-grid-field mt-8">
-        <label className="uu-label">{safeT(t, "postprod.renders.detail.attempts", "Tentatives")}</label>
-        <div>
-          {safeT(t, "postprod.renders.detail.attemptsValue", "{count}/{max}", {
-            count: Number.isFinite(Number(render?.attemptCount))
-              ? Math.max(0, Math.trunc(Number(render.attemptCount)))
-              : 0,
-            max: Number.isFinite(Number(render?.maxAttempts))
-              ? Math.max(1, Math.trunc(Number(render.maxAttempts)))
-              : 1,
-          })}
-        </div>
-      </div>
-      {isQueued ? (
-        <div className="uu-grid-field mt-8">
-          <label className="uu-label">{safeT(t, "postprod.renders.scheduledAt.label", "Date et heure de début")}</label>
-          <div>
-            {editingSchedule ? (
-              <div className="uu-row" style={{ gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                <input
-                  type="datetime-local"
-                  className="uu-input"
-                  style={{ height: "30px", fontSize: "0.9em" }}
-                  min={minDatetimeLocal}
-                  value={scheduleValue}
-                  autoFocus
-                  disabled={rendersLoading}
-                  onChange={(e) => setScheduleValue(e.target.value)}
-                  onKeyDown={handleScheduleKeyDown}
-                  onBlur={handleSaveSchedule}
-                />
-                <button
-                  className="uu-btn"
-                  type="button"
-                  style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
-                  onMouseDown={(e) => { e.preventDefault(); handleSaveSchedule(); }}
-                >
-                  {safeT(t, "postprod.renders.queue.jobs.save", "Valider")}
-                </button>
+      <h4 className="uu-h3 uu-block-title" style={{ margin: "0 0 8px 0" }}>
+        {safeT(t, "postprod.renders.detail.infoTitle", "Informations")}
+      </h4>
+      <div className="uu-render-detail-info-grid">
+        <DetailInfoRow label={safeT(t, "postprod.renders.table.file", "Fichier")}>
+          <span className="uu-render-detail-info-value-text" style={{ overflowWrap: "anywhere" }}>{renderOutputName}</span>
+        </DetailInfoRow>
+        <DetailInfoRow label={safeT(t, "postprod.renders.table.reviewStatus", "Validation")}>
+          <select
+            className={`uu-input uu-status-select ${reviewStatusClassName(reviewStatusValue)}`}
+            style={{ width: "100%" }}
+            value={reviewStatusValue}
+            disabled={
+              rendersLoading
+              || busyRenderId === renderId
+              || typeof onApplyReviewStatus !== "function"
+              || !canReviewRenders
+            }
+            onChange={async (e) => {
+              const next = String(e.target.value || "").trim();
+              if (!next) return;
+              await onApplyReviewStatus?.(render, next);
+            }}
+          >
+            {reviewItems.map((entry) => (
+              <option key={`render-review-detail-${entry}`} value={entry}>
+                {typeof reviewStatusLabel === "function" ? reviewStatusLabel(t, entry) : entry}
+              </option>
+            ))}
+          </select>
+        </DetailInfoRow>
+
+        <DetailInfoRow label={safeT(t, "postprod.renders.table.project", "Projet")}>
+          <span className="uu-render-detail-inline-with-id">
+            {canOpenProjectLink ? (
+              <span
+                role="button"
+                tabIndex={0}
+                className="uu-render-detail-info-value-text uu-render-detail-inline-link"
+                onClick={handleOpenProject}
+                onKeyDown={(event) => handleInlineLinkKeyDown(event, handleOpenProject)}
+                style={{ cursor: "pointer" }}
+              >
+                {projectMeta.projectName || projectMeta.projectRef || "-"}
+              </span>
+            ) : (
+              <span className="uu-render-detail-info-value-text">{projectMeta.projectName || projectMeta.projectRef || "-"}</span>
+            )}
+            {projectIdTag ? (
+              <span className="uu-muted" style={{ whiteSpace: "nowrap" }}>
+                {projectIdTag}
+              </span>
+            ) : null}
+          </span>
+        </DetailInfoRow>
+        <DetailInfoRow label={safeT(t, "postprod.renders.table.linkedTask", "Tâche")}>
+          {canOpenTaskLink ? (
+            <span
+              role="button"
+              tabIndex={0}
+              className="uu-render-detail-info-value-text uu-render-detail-inline-link"
+              onClick={handleOpenTask}
+              onKeyDown={(event) => handleInlineLinkKeyDown(event, handleOpenTask)}
+              style={{ cursor: "pointer" }}
+            >
+              {taskMeta.taskTitle || "-"}
+            </span>
+          ) : (
+            <span className="uu-render-detail-info-value-text">{taskMeta.taskTitle || "-"}</span>
+          )}
+          {taskIdTag ? (
+            <>
+              <span className="uu-muted" style={{ whiteSpace: "nowrap" }}>
+                {taskIdTag}
+              </span>
+            </>
+          ) : null}
+        </DetailInfoRow>
+        <DetailInfoRow label={safeT(t, "postprod.tasks.form.description", "Description")} className="uu-render-detail-info-field-full">
+          <span className="uu-render-detail-info-value-text" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {taskDescription}
+          </span>
+        </DetailInfoRow>
+
+        <DetailInfoRow label={safeT(t, "postprod.renders.detail.form", "Formulaire")}>
+          <span className="uu-render-detail-inline-with-id">
+            {canOpenFormLink && hasFormName ? (
+              <span
+                role="button"
+                tabIndex={0}
+                className="uu-render-detail-info-value-text uu-render-detail-inline-link"
+                onClick={handleOpenForm}
+                onKeyDown={(event) => handleInlineLinkKeyDown(event, handleOpenForm)}
+                style={{ cursor: "pointer" }}
+              >
+                {formMeta.formName}
+              </span>
+            ) : (
+              hasFormName
+                ? <span className="uu-render-detail-info-value-text">{formMeta.formName}</span>
+                : null
+            )}
+            {formIdTag ? (
+              <span className="uu-muted" style={{ whiteSpace: "nowrap" }}>
+                {formIdTag}
+              </span>
+            ) : null}
+            {!hasFormName && !formIdTag ? (
+              <span className="uu-render-detail-info-value-text">-</span>
+            ) : null}
+          </span>
+        </DetailInfoRow>
+
+        <DetailInfoRow label={safeT(t, "postprod.renders.table.requester", "Demandeur")}>
+          <span className="uu-render-detail-info-value-text">{String(render?.requestedByUsername || "-")}</span>
+        </DetailInfoRow>
+
+        <DetailInfoRow label={safeT(t, "postprod.renders.detail.levelSequence", "Level Sequence")}>
+          <span className="uu-render-detail-info-value-text">{sequenceLabel}</span>
+        </DetailInfoRow>
+
+        <DetailInfoRow label={safeT(t, "postprod.tasks.form.renderPreset", "Preset de rendu")}>
+          <span className="uu-render-detail-info-value-text">{renderPresetLabel}</span>
+        </DetailInfoRow>
+
+        <DetailInfoRow label={safeT(t, "postprod.renders.table.worker", "Machine de rendu")}>
+          <span className="uu-render-detail-info-value-text">{stationLabel}</span>
+        </DetailInfoRow>
+
+        <DetailInfoRow label={safeT(t, "postprod.renders.table.updated", "Mise à Jour")}>
+          <span className="uu-render-detail-info-value-text">{formatDate(render?.updatedAt)}</span>
+        </DetailInfoRow>
+
+        <DetailInfoRow label={safeT(t, "postprod.tasks.form.exportDestinations", "Destination")}>
+          <div className="uu-render-detail-info-value-block">
+            <MultiSelectDropdown
+              options={normalizedDestinationOptions}
+              values={destinationValues}
+              onChange={handleChangeExportDestinations}
+              placeholder={safeT(
+                t,
+                "postprod.tasks.form.exportDestinations.placeholder",
+                "Sélectionner une ou plusieurs destinations"
+              )}
+              noneLabel={safeT(t, "postprod.tasks.form.exportDestinations.none", "Aucune destination")}
+              style={DESTINATION_DROPDOWN_STYLE}
+            />
+            {normalizedDestinationOptions.length <= 0 ? (
+              <div className="uu-muted mt-8">
+                {safeT(
+                  t,
+                  "postprod.tasks.form.exportDestinations.empty",
+                  "Aucune destination configurée. Configurez-les dans la page Configuration."
+                )}
+              </div>
+            ) : null}
+          </div>
+        </DetailInfoRow>
+
+        {isQueued ? (
+          <DetailInfoRow label={safeT(t, "postprod.renders.scheduledAt.label", "Date et heure de début")}>
+            <div className="uu-render-detail-info-value-block">
+              {editingSchedule ? (
+                <div className="uu-row" style={{ gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                  <input
+                    type="datetime-local"
+                    className="uu-input"
+                    style={{ height: "30px", fontSize: "0.9em" }}
+                    min={minDatetimeLocal}
+                    value={scheduleValue}
+                    autoFocus
+                    disabled={rendersLoading}
+                    onChange={(e) => setScheduleValue(e.target.value)}
+                    onKeyDown={handleScheduleKeyDown}
+                    onBlur={handleSaveSchedule}
+                  />
+                  <button
+                    className="uu-btn"
+                    type="button"
+                    style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
+                    onMouseDown={(e) => { e.preventDefault(); handleSaveSchedule(); }}
+                  >
+                    {safeT(t, "postprod.renders.queue.jobs.save", "Valider")}
+                  </button>
+                  <button
+                    className="uu-btn-ghost"
+                    type="button"
+                    style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
+                    onMouseDown={(e) => { e.preventDefault(); handleCancelSchedule(); }}
+                  >
+                    {safeT(t, "postprod.renders.queue.jobs.cancel", "Annuler")}
+                  </button>
+                </div>
+              ) : (
                 <button
                   className="uu-btn-ghost"
                   type="button"
-                  style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
-                  onMouseDown={(e) => { e.preventDefault(); handleCancelSchedule(); }}
+                  style={{ padding: "2px 6px", fontSize: "0.9em", textAlign: "left" }}
+                  disabled={!isQueued || typeof onScheduleRender !== "function"}
+                  onClick={handleStartEditSchedule}
                 >
-                  {safeT(t, "postprod.renders.queue.jobs.cancel", "Annuler")}
+                  {scheduledAt
+                    ? formatDate(scheduledAt)
+                    : <span className="uu-muted">{safeT(t, "postprod.renders.queue.immediate", "Immédiat")}</span>
+                  }
                 </button>
-              </div>
-            ) : (
-              <button
-                className="uu-btn-ghost"
-                type="button"
-                style={{ padding: "2px 6px", fontSize: "0.9em", textAlign: "left" }}
-                disabled={!isQueued || typeof onScheduleRender !== "function"}
-                onClick={handleStartEditSchedule}
-              >
-                {scheduledAt
-                  ? formatDate(scheduledAt)
-                  : <span className="uu-muted">{safeT(t, "postprod.renders.queue.immediate", "Immédiat")}</span>
-                }
-              </button>
-            )}
-          </div>
-        </div>
-      ) : null}
-      <div className="uu-grid-field mt-8">
-        <label className="uu-label">{safeT(t, "postprod.renders.table.reviewStatus", "Validation")}</label>
-        <select
-          className="uu-input"
-          value={reviewStatusValue}
-          disabled={
-            rendersLoading
-            || busyRenderId === renderId
-            || typeof onApplyReviewStatus !== "function"
-            || !canReviewRenders
-          }
-          onChange={async (e) => {
-            const next = String(e.target.value || "").trim();
-            if (!next) return;
-            await onApplyReviewStatus?.(render, next);
-          }}
-        >
-          {reviewItems.map((entry) => (
-            <option key={`render-review-detail-${entry}`} value={entry}>
-              {typeof reviewStatusLabel === "function" ? reviewStatusLabel(t, entry) : entry}
-            </option>
-          ))}
-        </select>
+              )}
+            </div>
+          </DetailInfoRow>
+        ) : null}
       </div>
     </section>
   );

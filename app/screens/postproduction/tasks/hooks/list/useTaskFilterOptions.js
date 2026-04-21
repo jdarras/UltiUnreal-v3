@@ -7,18 +7,39 @@ import {
   buildTaskRenderWorkerLabelByKey,
 } from "./taskFilterOptionBuilders";
 
+function normalizeFilterValues(values = []) {
+  const source = Array.isArray(values) ? values : [values];
+  const out = [];
+  const seen = new Set();
+  for (const value of source) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized || normalized === "all" || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function hasSameValues(a = [], b = []) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 export function useTaskFilterOptions({
   orderedTasks = [],
   normalizedRenderWorkers = [],
   renderForms = [],
   normalizedProjectOptions = [],
-  listRenderWorkerFilter = "all",
+  listRenderWorkerFilter = [],
   setListRenderWorkerFilter = null,
-  listProjectFilter = "all",
+  listProjectFilter = [],
   setListProjectFilter = null,
-  listFormFilter = "all",
+  listFormFilter = [],
   setListFormFilter = null,
-  listRenderModeFilter = "all",
+  listRenderModeFilter = [],
   setListRenderModeFilter = null,
 } = {}) {
   const taskRenderWorkerFilterOptions = useMemo(() => {
@@ -44,39 +65,52 @@ export function useTaskFilterOptions({
   }, [orderedTasks]);
 
   useEffect(() => {
-    const current = String(listProjectFilter || "").trim();
-    if (current === "all") return;
-    const exists = normalizedProjectOptions.some((entry) => String(entry?.ref || "").trim() === current);
-    if (!exists) {
-      setListProjectFilter?.("all");
-    }
+    const current = normalizeFilterValues(listProjectFilter);
+    if (current.length <= 0) return;
+    const allowed = new Set(
+      (Array.isArray(normalizedProjectOptions) ? normalizedProjectOptions : [])
+        .map((entry) => String(entry?.ref || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const sanitized = current.filter((entry) => allowed.has(entry));
+    if (!hasSameValues(current, sanitized)) setListProjectFilter?.(sanitized);
   }, [listProjectFilter, normalizedProjectOptions, setListProjectFilter]);
 
   useEffect(() => {
-    const current = String(listRenderWorkerFilter || "").trim();
-    if (!current || current === "all" || current === "__auto") return;
-    const exists = taskRenderWorkerFilterOptions.some((entry) => String(entry?.key || "").trim() === current);
-    if (!exists) {
-      setListRenderWorkerFilter?.("all");
-    }
+    const current = normalizeFilterValues(listRenderWorkerFilter);
+    if (current.length <= 0) return;
+    const allowed = new Set(
+      (Array.isArray(taskRenderWorkerFilterOptions) ? taskRenderWorkerFilterOptions : [])
+        .map((entry) => String(entry?.key || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    allowed.add("__auto");
+    const sanitized = current.filter((entry) => allowed.has(entry));
+    if (!hasSameValues(current, sanitized)) setListRenderWorkerFilter?.(sanitized);
   }, [listRenderWorkerFilter, taskRenderWorkerFilterOptions, setListRenderWorkerFilter]);
 
   useEffect(() => {
-    const current = Number(listFormFilter || 0);
-    if (!Number.isFinite(current) || current <= 0) return;
-    const exists = taskFormFilterOptions.some((entry) => Number(entry?.id || 0) === Math.trunc(current));
-    if (!exists) {
-      setListFormFilter?.("all");
-    }
+    const current = normalizeFilterValues(listFormFilter);
+    if (current.length <= 0) return;
+    const allowed = new Set(
+      (Array.isArray(taskFormFilterOptions) ? taskFormFilterOptions : [])
+        .map((entry) => String(entry?.id || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const sanitized = current.filter((entry) => allowed.has(entry));
+    if (!hasSameValues(current, sanitized)) setListFormFilter?.(sanitized);
   }, [listFormFilter, taskFormFilterOptions, setListFormFilter]);
 
   useEffect(() => {
-    const current = String(listRenderModeFilter || "").trim();
-    if (!current || current === "all") return;
-    const exists = taskRenderModeFilterOptions.some((entry) => String(entry?.value || "").trim() === current);
-    if (!exists) {
-      setListRenderModeFilter?.("all");
-    }
+    const current = normalizeFilterValues(listRenderModeFilter);
+    if (current.length <= 0) return;
+    const allowed = new Set(
+      (Array.isArray(taskRenderModeFilterOptions) ? taskRenderModeFilterOptions : [])
+        .map((entry) => String(entry?.value || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const sanitized = current.filter((entry) => allowed.has(entry));
+    if (!hasSameValues(current, sanitized)) setListRenderModeFilter?.(sanitized);
   }, [listRenderModeFilter, taskRenderModeFilterOptions, setListRenderModeFilter]);
 
   const taskRenderWorkerLabelByKey = useMemo(() => {

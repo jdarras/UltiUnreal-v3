@@ -50,6 +50,8 @@ const DATA_KEYS = [
   "queueBatchFeedback",
   "queueSortKey",
   "queueSortDir",
+  "queueRuntimeMode",
+  "setQueueRuntimeMode",
   "queueSortIndicator",
   "canLaunchRenders",
   "busyScheduledTaskId",

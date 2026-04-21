@@ -20,6 +20,8 @@ function DatasCard({
   onLoadRenderFormFields = null,
   onReplaceRenderFormFields = null,
   onNavigateToProject = null,
+  renderFormFocusRequest = null,
+  onRenderFormFocusHandled = null,
 }) {
   const [selectedProjectRef, setSelectedProjectRef] = useState("");
 
@@ -74,6 +76,8 @@ function DatasCard({
         onLoadRenderFormFields={onLoadRenderFormFields}
         onReplaceRenderFormFields={onReplaceRenderFormFields}
         onNavigateToProject={onNavigateToProject}
+        renderFormFocusRequest={renderFormFocusRequest}
+        onRenderFormFocusHandled={onRenderFormFocusHandled}
       />
 
       {projectsLoading ? (

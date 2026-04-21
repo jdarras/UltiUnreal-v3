@@ -18,6 +18,7 @@ function buildImmediateRenderRequest({
   renderStation = "local",
   renderStationName = "",
   scheduledAt = null,
+  reservedRenderId = 0,
 } = {}) {
   const taskTitle = String(savedTask?.title || fallbackTaskTitle || "").trim();
   const taskStatus = String(savedTask?.status || "A faire").trim();
@@ -25,10 +26,15 @@ function buildImmediateRenderRequest({
   const createdTaskId = resolveSavedTaskId(savedTask);
   const projectName = String(projectRef || selectedAutoRenderForm?.projectName || "");
   const isScheduled = !!scheduledAt;
+  const reservedIdNum = Number(reservedRenderId || 0);
+  const normalizedReservedRenderId = Number.isFinite(reservedIdNum) && reservedIdNum > 0
+    ? Math.trunc(reservedIdNum)
+    : 0;
 
   return {
     templateName: effectiveTemplateName,
     projectName,
+    ...(normalizedReservedRenderId > 0 ? { reservedRenderId: normalizedReservedRenderId } : {}),
     render_station: String(renderStation || "local").trim() || "local",
     render_station_name: String(renderStationName || "").trim(),
     ...(scheduledAt ? { scheduledAt } : {}),
@@ -62,6 +68,7 @@ async function runTaskSubmit({
   setFormError = null,
   resetCreateForm = null,
   setShowCreateForm = null,
+  reservedRenderId = 0,
 } = {}) {
   if (typeof setFormError === "function") setFormError("");
   if (typeof buildTaskPayloadFromCurrentForm !== "function") return;
@@ -124,6 +131,7 @@ async function runTaskSubmit({
       renderStation,
       renderStationName,
       scheduledAt: shouldCreateRenderScheduled ? scheduledAt : null,
+      reservedRenderId,
     });
     await Promise.resolve(onCreateRender?.(createRenderInput));
   }

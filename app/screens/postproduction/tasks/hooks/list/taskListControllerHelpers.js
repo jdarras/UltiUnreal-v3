@@ -1,8 +1,8 @@
 import { safeT } from "../../../shared/helpers";
 import {
   buildTaskExpectedRenderNamesPreview,
-  taskAutoRenderStateLabel,
-  taskAutoRenderStateLevel,
+  taskVisualStatusClass,
+  taskVisualStatusLabel,
   taskStatusLabel,
 } from "../../helpers";
 import {
@@ -25,17 +25,17 @@ export function isTaskFavoriteByState(task, taskFavorites) {
   return !!taskFavorites?.[key];
 }
 
-export function buildTaskVisualStatus(task, t, taskRenderStateByTaskId, resolveTaskAutoRenderState) {
-  const autoState = resolveTaskAutoRenderState(task, taskRenderStateByTaskId);
-  if (autoState) {
+export function buildTaskVisualStatus(task, t, taskRenderStateByTaskId, resolveTaskVisualStatus) {
+  const visualStatus = resolveTaskVisualStatus(task, taskRenderStateByTaskId);
+  if (visualStatus) {
     return {
-      label: taskAutoRenderStateLabel(t, autoState),
-      className: `uu-msg ${taskAutoRenderStateLevel(autoState)}`,
+      label: taskVisualStatusLabel(t, visualStatus),
+      className: `uu-chip chip-on ${taskVisualStatusClass(visualStatus)}`,
     };
   }
   return {
     label: taskStatusLabel(t, task?.status),
-    className: "uu-msg info",
+    className: "uu-chip chip-on status-planned",
   };
 }
 

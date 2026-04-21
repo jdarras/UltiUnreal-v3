@@ -89,6 +89,8 @@ function buildQueueOutput({ queue = {}, preferences = {} } = {}) {
     queueStateSummary: queue.queueStateSummary,
     queueSortKey: preferences.queueSortKey,
     queueSortDir: preferences.queueSortDir,
+    queueRuntimeMode: preferences.queueRuntimeMode,
+    setQueueRuntimeMode: preferences.setQueueRuntimeMode,
     queueSortIndicator: queue.queueSortIndicator,
     canLaunchRenders: queue.canLaunchRenders,
     queueEntryWorkerLabel: queue.queueEntryWorkerLabel,

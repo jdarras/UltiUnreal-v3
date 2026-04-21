@@ -10,11 +10,45 @@ export function resolveAutoRenderContext({
   autoRenderFormId = "",
   taskSequenceName = "",
 } = {}) {
+  const extractPresetNameFromPath = (rawPath) => {
+    const pathValue = String(rawPath || "").trim();
+    if (!pathValue) return "";
+    const normalized = pathValue.replace(/\\/g, "/");
+    const tail = normalized.split("/").filter(Boolean).pop() || normalized;
+    if (!tail) return "";
+    if (tail.includes(".")) {
+      const parts = tail.split(".");
+      return String(parts[parts.length - 1] || "").trim();
+    }
+    return String(tail).trim();
+  };
+  const selectedFormWrcFiles = Array.isArray(selectedForm?.wrcFiles)
+    ? selectedForm.wrcFiles
+    : (Array.isArray(selectedForm?.wrc_files) ? selectedForm.wrc_files : []);
+  const effectiveWrcPresetPath = (() => {
+    const explicitPath = String(
+      selectedForm?.presetPath
+      || selectedForm?.preset_path
+      || ""
+    ).trim();
+    if (explicitPath) return explicitPath;
+    for (const entry of selectedFormWrcFiles) {
+      const candidate = String(entry || "").trim();
+      if (!candidate) continue;
+      return candidate;
+    }
+    return "";
+  })();
+  const explicitWrcPresetName = String(
+    selectedForm?.presetName
+    || selectedForm?.preset_name
+    || ""
+  ).trim();
+  const effectiveWrcPresetName = explicitWrcPresetName || extractPresetNameFromPath(effectiveWrcPresetPath);
   const formProjectRef = String(selectedAutoRenderProjectRef || selectedForm?.projectName || "").trim();
   const effectiveMapName = String(selectedForm?.mapName || selectedAutoRenderTemplate?.mapName || "").trim();
   const effectiveSequenceName = String(taskSequenceName || selectedAutoRenderTemplate?.sequenceName || "").trim();
   const effectiveOutputProfile = String(selectedAutoRenderTemplate?.outputProfile || selectedForm?.outputProfile || "").trim();
-  const effectiveWrcPresetName = String(selectedForm?.presetName || "").trim();
   const effectiveRenderPresetName = String(selectedAutoRenderTemplate?.presetName || "").trim();
   const requestedStationRaw = String(autoRenderWorkerKey || "").trim().toLowerCase();
   let renderStation = "local";
@@ -54,6 +88,7 @@ export function resolveAutoRenderContext({
     effectiveSequenceName,
     effectiveOutputProfile,
     effectiveWrcPresetName,
+    effectiveWrcPresetPath,
     effectiveRenderPresetName,
     effectiveWorkerKey,
     renderStation,

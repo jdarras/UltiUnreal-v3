@@ -90,6 +90,56 @@ export async function runLocalProcess({
   return await window.electron.runProcess(payload);
 }
 
+export async function spawnDetachedRender({ command = '', args = [], cwd = '', pidTag = '' } = {}) {
+  if (typeof window.electron?.runProcess !== 'function') {
+    return { ok: false, error: 'run_process_unavailable' };
+  }
+  return await window.electron.runProcess({
+    command: String(command || '').trim(),
+    args: Array.isArray(args) ? args : [],
+    cwd: String(cwd || '').trim(),
+    detached: true,
+    pidTag: String(pidTag || '').trim(),
+  });
+}
+
+export async function checkPidAlive(pid) {
+  if (typeof window.electron?.checkPidAlive !== 'function') return { alive: false };
+  return await window.electron.checkPidAlive(pid);
+}
+
+export async function checkFileExists(filePath) {
+  if (typeof window.electron?.checkFileExists !== 'function') return { exists: false };
+  return await window.electron.checkFileExists(filePath);
+}
+
+export async function findRenderOutputs({
+  rootDir = '',
+  minMtimeMs = 0,
+  maxDepth = 4,
+  limit = 200,
+} = {}) {
+  if (typeof window.electron?.findRenderOutputs !== 'function') {
+    return { ok: false, error: 'find_render_outputs_unavailable', files: [] };
+  }
+  return await window.electron.findRenderOutputs({
+    rootDir: String(rootDir || '').trim(),
+    minMtimeMs: Number.isFinite(Number(minMtimeMs)) ? Number(minMtimeMs) : 0,
+    maxDepth: Number.isFinite(Number(maxDepth)) ? Math.max(1, Math.trunc(Number(maxDepth))) : 4,
+    limit: Number.isFinite(Number(limit)) ? Math.max(1, Math.trunc(Number(limit))) : 200,
+  });
+}
+
+export async function readRenderPid(pidTag) {
+  if (typeof window.electron?.readRenderPid !== 'function') return { pid: null };
+  return await window.electron.readRenderPid(pidTag);
+}
+
+export async function deleteRenderPid(pidTag) {
+  if (typeof window.electron?.deleteRenderPid !== 'function') return { ok: false };
+  return await window.electron.deleteRenderPid(pidTag);
+}
+
 async function httpGet(path, timeoutMs = 5000) {
   const url = getBase() + ensureLeadingSlash(path);
   if (window.electron?.httpGet) {
@@ -393,6 +443,11 @@ export async function installProjectRenderBridge(projectId) {
 /** Écritures utiles */
 export async function postCommon(patch = {}) {
   return await httpPost('/agent/common', patch);
+}
+
+export async function postprodRegenerateAllProxies(body = {}, timeoutMs = 15 * 60 * 1000) {
+  const payload = body && typeof body === 'object' ? body : {};
+  return await httpPost('/agent/postprod/proxy/regenerate-all', payload, timeoutMs);
 }
 
 export async function postProjects(body = {}) {
@@ -809,6 +864,21 @@ export async function postprodGetRenderHealthAuditMaintenance(token = '', timeou
   });
   if (!res.ok) throw toRequestError(res);
   return res.json || { ok: true, maintenance: null };
+}
+
+export async function postprodPurgeAudit(token = '', timeoutMs = 12000) {
+  const authToken = assertPostprodToken(token);
+  const res = await httpRequest('/agent/postprod/audit/purge', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: {},
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true, purge: null };
 }
 
 export async function postprodPurgeRenderHealthAudit(token = '', timeoutMs = 12000) {
@@ -1830,6 +1900,21 @@ export async function postprodCreateRender(token = '', payload = {}, timeoutMs =
   return res.json || { ok: true };
 }
 
+export async function postprodReserveRenderId(token = '', timeoutMs = 8000) {
+  const authToken = assertPostprodToken(token);
+  const res = await httpRequest('/agent/postprod/renders/reserve-id', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: {},
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true, reservedRenderId: 0 };
+}
+
 export async function postprodTransitionRender(token = '', renderId, payload = {}, timeoutMs = 8000) {
   const authToken = assertPostprodToken(token);
   const idNum = Number(renderId);
@@ -1880,6 +1965,36 @@ export async function postprodScheduleRenderJob(token = '', renderId = 0, payloa
   }
   const body = payload && typeof payload === 'object' ? payload : {};
   const res = await httpRequest(`/agent/postprod/renders/${Math.trunc(idNum)}/schedule`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body,
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true };
+}
+
+export async function postprodUpdateRenderExportDestinations(
+  token = '',
+  renderId = 0,
+  exportDestinationIds = [],
+  timeoutMs = 6000
+) {
+  const authToken = assertPostprodToken(token);
+  const idNum = Number(renderId);
+  if (!Number.isFinite(idNum) || idNum <= 0) {
+    const err = new Error('invalid_render_id');
+    err.code = 'invalid_render_id';
+    err.status = 400;
+    throw err;
+  }
+  const body = {
+    exportDestinationIds: Array.isArray(exportDestinationIds) ? exportDestinationIds : [],
+  };
+  const res = await httpRequest(`/agent/postprod/renders/${Math.trunc(idNum)}/export-destinations`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',

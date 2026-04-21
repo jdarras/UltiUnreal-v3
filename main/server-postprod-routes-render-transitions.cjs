@@ -1,3 +1,155 @@
+const path = require('path');
+const {
+  generateProxy,
+  generateThumbnail,
+  resolveFfmpegPath,
+} = require('./server-postprod-ffmpeg.cjs');
+
+const PROXY_RESOLUTION_ALLOWED = new Set([25, 50, 75]);
+const PROXY_CRF_ALLOWED = new Set([18, 23, 28]);
+
+function parsePayloadJsonSafe(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  const raw = String(value || '').trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeProxyResolution(value) {
+  const parsed = Number(value);
+  const normalized = Number.isFinite(parsed) ? Math.trunc(parsed) : 50;
+  return PROXY_RESOLUTION_ALLOWED.has(normalized) ? normalized : 50;
+}
+
+function normalizeProxyCrf(value) {
+  const parsed = Number(value);
+  const normalized = Number.isFinite(parsed) ? Math.trunc(parsed) : 23;
+  return PROXY_CRF_ALLOWED.has(normalized) ? normalized : 23;
+}
+
+function logLineSafe(logLine, payload) {
+  if (typeof logLine !== 'function') return;
+  try { logLine(payload); } catch {}
+}
+
+function scheduleProxyGenerationForDoneRender({
+  renderId,
+  stmts,
+  readCommonServerConfigFile,
+  commonServerFile,
+  nowIso,
+  logLine,
+}) {
+  setImmediate(async () => {
+    try {
+      if (!stmts?.findRenderJobById || !stmts?.updateRenderJobPayload || typeof nowIso !== 'function') return;
+      if (!resolveFfmpegPath()) {
+        logLineSafe(logLine, {
+          level: 'warn',
+          src: 'ffmpeg',
+          action: 'proxy_generation_skipped',
+          message: 'ffmpeg_not_found',
+          data: { renderId },
+        });
+        return;
+      }
+
+      const job = stmts.findRenderJobById.get(renderId);
+      if (!job?.output_path) return;
+
+      const common = typeof readCommonServerConfigFile === 'function'
+        ? (readCommonServerConfigFile(commonServerFile) || {})
+        : {};
+      const proxyEnabled = (common?.proxyEnabled === true) || (common?.proxy_enabled === true);
+      if (!proxyEnabled) return;
+
+      const resolutionPercent = normalizeProxyResolution(
+        common?.proxyResolution ?? common?.proxy_resolution ?? 50
+      );
+      const qualityCrf = normalizeProxyCrf(
+        common?.proxyCrf ?? common?.proxy_crf ?? 23
+      );
+      const outputPath = String(job.output_path || '').trim();
+      if (!outputPath) return;
+      const jobDir = path.dirname(outputPath);
+
+      const thumbResult = await generateThumbnail({
+        outputPath,
+        destDir: jobDir,
+        resolutionPercent,
+        logLine,
+      });
+      const proxyResult = await generateProxy({
+        outputPath,
+        destDir: jobDir,
+        resolutionPercent,
+        qualityCrf,
+        logLine,
+      });
+
+      if (!proxyResult?.ok) {
+        logLineSafe(logLine, {
+          level: 'warn',
+          src: 'ffmpeg',
+          action: 'proxy_generation_failed',
+          message: String(proxyResult?.error || 'proxy_generation_failed'),
+          data: { renderId, outputPath },
+        });
+        return;
+      }
+
+      const latestJob = stmts.findRenderJobById.get(renderId);
+      const existingPayload = parsePayloadJsonSafe(latestJob?.payload_json || '{}');
+      const updatedPayload = {
+        ...existingPayload,
+        proxyPath: String(proxyResult?.proxyPath || '').trim() || null,
+        alphaPath: String(proxyResult?.alphaPath || '').trim() || null,
+        thumbPath: thumbResult?.ok
+          ? (String(thumbResult?.thumbPath || '').trim() || null)
+          : null,
+        proxyWidth: Number.isFinite(Number(proxyResult?.width)) ? Math.trunc(Number(proxyResult.width)) : 0,
+        proxyHeight: Number.isFinite(Number(proxyResult?.height)) ? Math.trunc(Number(proxyResult.height)) : 0,
+        proxyTotalFrames: Number.isFinite(Number(proxyResult?.totalFrames))
+          ? Math.trunc(Number(proxyResult.totalFrames))
+          : 0,
+        proxyFrameRate: Number.isFinite(Number(proxyResult?.frameRate))
+          ? Number(proxyResult.frameRate)
+          : 0,
+      };
+      stmts.updateRenderJobPayload.run(
+        JSON.stringify(updatedPayload),
+        nowIso(),
+        renderId
+      );
+
+      logLineSafe(logLine, {
+        level: 'info',
+        src: 'ffmpeg',
+        action: 'proxy_generation_done',
+        message: 'proxy_generated',
+        data: {
+          renderId,
+          proxyPath: updatedPayload.proxyPath,
+          thumbPath: updatedPayload.thumbPath,
+        },
+      });
+    } catch (err) {
+      logLineSafe(logLine, {
+        level: 'error',
+        src: 'ffmpeg',
+        action: 'proxy_generation_failed',
+        message: String(err?.message || err),
+        data: { renderId },
+      });
+    }
+  });
+}
+
 async function handlePostprodRenderTransitionRoutes({
   req,
   res,
@@ -25,6 +177,9 @@ async function handlePostprodRenderTransitionRoutes({
   SYSTEM_MAINTENANCE_ROLE,
   canRenderValidate,
   buildRenderJobEventPayload,
+  readCommonServerConfigFile,
+  commonServerFile,
+  logLine,
 }) {
   const renderWorkerCompleteMatch = /^\/agent\/postprod\/renders\/(\d+)\/worker-complete$/.exec(pathname);
   if (renderWorkerCompleteMatch) {
@@ -141,6 +296,16 @@ async function handlePostprodRenderTransitionRoutes({
       'render',
       String(renderId)
     );
+    if (toStatus === 'Done') {
+      scheduleProxyGenerationForDoneRender({
+        renderId,
+        stmts,
+        readCommonServerConfigFile,
+        commonServerFile,
+        nowIso,
+        logLine,
+      });
+    }
     sendJSON(res, 200, { ok: true, render: buildRenderJobPayload(updated) });
     return true;
   }
@@ -250,6 +415,16 @@ async function handlePostprodRenderTransitionRoutes({
       'render',
       String(renderId)
     );
+    if (next.toStatus === 'Done') {
+      scheduleProxyGenerationForDoneRender({
+        renderId,
+        stmts,
+        readCommonServerConfigFile,
+        commonServerFile,
+        nowIso,
+        logLine,
+      });
+    }
     sendJSON(res, 200, { ok: true, render: buildRenderJobPayload(updated) });
     return true;
   }

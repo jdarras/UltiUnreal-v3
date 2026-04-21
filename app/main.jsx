@@ -53,6 +53,7 @@ import {
   postprodListUserActivity,
   postprodListMyActivity,
   postprodListAudit,
+  postprodPurgeAudit,
   postprodGetRenderHealthAuditMaintenance,
   postprodPurgeRenderHealthAudit,
   postprodExportAuditCsv,
@@ -92,7 +93,9 @@ import {
   postprodReplaceRenderFormFields,
   postprodGetHealth,
   postprodCreateRender,
+  postprodReserveRenderId,
   postprodScheduleRenderJob,
+  postprodUpdateRenderExportDestinations,
   postprodDeleteRenderJob,
   postprodReorderRenderJobs,
   postprodTransitionRender,
@@ -103,7 +106,14 @@ import {
   postprodCompleteRenderWorkerJob,
   postprodPatchRenderWorkerAptitude,
   postprodListRenderTransitions,
+  postprodRegenerateAllProxies,
   runLocalProcess,
+  spawnDetachedRender,
+  checkPidAlive,
+  checkFileExists,
+  findRenderOutputs,
+  readRenderPid,
+  deleteRenderPid,
   getOnlineMap,
 } from "./utils/agent";
 
@@ -118,6 +128,7 @@ const LS_SYNC_KEY = 'uu_client_syncEnabled';
 const LS_POSTPROD_AUTH_KEY = 'uu_postprod_auth';
 const LS_POSTPROD_OFFLINE_OUTBOX_KEY = 'uu_postprod_offline_outbox_v1';
 const LS_POSTPROD_WORKER_COMPLETION_OUTBOX_KEY = 'uu_postprod_worker_completion_outbox_v1';
+const LS_POSTPROD_RENDERS_QUEUE_RUNTIME_MODE_KEY = 'uu_postprod_renders_validation_queue_runtime_mode';
 const MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS = 100;
 const MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS = 200;
 const POSTPROD_OFFLINE_REPLAY_MIN_INTERVAL_MS = 15000;
@@ -194,6 +205,34 @@ function mapTaskResourceOptions(payload = {}) {
       };
     })
   );
+}
+
+function mapRenderExportDestinationOptions(commonCfg = {}, unnamedLabel = "") {
+  const entries = Array.isArray(commonCfg?.renderExportDestinations)
+    ? commonCfg.renderExportDestinations
+    : (
+      Array.isArray(commonCfg?.render_export_destinations)
+        ? commonCfg.render_export_destinations
+        : []
+    );
+  const out = [];
+  const seen = new Set();
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") continue;
+    if (entry.isActive === false) continue;
+    const id = String(entry?.id || "").trim().toLowerCase();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const rawLabel = String(entry?.name || entry?.label || "").trim();
+    const looksTechnicalId = /^dest-\d+$/i.test(rawLabel || id);
+    const fallbackLabel = String(unnamedLabel || "").trim();
+    const label = rawLabel && !looksTechnicalId
+      ? rawLabel
+      : (fallbackLabel || id);
+    out.push({ value: id, label });
+  }
+  out.sort((a, b) => String(a.label || "").localeCompare(String(b.label || "")));
+  return out;
 }
 
 function getPostprodTabsForUser(
@@ -273,6 +312,15 @@ function readPostprodAuth() {
     };
   } catch {
     return { token: '', user: null, expiresAt: '' };
+  }
+}
+
+function isPostprodQueueRuntimeActive() {
+  try {
+    const raw = String(localStorage.getItem(LS_POSTPROD_RENDERS_QUEUE_RUNTIME_MODE_KEY) || "").trim().toLowerCase();
+    return raw !== "paused";
+  } catch {
+    return true;
   }
 }
 
@@ -748,6 +796,12 @@ function replaceProcessTemplateVars(input = '', context = {}) {
   });
 }
 
+function hasProcessTemplateToken(value = '') {
+  const input = String(value || '');
+  if (!input) return false;
+  return /\{\{\s*[a-zA-Z0-9_]+\s*\}\}|%[a-zA-Z0-9_]+%/.test(input);
+}
+
 function encodeBase64Utf8(value = '') {
   const source = String(value == null ? '' : value);
   if (!source) return '';
@@ -776,6 +830,81 @@ function ensureRenderOutputExt(fileName = '', fallbackExt = '.mov') {
   if (/[\\/]\s*$/.test(raw)) return raw;
   if (/\.[a-z0-9]{2,6}$/i.test(raw)) return raw;
   return `${raw}${String(fallbackExt || '.mov')}`;
+}
+
+const RENDER_OUTPUT_VIDEO_EXTS = ['.mp4', '.mov', '.mxf', '.avi', '.webm', '.mkv'];
+const RENDER_OUTPUT_IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.exr', '.tga', '.bmp', '.dpx', '.hdr'];
+const RENDER_OUTPUT_ALL_EXTS = [...RENDER_OUTPUT_VIDEO_EXTS, ...RENDER_OUTPUT_IMAGE_EXTS];
+
+function getRenderPathExtension(filePath = '') {
+  const raw = String(filePath || '').trim();
+  if (!raw) return '';
+  const clean = raw.replace(/[\\/]+$/g, '');
+  const fileName = clean.split(/[\\/]/).pop() || clean;
+  const idx = fileName.lastIndexOf('.');
+  if (idx <= 0) return '';
+  return fileName.slice(idx).toLowerCase();
+}
+
+function replaceRenderPathExtension(filePath = '', nextExt = '') {
+  const raw = String(filePath || '').trim();
+  const ext = String(nextExt || '').trim().toLowerCase();
+  if (!raw || !ext) return raw;
+  const slashIdx = Math.max(raw.lastIndexOf('/'), raw.lastIndexOf('\\'));
+  const head = slashIdx >= 0 ? raw.slice(0, slashIdx + 1) : '';
+  const tail = slashIdx >= 0 ? raw.slice(slashIdx + 1) : raw;
+  const dotIdx = tail.lastIndexOf('.');
+  const base = dotIdx > 0 ? tail.slice(0, dotIdx) : tail;
+  return `${head}${base}${ext}`;
+}
+
+function inferExpectedRenderOutputExt(outputProfile = '') {
+  const profile = String(outputProfile || '').trim().toLowerCase();
+  if (!profile) return '.mov';
+  if (profile.includes('h264') || profile.includes('h265') || profile.includes('hevc') || profile.includes('mp4')) {
+    return '.mp4';
+  }
+  if (profile.includes('mxf') || profile.includes('dnxhd') || profile.includes('dnxhr')) {
+    return '.mxf';
+  }
+  if (profile.includes('avi')) return '.avi';
+  if (profile.includes('webm')) return '.webm';
+  if (profile.includes('jpg') || profile.includes('jpeg')) return '.jpg';
+  if (profile.includes('exr')) return '.exr';
+  if (profile.includes('png')) return '.png';
+  return '.mov';
+}
+
+function isLikelyRenderOutputMedia(filePath = '') {
+  const ext = getRenderPathExtension(filePath);
+  return RENDER_OUTPUT_ALL_EXTS.includes(ext);
+}
+
+function buildRenderOutputPathCandidates(filePath = '') {
+  const raw = String(filePath || '').trim();
+  if (!raw) return [];
+  const out = [];
+  const seen = new Set();
+  const push = (value) => {
+    const next = String(value || '').trim();
+    if (!next) return;
+    const key = next.replace(/\\/g, '/').toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(next);
+  };
+  push(raw);
+  const currentExt = getRenderPathExtension(raw);
+  if (currentExt) {
+    for (const altExt of RENDER_OUTPUT_ALL_EXTS) {
+      push(replaceRenderPathExtension(raw, altExt));
+    }
+  } else {
+    for (const ext of RENDER_OUTPUT_ALL_EXTS) {
+      push(`${raw}${ext}`);
+    }
+  }
+  return out;
 }
 
 function joinRenderOutputPath(baseDir = '', fileName = '') {
@@ -814,6 +943,54 @@ function normalizeUnrealPresetName(rawPreset = '') {
   return String(tail || input).trim();
 }
 
+function normalizeBooleanFlag(value, fallback = false) {
+  if (value === true) return true;
+  if (value === false) return false;
+  if (typeof value === 'number') return value !== 0;
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return fallback === true;
+  if (raw === 'true' || raw === '1' || raw === 'yes' || raw === 'on') return true;
+  if (raw === 'false' || raw === '0' || raw === 'no' || raw === 'off') return false;
+  return fallback === true;
+}
+
+function withJobContextProcessArgs(execution = null, hasFormData = false) {
+  if (!execution || typeof execution !== 'object' || Array.isArray(execution)) return null;
+  const args = Array.isArray(execution.args) ? [...execution.args] : [];
+  const hasJobB64 = args.some((a) => String(a || '').toLowerCase().includes('renderjobb64'));
+  const hasFormB64 = args.some((a) => String(a || '').toLowerCase().includes('formdatab64'));
+  const hasOutputDir = args.some((a) => String(a || '').toLowerCase().includes('uurenderoutputdir'));
+  const hasMovieFolder = args.some((a) => String(a || '').toLowerCase().includes('moviefolder'));
+  const hasMovieName = args.some((a) => String(a || '').toLowerCase().includes('moviename'));
+  if (!hasJobB64) args.push('-UURenderJobB64={{renderjobb64}}');
+  if (hasFormData && !hasFormB64) args.push('-UURenderFormDataB64={{formdatab64}}');
+  if (!hasMovieFolder) args.push('-MovieFolder={{outputdir}}');
+  if (!hasMovieName) args.push('-MovieName={{expectedrendername}}');
+  if (!hasOutputDir) args.push('-UURenderOutputDir={{outputdir}}');
+  return { ...execution, args };
+}
+
+function withRenderOffscreenProcessArgs(execution = null, renderOffscreen = false) {
+  if (!execution || typeof execution !== 'object' || Array.isArray(execution)) return null;
+  const offscreen = normalizeBooleanFlag(renderOffscreen, false);
+  const cloned = {
+    ...execution,
+    renderOffscreen: offscreen,
+  };
+  const args = Array.isArray(execution?.args) ? execution.args : [];
+  if (args.length <= 0) {
+    if (offscreen) cloned.args = ['-RenderOffscreen'];
+    return cloned;
+  }
+  const nextArgs = args
+    .map((arg) => String(arg || '').trim())
+    .filter(Boolean)
+    .filter((arg) => String(arg || '').trim().toLowerCase() !== '-renderoffscreen');
+  if (offscreen) nextArgs.push('-RenderOffscreen');
+  cloned.args = nextArgs;
+  return cloned;
+}
+
 function buildRenderProcessTemplateContext({
   render = null,
   payload = null,
@@ -834,7 +1011,8 @@ function buildRenderProcessTemplateContext({
     renderObj?.matchedExpectedRenderName ||
     fallbackExpectedName
   ).trim();
-  const expectedRenderName = ensureRenderOutputExt(expectedRenderNameRaw, '.mov');
+  const expectedExt = inferExpectedRenderOutputExt(payloadObj?.outputProfile || '');
+  const expectedRenderName = ensureRenderOutputExt(expectedRenderNameRaw, expectedExt);
   const outputDir = String(
     payloadObj?.outputDir ||
     payloadObj?.renderOutputDir ||
@@ -861,23 +1039,49 @@ function buildRenderProcessTemplateContext({
     payloadObj?.outputPath ||
     ''
   ).trim();
-  const outputPath = outputPathRaw
+  const outputPathFallback = joinRenderOutputPath(outputDir, expectedRenderName || fallbackExpectedName);
+  const outputPath = outputPathRaw && !hasProcessTemplateToken(outputPathRaw)
     ? outputPathRaw
-    : joinRenderOutputPath(outputDir, expectedRenderName || fallbackExpectedName);
+    : outputPathFallback;
   const workerLogPath = outputDir
-    ? joinRenderOutputPath(outputDir, `uu-worker-render-${renderId > 0 ? renderId : 'latest'}.log`)
+    ? joinRenderOutputPath(joinRenderOutputPath(outputDir, 'logs'), `uu-worker-render-${renderId > 0 ? renderId : 'latest'}.log`)
     : '';
-  const presetNameRaw = String(
-    payloadObj?.presetName
-    || payloadObj?.renderModeName
-    || renderObj?.templateName
-    || ''
-  ).trim();
-  const presetName = normalizeUnrealPresetName(presetNameRaw) || presetNameRaw;
-  const presetPath = presetNameRaw.startsWith('/') ? presetNameRaw : '';
   const formDataObject = payloadObj?.formData && typeof payloadObj.formData === 'object' && !Array.isArray(payloadObj.formData)
     ? payloadObj.formData
     : {};
+  const hasFormData = Object.keys(formDataObject).length > 0;
+  const payloadWrcFiles = Array.isArray(payloadObj?.wrcFiles)
+    ? payloadObj.wrcFiles
+    : (Array.isArray(payloadObj?.wrc_files) ? payloadObj.wrc_files : []);
+  const fallbackWrcPresetPath = payloadWrcFiles
+    .map((entry) => String(entry || '').trim())
+    .find(Boolean) || '';
+  const presetPathRaw = String(
+    payloadObj?.presetPath
+    || payloadObj?.preset_path
+    || executionObj?.presetPath
+    || executionObj?.preset_path
+    || fallbackWrcPresetPath
+    || ''
+  ).trim();
+  const explicitPresetNameRaw = String(
+    payloadObj?.presetName
+    || payloadObj?.wrcPresetName
+    || executionObj?.presetName
+    || ''
+  ).trim();
+  const legacyPresetFallback = hasFormData
+    ? ''
+    : String(
+      payloadObj?.renderModeName
+      || renderObj?.templateName
+      || ''
+    ).trim();
+  const presetNameRaw = explicitPresetNameRaw
+    || normalizeUnrealPresetName(presetPathRaw)
+    || legacyPresetFallback;
+  const presetName = normalizeUnrealPresetName(presetNameRaw) || presetNameRaw;
+  const presetPath = presetPathRaw.startsWith('/') ? presetPathRaw : '';
   let formDataJson = '';
   try {
     formDataJson = JSON.stringify(formDataObject || {});
@@ -961,6 +1165,7 @@ function buildDefaultUnrealProcessExecution({
   presetName = '',
   formData = null,
   textValue = '',
+  renderOffscreen = false,
 } = {}) {
   const safeMapName = normalizeUnrealMapLaunchArg(mapName);
   const safeSequenceName = String(sequenceName || '').trim();
@@ -973,6 +1178,7 @@ function buildDefaultUnrealProcessExecution({
     ? formData
     : {};
   const safeTextValue = String(textValue || '').trim();
+  const offscreenEnabled = normalizeBooleanFlag(renderOffscreen, false);
   const hasFormData = Object.keys(safeFormData).length > 0;
 
   const args = [
@@ -992,21 +1198,25 @@ function buildDefaultUnrealProcessExecution({
   );
   if (safeSequenceName) args.push('-LevelSequence={{sequencename}}');
   if (safeOutputProfile) args.push('-MoviePipelineConfig={{outputprofile}}');
-  if (safeOutputDir) args.push('-UURenderOutputDir={{outputdir}}');
+  args.push('-MovieFolder={{outputdir}}');
+  args.push('-MovieName={{expectedrendername}}');
+  args.push('-UURenderOutputDir={{outputdir}}');
   args.push('-Abslog={{workerlogpath}}');
   if (safePresetName) args.push('-UURenderPreset={{presetname}}');
   if (safePresetPath) args.push('-UURenderPresetPath={{presetpath}}');
   if (hasFormData) args.push('-UURenderFormDataB64={{formdatab64}}');
   args.push('-UURenderJobB64={{renderjobb64}}');
   if (safeTextValue) args.push('-UUTextValue={{textvalue}}');
+  if (offscreenEnabled) args.push('-RenderOffscreen');
 
   return {
     mode: 'process',
     command: '{{unrealeditorpath}}',
     commandFallback: 'UnrealEditor.exe',
     args,
+    renderOffscreen: offscreenEnabled,
     timeoutMs: 4 * 60 * 60 * 1000,
-    outputPath: '{{outputpath}}',
+    outputPath: '',
   };
 }
 
@@ -1033,18 +1243,19 @@ function buildWorkerCompletionReplayPayload(basePayload = {}, render = null, wor
 
   if (success) {
     const fallbackRenderId = Number(job?.id || 0);
-    const outputPath = String(
+    const outputPathRaw = String(
       rawPayload?.outputPath ||
       job?.outputPath ||
       jobExecution?.outputPath ||
       jobPayload?.outputPath ||
       (fallbackRenderId > 0 ? `renders/render-${fallbackRenderId}.mov` : '')
     ).trim();
+    const outputPath = hasProcessTemplateToken(outputPathRaw) ? '' : outputPathRaw;
     return {
       ...rawPayload,
       workerKey: normalizedWorkerKey,
       success: true,
-      outputPath,
+      outputPath: outputPath || (fallbackRenderId > 0 ? `renders/render-${fallbackRenderId}.mov` : ''),
       errorMessage: '',
       comment: String(rawPayload?.comment || '').trim() || 'worker_offline_replay_done',
     };
@@ -1407,6 +1618,7 @@ function App() {
     error: '',
   });
   const [postprodTaskFocusRequest, setPostprodTaskFocusRequest] = useState(null);
+  const [postprodRenderFormFocusRequest, setPostprodRenderFormFocusRequest] = useState(null);
   const [postprodEditUserRequest, setPostprodEditUserRequest] = useState(null);
   const [postprodProjects, setPostprodProjects] = useState({
     items: [],
@@ -1471,6 +1683,7 @@ function App() {
     page: 1,
     pageSize: 100,
     hasMore: false,
+    auditLogStore: null,
     filters: {
       actorUserId: null,
       action: '',
@@ -1497,6 +1710,7 @@ function App() {
   const [datasTabKey, setDatasTabKey] = useState(0);
   const [quitDialogOpen, setQuitDialogOpen] = useState(false);
   const [aptitudeCheckPending, setAptitudeCheckPending] = useState(null);
+  const [queuePausedLaunchPending, setQueuePausedLaunchPending] = useState(null);
   const [resourcesRefreshKey, setResourcesRefreshKey] = useState(0);
   const [postprodTaskFormOpen, setPostprodTaskFormOpen] = useState(false);
   const [postprodUserEditorOpen, setPostprodUserEditorOpen] = useState(false);
@@ -1521,6 +1735,8 @@ function App() {
   const postprodWorkerCompletionReplayInFlightRef = useRef(false);
   const postprodOfflineReplayLastKickRef = useRef(0);
   const postprodWorkerCompletionReplayLastKickRef = useRef(0);
+  const postprodAutoDispatchLastKickRef = useRef(0);
+  const postprodRendersRequestSeqRef = useRef(0);
   const postprodAgentBootRef = useRef({ started: false, port: '' });
   const postprodWrcCacheNoticeRef = useRef({});
   const handleCommonUpdated = React.useCallback((next) => {
@@ -1840,6 +2056,34 @@ function App() {
   const licenseOk = licenseStatus && licenseStatus.ok === true;
 
   const logsNavAlert = useMemo(() => {
+    if (appMode === APP_MODE_POSTPROD) {
+      const store = postprodAudit?.auditLogStore && typeof postprodAudit.auditLogStore === 'object'
+        ? postprodAudit.auditLogStore
+        : null;
+      const count = Number(store?.count || 0);
+      const warnAt = Number(store?.warnAt || 1500);
+      const hardLimit = Number(store?.hardLimit || 2000);
+      const saturated = !!store?.saturated || (Number.isFinite(hardLimit) && hardLimit > 0 && count >= hardLimit);
+      const warnReached = !!store?.warnReached
+        || saturated
+        || (Number.isFinite(warnAt) && warnAt > 0 && count >= warnAt);
+      if (saturated) {
+        return {
+          level: 'error',
+          tooltip: t('postprod.audit.store.saturated'),
+          entries: [],
+        };
+      }
+      if (warnReached) {
+        return {
+          level: 'warn',
+          tooltip: t('postprod.audit.store.warn'),
+          entries: [],
+        };
+      }
+      return { level: '', tooltip: '', entries: [] };
+    }
+
     const items = Array.isArray(logsStorageSummary?.items) ? logsStorageSummary.items : [];
     const warnItems = [];
     const saturatedItems = [];
@@ -1879,7 +2123,7 @@ function App() {
         ...warnItems.map((it) => ({ ...it, __state: 'warn' })),
       ],
     };
-  }, [logsStorageSummary, t]);
+  }, [appMode, logsStorageSummary, postprodAudit?.auditLogStore, t]);
 
   useEffect(() => {
     if (showWelcome || showLicense) return;
@@ -2244,6 +2488,15 @@ function App() {
   const handlePostprodTaskFocusHandled = React.useCallback(() => {
     setPostprodTaskFocusRequest(null);
   }, []);
+  const handlePostprodRenderFormFocusHandled = React.useCallback(() => {
+    setPostprodRenderFormFocusRequest(null);
+  }, []);
+  const handlePostprodNavigateToRenderForm = React.useCallback((form) => {
+    const formId = Number(form?.id || 0);
+    if (formId <= 0) return;
+    setPostprodRenderFormFocusRequest({ ref: String(formId) });
+    setCurrent("Datas");
+  }, []);
   const handlePostprodEditUserHandled = React.useCallback((reqKey) => {
     setPostprodEditUserRequest(prev => prev?.reqKey === reqKey ? null : prev);
   }, []);
@@ -2317,6 +2570,13 @@ function App() {
     )
     ?? ''
   ).trim();
+  const unnamedRenderDestinationLabel = String(
+    t("postprod.tasks.form.exportDestinations.undefined", "Aucune destination définie")
+  ).trim();
+  const postprodRenderExportDestinationOptions = useMemo(
+    () => mapRenderExportDestinationOptions(commonCfg, unnamedRenderDestinationLabel),
+    [commonCfg, unnamedRenderDestinationLabel]
+  );
   const renderWorkerKey = String(safeIdentity.localIp || '').trim()
     || (postprodAuth.user?.username ? `user:${String(postprodAuth.user.username).trim()}` : '');
   const renderWorkerDisplayName = String(localHostName || safeIdentity.localIp || postprodAuth.user?.username || 'Worker')
@@ -2806,6 +3066,9 @@ function App() {
         : pageSize;
       const hasMore = pagination?.hasMore === true
         || (pageOut * pageSizeOut) < total;
+      const auditLogStore = res?.auditLogStore && typeof res.auditLogStore === 'object'
+        ? res.auditLogStore
+        : null;
       setPostprodAudit({
         entries,
         loading: false,
@@ -2814,6 +3077,7 @@ function App() {
         page: pageOut,
         pageSize: pageSizeOut,
         hasMore,
+        auditLogStore,
         filters: {
           actorUserId: nextActorUserId,
           action: nextAction,
@@ -2923,6 +3187,25 @@ function App() {
       throw e;
     }
   }, [postprodAuth.token, postprodCanManageRoles, showNotice, t]);
+
+  const handlePostprodPurgeAudit = useCallback(async () => {
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return;
+    if (!postprodCanManageRoles) return;
+    try {
+      const res = await postprodPurgeAudit(token);
+      const deletedCount = Math.max(0, Math.trunc(Number(res?.purge?.deleted || 0)));
+      showNotice(
+        deletedCount > 0
+          ? t('postprod.audit.purge.successCount', { count: deletedCount })
+          : t('postprod.audit.purge.successEmpty'),
+        deletedCount > 0 ? 'ok' : 'info'
+      );
+      await loadPostprodAudit?.({ page: 1 });
+    } catch {
+      showNotice(t('postprod.audit.purge.error'), 'error');
+    }
+  }, [postprodAuth.token, postprodCanManageRoles, loadPostprodAudit, showNotice, t]);
 
   const collectPostprodAuditEntries = useCallback(async ({
     token = '',
@@ -3592,6 +3875,10 @@ function App() {
   }, [postprodAuth.token, t]);
 
   const loadPostprodRenders = useCallback(async (options = {}) => {
+    const requestSeq = (postprodRendersRequestSeqRef.current || 0) + 1;
+    postprodRendersRequestSeqRef.current = requestSeq;
+    const isLatestRequest = () => requestSeq === postprodRendersRequestSeqRef.current;
+
     const token = String(postprodAuth.token || '').trim();
     const forceScan = options?.forceScan === true;
     const showDetectedNotice = options?.showDetectedNotice === true;
@@ -3599,13 +3886,19 @@ function App() {
     const includeRemote = options?.includeRemote === true
       || (options?.includeRemote !== false && current === 'Rendus');
     if (!token) {
-      setPostprodRenders({ items: [], loading: false, error: '', detectedScan: null });
+      if (isLatestRequest()) {
+        setPostprodRenders({ items: [], loading: false, error: '', detectedScan: null });
+      }
       return;
     }
     if (silent) {
-      setPostprodRenders((prev) => ({ ...prev, error: '' }));
+      if (isLatestRequest()) {
+        setPostprodRenders((prev) => ({ ...prev, error: '' }));
+      }
     } else {
-      setPostprodRenders((prev) => ({ ...prev, loading: true, error: '' }));
+      if (isLatestRequest()) {
+        setPostprodRenders((prev) => ({ ...prev, loading: true, error: '' }));
+      }
     }
     try {
       const res = await postprodListRenders(token, 8000, { scan: forceScan });
@@ -3621,24 +3914,68 @@ function App() {
         : 4000;
       const normalizeStationIp = (value) => String(value || '').trim().toLowerCase();
       const isSameStationIp = (left, right) => normalizeStationIp(left) === normalizeStationIp(right);
-      const localHostName = (Array.isArray(hostsCfg)
-        ? hostsCfg.find((host) => isSameStationIp(host?.ip, localIpNormalized))
-        : null)?.name || '';
+      const hostNameByIp = new Map();
+      if (Array.isArray(hostsCfg)) {
+        for (const host of hostsCfg) {
+          const hostIpKey = normalizeStationIp(host?.ip);
+          const hostName = String(host?.name || '').trim();
+          if (!hostIpKey || !hostName || hostNameByIp.has(hostIpKey)) continue;
+          hostNameByIp.set(hostIpKey, hostName);
+        }
+      }
+      const resolveHostNameByIp = (stationIp = '') => {
+        const key = normalizeStationIp(stationIp);
+        if (!key) return '';
+        return String(hostNameByIp.get(key) || '').trim();
+      };
+      const firstNonEmptyStationName = (values = []) => {
+        for (const value of Array.isArray(values) ? values : []) {
+          const normalized = String(value || '').trim();
+          if (normalized) return normalized;
+        }
+        return '';
+      };
+      const localHostName = resolveHostNameByIp(localIpNormalized);
       const localStationName = String(localHostName || safeIdentity.localIp || 'Local').trim() || 'Local';
       const localStationIp = String(safeIdentity.localIp || '127.0.0.1').trim() || '127.0.0.1';
+      const isLocalStation = (stationIp = '') => (
+        isSameStationIp(stationIp, localStationIp)
+        || isSameStationIp(stationIp, localIpNormalized)
+        || isSameStationIp(stationIp, localIdentityIpNormalized)
+        || normalizeStationIp(stationIp) === 'local'
+      );
+      const resolveDisplayStationName = (item = null, stationIp = '') => {
+        const hostName = resolveHostNameByIp(stationIp);
+        if (hostName) return hostName;
+        const directName = firstNonEmptyStationName([
+          item?.assignedWorkerName,
+          item?.renderStationName,
+          item?.stationName,
+          item?.originStationName,
+        ]);
+        if (directName && normalizeStationIp(directName) !== 'local') return directName;
+        const ipLabel = String(stationIp || '').trim();
+        if (ipLabel && !isLocalStation(ipLabel) && normalizeStationIp(ipLabel) !== 'local') return ipLabel;
+        return localStationName;
+      };
 
-      const localItems = localItemsRaw.map((item) => ({
-        ...item,
-        stationIp: String(item?.stationIp || item?.originStationIp || localStationIp).trim() || localStationIp,
-        stationName: String(
-          item?.stationName
-          || item?.originStationName
-          || item?.renderStationName
-          || localStationName
-        ).trim() || localStationName,
-        stationIsLocal: true,
-        stationIsRemote: false,
-      }));
+      const localItems = localItemsRaw.map((item) => {
+        const stationIp = String(
+          item?.stationIp
+          || item?.renderStation
+          || item?.originStationIp
+          || localStationIp
+        ).trim() || localStationIp;
+        const stationName = resolveDisplayStationName(item, stationIp);
+        const stationIsLocal = isLocalStation(stationIp);
+        return {
+          ...item,
+          stationIp,
+          stationName,
+          stationIsLocal,
+          stationIsRemote: !stationIsLocal,
+        };
+      });
 
       let remoteItems = [];
       if (includeRemote) {
@@ -3669,15 +4006,22 @@ function App() {
               const remoteRes = await postprodListRemoteJobsByStation(hostIp, hostPort, 3000);
               if (!remoteRes?.ok) return [];
               const stationIp = String(remoteRes.stationIp || hostIp).trim() || hostIp;
-              const stationName = String(remoteRes.stationName || host?.name || stationIp).trim() || stationIp;
               const jobs = Array.isArray(remoteRes.jobs) ? remoteRes.jobs : [];
-              return jobs.map((job) => ({
-                ...job,
-                stationIp,
-                stationName,
-                stationIsLocal: false,
-                stationIsRemote: true,
-              }));
+              return jobs.map((job) => {
+                const resolvedStationIp = String(job?.stationIp || job?.renderStation || stationIp).trim() || stationIp;
+                const stationIsLocal = isLocalStation(resolvedStationIp);
+                const stationName = resolveDisplayStationName({
+                  ...job,
+                  stationName: String(host?.name || remoteRes.stationName || job?.stationName || '').trim(),
+                }, resolvedStationIp);
+                return {
+                  ...job,
+                  stationIp: resolvedStationIp,
+                  stationName,
+                  stationIsLocal,
+                  stationIsRemote: !stationIsLocal,
+                };
+              });
             })
           );
           remoteItems = remoteSettled
@@ -3691,10 +4035,184 @@ function App() {
         const rightRaw = Date.parse(String(b?.createdAt || b?.created_at || '').trim());
         const leftTs = Number.isFinite(leftRaw) ? leftRaw : 0;
         const rightTs = Number.isFinite(rightRaw) ? rightRaw : 0;
-        return rightTs - leftTs;
+        if (rightTs !== leftTs) return rightTs - leftTs;
+        const aLocal = a?.stationIsLocal === true ? 1 : 0;
+        const bLocal = b?.stationIsLocal === true ? 1 : 0;
+        if (bLocal !== aLocal) return bLocal - aLocal;
+        const leftId = Number(a?.id || a?.renderId || 0);
+        const rightId = Number(b?.id || b?.renderId || 0);
+        return (Number.isFinite(rightId) ? rightId : 0) - (Number.isFinite(leftId) ? leftId : 0);
       });
 
-      setPostprodRenders({ items: mergedItems, loading: false, error: '', detectedScan });
+      const normalizeOutputKey = (item) => {
+        const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
+          ? item.payload
+          : {};
+        const raw = String(
+          item?.outputPath
+          || item?.output_path
+          || payload?.filePath
+          || payload?.outputPath
+          || ''
+        ).trim();
+        if (!raw) return '';
+        if (/\{\{[^{}]+\}\}/.test(raw)) return '';
+        return raw
+          .replace(/\\/g, '/')
+          .replace(/\/+/g, '/')
+          .toLowerCase();
+      };
+
+      const toPositiveInt = (value) => {
+        const numeric = Number(value || 0);
+        return Number.isFinite(numeric) && numeric > 0 ? Math.trunc(numeric) : 0;
+      };
+
+      const normalizeRenderNameStem = (value) => {
+        const raw = String(value || '').trim();
+        if (!raw || /\{\{[^{}]+\}\}/.test(raw)) return '';
+        const sanitized = raw.replace(/\\/g, '/');
+        const fileName = String(sanitized.split('/').filter(Boolean).pop() || sanitized).trim();
+        if (!fileName) return '';
+        const withoutQuery = fileName.split('?')[0].split('#')[0];
+        return withoutQuery.replace(/\.[a-z0-9]{2,6}$/i, '').trim().toLowerCase();
+      };
+
+      const resolveLinkedTaskId = (item) => {
+        const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
+          ? item.payload
+          : {};
+        return toPositiveInt(item?.linkedTaskId || payload?.taskId);
+      };
+
+      const resolveRenderNameKey = (item) => {
+        const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
+          ? item.payload
+          : {};
+        const candidates = [
+          item?.outputPath,
+          item?.output_path,
+          payload?.filePath,
+          payload?.outputPath,
+          payload?.fileName,
+          item?.matchedExpectedRenderName,
+          payload?.matchedExpectedRenderName,
+          item?.templateName,
+          payload?.templateName,
+        ];
+        for (const candidate of candidates) {
+          const normalized = normalizeRenderNameStem(candidate);
+          if (normalized) return normalized;
+        }
+        return '';
+      };
+
+      const localStationIpKeys = new Set([
+        normalizeStationIp(localStationIp),
+        localIpNormalized,
+        localIdentityIpNormalized,
+      ].filter(Boolean));
+
+      const resolveRemoteRelayIdForLocalOrigin = (item) => {
+        const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
+          ? item.payload
+          : {};
+        const remoteJobId = toPositiveInt(item?.remoteJobId || item?.remote_job_id || payload?.remoteJobId);
+        if (remoteJobId <= 0) return 0;
+        const originStationIp = normalizeStationIp(
+          item?.originStationIp
+          || item?.origin_station_ip
+          || payload?.originStationIp
+        );
+        if (!originStationIp || !localStationIpKeys.has(originStationIp)) return 0;
+        return remoteJobId;
+      };
+
+      const computeItemQuality = (item, outputKey = '') => {
+        const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
+          ? item.payload
+          : {};
+        const statusKey = String(item?.status || '').trim().toLowerCase();
+        const sourceKey = String(payload?.source || '').trim().toLowerCase();
+        const hasProxyMeta = Boolean(
+          String(payload?.proxyPath || '').trim()
+          || String(payload?.thumbPath || '').trim()
+          || String(payload?.alphaPath || '').trim()
+          || Number(payload?.proxyWidth || 0) > 0
+          || Number(payload?.proxyHeight || 0) > 0
+        );
+        let score = 0;
+        if (outputKey) score += 100;
+        if (hasProxyMeta) score += 35;
+        if (statusKey === 'done') score += 10;
+        if (item?.stationIsRemote === true) score += 15;
+        if (item?.stationIsLocal === true) score -= 5;
+        if (sourceKey === 'detected_file' || sourceKey === 'detected') score -= 12;
+        return score;
+      };
+
+      const selectDedupKey = (item, outputKey = '', relayLocalRenderId = 0) => {
+        if (outputKey) return `output:${outputKey}`;
+        if (relayLocalRenderId > 0) return `relay:${relayLocalRenderId}`;
+        const fallbackKey = `${String(item?.stationIp || '').trim().toLowerCase()}|${String(item?.id || item?.renderId || '').trim()}`;
+        return `fallback:${fallbackKey || 'unknown'}`;
+      };
+
+      const dedupBuckets = new Map();
+      let orderIndex = 0;
+      for (const item of mergedItems) {
+        const outputKey = normalizeOutputKey(item);
+        const linkedTaskId = resolveLinkedTaskId(item);
+        const renderNameKey = resolveRenderNameKey(item);
+        const taskNameKey = linkedTaskId > 0 && renderNameKey
+          ? `${linkedTaskId}|${renderNameKey}`
+          : '';
+        const relayLocalRenderId = resolveRemoteRelayIdForLocalOrigin(item)
+          || ((item?.stationIsLocal === true && !outputKey) ? toPositiveInt(item?.id || item?.renderId) : 0);
+        const dedupKey = selectDedupKey(item, outputKey, relayLocalRenderId);
+        const score = computeItemQuality(item, outputKey);
+        const existing = dedupBuckets.get(dedupKey);
+        if (!existing) {
+          dedupBuckets.set(dedupKey, {
+            item,
+            outputKey,
+            taskNameKey,
+            score,
+            order: orderIndex++,
+          });
+          continue;
+        }
+        if (score > existing.score) {
+          dedupBuckets.set(dedupKey, {
+            ...existing,
+            item,
+            outputKey,
+            taskNameKey,
+            score,
+          });
+        }
+      }
+
+      const dedupRows = Array.from(dedupBuckets.values())
+        .sort((a, b) => a.order - b.order);
+      const taskNameWithOutput = new Set(
+        dedupRows
+          .filter((entry) => !!entry.outputKey && !!entry.taskNameKey)
+          .map((entry) => entry.taskNameKey)
+      );
+      const dedupedItems = dedupRows
+        .filter((entry) => {
+          if (entry.outputKey) return true;
+          if (!entry.taskNameKey || !taskNameWithOutput.has(entry.taskNameKey)) return true;
+          const statusKey = String(entry?.item?.status || '').trim().toLowerCase();
+          if (statusKey === 'queued' || statusKey === 'running' || statusKey === 'failed') return true;
+          return false;
+        })
+        .map((entry) => entry.item);
+
+      if (!isLatestRequest()) return;
+
+      setPostprodRenders({ items: dedupedItems, loading: false, error: '', detectedScan });
       if (showDetectedNotice && detectedScan) {
         showNotice(
           t('postprod.renders.msg.detectedScanSummary', {
@@ -3709,6 +4227,7 @@ function App() {
         );
       }
     } catch (e) {
+      if (!isLatestRequest()) return;
       setPostprodRenders((prev) => ({
         ...prev,
         loading: false,
@@ -3720,6 +4239,26 @@ function App() {
   const handlePostprodScanDetectedRenders = useCallback(async () => {
     await loadPostprodRenders({ forceScan: true, showDetectedNotice: true });
   }, [loadPostprodRenders]);
+
+  const handlePostprodGenerateRenderProxy = useCallback(async (renderIdRaw) => {
+    const token = String(postprodAuth.token || "").trim();
+    const renderId = Number.isFinite(Number(renderIdRaw)) && Number(renderIdRaw) > 0
+      ? Math.trunc(Number(renderIdRaw))
+      : 0;
+    if (!token || renderId <= 0) {
+      const err = new Error("invalid_render_id");
+      err.code = "invalid_render_id";
+      throw err;
+    }
+    const res = await postprodRegenerateAllProxies({ renderIds: [renderId] }, 15 * 60 * 1000);
+    if (!res || res.ok === false) {
+      const err = new Error(String(res?.error || "proxy_regenerate_failed"));
+      err.code = String(res?.error || "proxy_regenerate_failed");
+      throw err;
+    }
+    await loadPostprodRenders({ silent: true, includeRemote: true });
+    return res;
+  }, [loadPostprodRenders, postprodAuth.token]);
 
   const loadPostprodRenderTemplates = useCallback(async (options = {}) => {
     const silent = options?.silent === true;
@@ -4067,11 +4606,17 @@ function App() {
     const pending = aptitudeCheckPending;
     setAptitudeCheckPending(null);
     if (!pending) return;
-    await handlePatchLocalWorkerAptitude(true);
     const token = String(postprodAuth.token || '').trim();
     if (!token) return;
     try {
       await ensureLocalRenderWorkerOnline();
+      await handlePatchLocalWorkerAptitude(true);
+      await ensureLocalRenderWorkerOnline();
+      if (!isPostprodQueueRuntimeActive()) {
+        showNotice("File d'attente en pause: le rendu reste en attente.", "warn");
+        await Promise.all([loadPostprodRenders(), loadPostprodRenderWorkers(), loadPostprodRenderHealth()]);
+        return;
+      }
       const dispatchRes = await postprodDispatchRenders(token, {
         maxJobs: 1,
         renderIds: pending.renderId > 0 ? [pending.renderId] : undefined,
@@ -4098,6 +4643,53 @@ function App() {
   const handleAptitudeCancel = useCallback(() => {
     setAptitudeCheckPending(null);
     showNotice(t('postprod.renders.aptitude.noticeCancelled'), 'warn');
+  }, [showNotice, t]);
+
+  const handleQueuePausedLaunchConfirm = useCallback(async () => {
+    const pending = queuePausedLaunchPending;
+    setQueuePausedLaunchPending(null);
+    if (!pending) return;
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return;
+    try {
+      localStorage.setItem(LS_POSTPROD_RENDERS_QUEUE_RUNTIME_MODE_KEY, 'active');
+    } catch {}
+    const pendingRenderIdRaw = Number(pending?.renderId || 0);
+    const pendingRenderId = Number.isFinite(pendingRenderIdRaw) && pendingRenderIdRaw > 0
+      ? Math.trunc(pendingRenderIdRaw)
+      : 0;
+    try {
+      await ensureLocalRenderWorkerOnline();
+      const dispatchRes = await postprodDispatchRenders(token, {
+        maxJobs: 1,
+        renderIds: pendingRenderId > 0 ? [pendingRenderId] : undefined,
+      });
+      const dispatchedCount = Number.isFinite(Number(dispatchRes?.count))
+        ? Math.max(0, Math.trunc(Number(dispatchRes.count)))
+        : 0;
+      if (dispatchedCount <= 0) {
+        showNotice("Rendu cree mais non demarre: aucune station de rendu disponible/compatible pour le moment.", "warn");
+      } else {
+        showNotice(t('postprod.renders.queuePause.noticeActivated'), 'ok');
+      }
+    } catch {
+      showNotice("Rendu cree, mais lancement immediat indisponible. Verifie les stations de rendu disponibles.", "warn");
+    }
+    await Promise.all([loadPostprodRenders(), loadPostprodRenderWorkers(), loadPostprodRenderHealth()]);
+  }, [
+    queuePausedLaunchPending,
+    postprodAuth.token,
+    ensureLocalRenderWorkerOnline,
+    loadPostprodRenders,
+    loadPostprodRenderWorkers,
+    loadPostprodRenderHealth,
+    showNotice,
+    t,
+  ]);
+
+  const handleQueuePausedLaunchContinue = useCallback(() => {
+    setQueuePausedLaunchPending(null);
+    showNotice(t('postprod.renders.queuePause.noticeKeptPaused'), 'info');
   }, [showNotice, t]);
 
   const handlePostprodUpdateMe = useCallback(async (payload = {}) => {
@@ -4585,6 +5177,18 @@ function App() {
     return Array.isArray(res?.fields) ? res.fields : [];
   }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderForms, showNotice, t]);
 
+  const handlePostprodReserveRenderId = useCallback(async () => {
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return 0;
+    try {
+      const res = await postprodReserveRenderId(token);
+      const idRaw = Number(res?.reservedRenderId || 0);
+      return Number.isFinite(idRaw) && idRaw > 0 ? Math.trunc(idRaw) : 0;
+    } catch {
+      return 0;
+    }
+  }, [postprodAuth.token]);
+
   const handlePostprodCreateRender = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
     if (!token) return;
@@ -4608,13 +5212,52 @@ function App() {
     const mapName = String(jobPayload?.mapName || normalizedPayload?.mapName || '').trim();
     const sequenceName = String(jobPayload?.sequenceName || normalizedPayload?.sequenceName || '').trim();
     const outputProfile = String(jobPayload?.outputProfile || normalizedPayload?.outputProfile || '').trim();
-    const presetName = String(jobPayload?.presetName || jobPayload?.renderModeName || normalizedPayload?.presetName || normalizedPayload?.renderModeName || '').trim();
     const formData = jobPayload?.formData && typeof jobPayload.formData === 'object' && !Array.isArray(jobPayload.formData)
       ? jobPayload.formData
       : (normalizedPayload?.formData && typeof normalizedPayload.formData === 'object' && !Array.isArray(normalizedPayload.formData)
           ? normalizedPayload.formData
           : {});
+    const formDataCount = Object.keys(formData).length;
+    const payloadWrcFiles = Array.isArray(jobPayload?.wrcFiles)
+      ? jobPayload.wrcFiles
+      : (Array.isArray(jobPayload?.wrc_files) ? jobPayload.wrc_files : []);
+    const fallbackWrcPresetPath = payloadWrcFiles
+      .map((entry) => String(entry || '').trim())
+      .find(Boolean) || '';
+    const presetPath = String(
+      jobPayload?.presetPath
+      || jobPayload?.preset_path
+      || normalizedPayload?.presetPath
+      || normalizedPayload?.preset_path
+      || fallbackWrcPresetPath
+      || ''
+    ).trim();
+    const explicitPresetName = String(
+      jobPayload?.presetName
+      || normalizedPayload?.presetName
+      || ''
+    ).trim();
+    const renderModePresetFallback = formDataCount > 0
+      ? ''
+      : String(
+        jobPayload?.renderModeName
+        || normalizedPayload?.renderModeName
+        || ''
+      ).trim();
+    const presetName = explicitPresetName
+      || normalizeUnrealPresetName(presetPath)
+      || renderModePresetFallback;
+    if (presetPath && !jobPayload.presetPath) jobPayload.presetPath = presetPath;
+    if (presetName && !jobPayload.presetName) jobPayload.presetName = presetName;
     const textValue = String(jobPayload?.textValue || normalizedPayload?.textValue || '').trim();
+    const renderOffscreen = normalizeBooleanFlag(
+      jobPayload?.renderOffscreen
+      ?? normalizedPayload?.renderOffscreen
+      ?? jobPayload?.execution?.renderOffscreen
+      ?? false,
+      false
+    );
+    jobPayload.renderOffscreen = renderOffscreen;
     const outputDir = String(
       jobPayload?.outputDir
       || normalizedPayload?.outputDir
@@ -4638,11 +5281,57 @@ function App() {
         presetName,
         formData,
         textValue,
+        renderOffscreen,
       });
+    } else {
+      let normalizedExecution = withRenderOffscreenProcessArgs(existingExecution, renderOffscreen);
+      if (!normalizedExecution && typeof existingExecution === 'object' && !Array.isArray(existingExecution)) {
+        normalizedExecution = { ...existingExecution, renderOffscreen };
+      }
+      if (normalizedExecution) {
+        jobPayload.execution = withJobContextProcessArgs(normalizedExecution, formDataCount > 0) || normalizedExecution;
+      }
+    }
+    const sourceTag = String(jobPayload?.source || normalizedPayload?.source || "").trim().toLowerCase();
+    const launchModeTag = String(normalizedPayload?.launchMode || "").trim().toLowerCase();
+    const launchNowRequested = (
+      sourceTag === "task_auto_render_now"
+      || launchModeTag === "now"
+      || normalizedPayload?.launchNow === true
+    );
+    const requestedStationChoice = String(
+      normalizedPayload?.render_station
+      || normalizedPayload?.renderStation
+      || jobPayload?.render_station
+      || jobPayload?.renderStation
+      || ''
+    ).trim().toLowerCase();
+    const autoDispatcherRequested = (
+      requestedStationChoice === 'auto'
+      || requestedStationChoice === 'auto_dispatcher'
+    );
+    const queueRuntimeActive = isPostprodQueueRuntimeActive();
+    const createPayload = {
+      ...normalizedPayload,
+      payload: {
+        ...jobPayload,
+      },
+    };
+    if (launchNowRequested && !queueRuntimeActive) {
+      createPayload.render_station = 'local';
+      createPayload.render_station_name = '';
+      createPayload.renderStation = 'local';
+      createPayload.renderStationName = '';
+      if (createPayload.payload && typeof createPayload.payload === 'object' && !Array.isArray(createPayload.payload)) {
+        createPayload.payload.render_station = 'local';
+        createPayload.payload.render_station_name = '';
+        createPayload.payload.renderStation = 'local';
+        createPayload.payload.renderStationName = '';
+      }
     }
     setPostprodRenders((prev) => ({ ...prev, loading: true, error: '' }));
     try {
-      const createRes = await postprodCreateRender(token, normalizedPayload);
+      const createRes = await postprodCreateRender(token, createPayload);
       const remoteDispatch = createRes?.remoteDispatch && typeof createRes.remoteDispatch === 'object'
         ? createRes.remoteDispatch
         : null;
@@ -4650,17 +5339,17 @@ function App() {
       const createdRenderId = Number.isFinite(createdRenderIdRaw) && createdRenderIdRaw > 0
         ? Math.trunc(createdRenderIdRaw)
         : 0;
-      const sourceTag = String(jobPayload?.source || normalizedPayload?.source || "").trim().toLowerCase();
-      const launchModeTag = String(normalizedPayload?.launchMode || "").trim().toLowerCase();
-      const launchNowRequested = (
-        sourceTag === "task_auto_render_now"
-        || launchModeTag === "now"
-        || normalizedPayload?.launchNow === true
-      );
       const remoteDispatchMode = String(remoteDispatch?.mode || '').trim().toLowerCase();
       const remoteDispatchOk = remoteDispatch?.ok === true
         && (remoteDispatchMode === 'auto' || remoteDispatchMode === 'manual');
-      if (launchNowRequested && !remoteDispatchOk) {
+      if (launchNowRequested && !queueRuntimeActive) {
+        if (createdRenderId > 0) {
+          setQueuePausedLaunchPending({ renderId: createdRenderId });
+        } else {
+          showNotice(t('postprod.renders.queuePause.noticeKeptPaused'), 'info');
+        }
+      }
+      if (launchNowRequested && !remoteDispatchOk && queueRuntimeActive) {
         const localWorkerKey = String(renderWorkerKey || '').trim();
         const localWorkerInList = localWorkerKey
           ? (postprodRenderWorkers.items || []).find(
@@ -4668,7 +5357,7 @@ function App() {
             )
           : null;
         const localWorkerIsInapte = localWorkerInList && localWorkerInList.apte === false;
-        if (localWorkerIsInapte) {
+        if (localWorkerIsInapte && !autoDispatcherRequested) {
           setAptitudeCheckPending({
             renderId: createdRenderId,
             workerDisplayName: String(localWorkerInList?.displayName || renderWorkerDisplayName || localWorkerKey).trim(),
@@ -4676,6 +5365,10 @@ function App() {
         } else {
           try {
             await ensureLocalRenderWorkerOnline();
+            if (autoDispatcherRequested) {
+              await handlePatchLocalWorkerAptitude(true);
+              await ensureLocalRenderWorkerOnline();
+            }
             const dispatchRes = await postprodDispatchRenders(token, {
               maxJobs: 1,
               renderIds: createdRenderId > 0 ? [createdRenderId] : undefined,
@@ -4704,7 +5397,7 @@ function App() {
           }
         }
       }
-      if (launchNowRequested && remoteDispatchOk) {
+      if (launchNowRequested && remoteDispatchOk && queueRuntimeActive) {
         showNotice(
           `Rendu transmis a ${remoteDispatch?.stationName || remoteDispatch?.stationIp || 'la station distante'}.`,
           'info'
@@ -4775,6 +5468,7 @@ function App() {
     renderWorkerDisplayName,
     postprodRenderWorkers.items,
     setAptitudeCheckPending,
+    handlePatchLocalWorkerAptitude,
     t,
   ]);
 
@@ -4789,14 +5483,87 @@ function App() {
     }
   }, [postprodAuth.token, loadPostprodRenders, showNotice]);
 
-  const handlePostprodDeleteRender = useCallback(async (renderId) => {
+  const handlePostprodUpdateRenderExportDestinations = useCallback(async (renderId, exportDestinationIds = []) => {
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return;
+    try {
+      await postprodUpdateRenderExportDestinations(token, renderId, exportDestinationIds);
+      await loadPostprodRenders({ silent: true });
+    } catch (e) {
+      showNotice(String(e?.message || e?.code || 'update_export_destinations_error'), 'error');
+    }
+  }, [postprodAuth.token, loadPostprodRenders, showNotice]);
+
+  const handlePostprodDeleteRender = useCallback(async (renderId, renderObj = null) => {
     const token = String(postprodAuth.token || '').trim();
     if (!token) return false;
+
+    const normalizeOutputKey = (item) => {
+      const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
+        ? item.payload
+        : {};
+      const raw = String(
+        item?.outputPath
+        || item?.output_path
+        || payload?.filePath
+        || payload?.outputPath
+        || ''
+      ).trim();
+      if (!raw || /\{\{[^{}]+\}\}/.test(raw)) return '';
+      return raw
+        .replace(/\\/g, '/')
+        .replace(/\/+/g, '/')
+        .toLowerCase();
+    };
+
+    const normalizeRenderId = (value) => {
+      const n = Number(value || 0);
+      return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
+    };
+
+    const baseRenderId = normalizeRenderId(renderId);
+    if (baseRenderId <= 0) return false;
+    const currentItems = Array.isArray(postprodRenders.items) ? postprodRenders.items : [];
+    const baseRender = (renderObj && typeof renderObj === 'object')
+      ? renderObj
+      : (currentItems.find((item) => normalizeRenderId(item?.id) === baseRenderId) || null);
+    const targetOutputKey = normalizeOutputKey(baseRender);
+
+    const deleteIdList = (() => {
+      if (!targetOutputKey) return [baseRenderId];
+      const out = [];
+      const seen = new Set();
+      for (const item of currentItems) {
+        const itemId = normalizeRenderId(item?.id);
+        if (itemId <= 0 || seen.has(itemId)) continue;
+        if (normalizeOutputKey(item) !== targetOutputKey) continue;
+        seen.add(itemId);
+        out.push(itemId);
+      }
+      if (!seen.has(baseRenderId)) out.unshift(baseRenderId);
+      return out.length > 0 ? out : [baseRenderId];
+    })();
+
     setPostprodRenders((prev) => ({ ...prev, loading: true, error: '' }));
     try {
-      await postprodDeleteRenderJob(token, renderId);
+      let primaryDeleted = false;
+      for (const id of deleteIdList) {
+        try {
+          await postprodDeleteRenderJob(token, id);
+          if (id === baseRenderId) primaryDeleted = true;
+        } catch (e) {
+          const status = Number(e?.status || 0);
+          if (status === 404) continue;
+          if (id === baseRenderId) throw e;
+        }
+      }
+      if (!primaryDeleted && deleteIdList.length > 0) {
+        // Fallback de robustesse: tenter explicitement l'id principal
+        await postprodDeleteRenderJob(token, baseRenderId);
+      }
       await Promise.all([
         loadPostprodRenders(),
+        loadPostprodTasks(),
         loadPostprodRenderHealth(),
       ]);
       showNotice(t('postprod.renders.msg.deleted'), 'info');
@@ -4809,7 +5576,15 @@ function App() {
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodRenders, loadPostprodRenderHealth, showNotice, t]);
+  }, [
+    postprodAuth.token,
+    postprodRenders.items,
+    loadPostprodRenders,
+    loadPostprodTasks,
+    loadPostprodRenderHealth,
+    showNotice,
+    t,
+  ]);
 
   const handlePostprodReorderRenders = useCallback(async (order = []) => {
     const token = String(postprodAuth.token || '').trim();
@@ -4844,13 +5619,25 @@ function App() {
 
   const handlePostprodDispatchRenders = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
+    const sourcePayload = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+    const silent = sourcePayload.silent === true;
     if (!token) return { count: 0, compatibilityBlocked: 0 };
-    setPostprodRenders((prev) => ({ ...prev, loading: true, error: '' }));
+    if (!isPostprodQueueRuntimeActive()) {
+      if (!silent) {
+        showNotice("File d'attente en pause: aucun rendu ne peut etre lance.", "warn");
+      }
+      return { count: 0, compatibilityBlocked: 0 };
+    }
+    const dispatchPayload = { ...sourcePayload };
+    delete dispatchPayload.silent;
+    if (!silent) {
+      setPostprodRenders((prev) => ({ ...prev, loading: true, error: '' }));
+    }
     try {
       await ensureLocalRenderWorkerOnline();
-      const res = await postprodDispatchRenders(token, payload);
+      const res = await postprodDispatchRenders(token, dispatchPayload);
       await Promise.all([
-        loadPostprodRenders(),
+        loadPostprodRenders(silent ? { silent: true } : undefined),
         loadPostprodRenderWorkers(),
         loadPostprodRenderHealth(),
       ]);
@@ -4859,26 +5646,30 @@ function App() {
       const compatibilityBlocked = Array.isArray(compatibilityBlockedRaw)
         ? compatibilityBlockedRaw.length
         : Number(compatibilityBlockedRaw || 0);
-      showNotice(
-        t('postprod.renders.msg.dispatched', { count: Number.isFinite(count) ? count : 0 }),
-        count > 0 ? 'ok' : 'info'
-      );
-      if (Number.isFinite(compatibilityBlocked) && compatibilityBlocked > 0) {
+      if (!silent) {
         showNotice(
-          `Dispatch: ${count} assignes, ${compatibilityBlocked} en attente (incompatibilite capacites station de rendu).`,
-          'warn'
+          t('postprod.renders.msg.dispatched', { count: Number.isFinite(count) ? count : 0 }),
+          count > 0 ? 'ok' : 'info'
         );
+        if (Number.isFinite(compatibilityBlocked) && compatibilityBlocked > 0) {
+          showNotice(
+            `Dispatch: ${count} assignes, ${compatibilityBlocked} en attente (incompatibilite capacites station de rendu).`,
+            'warn'
+          );
+        }
       }
       return {
         count,
         compatibilityBlocked: Number.isFinite(compatibilityBlocked) ? compatibilityBlocked : 0,
       };
     } catch (e) {
-      setPostprodRenders((prev) => ({
-        ...prev,
-        loading: false,
-        error: resolvePostprodRendersError(e, t),
-      }));
+      if (!silent) {
+        setPostprodRenders((prev) => ({
+          ...prev,
+          loading: false,
+          error: resolvePostprodRendersError(e, t),
+        }));
+      }
       return { count: 0, compatibilityBlocked: 0 };
     }
   }, [postprodAuth.token, ensureLocalRenderWorkerOnline, loadPostprodRenders, loadPostprodRenderWorkers, loadPostprodRenderHealth, showNotice, t]);
@@ -5056,6 +5847,7 @@ function App() {
     loadPostprodRenderWorkers();
     if (current === 'Taches') {
       loadPostprodRenderForms();
+      loadPostprodRenders();
     }
     if (current === 'Rendus') {
       loadPostprodRenderProjectCatalog();
@@ -5143,6 +5935,7 @@ function App() {
         queue(() => loadPostprodTaskCatalog({ silent: true }));
         queue(() => loadPostprodRenderTemplates({ silent: true }));
         queue(() => loadPostprodRenderWorkers({ silent: true }));
+        queue(() => loadPostprodRenders({ silent: true }));
         queue(loadPostprodRenderForms);
       }
     } else if (current === 'Rendus') {
@@ -5168,41 +5961,11 @@ function App() {
       })
     );
 
-    // Auto-dispatch de secours: évite les jobs bloqués en "Queued" quand une station locale
-    // est disponible mais qu'aucun dispatch manuel n'a été déclenché.
-    if (
-      (current === 'Taches' || current === 'Rendus')
-      && postprodCanLaunchRenders
-      && localRenderEnabled
-    ) {
-      const token = String(postprodAuth.token || '').trim();
-      if (token) {
-        try {
-          await ensureLocalRenderWorkerOnline();
-          const dispatchRes = await postprodDispatchRenders(token, { maxJobs: 1 });
-          const dispatchedCountRaw = Number(dispatchRes?.count || 0);
-          const dispatchedCount = Number.isFinite(dispatchedCountRaw)
-            ? Math.max(0, Math.trunc(dispatchedCountRaw))
-            : 0;
-          if (dispatchedCount > 0) {
-            await Promise.all([
-              loadPostprodRenders().catch(() => ({})),
-              loadPostprodRenderWorkers().catch(() => ({})),
-              loadPostprodRenderHealth().catch(() => ({})),
-              loadPostprodTasks().catch(() => ({})),
-            ]);
-          }
-        } catch {}
-      }
-    }
   }, [
     appMode,
     postprodAuthenticated,
     current,
     postprodAuth.token,
-    postprodCanLaunchRenders,
-    localRenderEnabled,
-    ensureLocalRenderWorkerOnline,
     postprodCanManageUsers,
     postprodCanManageRoles,
     postprodCanManageRenderTemplates,
@@ -5284,6 +6047,58 @@ function App() {
     postprodAuthenticated,
     current,
     refreshPostprodCurrentTab,
+  ]);
+
+  useEffect(() => {
+    if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
+    if (!postprodCanLaunchRenders || !localRenderEnabled) return;
+
+    let stopped = false;
+    let timer = null;
+    let inFlight = false;
+    const intervalMs = 5000;
+
+    const tick = async () => {
+      if (stopped) return;
+      if (inFlight) {
+        timer = setTimeout(tick, intervalMs);
+        return;
+      }
+
+      const queueRuntimeActive = isPostprodQueueRuntimeActive();
+      const token = String(postprodAuth.token || '').trim();
+      const AUTO_DISPATCH_COOLDOWN_MS = 5_000;
+      const autoDispatchAllowed = (Date.now() - postprodAutoDispatchLastKickRef.current) >= AUTO_DISPATCH_COOLDOWN_MS;
+      if (!queueRuntimeActive || !token || !autoDispatchAllowed) {
+        timer = setTimeout(tick, intervalMs);
+        return;
+      }
+
+      inFlight = true;
+      try {
+        await ensureLocalRenderWorkerOnline();
+        postprodAutoDispatchLastKickRef.current = Date.now();
+        await Promise.resolve(handlePostprodDispatchRenders({ maxJobs: 1, silent: true })).catch(() => ({}));
+      } catch {
+      } finally {
+        inFlight = false;
+        if (!stopped) timer = setTimeout(tick, intervalMs);
+      }
+    };
+
+    timer = setTimeout(tick, 2500);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [
+    appMode,
+    postprodAuthenticated,
+    postprodCanLaunchRenders,
+    localRenderEnabled,
+    postprodAuth.token,
+    ensureLocalRenderWorkerOnline,
+    handlePostprodDispatchRenders,
   ]);
 
   useEffect(() => {
@@ -5437,6 +6252,20 @@ function App() {
               }
               normalizedArgs.push(currentArg);
             }
+            const outputDirForArgs = String(templateContext.outputdir || payload?.outputDir || '').trim();
+            const expectedNameForArgs = String(templateContext.expectedrendername || '').trim();
+            const hasMovieFolderArg = normalizedArgs.some((arg) => String(arg || '').trim().toLowerCase().includes('moviefolder'));
+            const hasMovieNameArg = normalizedArgs.some((arg) => String(arg || '').trim().toLowerCase().includes('moviename'));
+            const hasOutputDirArg = normalizedArgs.some((arg) => String(arg || '').trim().toLowerCase().includes('uurenderoutputdir'));
+            if (outputDirForArgs && !hasMovieFolderArg) {
+              normalizedArgs.push(`-MovieFolder=${outputDirForArgs}`);
+            }
+            if (expectedNameForArgs && !hasMovieNameArg) {
+              normalizedArgs.push(`-MovieName=${expectedNameForArgs}`);
+            }
+            if (outputDirForArgs && !hasOutputDirArg) {
+              normalizedArgs.push(`-UURenderOutputDir=${outputDirForArgs}`);
+            }
             const timeoutMsRaw = Number(execution?.timeoutMs ?? payload?.timeoutMs ?? 30 * 60 * 1000);
             const timeoutMs = Number.isFinite(timeoutMsRaw)
               ? Math.max(1000, Math.min(4 * 60 * 60 * 1000, Math.trunc(timeoutMsRaw)))
@@ -5445,12 +6274,29 @@ function App() {
               execution?.cwd ?? payload?.cwd ?? '',
               templateContext
             ).trim();
+            const configuredOutputPathTemplate = String(
+              execution?.outputPath ?? payload?.outputPath ?? ''
+            ).trim();
             const configuredOutputPath = replaceProcessTemplateVars(
-              execution?.outputPath ?? payload?.outputPath ?? '',
+              configuredOutputPathTemplate,
               templateContext
             ).trim();
             const fallbackOutputPath = String(templateContext.outputpath || '').trim();
-            const completionOutputPath = configuredOutputPath || fallbackOutputPath;
+            const completionOutputPathRaw = configuredOutputPath || fallbackOutputPath;
+            const completionOutputPath = hasProcessTemplateToken(completionOutputPathRaw)
+              ? ''
+              : completionOutputPathRaw;
+            const shouldEnforceOutputPathCheck = (
+              !!completionOutputPath
+              && !!configuredOutputPathTemplate
+              && !hasProcessTemplateToken(configuredOutputPathTemplate)
+              && !hasProcessTemplateToken(configuredOutputPath)
+            );
+            const outputDirForSearch = String(
+              templateContext.outputdir || payload?.outputDir || ''
+            ).trim();
+            const processStartMs = Date.now();
+            let detectedOutputPath = '';
 
             if (!command) {
               completionPayload = {
@@ -5460,7 +6306,96 @@ function App() {
                 comment: 'worker_process_fail',
               };
             } else {
-              const procRes = await runLocalProcess({ command, args: normalizedArgs, timeoutMs, cwd });
+              const pidTag = `r${renderId}`;
+              let _procOk = null;
+              let _procError = '';
+
+              const existingPidRes = await readRenderPid(pidTag);
+              if (stopped) return;
+              const existingPid = Number(existingPidRes?.pid || 0);
+
+              const pollUntilDead = async (pid, deadlineMs) => {
+                while (true) {
+                  if (stopped) return 'stopped';
+                  if (Date.now() > deadlineMs) return 'timeout';
+                  await waitMs(10_000);
+                  if (stopped) return 'stopped';
+                  const alive = await checkPidAlive(pid);
+                  if (!alive?.alive) return 'done';
+                }
+              };
+
+              const resolveOutputArtifactPath = async () => {
+                const directCandidates = buildRenderOutputPathCandidates(
+                  completionOutputPath || fallbackOutputPath
+                );
+                for (const candidate of directCandidates) {
+                  const candidatePath = String(candidate || '').trim();
+                  if (!candidatePath) continue;
+                  const fileRes = await checkFileExists(candidatePath);
+                  if (fileRes?.exists === true) return candidatePath;
+                }
+
+                if (!outputDirForSearch) return '';
+                const scanRes = await findRenderOutputs({
+                  rootDir: outputDirForSearch,
+                  minMtimeMs: Math.max(0, processStartMs - (24 * 60 * 60 * 1000)),
+                  maxDepth: 6,
+                  limit: 300,
+                });
+                const files = Array.isArray(scanRes?.files) ? scanRes.files : [];
+                for (const entry of files) {
+                  const candidatePath = String(entry?.path || '').trim();
+                  if (!candidatePath) continue;
+                  if (!isLikelyRenderOutputMedia(candidatePath)) continue;
+                  return candidatePath;
+                }
+                return '';
+              };
+
+              const resolveOutputOk = async () => {
+                const resolvedOutput = await resolveOutputArtifactPath();
+                if (resolvedOutput) {
+                  detectedOutputPath = resolvedOutput;
+                  return true;
+                }
+                const requiresOutputArtifact = shouldEnforceOutputPathCheck || !!outputDirForSearch;
+                if (!requiresOutputArtifact) return true;
+                return false;
+              };
+
+              if (existingPid > 0) {
+                const aliveCheck = await checkPidAlive(existingPid);
+                if (stopped) return;
+                if (aliveCheck?.alive) {
+                  const pollResult = await pollUntilDead(existingPid, Date.now() + timeoutMs);
+                  if (pollResult === 'stopped') return;
+                  if (pollResult === 'timeout') { _procOk = false; _procError = 'timeout'; }
+                }
+                if (_procOk === null) {
+                  _procOk = await resolveOutputOk();
+                  if (!_procOk) _procError = 'output_file_not_found';
+                }
+                await deleteRenderPid(pidTag);
+              } else {
+                const spawnRes = await spawnDetachedRender({ command, args: normalizedArgs, cwd, pidTag });
+                if (stopped) return;
+                if (!spawnRes?.ok || !spawnRes?.detached) {
+                  _procOk = false;
+                  _procError = spawnRes?.error || 'spawn_failed';
+                } else {
+                  const pollResult = await pollUntilDead(Number(spawnRes.pid || 0), Date.now() + timeoutMs);
+                  if (pollResult === 'stopped') return;
+                  if (pollResult === 'timeout') { _procOk = false; _procError = 'timeout'; }
+                  if (_procOk === null) {
+                    _procOk = await resolveOutputOk();
+                    if (!_procOk) _procError = 'output_file_not_found';
+                  }
+                  await deleteRenderPid(pidTag);
+                }
+              }
+
+              const procRes = { ok: _procOk === true, stdout: '', stderr: '', error: _procError, timedOut: _procError === 'timeout' };
               if (stopped) return;
               const workerLogPath = String(templateContext.workerlogpath || '').trim();
               let workerLogText = '';
@@ -5480,12 +6415,13 @@ function App() {
                 workerLogText,
               });
               if (procRes?.ok === true) {
+                const finalOutputPath = String(
+                  detectedOutputPath || completionOutputPath || `renders/render-${renderId}.mov`
+                ).trim();
                 completionPayload = {
                   workerKey,
                   success: true,
-                  outputPath: String(
-                    completionOutputPath || `renders/render-${renderId}.mov`
-                  ),
+                  outputPath: finalOutputPath,
                   comment: ['worker_process_done', processEventComment]
                     .filter((part) => String(part || '').trim().length > 0)
                     .join('\n')
@@ -5550,6 +6486,11 @@ function App() {
               loadPostprodRenderWorkers().catch(() => ({})),
               loadPostprodRenderHealth().catch(() => ({})),
             ]);
+            if (isPostprodQueueRuntimeActive()) {
+              await Promise.resolve(
+                handlePostprodDispatchRenders({ maxJobs: 1, silent: true })
+              ).catch(() => ({}));
+            }
           } catch (err) {
             if (isPostprodRecoverableOfflineError(err)) {
               const nowIso = new Date().toISOString();
@@ -5630,6 +6571,7 @@ function App() {
     loadPostprodRenders,
     loadPostprodRenderWorkers,
     loadPostprodRenderHealth,
+    handlePostprodDispatchRenders,
     showNotice,
     t,
   ]);
@@ -6047,6 +6989,7 @@ function App() {
                 onNavigate={handleNavClick}
                 onLibraryImported={handleLibraryImported}
                 onIdentityUpdated={setIdentity}
+                onScanDetectedRenders={handlePostprodScanDetectedRenders}
                 appMode={appMode}
                 canViewResources={postprodCanViewResources}
                 canManageProjects={postprodCanEditProjects}
@@ -6169,6 +7112,7 @@ function App() {
                 auditPageSize={postprodAudit.pageSize}
                 auditHasMore={postprodAudit.hasMore}
                 auditFilters={postprodAudit.filters}
+                auditLogStore={postprodAudit.auditLogStore}
                 tasks={postprodTasks.items}
                 tasksLoading={postprodTasks.loading}
                 tasksError={postprodTasks.error}
@@ -6212,6 +7156,7 @@ function App() {
                 renderFormsLoading={postprodRenderForms.loading}
                 renderFormsError={postprodRenderForms.error}
                 renderOutputDir={postprodRenderOutputDir}
+                renderExportDestinationOptions={postprodRenderExportDestinationOptions}
                 onCreateUser={handlePostprodCreateUser}
                 onUpdateUser={handlePostprodUpdateUser}
                 onDeleteUser={handlePostprodDeleteUser}
@@ -6227,6 +7172,7 @@ function App() {
                 onUpdateMe={handlePostprodUpdateMe}
                 onRefreshMyActivity={loadPostprodMyActivity}                onRefreshAudit={loadPostprodAudit}
                 onRefreshRenderHealthAuditMaintenance={loadPostprodRenderHealthAuditMaintenance}
+                onPurgeAudit={postprodCanManageRoles ? handlePostprodPurgeAudit : null}
                 onPurgeRenderHealthAudit={handlePostprodPurgeRenderHealthAudit}
                 onExportAuditAll={exportPostprodAuditAll}
                 onExportAuditAllJson={exportPostprodAuditAllJson}
@@ -6254,13 +7200,16 @@ function App() {
                 onUpdateRenderTemplate={handlePostprodUpdateRenderTemplate}
                 onDeleteRenderTemplate={handlePostprodDeleteRenderTemplate}
                 onCreateRender={handlePostprodCreateRender}
+                onReserveRenderId={handlePostprodReserveRenderId}
                 onTransitionRender={handlePostprodTransitionRender}
                 onLoadRenderTransitions={handlePostprodLoadRenderTransitions}
                 onDispatchRenders={handlePostprodDispatchRenders}
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
                 onScheduleRender={handlePostprodScheduleRender}
+                onUpdateRenderExportDestinations={handlePostprodUpdateRenderExportDestinations}
                 onReorderRenders={handlePostprodReorderRenders}
                 onDeleteRender={handlePostprodDeleteRender}
+                onGenerateProxy={handlePostprodGenerateRenderProxy}
                 onPatchWorkerAptitude={handlePostprodPatchWorkerAptitude}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
@@ -6280,6 +7229,9 @@ function App() {
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
+                renderFormFocusRequest={postprodRenderFormFocusRequest}
+                onRenderFormFocusHandled={handlePostprodRenderFormFocusHandled}
+                onNavigateToRenderForm={handlePostprodNavigateToRenderForm}
               />
             </Suspense>
           )}
@@ -6333,6 +7285,7 @@ function App() {
                 auditPageSize={postprodAudit.pageSize}
                 auditHasMore={postprodAudit.hasMore}
                 auditFilters={postprodAudit.filters}
+                auditLogStore={postprodAudit.auditLogStore}
                 tasks={postprodTasks.items}
                 tasksLoading={postprodTasks.loading}
                 tasksError={postprodTasks.error}
@@ -6376,6 +7329,7 @@ function App() {
                 renderFormsLoading={postprodRenderForms.loading}
                 renderFormsError={postprodRenderForms.error}
                 renderOutputDir={postprodRenderOutputDir}
+                renderExportDestinationOptions={postprodRenderExportDestinationOptions}
                 onCreateUser={handlePostprodCreateUser}
                 onUpdateUser={handlePostprodUpdateUser}
                 onDeleteUser={handlePostprodDeleteUser}
@@ -6391,6 +7345,7 @@ function App() {
                 onUpdateMe={handlePostprodUpdateMe}
                 onRefreshMyActivity={loadPostprodMyActivity}                onRefreshAudit={loadPostprodAudit}
                 onRefreshRenderHealthAuditMaintenance={loadPostprodRenderHealthAuditMaintenance}
+                onPurgeAudit={postprodCanManageRoles ? handlePostprodPurgeAudit : null}
                 onPurgeRenderHealthAudit={handlePostprodPurgeRenderHealthAudit}
                 onExportAuditAll={exportPostprodAuditAll}
                 onExportAuditAllJson={exportPostprodAuditAllJson}
@@ -6418,13 +7373,16 @@ function App() {
                 onUpdateRenderTemplate={handlePostprodUpdateRenderTemplate}
                 onDeleteRenderTemplate={handlePostprodDeleteRenderTemplate}
                 onCreateRender={handlePostprodCreateRender}
+                onReserveRenderId={handlePostprodReserveRenderId}
                 onTransitionRender={handlePostprodTransitionRender}
                 onLoadRenderTransitions={handlePostprodLoadRenderTransitions}
                 onDispatchRenders={handlePostprodDispatchRenders}
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
                 onScheduleRender={handlePostprodScheduleRender}
+                onUpdateRenderExportDestinations={handlePostprodUpdateRenderExportDestinations}
                 onReorderRenders={handlePostprodReorderRenders}
                 onDeleteRender={handlePostprodDeleteRender}
+                onGenerateProxy={handlePostprodGenerateRenderProxy}
                 onPatchWorkerAptitude={handlePostprodPatchWorkerAptitude}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
@@ -6444,6 +7402,9 @@ function App() {
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
+                renderFormFocusRequest={postprodRenderFormFocusRequest}
+                onRenderFormFocusHandled={handlePostprodRenderFormFocusHandled}
+                onNavigateToRenderForm={handlePostprodNavigateToRenderForm}
               />
             </Suspense>
           )}
@@ -6519,6 +7480,7 @@ function App() {
                 auditPageSize={postprodAudit.pageSize}
                 auditHasMore={postprodAudit.hasMore}
                 auditFilters={postprodAudit.filters}
+                auditLogStore={postprodAudit.auditLogStore}
                 tasks={postprodTasks.items}
                 tasksLoading={postprodTasks.loading}
                 tasksError={postprodTasks.error}
@@ -6562,6 +7524,7 @@ function App() {
                 renderFormsLoading={postprodRenderForms.loading}
                 renderFormsError={postprodRenderForms.error}
                 renderOutputDir={postprodRenderOutputDir}
+                renderExportDestinationOptions={postprodRenderExportDestinationOptions}
                 onCreateUser={handlePostprodCreateUser}
                 onUpdateUser={handlePostprodUpdateUser}
                 onDeleteUser={handlePostprodDeleteUser}
@@ -6577,6 +7540,7 @@ function App() {
                 onUpdateMe={handlePostprodUpdateMe}
                 onRefreshMyActivity={loadPostprodMyActivity}                onRefreshAudit={loadPostprodAudit}
                 onRefreshRenderHealthAuditMaintenance={loadPostprodRenderHealthAuditMaintenance}
+                onPurgeAudit={postprodCanManageRoles ? handlePostprodPurgeAudit : null}
                 onPurgeRenderHealthAudit={handlePostprodPurgeRenderHealthAudit}
                 onExportAuditAll={exportPostprodAuditAll}
                 onExportAuditAllJson={exportPostprodAuditAllJson}
@@ -6604,13 +7568,16 @@ function App() {
                 onUpdateRenderTemplate={handlePostprodUpdateRenderTemplate}
                 onDeleteRenderTemplate={handlePostprodDeleteRenderTemplate}
                 onCreateRender={handlePostprodCreateRender}
+                onReserveRenderId={handlePostprodReserveRenderId}
                 onTransitionRender={handlePostprodTransitionRender}
                 onLoadRenderTransitions={handlePostprodLoadRenderTransitions}
                 onDispatchRenders={handlePostprodDispatchRenders}
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
                 onScheduleRender={handlePostprodScheduleRender}
+                onUpdateRenderExportDestinations={handlePostprodUpdateRenderExportDestinations}
                 onReorderRenders={handlePostprodReorderRenders}
                 onDeleteRender={handlePostprodDeleteRender}
+                onGenerateProxy={handlePostprodGenerateRenderProxy}
                 onPatchWorkerAptitude={handlePostprodPatchWorkerAptitude}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
@@ -6630,6 +7597,9 @@ function App() {
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
+                renderFormFocusRequest={postprodRenderFormFocusRequest}
+                onRenderFormFocusHandled={handlePostprodRenderFormFocusHandled}
+                onNavigateToRenderForm={handlePostprodNavigateToRenderForm}
               />
             </Suspense>
           )}
@@ -6678,6 +7648,7 @@ function App() {
                 auditPageSize={postprodAudit.pageSize}
                 auditHasMore={postprodAudit.hasMore}
                 auditFilters={postprodAudit.filters}
+                auditLogStore={postprodAudit.auditLogStore}
                 tasks={postprodTasks.items}
                 tasksLoading={postprodTasks.loading}
                 tasksError={postprodTasks.error}
@@ -6721,6 +7692,7 @@ function App() {
                 renderFormsLoading={postprodRenderForms.loading}
                 renderFormsError={postprodRenderForms.error}
                 renderOutputDir={postprodRenderOutputDir}
+                renderExportDestinationOptions={postprodRenderExportDestinationOptions}
                 onCreateUser={handlePostprodCreateUser}
                 onUpdateUser={handlePostprodUpdateUser}
                 onDeleteUser={handlePostprodDeleteUser}
@@ -6736,6 +7708,7 @@ function App() {
                 onUpdateMe={handlePostprodUpdateMe}
                 onRefreshMyActivity={loadPostprodMyActivity}                onRefreshAudit={loadPostprodAudit}
                 onRefreshRenderHealthAuditMaintenance={loadPostprodRenderHealthAuditMaintenance}
+                onPurgeAudit={postprodCanManageRoles ? handlePostprodPurgeAudit : null}
                 onPurgeRenderHealthAudit={handlePostprodPurgeRenderHealthAudit}
                 onExportAuditAll={exportPostprodAuditAll}
                 onExportAuditAllJson={exportPostprodAuditAllJson}
@@ -6763,13 +7736,16 @@ function App() {
                 onUpdateRenderTemplate={handlePostprodUpdateRenderTemplate}
                 onDeleteRenderTemplate={handlePostprodDeleteRenderTemplate}
                 onCreateRender={handlePostprodCreateRender}
+                onReserveRenderId={handlePostprodReserveRenderId}
                 onTransitionRender={handlePostprodTransitionRender}
                 onLoadRenderTransitions={handlePostprodLoadRenderTransitions}
                 onDispatchRenders={handlePostprodDispatchRenders}
                 onSaveDispatchPolicy={handlePostprodSaveDispatchPolicy}
                 onScheduleRender={handlePostprodScheduleRender}
+                onUpdateRenderExportDestinations={handlePostprodUpdateRenderExportDestinations}
                 onReorderRenders={handlePostprodReorderRenders}
                 onDeleteRender={handlePostprodDeleteRender}
+                onGenerateProxy={handlePostprodGenerateRenderProxy}
                 onPatchWorkerAptitude={handlePostprodPatchWorkerAptitude}
                 onRefreshRenderTemplates={loadPostprodRenderTemplates}
                 onRefreshRenderForms={loadPostprodRenderForms}
@@ -6789,6 +7765,9 @@ function App() {
                 onRequestOpenTasks={handlePostprodOpenTasksFromLink}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
+                renderFormFocusRequest={postprodRenderFormFocusRequest}
+                onRenderFormFocusHandled={handlePostprodRenderFormFocusHandled}
+                onNavigateToRenderForm={handlePostprodNavigateToRenderForm}
               />
             </Suspense>
           )}
@@ -6800,6 +7779,18 @@ function App() {
             workerDisplayName={aptitudeCheckPending.workerDisplayName}
             onConfirm={handleAptitudeConfirm}
             onCancel={handleAptitudeCancel}
+          />
+        )}
+
+        {queuePausedLaunchPending && (
+          <AptitudeCheckModal
+            t={t}
+            title={t("postprod.renders.queuePause.modalTitle")}
+            body={t("postprod.renders.queuePause.modalBody")}
+            confirmLabel={t("postprod.renders.queuePause.confirm")}
+            cancelLabel={t("postprod.renders.queuePause.cancel")}
+            onConfirm={handleQueuePausedLaunchConfirm}
+            onCancel={handleQueuePausedLaunchContinue}
           />
         )}
 
@@ -6817,5 +7808,3 @@ root.render(
     <App />
   </ErrorBoundary>
 );
-
-

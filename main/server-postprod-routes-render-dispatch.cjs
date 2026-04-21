@@ -371,8 +371,15 @@ async function handlePostprodRenderDispatchRoutes({
         if (!jobId || !projectName) continue;
         const result = createRenderOutputSubdir(jobId, projectName);
         if (result.ok && result.outputPath) {
-          stmts.updateRenderJobOutputPath.run(result.outputPath, now, jobId);
-          job.outputPath = result.outputPath;
+          const jobDir = result.outputPath;
+          stmts.updateRenderJobOutputPath.run(jobDir, now, jobId);
+          job.outputPath = jobDir;
+          const existingPayload = job?.payload && typeof job.payload === 'object' ? job.payload : {};
+          const updatedPayload = { ...existingPayload, outputDir: jobDir };
+          try {
+            stmts.updateRenderJobPayload.run(JSON.stringify(updatedPayload), now, jobId);
+            job.payload = updatedPayload;
+          } catch {}
         }
       }
     }

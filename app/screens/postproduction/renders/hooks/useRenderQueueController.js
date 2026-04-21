@@ -18,10 +18,12 @@ export function useRenderQueueController({
   searchQuery = "",
   queueSortKey = "startAt",
   queueSortDir = "asc",
+  queueRuntimeMode = "active",
   setQueueSortKey = null,
   setQueueSortDir = null,
   onCreateRender = null,
   onDispatchRenders = null,
+  canLaunchRendersForUser = false,
 }) {
   const derived = useRenderQueueDerivedData(
     buildRenderQueueDerivedDataInput({
@@ -35,7 +37,7 @@ export function useRenderQueueController({
     })
   );
 
-  const { filteredRenderQueueTasks, getQueueEntryLaunchMeta } = derived;
+  const { filteredRenderQueueTasks, sortedRenderQueueTasks, getQueueEntryLaunchMeta } = derived;
 
   const selection = useRenderQueueSelection(
     buildRenderQueueSelectionInput({
@@ -61,6 +63,10 @@ export function useRenderQueueController({
       onCreateRender,
       onDispatchRenders,
       setSelectedQueueTaskIds,
+      canLaunchRendersForUser,
+      queueRuntimeMode,
+      sortedRenderQueueTasks,
+      getQueueEntryLaunchMeta,
     })
   );
 

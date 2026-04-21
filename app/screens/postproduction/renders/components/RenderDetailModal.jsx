@@ -3,14 +3,82 @@ import { RenderDetailPreviewPanel } from "./renderDetail/RenderDetailPreviewPane
 import { RenderDetailInfoPanel } from "./renderDetail/RenderDetailInfoPanel";
 import { RenderDetailLogsPanel } from "./renderDetail/RenderDetailLogsPanel";
 
+function pickFirst(values = []) {
+  const list = Array.isArray(values) ? values : [];
+  for (const value of list) {
+    const text = String(value || "").trim();
+    if (!text || /^\s*\{\{[^{}]+\}\}\s*$/i.test(text)) continue;
+    return text;
+  }
+  return "";
+}
+
+function toSafeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function toSafeInt(value, fallback = 0) {
+  return Math.trunc(toSafeNumber(value, fallback));
+}
+
+function resolveRenderViewerMeta(render = null) {
+  const payload = render?.payload && typeof render.payload === "object" && !Array.isArray(render.payload)
+    ? render.payload
+    : {};
+  const proxyPath = pickFirst([
+    payload?.proxyPath,
+    payload?.proxyVideoPath,
+    payload?.previewPath,
+    payload?.outputPreview,
+  ]);
+  const alphaPath = pickFirst([
+    payload?.alphaPath,
+    payload?.proxyAlphaPath,
+    payload?.previewAlphaPath,
+  ]);
+  const thumbPath = pickFirst([
+    payload?.thumbPath,
+    payload?.thumbnailPath,
+    payload?.previewImage,
+    payload?.outputThumbnail,
+  ]);
+  const totalFrames = Math.max(
+    0,
+    toSafeInt(payload?.proxyTotalFrames, 0),
+    toSafeInt(payload?.totalFrames, 0)
+  );
+  const frameRate = Math.max(
+    0,
+    toSafeNumber(payload?.proxyFrameRate, 0),
+    toSafeNumber(payload?.frameRate, 0),
+    toSafeNumber(payload?.fps, 0)
+  );
+  const proxyWidth = Math.max(0, toSafeInt(payload?.proxyWidth ?? payload?.width, 0));
+  const proxyHeight = Math.max(0, toSafeInt(payload?.proxyHeight ?? payload?.height, 0));
+  const proxyGenerating = payload?.proxyGenerating === true
+    || String(
+      payload?.proxyGenerationStatus
+      || payload?.proxy_status
+      || payload?.proxyStatus
+      || ""
+    ).trim().toLowerCase() === "generating";
+
+  return {
+    proxyPath,
+    alphaPath,
+    thumbPath,
+    totalFrames,
+    frameRate,
+    proxyWidth,
+    proxyHeight,
+    proxyGenerating,
+  };
+}
+
 function RenderDetailModal({
   t,
   render = null,
-  previewKind = "none",
-  previewSource = "",
-  previewError = "",
-  previewCandidatesCount = 0,
-  onAdvancePreviewCandidate = null,
   onOpenOutputExternally = null,
   onClose = null,
   outputFilename = null,
@@ -26,13 +94,23 @@ function RenderDetailModal({
   transitionsLoading = false,
   transitionsError = "",
   transitions = [],
+  projectLabelByRef = new Map(),
+  onNavigateToProject = null,
+  onNavigateToRenderForm = null,
+  onRequestOpenTasks = null,
+  tasks = [],
+  renderForms = [],
+  renderExportDestinationOptions = [],
+  onUpdateRenderExportDestinations = null,
+  onGenerateProxy = null,
+  allRenders = [],
   embedded = false,
 }) {
   if (!render) return null;
 
-  const renderId = Number(render?.id || 0);
   const renderOutputName = typeof outputFilename === "function" ? outputFilename(render) : "-";
   const detailTransitions = Array.isArray(transitions) ? transitions : [];
+  const viewerMeta = resolveRenderViewerMeta(render);
 
   const detailBody = (
     <>
@@ -44,18 +122,21 @@ function RenderDetailModal({
         onClose={onClose}
       />
 
-      <RenderDetailPreviewPanel
-        t={t}
-        renderId={renderId}
-        renderOutputName={renderOutputName}
-        previewKind={previewKind}
-        previewSource={previewSource}
-        previewError={previewError}
-        previewCandidatesCount={previewCandidatesCount}
-        onAdvancePreviewCandidate={onAdvancePreviewCandidate}
-      />
-
-      <div className="uu-render-detail-bottom-layout mt-12">
+      <div className="uu-render-detail-stack mt-12">
+        <RenderDetailPreviewPanel
+          t={t}
+          render={render}
+          proxyPath={viewerMeta.proxyPath}
+          alphaPath={viewerMeta.alphaPath}
+          thumbPath={viewerMeta.thumbPath}
+          totalFrames={viewerMeta.totalFrames}
+          frameRate={viewerMeta.frameRate}
+          proxyWidth={viewerMeta.proxyWidth}
+          proxyHeight={viewerMeta.proxyHeight}
+          proxyGenerating={viewerMeta.proxyGenerating}
+          onGenerateProxy={onGenerateProxy}
+          allRenders={allRenders}
+        />
         <RenderDetailInfoPanel
           t={t}
           render={render}
@@ -69,6 +150,14 @@ function RenderDetailModal({
           busyRenderId={busyRenderId}
           onApplyReviewStatus={onApplyReviewStatus}
           onScheduleRender={onScheduleRender}
+          projectLabelByRef={projectLabelByRef}
+          onNavigateToProject={onNavigateToProject}
+          onNavigateToRenderForm={onNavigateToRenderForm}
+          onRequestOpenTasks={onRequestOpenTasks}
+          tasks={tasks}
+          renderForms={renderForms}
+          renderExportDestinationOptions={renderExportDestinationOptions}
+          onUpdateRenderExportDestinations={onUpdateRenderExportDestinations}
         />
         <RenderDetailLogsPanel
           t={t}

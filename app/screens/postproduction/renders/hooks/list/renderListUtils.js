@@ -18,8 +18,7 @@ export const RENDER_LIST_ALLOWED_SORT_KEYS = new Set([
 const REVIEW_STATUS_RANK = {
   to_validate: 0,
   validated: 1,
-  to_modify: 2,
-  canceled: 3,
+  rejected: 2,
 };
 
 function resolveRenderPayload(render = null) {

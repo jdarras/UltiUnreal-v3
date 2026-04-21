@@ -60,6 +60,7 @@ export default function PostProductionScreen({
   auditPageSize = 100,
   auditHasMore = false,
   auditFilters = null,
+  auditLogStore = null,
   tasks = [],
   tasksLoading = false,
   taskCatalogLoading = false,
@@ -106,6 +107,7 @@ export default function PostProductionScreen({
   onUpdateMe = null,
   onRefreshMyActivity = null,
   onRefreshAudit = null,
+  onPurgeAudit = null,
   onRefreshRenderHealthAuditMaintenance = null,
   onPurgeRenderHealthAudit = null,
   onExportAuditAll = null,
@@ -115,6 +117,7 @@ export default function PostProductionScreen({
   onUpdateTask = null,
   onDeleteTask = null,
   onTransitionTask = null,
+  onReserveRenderId = null,
   onTaskFormOpenChange = null,
   taskFocusRequest = null,
   onTaskFocusHandled = null,
@@ -122,6 +125,9 @@ export default function PostProductionScreen({
   onEditUserIdHandled = null,
   onOpenActivityTarget = null,
   onNavigateToProject = null,
+  renderFormFocusRequest = null,
+  onRenderFormFocusHandled = null,
+  onNavigateToRenderForm = null,
   onRequestOpenTasks = null,
   onRefreshProjects = null,
   onUserEditorModeChange = null,
@@ -140,8 +146,10 @@ export default function PostProductionScreen({
   onDispatchRenders = null,
   onSaveDispatchPolicy = null,
   onScheduleRender = null,
+  onUpdateRenderExportDestinations = null,
   onReorderRenders = null,
   onDeleteRender = null,
+  onGenerateProxy = null,
   onPatchWorkerAptitude = null,
   onCreateRenderForm = null,
   onUpdateRenderForm = null,
@@ -149,6 +157,7 @@ export default function PostProductionScreen({
   onLoadRenderFormFields = null,
   onReplaceRenderFormFields = null,
   renderOutputDir = "",
+  renderExportDestinationOptions = [],
 }) {
   const title = String(titleOverride || "").trim() || resolveTitle(tabKey, t);
   const intro = safeT(t, "postprod.stub.intro", "Workspace under construction (v2026.3).");
@@ -252,6 +261,7 @@ export default function PostProductionScreen({
           renderWorkersLoading={renderWorkersLoading}
           renderWorkersError={renderWorkersError}
           renderOutputDir={renderOutputDir}
+          renderExportDestinationOptions={renderExportDestinationOptions}
           taskFocusRequest={taskFocusRequest}
           onTaskFocusHandled={onTaskFocusHandled}
           tasksLoading={tasksLoading || taskCatalogLoading}
@@ -260,10 +270,13 @@ export default function PostProductionScreen({
           onUpdateTask={onUpdateTask}
           onDeleteTask={onDeleteTask}
           onCreateRender={onCreateRender}
+          onReserveRenderId={onReserveRenderId}
           onLoadRenderFormFields={onLoadRenderFormFields}
           onLoadProjectUnrealCatalog={onLoadProjectUnrealCatalog}
           onTransitionTask={onTransitionTask}
           onFormModeChange={onTaskFormOpenChange}
+          onNavigateToProject={onNavigateToProject}
+          onNavigateToRenderForm={onNavigateToRenderForm}
         />
       ) : null}
 
@@ -327,6 +340,8 @@ export default function PostProductionScreen({
           onLoadRenderFormFields={onLoadRenderFormFields}
           onReplaceRenderFormFields={onReplaceRenderFormFields}
           onNavigateToProject={onNavigateToProject}
+          renderFormFocusRequest={renderFormFocusRequest}
+          onRenderFormFocusHandled={onRenderFormFocusHandled}
         />
       ) : null}
       {tabKey === "Datas" && !canManageRenderTemplates ? (
@@ -348,6 +363,8 @@ export default function PostProductionScreen({
           renders={renders}
           rendersLoading={rendersLoading}
           rendersError={rendersError}
+          projects={projects}
+          renderForms={renderForms}
           tasks={tasks}
           tasksLoading={tasksLoading}
           renderWorkers={renderWorkers}
@@ -361,11 +378,15 @@ export default function PostProductionScreen({
           onDispatchRenders={onDispatchRenders}
           onSaveDispatchPolicy={onSaveDispatchPolicy}
           onScheduleRender={onScheduleRender}
+          onUpdateRenderExportDestinations={onUpdateRenderExportDestinations}
           onReorderRenders={onReorderRenders}
           onDeleteTask={canCreateTasks ? onDeleteTask : null}
           onDeleteRender={onDeleteRender}
+          onGenerateProxy={onGenerateProxy}
           onRequestOpenTasks={onRequestOpenTasks}
           onNavigateToProject={onNavigateToProject}
+          onNavigateToRenderForm={onNavigateToRenderForm}
+          renderExportDestinationOptions={renderExportDestinationOptions}
         />
       ) : null}
 
@@ -380,6 +401,7 @@ export default function PostProductionScreen({
           pageSize={auditPageSize}
           hasMore={auditHasMore}
           filters={auditFilters}
+          auditLogStore={auditLogStore}
           canManageRetention={canManageRoles}
           renderHealthAuditMaintenance={renderHealthAuditMaintenance}
           renderHealthAuditMaintenanceLoading={renderHealthAuditMaintenanceLoading}
@@ -388,6 +410,7 @@ export default function PostProductionScreen({
           renderHealthAuditPurgeError={renderHealthAuditPurgeError}
           renderHealthAuditLastPurge={renderHealthAuditLastPurge}
           onRefreshAudit={onRefreshAudit}
+          onPurgeAudit={onPurgeAudit}
           onRefreshRenderHealthAuditMaintenance={onRefreshRenderHealthAuditMaintenance}
           onPurgeRenderHealthAudit={onPurgeRenderHealthAudit}
           onExportAuditAll={onExportAuditAll}

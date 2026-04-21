@@ -87,9 +87,13 @@ const { handleLayoutRoutes } = require('./server-layout.cjs');
 const { handleProjectConfigRoutes, ensureHttpServerBindAddress } = require('./server-project-config.cjs');
 const { handleHostsOnlineRoutes, heartbeatLoop } = require('./server-hosts-online.cjs');
 const { resolveRenderAvailability, RENDER_AVAILABILITY_VALUES } = require('./server-normalize.cjs');
-const { createPostprodAuth } = require('./server-postprod-auth.cjs');
+const { createPostprodAuth, applyAuditStorageLimitsFromCommon } = require('./server-postprod-auth.cjs');
 const { handlePostprodRemoteJobRoutes } = require('./server-postprod-routes-remote-jobs.cjs');
 const { notifyJobStatusUpdate } = require('./server-postprod-remote-dispatcher.cjs');
+const postprodFfmpeg = require('./server-postprod-ffmpeg.cjs');
+const {
+  normalizeExportDestinationEntries,
+} = require('./server-postprod-export-destinations.cjs');
 
 const NAME = 'UltiUnreal Agent';
 const VERSION = '0.9.0';
@@ -104,12 +108,14 @@ function getCommonCached() {
   if (cacheCommon.data && now - cacheCommon.ts < CACHE_TTL_MS) return cacheCommon.data;
   const data = readJSON(COMMON_FILE) || {};
   applyLogStorageLimitsFromCommon(data);
+  applyAuditStorageLimitsFromCommon(data);
   cacheCommon = { ts: now, data };
   return data;
 }
 
 function setCommonCache(data) {
   applyLogStorageLimitsFromCommon(data);
+  applyAuditStorageLimitsFromCommon(data);
   cacheCommon = { ts: Date.now(), data: data || {} };
 }
 
@@ -208,6 +214,248 @@ function applyLogStorageLimitsFromCommon(raw = null) {
   LOG_WARN_LINES = normalized.warnAt;
   LOG_HARD_LIMIT_LINES = normalized.hardLimit;
   return normalized;
+}
+
+const PROXY_RESOLUTION_ALLOWED = new Set([25, 50, 75]);
+const PROXY_CRF_ALLOWED = new Set([18, 23, 28]);
+
+function normalizeProxyResolution(value, fallback = 50) {
+  const n = Number(value);
+  const normalized = Number.isFinite(n) ? Math.trunc(n) : Math.trunc(Number(fallback) || 50);
+  return PROXY_RESOLUTION_ALLOWED.has(normalized) ? normalized : 50;
+}
+
+function normalizeProxyCrf(value, fallback = 23) {
+  const n = Number(value);
+  const normalized = Number.isFinite(n) ? Math.trunc(n) : Math.trunc(Number(fallback) || 23);
+  return PROXY_CRF_ALLOWED.has(normalized) ? normalized : 23;
+}
+
+function normalizePathList(value) {
+  const rawList = Array.isArray(value)
+    ? value
+    : String(value || '').split(/[;\n\r]+/g);
+  const out = [];
+  const seen = new Set();
+  for (const item of rawList) {
+    const cleaned = String(item || '').trim();
+    if (!cleaned) continue;
+    const key = cleaned.replace(/\\/g, '/').toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleaned);
+  }
+  return out;
+}
+
+function normalizeFsPathKey(value = '') {
+  return String(value || '')
+    .trim()
+    .replace(/[\\/]+/g, '/')
+    .replace(/\/+$/g, '')
+    .toLowerCase();
+}
+
+function isPathUnderRoot(pathValue = '', rootValue = '') {
+  const pathRaw = String(pathValue || '').trim();
+  const rootRaw = String(rootValue || '').trim();
+  if (!pathRaw || !rootRaw) return false;
+  let absPath = '';
+  let absRoot = '';
+  try {
+    absPath = path.resolve(pathRaw);
+    absRoot = path.resolve(rootRaw);
+  } catch {
+    return false;
+  }
+  const pathKey = normalizeFsPathKey(absPath);
+  const rootKey = normalizeFsPathKey(absRoot);
+  if (!pathKey || !rootKey) return false;
+  if (pathKey === rootKey) return true;
+  return pathKey.startsWith(`${rootKey}/`);
+}
+
+function resolveRenderOutputDirsFromCommon(common = {}) {
+  const fromList = Array.isArray(common?.render_output_dirs)
+    ? common.render_output_dirs
+    : (Array.isArray(common?.renderOutputDirs) ? common.renderOutputDirs : []);
+  const fromSingle = String(
+    common?.render_output_dir ??
+    common?.renderOutputDir ??
+    ''
+  ).trim();
+  const roots = normalizePathList(fromList);
+  if (roots.length > 0) return roots;
+  if (!fromSingle) return [];
+  return normalizePathList(fromSingle);
+}
+
+function parseRenderPayloadJsonSafe(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value;
+  }
+  const raw = String(value || '').trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function regenerateAllRenderProxies({
+  rows = [],
+  renderRoots = [],
+  proxyResolution = 50,
+  proxyCrf = 23,
+  logLine = () => {},
+  stmts = null,
+  nowIso = null,
+} = {}) {
+  const list = Array.isArray(rows) ? rows : [];
+  const roots = Array.isArray(renderRoots)
+    ? renderRoots.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : [];
+  const summary = {
+    ok: true,
+    count: 0,
+    regenerated: 0,
+    skipped: 0,
+    failed: 0,
+    total: list.length,
+    proxyResolution: normalizeProxyResolution(proxyResolution, 50),
+    proxyCrf: normalizeProxyCrf(proxyCrf, 23),
+    errors: [],
+  };
+
+  const seenSources = new Set();
+  for (const row of list) {
+    const payload = parseRenderPayloadJsonSafe(row?.payload_json);
+    const outputRaw = String(
+      row?.output_path ??
+      payload?.outputPath ??
+      ''
+    ).trim();
+    if (!outputRaw || /\{\{[^{}]+\}\}/.test(outputRaw)) {
+      summary.skipped += 1;
+      continue;
+    }
+
+    let absSource = '';
+    try {
+      absSource = path.resolve(outputRaw);
+    } catch {
+      summary.skipped += 1;
+      continue;
+    }
+    if (!absSource) {
+      summary.skipped += 1;
+      continue;
+    }
+    const sourceKey = normalizeFsPathKey(absSource);
+    if (!sourceKey || seenSources.has(sourceKey)) {
+      summary.skipped += 1;
+      continue;
+    }
+    seenSources.add(sourceKey);
+
+    if (roots.length > 0 && !roots.some((root) => isPathUnderRoot(absSource, root))) {
+      summary.skipped += 1;
+      continue;
+    }
+
+    const outputType = postprodFfmpeg.detectOutputType(absSource);
+    if (outputType.type === 'unknown') {
+      summary.skipped += 1;
+      continue;
+    }
+    if (outputType.type !== 'image_sequence') {
+      let stat = null;
+      try {
+        stat = fs.statSync(absSource);
+      } catch {
+        stat = null;
+      }
+      if (!stat || !stat.isFile()) {
+        summary.skipped += 1;
+        continue;
+      }
+    }
+    const isAlreadyProxyOutput = /[\\/]_?proxy[\\/](proxy|proxy_alpha)\.mp4$/i.test(sourceKey);
+    if (isAlreadyProxyOutput) {
+      summary.skipped += 1;
+      continue;
+    }
+
+    const thumbGenerated = await postprodFfmpeg.generateThumbnail({
+      outputPath: absSource,
+      destDir: path.dirname(absSource),
+      resolutionPercent: summary.proxyResolution,
+      logLine,
+    });
+
+    const generated = await postprodFfmpeg.generateProxy({
+      outputPath: absSource,
+      destDir: path.dirname(absSource),
+      resolutionPercent: summary.proxyResolution,
+      qualityCrf: summary.proxyCrf,
+      logLine,
+    });
+    if (generated?.ok) {
+      if (stmts?.findRenderJobById && stmts?.updateRenderJobPayload && typeof nowIso === 'function') {
+        try {
+          const latestJob = stmts.findRenderJobById.get(row?.id);
+          const existingPayload = parseRenderPayloadJsonSafe(latestJob?.payload_json || '{}');
+          const updatedPayload = {
+            ...existingPayload,
+            proxyPath: String(generated?.proxyPath || '').trim() || null,
+            alphaPath: String(generated?.alphaPath || '').trim() || null,
+            thumbPath: thumbGenerated?.ok ? (String(thumbGenerated?.thumbPath || '').trim() || null) : null,
+            proxyWidth: Number.isFinite(Number(generated?.width)) ? Math.trunc(Number(generated.width)) : 0,
+            proxyHeight: Number.isFinite(Number(generated?.height)) ? Math.trunc(Number(generated.height)) : 0,
+            proxyTotalFrames: Number.isFinite(Number(generated?.totalFrames)) ? Math.trunc(Number(generated.totalFrames)) : 0,
+            proxyFrameRate: Number.isFinite(Number(generated?.frameRate)) ? Number(generated.frameRate) : 0,
+          };
+          stmts.updateRenderJobPayload.run(JSON.stringify(updatedPayload), nowIso(), row?.id);
+        } catch {}
+      }
+      summary.regenerated += 1;
+      continue;
+    }
+
+    const errMessage = String(generated?.error || 'proxy_regenerate_failed').trim();
+    if (errMessage === 'ffmpeg_not_found') {
+      summary.ok = false;
+      summary.error = 'ffmpeg_not_found';
+      summary.message = 'ffmpeg_not_found';
+      summary.count = summary.regenerated;
+      return summary;
+    }
+
+    {
+      summary.failed += 1;
+      if (summary.errors.length < 10) {
+        summary.errors.push({
+          renderId: Number.isFinite(Number(row?.id)) ? Math.trunc(Number(row.id)) : 0,
+          outputPath: absSource,
+          error: errMessage,
+        });
+      }
+      logLine({
+        level: 'warn',
+        action: 'proxy_regenerate_failed',
+        message: errMessage,
+        data: {
+          renderId: Number.isFinite(Number(row?.id)) ? Math.trunc(Number(row.id)) : 0,
+          outputPath: absSource,
+        },
+      });
+    }
+  }
+
+  summary.count = summary.regenerated;
+  return summary;
 }
 
 function sendJSON(res, status, obj) {
@@ -820,6 +1068,47 @@ const server = http.createServer(async (req, res) => {
     res._acceptsGzip = encHeader.includes('gzip');
 
     // ---- Routes Post-production auth (/agent/postprod/*) ----
+    if (req.method === 'POST' && url.pathname === '/agent/postprod/proxy/regenerate-all') {
+      const body = await parseBody(req).catch(() => ({}));
+      const commonCfg = getCommonCached() || {};
+      const stmts = postprodAuth?.remoteBridge?.stmts;
+      const listAllRenderJobsForExport = stmts?.listAllRenderJobsForExport;
+      if (!listAllRenderJobsForExport || typeof listAllRenderJobsForExport.all !== 'function') {
+        return sendJSON(res, 503, { ok: false, error: 'postprod_unavailable' });
+      }
+
+      const configuredResolution = normalizeProxyResolution(commonCfg?.proxyResolution ?? commonCfg?.proxy_resolution, 50);
+      const configuredCrf = normalizeProxyCrf(commonCfg?.proxyCrf ?? commonCfg?.proxy_crf, 23);
+      const proxyResolution = normalizeProxyResolution(body?.proxyResolution, configuredResolution);
+      const proxyCrf = normalizeProxyCrf(body?.proxyCrf, configuredCrf);
+
+      const requestedRenderIdsRaw = Array.isArray(body?.renderIds)
+        ? body.renderIds
+        : (body?.renderId != null ? [body.renderId] : []);
+      const requestedRenderIds = new Set(
+        requestedRenderIdsRaw
+          .map((value) => Number(value))
+          .filter((value) => Number.isFinite(value) && value > 0)
+          .map((value) => Math.trunc(value))
+      );
+      const allRows = listAllRenderJobsForExport.all();
+      const rows = requestedRenderIds.size > 0
+        ? allRows.filter((row) => requestedRenderIds.has(Math.trunc(Number(row?.id || 0))))
+        : allRows;
+      const summary = await regenerateAllRenderProxies({
+        rows,
+        renderRoots: resolveRenderOutputDirsFromCommon(commonCfg),
+        proxyResolution,
+        proxyCrf,
+        logLine,
+        stmts,
+        nowIso: postprodAuth?.remoteBridge?.nowIso,
+      });
+
+      const statusCode = summary?.ok === false ? 500 : 200;
+      return sendJSON(res, statusCode, summary);
+    }
+
     const commonCfgForRemoteRoutes = getCommonCached() || {};
     const handledRemote = await handlePostprodRemoteJobRoutes({
       req,
@@ -1025,12 +1314,22 @@ const server = http.createServer(async (req, res) => {
                     'refreshSec',
                     'logWarnLines',
                     'logHardLimitLines',
+                    'auditWarnLines',
+                    'auditHardLimitLines',
                     'defaultPresetName',
                     'launchMode',
                     'unrealVersions',
                     'project_roots',
                     'render_output_dir',
                     'render_output_dirs',
+                    'proxyEnabled',
+                    'proxyResolution',
+                    'proxyCrf',
+                    'proxy_enabled',
+                    'proxy_resolution',
+                    'proxy_crf',
+                    'renderExportDestinations',
+                    'render_export_destinations',
                     'fab_resources_enabled',
                     // UI flags
                     'show_start_new_ue',
@@ -1069,22 +1368,6 @@ const server = http.createServer(async (req, res) => {
           }
           delete next.renderOutputDirs;
         }
-        const normalizePathList = (value) => {
-          const rawList = Array.isArray(value)
-            ? value
-            : String(value || '').split(/[;\n\r]+/g);
-          const out = [];
-          const seen = new Set();
-          for (const item of rawList) {
-            const cleaned = String(item || '').trim();
-            if (!cleaned) continue;
-            const key = cleaned.replace(/\\/g, '/').toLowerCase();
-            if (seen.has(key)) continue;
-            seen.add(key);
-            out.push(cleaned);
-          }
-          return out;
-        };
         next.render_output_dir = String(next.render_output_dir || '').trim();
         next.render_output_dirs = normalizePathList(next.render_output_dirs);
         if (hasRenderOutputDirInBody && !hasRenderOutputDirsInBody) {
@@ -1097,6 +1380,29 @@ const server = http.createServer(async (req, res) => {
         } else if (next.render_output_dir && next.render_output_dirs.length === 0) {
           next.render_output_dirs = normalizePathList(next.render_output_dir);
         }
+        if (!Object.prototype.hasOwnProperty.call(next, 'proxyEnabled') && 'proxy_enabled' in next) {
+          next.proxyEnabled = next.proxy_enabled;
+        }
+        if (!Object.prototype.hasOwnProperty.call(next, 'proxyResolution') && 'proxy_resolution' in next) {
+          next.proxyResolution = next.proxy_resolution;
+        }
+        if (!Object.prototype.hasOwnProperty.call(next, 'proxyCrf') && 'proxy_crf' in next) {
+          next.proxyCrf = next.proxy_crf;
+        }
+        next.proxyEnabled = next.proxyEnabled === true;
+        next.proxyResolution = normalizeProxyResolution(next.proxyResolution, 50);
+        next.proxyCrf = normalizeProxyCrf(next.proxyCrf, 23);
+        if (!Object.prototype.hasOwnProperty.call(next, 'renderExportDestinations') && 'render_export_destinations' in next) {
+          next.renderExportDestinations = next.render_export_destinations;
+        }
+        next.renderExportDestinations = normalizeExportDestinationEntries(
+          next.renderExportDestinations,
+          prev?.renderExportDestinations
+        );
+        if ('proxy_enabled' in next) delete next.proxy_enabled;
+        if ('proxy_resolution' in next) delete next.proxy_resolution;
+        if ('proxy_crf' in next) delete next.proxy_crf;
+        if ('render_export_destinations' in next) delete next.render_export_destinations;
         if ('fab_vault_path' in next) delete next.fab_vault_path;
         if ('fabVaultPath' in next) delete next.fabVaultPath;
         // cleanup legacy duplicate flag
@@ -1107,6 +1413,7 @@ const server = http.createServer(async (req, res) => {
         next.logWarnLines = normalizedLogLimits.warnAt;
         next.logHardLimitLines = normalizedLogLimits.hardLimit;
         applyLogStorageLimitsFromCommon(next);
+        applyAuditStorageLimitsFromCommon(next);
         const commonChanged = writeJSONIfChanged(COMMON_FILE, next);
         setCommonCache(next);
 

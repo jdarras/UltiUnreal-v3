@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { safeT } from "../../../shared/helpers";
 
 function firstNonEmptyString(values = []) {
@@ -22,6 +23,13 @@ function resolveRenderLinkedTaskMeta(render = null) {
   return { taskId, taskTitle };
 }
 
+function reviewStatusClassName(reviewStatus = "") {
+  const key = String(reviewStatus || "").trim().toLowerCase();
+  if (key === "validated") return "status-validated";
+  if (key === "rejected" || key === "to_modify" || key === "canceled") return "status-rejected";
+  return "status-to-validate";
+}
+
 function RendersListTableRow({
   t,
   render = null,
@@ -43,9 +51,10 @@ function RendersListTableRow({
   const renderId = Number(render?.id || 0);
   const reviewStatus = typeof renderReviewStatusKey === "function" ? renderReviewStatusKey(render) : "to_validate";
   const thumbCandidates = typeof buildRenderThumbCandidates === "function" ? buildRenderThumbCandidates(render) : [];
-  const thumbSrc = thumbCandidates[0] || "";
+  const [thumbIndex, setThumbIndex] = useState(0);
+  const [thumbError, setThumbError] = useState(false);
+  const thumbSrc = !thumbError ? (thumbCandidates[thumbIndex] || "") : "";
   const isBusy = busyRenderId === renderId;
-  const outputPath = String(render?.outputPath || "").trim();
   const canDeleteRender = (
     typeof onDeleteRender === "function"
     && Number.isFinite(renderId)
@@ -56,6 +65,8 @@ function RendersListTableRow({
   const linkedTaskFallback = typeof renderLinkedTaskValue === "function"
     ? String(renderLinkedTaskValue(render) || "").trim()
     : "";
+  const linkedTaskLabel = linkedTaskTitle || linkedTaskFallback || "";
+  const linkedTaskIdText = linkedTaskId > 0 ? `#${String(linkedTaskId).padStart(4, "0")}` : "";
   const canOpenTaskLink = typeof onRequestOpenTasks === "function" && linkedTaskId > 0;
   const actionSlotStyle = {
     width: "74px",
@@ -63,6 +74,11 @@ function RendersListTableRow({
     display: "inline-flex",
     justifyContent: "center",
   };
+
+  useEffect(() => {
+    setThumbIndex(0);
+    setThumbError(false);
+  }, [renderId, thumbCandidates.join("|")]);
 
   const handleDeleteRender = async () => {
     if (!canDeleteRender || rendersLoading || isBusy) return;
@@ -93,8 +109,13 @@ function RendersListTableRow({
             src={thumbSrc}
             alt={typeof renderOutputFilename === "function" ? renderOutputFilename(render) : "-"}
             className="uu-render-list-thumb"
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
+            onError={() => {
+              setThumbIndex((previous) => {
+                const next = previous + 1;
+                if (next < thumbCandidates.length) return next;
+                setThumbError(true);
+                return previous;
+              });
             }}
           />
         ) : (
@@ -105,26 +126,23 @@ function RendersListTableRow({
         <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
           {typeof renderOutputFilename === "function" ? renderOutputFilename(render) : "-"}
         </div>
-        {outputPath ? (
-          <div className="uu-muted mt-8" style={{ overflowWrap: "anywhere" }}>{outputPath}</div>
-        ) : null}
       </td>
       <td style={{ overflowWrap: "anywhere" }}>
         {linkedTaskId > 0 ? (
           <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-            {linkedTaskTitle ? <span style={{ overflowWrap: "anywhere" }}>{linkedTaskTitle}</span> : null}
-            {canOpenTaskLink ? (
-              <button
-                type="button"
-                className="uu-link"
-                style={{ whiteSpace: "nowrap" }}
-                onClick={handleOpenTask}
+            {linkedTaskLabel ? (
+              <span
+                onClick={canOpenTaskLink ? handleOpenTask : undefined}
+                style={{
+                  color: "#fff",
+                  overflowWrap: "anywhere",
+                  ...(canOpenTaskLink ? { cursor: "pointer" } : {}),
+                }}
               >
-                ({linkedTaskId})
-              </button>
-            ) : (
-              <span style={{ whiteSpace: "nowrap" }}>({linkedTaskId})</span>
-            )}
+                {linkedTaskLabel}
+              </span>
+            ) : null}
+            <span style={{ whiteSpace: "nowrap", opacity: 0.4 }}>{linkedTaskIdText}</span>
           </div>
         ) : (
           linkedTaskTitle || linkedTaskFallback || "-"
@@ -134,7 +152,7 @@ function RendersListTableRow({
       <td style={{ overflowWrap: "anywhere", fontWeight: 600 }}>{stationName || "-"}</td>
       <td onClick={(e) => e.stopPropagation()}>
         <select
-          className="uu-input"
+          className={`uu-input uu-status-select ${reviewStatusClassName(reviewStatus)}`}
           style={{ width: "75%" }}
           value={reviewStatus}
           disabled={rendersLoading || isBusy || !onTransitionRender || !canReviewRenders}
@@ -190,3 +208,4 @@ function RendersListTableRow({
 
 export { RendersListTableRow };
 export default RendersListTableRow;
+

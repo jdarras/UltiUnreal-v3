@@ -17,6 +17,20 @@ function isAnyProjectEditing() {
   }
 }
 
+function resolveRemoteRequestedByUserId(stmts) {
+  try {
+    const preferred = stmts?.findRenderDetectionPreferredActor?.get?.();
+    const preferredId = Number(preferred?.id || 0);
+    if (Number.isFinite(preferredId) && preferredId > 0) return Math.trunc(preferredId);
+  } catch {}
+  try {
+    const fallback = stmts?.findRenderDetectionFallbackActor?.get?.();
+    const fallbackId = Number(fallback?.id || 0);
+    if (Number.isFinite(fallbackId) && fallbackId > 0) return Math.trunc(fallbackId);
+  } catch {}
+  return 0;
+}
+
 /**
  * Notifie la machine origine d'un changement de statut de son job.
  * Fire-and-forget avec timeout 3000 ms.
@@ -224,6 +238,12 @@ async function handlePostprodRemoteJobRoutes({
     const isEditing = isAnyProjectEditing();
     const stationStatus = isEditing ? 'waiting_station' : '';
 
+    const requestedByUserId = resolveRemoteRequestedByUserId(stmts);
+    if (!Number.isFinite(requestedByUserId) || requestedByUserId <= 0) {
+      sendJSON(res, 503, { ok: false, error: 'missing_actor_user' });
+      return true;
+    }
+
     // Insertion du job
     const result = stmts.insertRenderJob.run(
       projectName,
@@ -231,7 +251,7 @@ async function handlePostprodRemoteJobRoutes({
       payloadJson,
       'Queued',
       'to_validate',
-      null,   // requested_by_user_id (origine externe)
+      requestedByUserId,
       null,   // validated_by_user_id
       0,      // requires_validation
       '',     // output_path

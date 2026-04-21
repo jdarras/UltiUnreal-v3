@@ -35,6 +35,8 @@ export function useTaskAutoRenderController({
   const [autoRenderScheduledMode, setAutoRenderScheduledMode] = useState("");
   const [autoRenderScheduledAt, setAutoRenderScheduledAt] = useState("");
   const [taskSequenceName, setTaskSequenceName] = useState("");
+  const [autoRenderOffscreen, setAutoRenderOffscreen] = useState(false);
+  const [autoRenderExportDestinationIds, setAutoRenderExportDestinationIds] = useState([]);
   const autoRenderStateSetters = useMemo(() => (
     buildTaskAutoRenderStateSetters({
       setExpectedRenderCountInput,
@@ -47,6 +49,8 @@ export function useTaskAutoRenderController({
       setAutoRenderScheduledMode,
       setAutoRenderScheduledAt,
       setTaskSequenceName,
+      setAutoRenderOffscreen,
+      setAutoRenderExportDestinationIds,
     })
   ), [
     setExpectedRenderCountInput,
@@ -59,6 +63,8 @@ export function useTaskAutoRenderController({
     setAutoRenderScheduledMode,
     setAutoRenderScheduledAt,
     setTaskSequenceName,
+    setAutoRenderOffscreen,
+    setAutoRenderExportDestinationIds,
   ]);
 
   const {
@@ -148,9 +154,14 @@ export function useTaskAutoRenderController({
     expectedRenderCountForForm,
     expectedRenderNamesPreview,
     autoExpectedRenderName,
+    autoOutputType,
   } = useMemo(() => (
-    buildExpectedRenderMeta({ title, expectedRenderCountInput })
-  ), [title, expectedRenderCountInput]);
+    buildExpectedRenderMeta({
+      title,
+      expectedRenderCountInput,
+      outputProfile: String(selectedAutoRenderTemplate?.outputProfile || "").trim(),
+    })
+  ), [title, expectedRenderCountInput, selectedAutoRenderTemplate]);
 
   const resetAutoRenderState = useCallback(() => {
     applyAutoRenderStateSetters(autoRenderStateSetters, DEFAULT_AUTO_RENDER_STATE);
@@ -187,6 +198,10 @@ export function useTaskAutoRenderController({
     setAutoRenderScheduledAt,
     taskSequenceName,
     setTaskSequenceName,
+    autoRenderOffscreen,
+    setAutoRenderOffscreen,
+    autoRenderExportDestinationIds,
+    setAutoRenderExportDestinationIds,
     filteredAutoRenderForms,
     selectedAutoRenderForm,
     visibleAutoRenderFormFields,
@@ -196,6 +211,7 @@ export function useTaskAutoRenderController({
     expectedRenderCountForForm,
     expectedRenderNamesPreview,
     autoExpectedRenderName,
+    autoOutputType,
     projectOptionByRef,
     projectLookupByAny,
     availableRenderWorkers,

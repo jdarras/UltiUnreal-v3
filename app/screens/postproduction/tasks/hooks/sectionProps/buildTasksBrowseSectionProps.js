@@ -10,6 +10,7 @@ const DIRECT_KEYS = [
   "searchQuery",
   "hasActiveListFilters",
   "favoriteOnly",
+  "showHistory",
   "viewMode",
   "searchExpanded",
   "displayedTasks",
@@ -30,6 +31,7 @@ const DIRECT_KEYS = [
   "taskLaunchModeLabel",
   "taskRenderFormLabel",
   "taskRenderModeName",
+  "resolveTaskVisualStatusKey",
   "isTaskFavorite",
   "renderTaskActions",
 ];
@@ -42,6 +44,7 @@ const ALIASES = {
   onClearFilters: "clearListFilters",
   onOpenAdvancedSearch: "openAdvancedSearch",
   onToggleFavoriteOnly: "toggleFavoriteOnly",
+  onSetShowHistory: "setShowHistory",
   onSetViewMode: "setViewMode",
   onCloseAdvancedSearch: "closeAdvancedSearch",
   onSetListStatusFilter: "setListStatusFilter",

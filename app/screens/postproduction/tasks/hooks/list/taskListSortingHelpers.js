@@ -1,4 +1,4 @@
-import { TASK_AUTO_RENDER_STATE_FLOW, TASK_STATUS_FLOW } from "../../helpers";
+import { TASK_VISUAL_STATUS_FLOW } from "../../helpers";
 import { toSortTimestamp } from "./taskListUtils";
 
 export const TASK_LIST_ALLOWED_SORT_KEYS = new Set([
@@ -9,17 +9,10 @@ export const TASK_LIST_ALLOWED_SORT_KEYS = new Set([
   "updatedAt",
 ]);
 
-export function taskStatusRank(task, taskRenderStateByTaskId, resolveTaskAutoRenderState) {
-  const autoState = resolveTaskAutoRenderState(task, taskRenderStateByTaskId);
-  if (autoState) {
-    const idx = TASK_AUTO_RENDER_STATE_FLOW.indexOf(autoState);
-    return idx >= 0 ? idx : TASK_AUTO_RENDER_STATE_FLOW.length + 1;
-  }
-  const status = String(task?.status || "").trim();
-  const idx = TASK_STATUS_FLOW.indexOf(status);
-  return idx >= 0
-    ? idx + TASK_AUTO_RENDER_STATE_FLOW.length + 1
-    : TASK_STATUS_FLOW.length + TASK_AUTO_RENDER_STATE_FLOW.length + 1;
+export function taskStatusRank(task, taskRenderStateByTaskId, resolveTaskVisualStatus) {
+  const visualStatus = String(resolveTaskVisualStatus(task, taskRenderStateByTaskId) || "").trim().toLowerCase();
+  const idx = TASK_VISUAL_STATUS_FLOW.indexOf(visualStatus);
+  return idx >= 0 ? idx : TASK_VISUAL_STATUS_FLOW.length + 1;
 }
 
 export function compareTasksBySortKey({
@@ -27,14 +20,14 @@ export function compareTasksBySortKey({
   b,
   listSortKey = "updatedAt",
   taskRenderStateByTaskId = new Map(),
-  resolveTaskAutoRenderState = () => "",
+  resolveTaskVisualStatus = () => "",
   taskExpectedRenderName = () => "",
   taskRenderWorkerLabel = () => "",
 } = {}) {
   if (listSortKey === "status") {
     return (
-      taskStatusRank(a, taskRenderStateByTaskId, resolveTaskAutoRenderState)
-      - taskStatusRank(b, taskRenderStateByTaskId, resolveTaskAutoRenderState)
+      taskStatusRank(a, taskRenderStateByTaskId, resolveTaskVisualStatus)
+      - taskStatusRank(b, taskRenderStateByTaskId, resolveTaskVisualStatus)
     );
   }
   if (listSortKey === "renderName") {

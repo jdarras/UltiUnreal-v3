@@ -47,12 +47,20 @@ function buildRenderQueueLaunchInput({
   onCreateRender = null,
   onDispatchRenders = null,
   setSelectedQueueTaskIds = null,
+  canLaunchRendersForUser = false,
+  queueRuntimeMode = "active",
+  sortedRenderQueueTasks = [],
+  getQueueEntryLaunchMeta = null,
 } = {}) {
   return {
     t,
     onCreateRender,
     onDispatchRenders,
     setSelectedQueueTaskIds,
+    canLaunchRendersForUser,
+    queueRuntimeMode,
+    sortedRenderQueueTasks,
+    getQueueEntryLaunchMeta,
   };
 }
 

@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { safeT } from "./shared/helpers";
 import { useRendersCardController } from "./renders/hooks/useRendersCardController";
 import { RenderDetailModal } from "./renders/components/RenderDetailModal";
@@ -5,12 +6,50 @@ import { RendersListPanel } from "./renders/components/RendersListPanel";
 import { RendersQueuePanel } from "./renders/components/RendersQueuePanel";
 import { RendersAdvancedSearchPanel, RendersToolbar } from "./renders/components/RendersToolbar";
 
+function normalizeProjectLookupKey(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeProjectNumericKey(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw || !/^\d+$/.test(raw)) return "";
+  return String(Math.trunc(Number(raw)));
+}
+
+function buildProjectLabelByRef(projects = []) {
+  const map = new Map();
+  const list = Array.isArray(projects) ? projects : [];
+
+  const register = (rawKey = "", label = "") => {
+    const key = normalizeProjectLookupKey(rawKey);
+    const projectLabel = String(label || "").trim();
+    if (!key || !projectLabel || map.has(key)) return;
+    map.set(key, projectLabel);
+  };
+
+  for (const project of list) {
+    const projectId = String(project?.id || "").trim();
+    const projectRef = String(project?.ref || projectId || "").trim();
+    const projectName = String(project?.name || "").trim();
+    const projectLabel = projectName || projectId || projectRef;
+    if (!projectLabel) continue;
+    register(projectRef, projectLabel);
+    register(projectId, projectLabel);
+    register(normalizeProjectNumericKey(projectRef), projectLabel);
+    register(normalizeProjectNumericKey(projectId), projectLabel);
+  }
+
+  return map;
+}
+
 function RendersValidationCard({
   t,
   user = null,
   renders = [],
   rendersLoading = false,
   rendersError = "",
+  projects = [],
+  renderForms = [],
   tasks = [],
   tasksLoading = false,
   renderWorkers = [],
@@ -20,11 +59,15 @@ function RendersValidationCard({
   onCreateRender = null,
   onDispatchRenders = null,
   onScheduleRender = null,
+  onUpdateRenderExportDestinations = null,
   onReorderRenders = null,
   onDeleteTask = null,
   onDeleteRender = null,
+  onGenerateProxy = null,
   onRequestOpenTasks = null,
   onNavigateToProject = null,
+  onNavigateToRenderForm = null,
+  renderExportDestinationOptions = [],
 }) {
   const {
     canReviewRenders,
@@ -49,13 +92,31 @@ function RendersValidationCard({
     onScheduleRender,
   });
 
+  const projectLabelByRef = useMemo(() => buildProjectLabelByRef(projects), [projects]);
   const hasRenderDetailPage = Boolean(detailModalProps?.render);
+  const [showHistory, setShowHistory] = useState(false);
+  const renderReviewKeyResolver = typeof listPanelProps?.renderReviewStatusKey === "function"
+    ? listPanelProps.renderReviewStatusKey
+    : (() => "to_validate");
+  const allListRenders = Array.isArray(listPanelProps?.sortedDisplayedRenders)
+    ? listPanelProps.sortedDisplayedRenders
+    : [];
+  const activeListRenders = allListRenders.filter(
+    (render) => String(renderReviewKeyResolver(render) || "").trim().toLowerCase() !== "validated"
+  );
+  const historyListRenders = showHistory
+    ? allListRenders.filter((render) => String(renderReviewKeyResolver(render) || "").trim().toLowerCase() === "validated")
+    : [];
 
   return (
     <section className="uu-section">
       {!hasRenderDetailPage ? (
         <>
-          <RendersToolbar {...toolbarProps} />
+          <RendersToolbar
+            {...toolbarProps}
+            showHistory={showHistory}
+            onSetShowHistory={setShowHistory}
+          />
           <RendersAdvancedSearchPanel {...toolbarProps} />
 
           {!canReviewRenders ? (
@@ -108,14 +169,45 @@ function RendersValidationCard({
 
           <RendersListPanel
             {...listPanelProps}
+            sortedDisplayedRenders={activeListRenders}
             onDeleteRender={onDeleteRender}
             onRequestOpenTasks={onRequestOpenTasks}
             onNavigateToProject={onNavigateToProject}
+            onNavigateToRenderForm={onNavigateToRenderForm}
+            projectLabelByRef={projectLabelByRef}
+            emptyLabel={safeT(t, "postprod.renders.active.empty", "Aucun rendu.")}
           />
+
+          {showHistory ? (
+            <RendersListPanel
+              {...listPanelProps}
+              sortedDisplayedRenders={historyListRenders}
+              onDeleteRender={onDeleteRender}
+              onRequestOpenTasks={onRequestOpenTasks}
+              onNavigateToProject={onNavigateToProject}
+              onNavigateToRenderForm={onNavigateToRenderForm}
+              projectLabelByRef={projectLabelByRef}
+              title={safeT(t, "postprod.renders.history.title", "Liste des rendus validés")}
+              emptyLabel={safeT(t, "postprod.renders.history.empty", "Aucun rendu validé.")}
+            />
+          ) : null}
         </>
       ) : null}
 
-      <RenderDetailModal {...detailModalProps} embedded={hasRenderDetailPage} />
+      <RenderDetailModal
+        {...detailModalProps}
+        onGenerateProxy={onGenerateProxy}
+        allRenders={Array.isArray(renders) ? renders : []}
+        projectLabelByRef={projectLabelByRef}
+        onNavigateToProject={onNavigateToProject}
+        onNavigateToRenderForm={onNavigateToRenderForm}
+        onRequestOpenTasks={onRequestOpenTasks}
+        tasks={tasks}
+        renderForms={renderForms}
+        renderExportDestinationOptions={renderExportDestinationOptions}
+        onUpdateRenderExportDestinations={onUpdateRenderExportDestinations}
+        embedded={hasRenderDetailPage}
+      />
     </section>
   );
 }

@@ -5,6 +5,15 @@ import {
   activityTypeChipLevel,
 } from "../../../users/shared/activityHelpers";
 
+function entryLevel(entry) {
+  const chipLevel = activityTypeChipLevel(activityActionTypeFromAction(entry?.action, entry));
+  if (chipLevel === "lvl-success") return "success";
+  if (chipLevel === "lvl-warn") return "warn";
+  if (chipLevel === "lvl-error") return "error";
+  if (chipLevel === "lvl-debug") return "debug";
+  return "info";
+}
+
 function AuditEntriesList({
   t,
   loading = false,
@@ -36,23 +45,15 @@ function AuditEntriesList({
       const label = projectName
         ? `${projectName}${projectRef && projectRef !== projectName ? ` [${projectRef}]` : ""}`
         : (projectRef ? `Projet [${projectRef}]` : safeT(t, "postprod.audit.item.project", "Projet"));
-      return {
-        label,
-        target: { type: "project", projectRef: projectRef || "" },
-      };
+      return { label, target: { type: "project", projectRef: projectRef || "" } };
     }
-
     if (actionType === "form") {
       const formName = extractDetailLabel(detail, "Formulaire")
         || extractDetailLabel(detail, "Form")
         || safeT(t, "postprod.audit.item.form", "Formulaire");
       const formId = scopeId ? `#${scopeId}` : "";
-      return {
-        label: `${formName}${formId ? ` ${formId}` : ""}`,
-        target: { type: "form", formId: scopeId || "" },
-      };
+      return { label: `${formName}${formId ? ` ${formId}` : ""}`, target: { type: "form", formId: scopeId || "" } };
     }
-
     if (actionType === "task") {
       const taskName = extractDetailLabel(detail, "Tache")
         || extractDetailLabel(detail, "Task")
@@ -63,7 +64,6 @@ function AuditEntriesList({
         target: { type: "task", taskId: taskId > 0 ? taskId : (scopeId || "") },
       };
     }
-
     if (actionType === "validation") {
       const taskName = extractDetailLabel(detail, "Tache") || extractDetailLabel(detail, "Task");
       const taskIdLabel = taskId > 0 ? `#${taskId}` : "";
@@ -73,14 +73,9 @@ function AuditEntriesList({
       const statusPart = toStatus ? ` -> ${toStatus}` : "";
       return {
         label: `${base}${statusPart}`,
-        target: {
-          type: "validation",
-          renderId: renderId > 0 ? renderId : "",
-          taskId: taskId > 0 ? taskId : "",
-        },
+        target: { type: "validation", renderId: renderId > 0 ? renderId : "", taskId: taskId > 0 ? taskId : "" },
       };
     }
-
     if (actionType === "user") {
       const username = extractDetailLabel(detail, "Utilisateur")
         || extractDetailLabel(detail, "User")
@@ -88,34 +83,22 @@ function AuditEntriesList({
         || extractDetailLabel(detail, "DisplayName")
         || safeT(t, "postprod.audit.item.user", "Utilisateur");
       const userRef = scopeId ? `#${scopeId}` : "";
-      return {
-        label: `${username}${userRef ? ` ${userRef}` : ""}`,
-        target: null,
-      };
+      return { label: `${username}${userRef ? ` ${userRef}` : ""}`, target: null };
     }
-
     if (actionType === "profile") {
       const roleName = extractDetailLabel(detail, "Role")
         || extractDetailLabel(detail, "Profil")
         || extractDetailLabel(detail, "Profile")
         || safeT(t, "postprod.audit.item.profile", "Profil");
       const roleRef = scopeId ? `[${scopeId}]` : "";
-      return {
-        label: `${roleName}${roleRef ? ` ${roleRef}` : ""}`,
-        target: null,
-      };
+      return { label: `${roleName}${roleRef ? ` ${roleRef}` : ""}`, target: null };
     }
-
-    return {
-      label: detail || "-",
-      target: null,
-    };
+    return { label: detail || entry?.action || "-", target: null };
   };
 
   const rows = (Array.isArray(entries) ? entries : [])
     .map((entry) => (entry && typeof entry === "object" ? entry : null))
-    .filter(Boolean)
-    .filter((entry) => activityActionTypeFromAction(entry?.action, entry) !== "other");
+    .filter(Boolean);
 
   if (loading) {
     return <div className="uu-muted mt-12">{safeT(t, "postprod.audit.loading", "Chargement de l'historique...")}</div>;
@@ -123,68 +106,50 @@ function AuditEntriesList({
   if (error) {
     return <div className="uu-msg error mt-12">{error}</div>;
   }
-
   if (rows.length === 0) {
     return (
       <div className="uu-muted mt-12">
-        {safeT(t, "postprod.audit.emptyBusiness", "Aucune action metier recente.")}
+        {safeT(t, "postprod.audit.empty", "Aucun log.")}
       </div>
     );
   }
 
   return (
-    <table className="uu-table" style={{ width: "100%", tableLayout: "fixed", marginTop: "12px" }}>
-      <thead>
-        <tr>
-          <th style={{ width: "200px", textAlign: "left" }}>
-            {safeT(t, "postprod.audit.table.dateTime", "Date et heure")}
-          </th>
-          <th style={{ width: "220px", textAlign: "left" }}>
-            {safeT(t, "postprod.audit.table.actionType", "Type action")}
-          </th>
-          <th style={{ textAlign: "left" }}>
-            {safeT(t, "postprod.audit.table.detail", "Detail")}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((entry) => {
-          const rowId = Number(entry?.id || 0);
-          const actionType = activityActionTypeFromAction(entry?.action, entry);
-          const actionTypeText = activityActionTypeLabel(t, actionType);
-          const detailLink = buildActivityDetailTarget(entry, actionType);
-          const canOpenDetail = detailLink?.target && typeof onOpenActivityTarget === "function";
-          return (
-            <tr key={`audit-entry-${rowId > 0 ? rowId : `${String(entry?.createdAt || "")}-${String(entry?.action || "")}`}`}>
-              <td style={{ paddingTop: "6px", paddingBottom: "6px", verticalAlign: "top" }}>
-                {formatDate(entry?.createdAt)}
-              </td>
-              <td style={{ paddingTop: "6px", paddingBottom: "6px", verticalAlign: "top" }}>
-                <span
-                  className={`uu-chip ${activityTypeChipLevel(actionType)} chip-on`}
-                  style={{ display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1.2 }}
+    <div className="log-list" style={{ marginTop: "8px" }}>
+      {rows.map((entry) => {
+        const rowId = Number(entry?.id || 0);
+        const actionType = activityActionTypeFromAction(entry?.action, entry);
+        const actionTypeText = activityActionTypeLabel(t, actionType);
+        const level = entryLevel(entry);
+        const detailLink = buildActivityDetailTarget(entry, actionType);
+        const canOpenDetail = detailLink?.target && typeof onOpenActivityTarget === "function";
+        const key = rowId > 0
+          ? `audit-${rowId}`
+          : `audit-${String(entry?.createdAt || "")}-${String(entry?.action || "")}`;
+        return (
+          <div key={key} className={`log-row lvl-${level}`}>
+            <div className="log-meta">
+              <span className="log-ts">{formatDate(entry?.createdAt)}</span>
+              <span className={`log-src ${activityTypeChipLevel(actionType)}`}>{actionTypeText}</span>
+              {entry?.action ? <span className="log-action">{entry.action}</span> : null}
+            </div>
+            <div className="log-msg">
+              {canOpenDetail ? (
+                <button
+                  type="button"
+                  className="uu-link"
+                  onClick={() => onOpenActivityTarget?.(detailLink.target)}
                 >
-                  {actionTypeText}
-                </span>
-              </td>
-              <td style={{ overflowWrap: "anywhere", lineHeight: 1.35, paddingTop: "6px", paddingBottom: "6px", verticalAlign: "top" }}>
-                {canOpenDetail ? (
-                  <button
-                    type="button"
-                    className="uu-link"
-                    onClick={() => onOpenActivityTarget?.(detailLink.target)}
-                  >
-                    {detailLink.label || "-"}
-                  </button>
-                ) : (
-                  detailLink.label || "-"
-                )}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                  {detailLink.label || "-"}
+                </button>
+              ) : (
+                detailLink.label || "-"
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

@@ -14,9 +14,9 @@ function TaskEditorFormDataCard({
   if (!selectedAutoRenderForm) return null;
   return (
     <div className="uu-card mt-12">
-      <div style={{ fontWeight: 600 }}>
+      <h4 className="uu-h3 uu-block-title" style={{ margin: "0 0 8px 0" }}>
         {safeT(t, "postprod.tasks.form.autoRenderForm.live.simple", "Saisie formulaire")}
-      </div>
+      </h4>
       {autoRenderFormFieldsLoading ? (
         <div className="uu-muted mt-8">{safeT(t, "common.loading", "Chargement…")}</div>
       ) : null}

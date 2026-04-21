@@ -10,14 +10,14 @@ function buildTasksListControllerInput({
   taskFavorites = {},
   setTaskFavorites = null,
   searchQuery = "",
-  listStatusFilter = "all",
-  listRenderWorkerFilter = "all",
+  listStatusFilter = [],
+  listRenderWorkerFilter = [],
   setListRenderWorkerFilter = null,
-  listProjectFilter = "all",
+  listProjectFilter = [],
   setListProjectFilter = null,
-  listFormFilter = "all",
+  listFormFilter = [],
   setListFormFilter = null,
-  listRenderModeFilter = "all",
+  listRenderModeFilter = [],
   setListRenderModeFilter = null,
   listSortKey = "updatedAt",
   setListSortKey = null,
@@ -57,4 +57,3 @@ export {
 };
 
 export default buildTasksListControllerInput;
-

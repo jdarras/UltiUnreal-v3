@@ -26,17 +26,26 @@ async function launchScheduledTaskRenderAction({
   if (!Number.isFinite(taskId) || taskId <= 0) return false;
 
   const { linkedRenderId, linkedRenderStatus } = resolveLinkedQueuedRender(queueEntry);
-  if (linkedRenderId > 0 && linkedRenderStatus === "Queued" && canDispatchRenders) {
-    if (typeof setBusyScheduledTaskId === "function") setBusyScheduledTaskId(taskId);
-    try {
-      await Promise.resolve(onDispatchRenders({
-        maxJobs: 1,
-        renderIds: [linkedRenderId],
-      }));
-    } finally {
-      if (typeof setBusyScheduledTaskId === "function") setBusyScheduledTaskId(0);
+  if (linkedRenderId > 0) {
+    const linkedRenderStatusKey = String(linkedRenderStatus || "").trim().toLowerCase();
+
+    // Guardrail: never create a new render if one is already queued/running for the same queue entry.
+    if (linkedRenderStatusKey === "running") {
+      return true;
     }
-    return true;
+
+    if (linkedRenderStatusKey === "queued" && canDispatchRenders) {
+      if (typeof setBusyScheduledTaskId === "function") setBusyScheduledTaskId(taskId);
+      try {
+        await Promise.resolve(onDispatchRenders({
+          maxJobs: 1,
+          renderIds: [linkedRenderId],
+        }));
+      } finally {
+        if (typeof setBusyScheduledTaskId === "function") setBusyScheduledTaskId(0);
+      }
+      return true;
+    }
   }
 
   if (!canCreateRender || !createRenderInput?.createRenderInput) return false;

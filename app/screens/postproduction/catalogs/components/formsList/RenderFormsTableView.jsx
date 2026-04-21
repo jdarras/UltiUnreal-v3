@@ -9,20 +9,21 @@ function RenderFormsTableView({
   isFormFavorite = null,
   onToggleFormFavorite = null,
   formProjectLabel = null,
+  formProjectId = null,
   onEditForm = null,
   onDeleteForm = null,
+  onNavigateToProject = null,
 }) {
   return (
     <div style={{ overflowX: "auto" }}>
       <table className="uu-table" style={{ width: "100%" }}>
         <colgroup>
-          <col style={{ width: "4%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "16%" }} />
-          <col style={{ width: "16%" }} />
-          <col style={{ width: "16%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "23%" }} />
+          <col style={{ width: "5%" }} />
+          <col style={{ width: "20%" }} />
+          <col style={{ width: "20%" }} />
+          <col style={{ width: "20%" }} />
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "25%" }} />
         </colgroup>
         <thead>
           <tr>
@@ -39,11 +40,6 @@ function RenderFormsTableView({
             <th style={{ textAlign: "left" }}>
               <button className="uu-link" type="button" onClick={() => onSortColumn?.("projectName")}>
                 {safeT(t, "postprod.data.project", "Projet")} {formsSortArrowFor?.("projectName") || ""}
-              </button>
-            </th>
-            <th style={{ textAlign: "left" }}>
-              <button className="uu-link" type="button" onClick={() => onSortColumn?.("mapName")}>
-                {safeT(t, "postprod.data.forms.level", "Level")} {formsSortArrowFor?.("mapName") || ""}
               </button>
             </th>
             <th style={{ textAlign: "left" }}>
@@ -79,11 +75,19 @@ function RenderFormsTableView({
                 <td style={{ textAlign: "center" }}>
                   <span className={`uu-dot ${availabilityClass}`} title={availabilityTitle} />
                 </td>
-                <td style={{ overflowWrap: "anywhere" }}>{String(form?.name || "-")}</td>
                 <td style={{ overflowWrap: "anywhere" }}>
-                  {formProjectLabel?.(form) || "-"}
+                  {String(form?.name || "-")}
+                  {id > 0 && <span style={{ marginLeft: "6px", opacity: 0.4 }}>#{id}</span>}
                 </td>
-                <td style={{ overflowWrap: "anywhere" }}>{simplifyUnrealAssetName(form?.mapName)}</td>
+                <td style={{ overflowWrap: "anywhere" }}>
+                  <span
+                    onClick={typeof onNavigateToProject === "function" ? () => onNavigateToProject(form?.projectName) : undefined}
+                    style={typeof onNavigateToProject === "function" ? { cursor: "pointer" } : undefined}
+                  >
+                    {formProjectLabel?.(form) || "-"}
+                  </span>
+                  {(() => { const pid = formProjectId?.(form); return pid > 0 ? <span style={{ marginLeft: "6px", opacity: 0.4 }}>#{String(pid).padStart(4, "0")}</span> : null; })()}
+                </td>
                 <td style={{ overflowWrap: "anywhere" }}>{Array.isArray(form?.allowedSequences) && form.allowedSequences.length > 0 ? form.allowedSequences.map(simplifyUnrealAssetName).join(", ") : "-"}</td>
                 <td style={{ whiteSpace: "nowrap" }}>{formatDate(form?.updatedAt || form?.createdAt)}</td>
                 <td>

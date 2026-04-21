@@ -16,6 +16,7 @@ const DIRECT_KEYS = [
   "queueBatchFeedback",
   "queueSortKey",
   "queueSortDir",
+  "queueRuntimeMode",
   "queueSortIndicator",
   "canLaunchRenders",
   "busyScheduledTaskId",
@@ -28,6 +29,7 @@ const ALIASES = {
   onToggleQueueSort: "toggleQueueSort",
   onToggleQueueTaskSelection: "toggleQueueTaskSelection",
   onOpenRenderDetail: "openRenderDetail",
+  onSetQueueRuntimeMode: "setQueueRuntimeMode",
 };
 
 function buildQueuePanelProps(input = {}) {

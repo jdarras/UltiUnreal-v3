@@ -39,6 +39,8 @@ function resolveTaskPayloadBuildContext({
   autoRenderFormFields = [],
   autoRenderFormValues = {},
   taskSequenceName = "",
+  autoRenderOffscreen = false,
+  autoRenderExportDestinationIds = [],
 } = {}) {
   const expectedRenderCount = normalizeTaskExpectedRenderCountInput(expectedRenderCountInput);
   const expectedRenderNames = buildTaskExpectedRenderNamesPreview(title, expectedRenderCount);
@@ -119,6 +121,7 @@ function resolveTaskPayloadBuildContext({
     effectiveSequenceName: context.effectiveSequenceName,
     effectiveOutputProfile: context.effectiveOutputProfile,
     effectiveWrcPresetName: context.effectiveWrcPresetName,
+    effectiveWrcPresetPath: context.effectiveWrcPresetPath,
     effectiveRenderPresetName: context.effectiveRenderPresetName,
     effectiveWorkerKey: context.effectiveWorkerKey,
     renderStation: context.renderStation,
@@ -127,6 +130,8 @@ function resolveTaskPayloadBuildContext({
     effectiveTemplateName: context.effectiveTemplateName,
     effectiveProjectPath: context.effectiveProjectPath,
     selectedFormIdNum: context.selectedFormIdNum,
+    autoRenderOffscreen: autoRenderOffscreen === true,
+    autoRenderExportDestinationIds,
   });
 
   return {

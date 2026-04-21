@@ -82,11 +82,13 @@ function RendersQueuePanel({
   queueBatchFeedback = "",
   queueSortKey = "startAt",
   queueSortDir = "asc",
+  queueRuntimeMode = "active",
   queueSortIndicator = null,
   canLaunchRenders = false,
   busyScheduledTaskId = 0,
   queueEntryWorkerLabel = null,
   getQueueEntryLaunchMeta = null,
+  onSetQueueRuntimeMode = null,
   onToggleQueueSort = null,
   onLaunchScheduledTaskRender = null,
   onEditQueueTask = null,
@@ -182,6 +184,9 @@ function RendersQueuePanel({
         filteredRenderQueueTasks={filteredRenderQueueTasks}
         launchableQueueTaskIdSet={launchableQueueTaskIdSet}
         queueStateSummary={queueStateSummary}
+        canLaunchRenders={canLaunchRenders}
+        queueRuntimeMode={queueRuntimeMode}
+        onSetQueueRuntimeMode={onSetQueueRuntimeMode}
       />
       {queueBatchError ? <div className="uu-msg warn mt-12">{queueBatchError}</div> : null}
       {queueBatchFeedback ? <div className="uu-msg ok mt-12">{queueBatchFeedback}</div> : null}
@@ -203,6 +208,7 @@ function RendersQueuePanel({
           canLaunchRenders={canLaunchRenders}
           queueEntryWorkerLabel={queueEntryWorkerLabel}
           getQueueEntryLaunchMeta={getQueueEntryLaunchMeta}
+          queueRuntimeMode={queueRuntimeMode}
           queueSortIndicator={queueSortIndicator}
           onToggleQueueSort={onToggleQueueSort}
           onLaunchScheduledTaskRender={onLaunchScheduledTaskRender}

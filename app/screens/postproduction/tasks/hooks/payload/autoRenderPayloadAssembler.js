@@ -4,6 +4,42 @@ function assignIfDefined(target, key, value) {
   target[key] = value;
 }
 
+function normalizeExportDestinationIds(value) {
+  const src = Array.isArray(value)
+    ? value
+    : (typeof value === "string" ? value.split(/[,\r\n;]+/g) : []);
+  const out = [];
+  const seen = new Set();
+  for (const raw of src) {
+    const id = String(raw || "").trim().toLowerCase();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+function withRenderOffscreenExecution(execution = null, renderOffscreen = false) {
+  if (!execution || typeof execution !== "object" || Array.isArray(execution)) return null;
+  const offscreen = renderOffscreen === true;
+  const cloned = {
+    ...execution,
+    renderOffscreen: offscreen,
+  };
+  const args = Array.isArray(execution?.args) ? execution.args : [];
+  if (args.length <= 0) {
+    if (offscreen) cloned.args = ["-RenderOffscreen"];
+    return cloned;
+  }
+  const nextArgs = args
+    .map((arg) => String(arg || "").trim())
+    .filter(Boolean)
+    .filter((arg) => String(arg || "").trim().toLowerCase() !== "-renderoffscreen");
+  if (offscreen) nextArgs.push("-RenderOffscreen");
+  cloned.args = nextArgs;
+  return cloned;
+}
+
 export function buildAutoRenderPayloads({
   selectedTemplatePayload = {},
   selectedFormData = {},
@@ -12,6 +48,7 @@ export function buildAutoRenderPayloads({
   effectiveSequenceName = "",
   effectiveOutputProfile = "",
   effectiveWrcPresetName = "",
+  effectiveWrcPresetPath = "",
   effectiveRenderPresetName = "",
   effectiveWorkerKey = "",
   renderStation = "local",
@@ -20,7 +57,11 @@ export function buildAutoRenderPayloads({
   effectiveTemplateName = "",
   effectiveProjectPath = "",
   selectedFormIdNum = 0,
+  autoRenderOffscreen = false,
+  autoRenderExportDestinationIds = [],
 } = {}) {
+  const offscreenEnabled = autoRenderOffscreen === true;
+  const exportDestinationIds = normalizeExportDestinationIds(autoRenderExportDestinationIds);
   const renderModeName = String(effectiveRenderPresetName || effectiveTemplateName || "").trim();
   const hasFormData = Object.keys(selectedFormData || {}).length > 0;
   const basePayload = { ...selectedTemplatePayload };
@@ -31,12 +72,19 @@ export function buildAutoRenderPayloads({
   assignIfDefined(basePayload, "sequenceName", effectiveSequenceName);
   assignIfDefined(basePayload, "outputProfile", effectiveOutputProfile);
   assignIfDefined(basePayload, "presetName", effectiveWrcPresetName);
+  assignIfDefined(basePayload, "presetPath", effectiveWrcPresetPath);
   assignIfDefined(basePayload, "renderModeName", renderModeName);
   assignIfDefined(basePayload, "outputDir", effectiveOutputDir);
   assignIfDefined(basePayload, "renderStation", renderStation);
   assignIfDefined(basePayload, "render_station", renderStation);
   assignIfDefined(basePayload, "renderStationName", renderStationName);
   assignIfDefined(basePayload, "render_station_name", renderStationName);
+  basePayload.renderOffscreen = offscreenEnabled;
+  basePayload.exportDestinationIds = exportDestinationIds;
+  const normalizedExecution = withRenderOffscreenExecution(basePayload?.execution, offscreenEnabled);
+  if (normalizedExecution) {
+    basePayload.execution = normalizedExecution;
+  }
   if (effectiveWorkerKey) {
     basePayload.preferredWorkerKey = effectiveWorkerKey;
     basePayload.targetWorkerKey = effectiveWorkerKey;
@@ -54,11 +102,14 @@ export function buildAutoRenderPayloads({
     projectName: formProjectRef,
     templateName: effectiveTemplateName,
     requiresValidation: false,
+    renderOffscreen: offscreenEnabled,
+    exportDestinationIds,
     payload: basePayload,
   };
   assignIfDefined(autoRenderConfig, "projectPath", effectiveProjectPath);
   assignIfDefined(autoRenderConfig, "uprojectPath", effectiveProjectPath);
   assignIfDefined(autoRenderConfig, "presetName", effectiveWrcPresetName);
+  assignIfDefined(autoRenderConfig, "presetPath", effectiveWrcPresetPath);
   assignIfDefined(autoRenderConfig, "renderModeName", renderModeName);
   assignIfDefined(autoRenderConfig, "renderStation", renderStation);
   assignIfDefined(autoRenderConfig, "renderStationName", renderStationName);
@@ -67,6 +118,9 @@ export function buildAutoRenderPayloads({
   assignIfDefined(autoRenderConfig, "sequenceName", effectiveSequenceName);
   assignIfDefined(autoRenderConfig, "outputProfile", effectiveOutputProfile);
   assignIfDefined(autoRenderConfig, "outputDir", effectiveOutputDir);
+  if (normalizedExecution) {
+    autoRenderConfig.execution = normalizedExecution;
+  }
   if (Number(selectedFormIdNum || 0) > 0) autoRenderConfig.formId = Number(selectedFormIdNum || 0);
   if (hasFormData) autoRenderConfig.formData = selectedFormData;
 

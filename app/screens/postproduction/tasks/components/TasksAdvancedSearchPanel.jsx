@@ -1,141 +1,172 @@
+import MultiSelectDropdown from "../../../../components/MultiSelectDropdown";
 import { safeT } from "../../shared/helpers";
+
+const DROPDOWN_STYLE = { flex: "none", minWidth: 0, width: "100%" };
+const FIELD_GRID = { display: "grid", gridTemplateColumns: "150px 1fr", gap: "8px", alignItems: "center" };
+
+function normalizeMultiSelectOptions(options = []) {
+  return (Array.isArray(options) ? options : [])
+    .map((entry) => {
+      const valueRaw = entry?.value ?? entry?.key ?? entry?.ref ?? entry?.id ?? "";
+      const value = String(valueRaw || "").trim().toLowerCase();
+      const label = String(entry?.label || valueRaw || "").trim();
+      if (!value || !label) return null;
+      return { value, label };
+    })
+    .filter(Boolean);
+}
+
+function normalizeValues(values = []) {
+  const source = Array.isArray(values) ? values : [values];
+  const seen = new Set();
+  const out = [];
+  for (const value of source) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized || normalized === "all" || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
 
 function TasksAdvancedSearchPanel({
   t,
   visible = false,
   displayedCount = 0,
   tasksLoading = false,
-  listStatusFilter = "all",
+  listStatusFilter = [],
   onSetListStatusFilter = null,
   taskStatusFlow = [],
   taskStatusLabel = null,
-  taskAutoRenderStateLabel = null,
-  listRenderWorkerFilter = "all",
+  listRenderWorkerFilter = [],
   onSetListRenderWorkerFilter = null,
   taskRenderWorkerFilterOptions = [],
-  listProjectFilter = "all",
+  listProjectFilter = [],
   onSetListProjectFilter = null,
   normalizedProjectOptions = [],
-  listFormFilter = "all",
+  listFormFilter = [],
   onSetListFormFilter = null,
   taskFormFilterOptions = [],
-  listRenderModeFilter = "all",
+  listRenderModeFilter = [],
   onSetListRenderModeFilter = null,
   taskRenderModeFilterOptions = [],
   onClose = null,
 }) {
   if (!visible) return null;
 
+  const noneLabel = safeT(t, "common.all", "Tous");
+
+  const statusOptions = normalizeMultiSelectOptions(
+    (Array.isArray(taskStatusFlow) ? taskStatusFlow : []).map((status) => ({
+      value: status,
+      label: typeof taskStatusLabel === "function" ? taskStatusLabel(t, status) : String(status),
+    }))
+  );
+
+  const workerOptions = normalizeMultiSelectOptions([
+    { value: "__auto", label: safeT(t, "postprod.tasks.form.autoRenderWorker.auto", "Auto (dispatcher)") },
+    ...(Array.isArray(taskRenderWorkerFilterOptions) ? taskRenderWorkerFilterOptions : []).map((entry) => ({
+      value: entry?.key,
+      label: entry?.label || entry?.key,
+    })),
+  ]);
+
+  const projectOptions = normalizeMultiSelectOptions(
+    (Array.isArray(normalizedProjectOptions) ? normalizedProjectOptions : []).map((entry) => ({
+      value: entry?.ref,
+      label: entry?.label || entry?.ref,
+    }))
+  );
+
+  const formOptions = normalizeMultiSelectOptions(
+    (Array.isArray(taskFormFilterOptions) ? taskFormFilterOptions : []).map((entry) => ({
+      value: entry?.id,
+      label: entry?.label || `#${entry?.id}`,
+    }))
+  );
+
+  const renderModeOptions = normalizeMultiSelectOptions(
+    (Array.isArray(taskRenderModeFilterOptions) ? taskRenderModeFilterOptions : []).map((entry) => ({
+      value: entry?.value,
+      label: entry?.label || entry?.value,
+    }))
+  );
+
   return (
     <div className="uu-card uu-col uu-gap-12 mt-12">
       <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-        <strong className="uu-block-title">{safeT(t, "projects.search.advancedTitle", "Résultats de recherche")}</strong>
+        <strong className="uu-block-title">{safeT(t, "projects.search.advancedTitle", "Recherche avancée")}</strong>
         <div className="uu-muted">
           {displayedCount ? `(${displayedCount})` : ""}
         </div>
       </div>
-      <div className="uu-row uu-gap-16 uu-wrap">
-        <div className="uu-row uu-align-center uu-gap-8" style={{ minWidth: "260px" }}>
-          <label className="uu-label" style={{ width: "120px" }}>{safeT(t, "postprod.tasks.search.advanced.status", "Statut")}</label>
-          <select
-            className="uu-select"
-            style={{ width: "240px", height: "36px" }}
-            value={listStatusFilter}
-            disabled={tasksLoading}
-            onChange={(e) => onSetListStatusFilter?.(String(e.target.value || "all"))}
-          >
-            <option value="all">{safeT(t, "postprod.tasks.filter.status.all", "Tous")}</option>
-            {(Array.isArray(taskStatusFlow) ? taskStatusFlow : []).map((status) => (
-              <option key={`task-status-filter-${status}`} value={status}>
-                {typeof taskStatusLabel === "function" ? taskStatusLabel(t, status) : String(status)}
-              </option>
-            ))}
-            <option value="__render_waiting">{typeof taskAutoRenderStateLabel === "function" ? taskAutoRenderStateLabel(t, "waiting") : "En attente"}</option>
-            <option value="__render_running">{typeof taskAutoRenderStateLabel === "function" ? taskAutoRenderStateLabel(t, "running") : "En rendu"}</option>
-            <option value="__render_error">{typeof taskAutoRenderStateLabel === "function" ? taskAutoRenderStateLabel(t, "error") : "En erreur"}</option>
-          </select>
-        </div>
-        <div className="uu-row uu-align-center uu-gap-8" style={{ minWidth: "280px" }}>
-          <label className="uu-label" style={{ width: "120px" }}>{safeT(t, "postprod.tasks.search.advanced.renderWorker", "Station de rendu")}</label>
-          <select
-            className="uu-select"
-            style={{ width: "260px", height: "36px" }}
-            value={listRenderWorkerFilter}
-            disabled={tasksLoading}
-            onChange={(e) => {
-              const next = String(e.target.value || "all").trim();
-              if (next === "all" || next === "__auto" || (Array.isArray(taskRenderWorkerFilterOptions) ? taskRenderWorkerFilterOptions : []).some((entry) => entry.key === next)) {
-                onSetListRenderWorkerFilter?.(next);
-                return;
-              }
-              onSetListRenderWorkerFilter?.("all");
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", alignItems: "start" }}>
+        <div style={FIELD_GRID}>
+          <label className="uu-label">{safeT(t, "postprod.tasks.search.advanced.status", "Statut")}</label>
+          <MultiSelectDropdown
+            options={statusOptions}
+            values={normalizeValues(listStatusFilter)}
+            onChange={(value) => {
+              if (tasksLoading) return;
+              onSetListStatusFilter?.(normalizeValues(value));
             }}
-          >
-            <option value="all">{safeT(t, "postprod.tasks.filter.renderWorker.all", "Toutes")}</option>
-            <option value="__auto">{safeT(t, "postprod.tasks.form.autoRenderWorker.auto", "Auto (dispatcher)")}</option>
-            {(Array.isArray(taskRenderWorkerFilterOptions) ? taskRenderWorkerFilterOptions : []).map((entry) => (
-              <option key={`task-worker-filter-${entry.key}`} value={entry.key}>
-                {entry.label || entry.key}
-              </option>
-            ))}
-          </select>
+            noneLabel={noneLabel}
+            style={DROPDOWN_STYLE}
+          />
+
+          <label className="uu-label">{safeT(t, "postprod.tasks.search.advanced.renderWorker", "Station de rendu")}</label>
+          <MultiSelectDropdown
+            options={workerOptions}
+            values={normalizeValues(listRenderWorkerFilter)}
+            onChange={(value) => {
+              if (tasksLoading) return;
+              onSetListRenderWorkerFilter?.(normalizeValues(value));
+            }}
+            noneLabel={noneLabel}
+            style={DROPDOWN_STYLE}
+          />
+
+          <label className="uu-label">{safeT(t, "postprod.tasks.search.advanced.project", "Projet")}</label>
+          <MultiSelectDropdown
+            options={projectOptions}
+            values={normalizeValues(listProjectFilter)}
+            onChange={(value) => {
+              if (tasksLoading) return;
+              onSetListProjectFilter?.(normalizeValues(value));
+            }}
+            noneLabel={noneLabel}
+            style={DROPDOWN_STYLE}
+          />
+        </div>
+
+        <div style={FIELD_GRID}>
+          <label className="uu-label">{safeT(t, "postprod.tasks.search.advanced.form", "Formulaire")}</label>
+          <MultiSelectDropdown
+            options={formOptions}
+            values={normalizeValues(listFormFilter)}
+            onChange={(value) => {
+              if (tasksLoading) return;
+              onSetListFormFilter?.(normalizeValues(value));
+            }}
+            noneLabel={noneLabel}
+            style={DROPDOWN_STYLE}
+          />
+
+          <label className="uu-label">{safeT(t, "postprod.tasks.search.advanced.renderMode", "Mode de rendu")}</label>
+          <MultiSelectDropdown
+            options={renderModeOptions}
+            values={normalizeValues(listRenderModeFilter)}
+            onChange={(value) => {
+              if (tasksLoading) return;
+              onSetListRenderModeFilter?.(normalizeValues(value));
+            }}
+            noneLabel={noneLabel}
+            style={DROPDOWN_STYLE}
+          />
         </div>
       </div>
-      <div className="uu-row uu-gap-16 uu-wrap">
-        <div className="uu-row uu-align-center uu-gap-8" style={{ minWidth: "280px" }}>
-          <label className="uu-label" style={{ width: "120px" }}>{safeT(t, "postprod.tasks.search.advanced.project", "Projet")}</label>
-          <select
-            className="uu-select"
-            style={{ width: "260px", height: "36px" }}
-            value={listProjectFilter}
-            disabled={tasksLoading}
-            onChange={(e) => onSetListProjectFilter?.(String(e.target.value || "all"))}
-          >
-            <option value="all">{safeT(t, "postprod.tasks.filter.project.all", "Tous")}</option>
-            {(Array.isArray(normalizedProjectOptions) ? normalizedProjectOptions : []).map((entry) => (
-              <option key={`task-project-filter-${entry.ref}`} value={entry.ref}>
-                {entry.label || entry.ref}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="uu-row uu-align-center uu-gap-8" style={{ minWidth: "280px" }}>
-          <label className="uu-label" style={{ width: "120px" }}>{safeT(t, "postprod.tasks.search.advanced.form", "Formulaire")}</label>
-          <select
-            className="uu-select"
-            style={{ width: "260px", height: "36px" }}
-            value={listFormFilter}
-            disabled={tasksLoading}
-            onChange={(e) => onSetListFormFilter?.(String(e.target.value || "all"))}
-          >
-            <option value="all">{safeT(t, "postprod.tasks.search.advanced.form.all", "Tous")}</option>
-            {(Array.isArray(taskFormFilterOptions) ? taskFormFilterOptions : []).map((entry) => (
-              <option key={`task-form-filter-${entry.id}`} value={String(entry.id)}>
-                {entry.label || `#${entry.id}`}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className="uu-row uu-gap-16 uu-wrap">
-        <div className="uu-row uu-align-center uu-gap-8" style={{ minWidth: "280px" }}>
-          <label className="uu-label" style={{ width: "120px" }}>{safeT(t, "postprod.tasks.search.advanced.renderMode", "Mode de rendu")}</label>
-          <select
-            className="uu-select"
-            style={{ width: "260px", height: "36px" }}
-            value={listRenderModeFilter}
-            disabled={tasksLoading}
-            onChange={(e) => onSetListRenderModeFilter?.(String(e.target.value || "all"))}
-          >
-            <option value="all">{safeT(t, "postprod.tasks.search.advanced.renderMode.all", "Tous")}</option>
-            {(Array.isArray(taskRenderModeFilterOptions) ? taskRenderModeFilterOptions : []).map((entry) => (
-              <option key={`task-render-mode-filter-${entry.value}`} value={entry.value}>
-                {entry.label || entry.value}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+
       <div className="uu-row uu-justify-end">
         <button
           type="button"

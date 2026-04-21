@@ -1,4 +1,10 @@
-import { TASK_STATUS_FLOW, taskAutoRenderStateLabel, taskStatusLabel } from "../helpers";
+import { useMemo } from "react";
+import { safeT } from "../../shared/helpers";
+import {
+  normalizeTaskVisualStatusKey,
+  TASK_VISUAL_STATUS_FLOW,
+  taskVisualStatusLabel,
+} from "../helpers";
 import { TaskListPanel } from "./TaskListPanel";
 import { TasksAdvancedSearchPanel } from "./TasksAdvancedSearchPanel";
 import { TasksToolbar } from "./TasksToolbar";
@@ -20,23 +26,25 @@ function TasksBrowseSection({
   onOpenAdvancedSearch = null,
   favoriteOnly = false,
   onToggleFavoriteOnly = null,
+  showHistory = false,
+  onSetShowHistory = null,
   viewMode = "thumbs",
   onSetViewMode = null,
   searchExpanded = false,
   onCloseAdvancedSearch = null,
   displayedTasks = [],
-  listStatusFilter = "all",
+  listStatusFilter = [],
   onSetListStatusFilter = null,
-  listRenderWorkerFilter = "all",
+  listRenderWorkerFilter = [],
   onSetListRenderWorkerFilter = null,
   taskRenderWorkerFilterOptions = [],
-  listProjectFilter = "all",
+  listProjectFilter = [],
   onSetListProjectFilter = null,
   normalizedProjectOptions = [],
-  listFormFilter = "all",
+  listFormFilter = [],
   onSetListFormFilter = null,
   taskFormFilterOptions = [],
-  listRenderModeFilter = "all",
+  listRenderModeFilter = [],
   onSetListRenderModeFilter = null,
   taskRenderModeFilterOptions = [],
   toggleListSort = null,
@@ -47,10 +55,38 @@ function TasksBrowseSection({
   taskLaunchModeLabel = null,
   taskRenderFormLabel = null,
   taskRenderModeName = null,
+  resolveTaskVisualStatusKey = null,
   isTaskFavorite = null,
   toggleTaskFavorite = null,
   renderTaskActions = null,
+  onNavigateToProject = null,
+  onEditRenderForm = null,
 }) {
+  const { activeDisplayedTasks, historyDisplayedTasks } = useMemo(() => {
+    const source = Array.isArray(displayedTasks) ? displayedTasks : [];
+    const active = [];
+    const history = [];
+    for (const task of source) {
+      const statusRaw = typeof resolveTaskVisualStatusKey === "function"
+        ? resolveTaskVisualStatusKey(task)
+        : task?.status;
+      const visualStatus = normalizeTaskVisualStatusKey(statusRaw);
+      if (visualStatus === "validated") {
+        history.push(task);
+      } else {
+        active.push(task);
+      }
+    }
+    return {
+      activeDisplayedTasks: active,
+      historyDisplayedTasks: history,
+    };
+  }, [displayedTasks, resolveTaskVisualStatusKey]);
+
+  const advancedSearchDisplayedCount = showHistory
+    ? activeDisplayedTasks.length + historyDisplayedTasks.length
+    : activeDisplayedTasks.length;
+
   return (
     <>
       <div className="uu-card">
@@ -71,6 +107,8 @@ function TasksBrowseSection({
           onOpenAdvancedSearch={onOpenAdvancedSearch}
           favoriteOnly={favoriteOnly}
           onToggleFavoriteOnly={onToggleFavoriteOnly}
+          showHistory={showHistory}
+          onSetShowHistory={onSetShowHistory}
           viewMode={viewMode}
           onSetViewMode={onSetViewMode}
         />
@@ -80,13 +118,12 @@ function TasksBrowseSection({
         <TasksAdvancedSearchPanel
           t={t}
           visible={searchExpanded}
-          displayedCount={displayedTasks.length}
+          displayedCount={advancedSearchDisplayedCount}
           tasksLoading={tasksLoading}
           listStatusFilter={listStatusFilter}
           onSetListStatusFilter={onSetListStatusFilter}
-          taskStatusFlow={TASK_STATUS_FLOW}
-          taskStatusLabel={taskStatusLabel}
-          taskAutoRenderStateLabel={taskAutoRenderStateLabel}
+          taskStatusFlow={TASK_VISUAL_STATUS_FLOW}
+          taskStatusLabel={taskVisualStatusLabel}
           listRenderWorkerFilter={listRenderWorkerFilter}
           onSetListRenderWorkerFilter={onSetListRenderWorkerFilter}
           taskRenderWorkerFilterOptions={taskRenderWorkerFilterOptions}
@@ -99,7 +136,7 @@ function TasksBrowseSection({
           listRenderModeFilter={listRenderModeFilter}
           onSetListRenderModeFilter={onSetListRenderModeFilter}
           taskRenderModeFilterOptions={taskRenderModeFilterOptions}
-          onClose={onClearFilters}
+          onClose={onCloseAdvancedSearch}
         />
       ) : null}
 
@@ -107,7 +144,7 @@ function TasksBrowseSection({
         <div className="uu-card mt-12">
           <TaskListPanel
             t={t}
-            displayedTasks={displayedTasks}
+            displayedTasks={activeDisplayedTasks}
             viewMode={viewMode}
             listSortKey={listSortKey}
             listSortDir={listSortDir}
@@ -122,6 +159,40 @@ function TasksBrowseSection({
             isTaskFavorite={isTaskFavorite}
             toggleTaskFavorite={toggleTaskFavorite}
             renderTaskActions={renderTaskActions}
+            normalizedProjectOptions={normalizedProjectOptions}
+            onNavigateToProject={onNavigateToProject}
+            onEditRenderForm={onEditRenderForm}
+            emptyLabel={safeT(t, "postprod.tasks.active.empty", "Aucune tache active.")}
+          />
+        </div>
+      ) : null}
+
+      {!showCreateForm && showHistory ? (
+        <div className="uu-card mt-12">
+          <h4 className="uu-h3 uu-block-title" style={{ marginBottom: "10px" }}>
+            {safeT(t, "postprod.tasks.history.title", "Historique (taches validees)")}
+          </h4>
+          <TaskListPanel
+            t={t}
+            displayedTasks={historyDisplayedTasks}
+            viewMode={viewMode}
+            listSortKey={listSortKey}
+            listSortDir={listSortDir}
+            toggleListSort={toggleListSort}
+            taskVisualStatus={taskVisualStatus}
+            taskExpectedRenderName={taskExpectedRenderName}
+            taskRenderWorkerLabel={taskRenderWorkerLabel}
+            taskProjectLabel={taskProjectLabel}
+            taskLaunchModeLabel={taskLaunchModeLabel}
+            taskRenderFormLabel={taskRenderFormLabel}
+            taskRenderModeName={taskRenderModeName}
+            isTaskFavorite={isTaskFavorite}
+            toggleTaskFavorite={toggleTaskFavorite}
+            renderTaskActions={renderTaskActions}
+            normalizedProjectOptions={normalizedProjectOptions}
+            onNavigateToProject={onNavigateToProject}
+            onEditRenderForm={onEditRenderForm}
+            emptyLabel={safeT(t, "postprod.tasks.history.empty", "Aucune tache validee.")}
           />
         </div>
       ) : null}

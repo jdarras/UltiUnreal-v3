@@ -21,6 +21,8 @@ function RenderFormsEditorCard({
   onLoadRenderFormFields = null,
   onReplaceRenderFormFields = null,
   onNavigateToProject = null,
+  renderFormFocusRequest = null,
+  onRenderFormFocusHandled = null,
 }) {
   const {
     editorState,
@@ -58,6 +60,13 @@ function RenderFormsEditorCard({
     if (showEditor) editorState.backToList();
   }, [tabKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!renderFormFocusRequest) return;
+    const formId = Number(renderFormFocusRequest?.ref || 0);
+    if (formId > 0 && typeof startEdit === "function") startEdit({ id: formId });
+    onRenderFormFocusHandled?.();
+  }, [renderFormFocusRequest]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="mt-12">
       {!showEditor ? (
@@ -74,6 +83,7 @@ function RenderFormsEditorCard({
           onSelectProjectRef={onSelectProjectRef}
           startEdit={startEdit}
           onDeleteRenderForm={onDeleteRenderForm}
+          onNavigateToProject={onNavigateToProject}
         />
       ) : (
         <RenderFormsEditorView

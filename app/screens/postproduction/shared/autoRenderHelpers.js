@@ -21,21 +21,27 @@ export function resolveAutoRenderPayload(source) {
 export function resolveAutoRenderTargetWorkerKey(source) {
   const config = resolveAutoRenderConfig(source);
   const payload = resolveAutoRenderPayload(source);
+  const isAutoDispatcherToken = (value) => {
+    const low = String(value || "").trim().toLowerCase();
+    return low === "" || low === "auto" || low === "local" || low === "auto_dispatcher" || low === "__auto";
+  };
   const explicitStation = String(
     config?.renderStation
     || config?.render_station
     || payload?.renderStation
     || payload?.render_station
-    || ""
+  || ""
   ).trim();
-  if (explicitStation) return explicitStation;
-  return String(
+  if (explicitStation && !isAutoDispatcherToken(explicitStation)) return explicitStation;
+  const preferred = String(
     config?.targetWorkerKey
     || config?.preferredWorkerKey
     || payload?.targetWorkerKey
     || payload?.preferredWorkerKey
-    || "auto"
+    || ""
   ).trim();
+  if (isAutoDispatcherToken(preferred)) return "";
+  return preferred;
 }
 
 export default {

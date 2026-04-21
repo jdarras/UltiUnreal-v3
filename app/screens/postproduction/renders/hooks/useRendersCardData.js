@@ -47,6 +47,8 @@ export function useRendersCardData({
     setQueueSortKey,
     queueSortDir,
     setQueueSortDir,
+    queueRuntimeMode,
+    setQueueRuntimeMode,
   } = preferences;
 
   const controllersInput = buildRendersCardControllersInput({
@@ -88,6 +90,8 @@ export function useRendersCardData({
       setQueueSortKey,
       queueSortDir,
       setQueueSortDir,
+      queueRuntimeMode,
+      setQueueRuntimeMode,
     },
   });
 

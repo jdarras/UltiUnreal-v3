@@ -21,6 +21,10 @@ const STATE_KEYS = [
   "setAutoRenderScheduledAt",
   "taskSequenceName",
   "setTaskSequenceName",
+  "autoRenderOffscreen",
+  "setAutoRenderOffscreen",
+  "autoRenderExportDestinationIds",
+  "setAutoRenderExportDestinationIds",
 ];
 
 const DATA_KEYS = [
@@ -38,6 +42,7 @@ const DATA_KEYS = [
   "expectedRenderCountForForm",
   "expectedRenderNamesPreview",
   "autoExpectedRenderName",
+  "autoOutputType",
   "projectOptionByRef",
   "projectLookupByAny",
   "availableRenderWorkers",

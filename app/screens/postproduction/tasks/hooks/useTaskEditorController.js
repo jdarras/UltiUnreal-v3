@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   canSubmitTaskForm as buildCanSubmitTaskForm,
   mergeAutoRenderFormValue,
@@ -25,6 +25,7 @@ export function useTaskEditorController({
   onCreateTask = null,
   onUpdateTask = null,
   onCreateRender = null,
+  onReserveRenderId = null,
   selectedAutoRenderForm = null,
   buildTaskPayloadFromCurrentForm = null,
   setFormError = null,
@@ -33,7 +34,38 @@ export function useTaskEditorController({
   setShowCreateForm = null,
   editAutosaveStateRef = null,
 }) {
+  const [reservedRenderId, setReservedRenderId] = useState(0);
+  const reservationInFlightRef = useRef(false);
   const taskSaveHandler = isEditingTask ? onUpdateTask : onCreateTask;
+
+  useEffect(() => {
+    if (!showCreateForm || isEditingTask) {
+      reservationInFlightRef.current = false;
+      setReservedRenderId(0);
+      return;
+    }
+    if (reservedRenderId > 0 || reservationInFlightRef.current || typeof onReserveRenderId !== "function") return;
+
+    let cancelled = false;
+    reservationInFlightRef.current = true;
+    Promise.resolve(onReserveRenderId())
+      .then((idValue) => {
+        if (cancelled) return;
+        const idNum = Number(idValue || 0);
+        const nextId = Number.isFinite(idNum) && idNum > 0 ? Math.trunc(idNum) : 0;
+        setReservedRenderId(nextId);
+      })
+      .catch(() => {
+        if (!cancelled) setReservedRenderId(0);
+      })
+      .finally(() => {
+        if (!cancelled) reservationInFlightRef.current = false;
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showCreateForm, isEditingTask, reservedRenderId, onReserveRenderId]);
 
   const canSubmitTaskForm = useMemo(() => (
     buildCanSubmitTaskForm({
@@ -117,6 +149,7 @@ export function useTaskEditorController({
       setFormError,
       resetCreateForm,
       setShowCreateForm,
+      reservedRenderId,
     });
   }, [
     t,
@@ -135,6 +168,7 @@ export function useTaskEditorController({
     setFormError,
     resetCreateForm,
     setShowCreateForm,
+    reservedRenderId,
   ]);
 
   return {
@@ -143,6 +177,7 @@ export function useTaskEditorController({
     handleUpdateAutoRenderFormValue,
     autoSaveEditedTaskOnBlur,
     handleSubmitTaskForm,
+    reservedRenderId,
   };
 }
 

@@ -16,7 +16,24 @@ export const DEFAULT_AUTO_RENDER_STATE = Object.freeze({
   autoRenderScheduledMode: "",
   autoRenderScheduledAt: "",
   taskSequenceName: "",
+  autoRenderOffscreen: false,
+  autoRenderExportDestinationIds: [],
 });
+
+function normalizeExportDestinationIds(value) {
+  const src = Array.isArray(value)
+    ? value
+    : (typeof value === "string" ? value.split(/[,\r\n;]+/g) : []);
+  const out = [];
+  const seen = new Set();
+  for (const raw of src) {
+    const id = String(raw || "").trim().toLowerCase();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
 
 function findMatchedRenderTemplate({
   normalizedRenderTemplateOptions = [],
@@ -41,6 +58,23 @@ function findMatchedRenderTemplate({
 export function buildHydratedAutoRenderState(task, normalizedRenderTemplateOptions = []) {
   const autoConfig = resolveAutoRenderConfig(task) || {};
   const autoPayload = resolveAutoRenderPayload(task) || {};
+  const autoPayloadExecution = autoPayload?.execution && typeof autoPayload.execution === "object" && !Array.isArray(autoPayload.execution)
+    ? autoPayload.execution
+    : null;
+  const autoRenderOffscreen = (
+    autoConfig?.renderOffscreen === true
+      ? true
+      : (
+        autoPayload?.renderOffscreen === true
+          ? true
+          : autoPayloadExecution?.renderOffscreen === true
+      )
+  ) === true;
+  const autoRenderExportDestinationIds = normalizeExportDestinationIds(
+    autoConfig?.exportDestinationIds
+    || autoPayload?.exportDestinationIds
+    || []
+  );
 
   const taskProjectRef = String(
     autoConfig?.projectName
@@ -106,5 +140,7 @@ export function buildHydratedAutoRenderState(task, normalizedRenderTemplateOptio
     autoRenderScheduledMode: inferredScheduledMode,
     autoRenderScheduledAt: "",
     taskSequenceName: String(autoConfig?.sequenceName || autoPayload?.sequenceName || "").trim(),
+    autoRenderOffscreen,
+    autoRenderExportDestinationIds,
   };
 }

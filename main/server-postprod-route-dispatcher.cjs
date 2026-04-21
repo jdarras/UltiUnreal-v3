@@ -79,6 +79,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     buildAuditEntryPayload,
     matchesAuditSearch,
     buildAuditCsvLine,
+    getAuditStorageStatus,
     resolvePhoneFromBody,
     resolveNotificationPrefsFromBody,
     MIN_PASSWORD_LEN,
@@ -337,6 +338,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     buildAuditCsvLine,
     nowIso,
     audit,
+    getAuditStorageStatus,
   });
   if (auditRoutesHandled) return true;
 
@@ -703,6 +705,9 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     SYSTEM_MAINTENANCE_ROLE,
     canRenderValidate,
     buildRenderJobEventPayload,
+    readCommonServerConfigFile,
+    commonServerFile,
+    logLine,
   });
   if (renderTransitionRoutesHandled) return true;
 

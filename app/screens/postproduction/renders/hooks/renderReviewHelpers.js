@@ -4,16 +4,22 @@ function toRenderId(value) {
   return Math.trunc(parsed);
 }
 
+function normalizeRenderStatusKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function isSameReviewStatus(currentReviewStatus, nextReviewStatus) {
   return String(nextReviewStatus || "").trim() === String(currentReviewStatus || "").trim();
 }
 
 function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "") {
   const currentStatus = String(render?.status || "").trim();
+  const currentStatusKey = normalizeRenderStatusKey(currentStatus);
+  const isDone = currentStatusKey === "done";
 
   if (nextReviewStatus === "validated") {
     const steps = [];
-    if (currentStatus !== "Done") {
+    if (!isDone) {
       steps.push({
         toStatus: "Done",
         comment: "validation_ready",
@@ -27,7 +33,7 @@ function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "") 
     return steps;
   }
 
-  if (nextReviewStatus === "to_modify") {
+  if (nextReviewStatus === "rejected" || nextReviewStatus === "to_modify") {
     return [{
       toStatus: "Failed",
       comment: "validation_to_modify",
@@ -41,7 +47,7 @@ function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "") 
     }];
   }
 
-  if (currentStatus === "Done") {
+  if (isDone) {
     const validatedByUserId = Number(render?.validatedByUserId || 0);
     if (Number.isFinite(validatedByUserId) && validatedByUserId > 0) {
       return [{
@@ -65,4 +71,3 @@ export {
 };
 
 export default buildRenderReviewTransitionSteps;
-

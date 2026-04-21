@@ -228,6 +228,8 @@ function TaskEditorAutoConfigFields({
   onChangeAutoRenderScheduledMode = null,
   autoRenderScheduledAt = "",
   onChangeAutoRenderScheduledAt = null,
+  autoRenderOffscreen = false,
+  onChangeAutoRenderOffscreen = null,
   taskSequenceName = "",
   onChangeAutoRenderSequence = null,
   projectCatalogSequenceOptions = [],
@@ -339,7 +341,7 @@ function TaskEditorAutoConfigFields({
         </div>
       </div>
       {selectedAutoRenderForm && String(selectedAutoRenderForm?.note || "").trim() ? (
-        <div className="uu-notice info mt-12" style={{ whiteSpace: "pre-wrap" }}>
+        <div className="uu-notice info mt-12" style={{ whiteSpace: "pre-wrap", display: "flex", width: "100%", fontSize: "14px", boxSizing: "border-box" }}>
           {String(selectedAutoRenderForm.note).trim()}
         </div>
       ) : null}
@@ -383,7 +385,19 @@ function TaskEditorAutoConfigFields({
             </div>
           ) : null}
         </div>
-        <div />
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <label className="uu-check">
+            <input
+              type="checkbox"
+              checked={!!autoRenderOffscreen}
+              disabled={tasksLoading}
+              onChange={(e) => onChangeAutoRenderOffscreen?.(!!e.target.checked)}
+            />
+            <span>
+              {safeT(t, "postprod.tasks.form.autoRenderOffscreen", "Rendu sans preview")}
+            </span>
+          </label>
+        </div>
       </div>
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">

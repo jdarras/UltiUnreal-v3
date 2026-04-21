@@ -241,7 +241,7 @@ function RenderJobsQueuePanel({
                 <th>{safeT(t, "postprod.renders.table.project", "Projet")}</th>
                 <th>{safeT(t, "postprod.renders.table.status", "Statut")}</th>
                 <th>{safeT(t, "postprod.renders.scheduledAt.label", "Date et heure de début")}</th>
-                <th>{safeT(t, "postprod.renders.table.worker", "Station de rendu")}</th>
+                <th>{safeT(t, "postprod.renders.table.worker", "Machine de rendu")}</th>
               </tr>
             </thead>
             <tbody>

@@ -48,6 +48,8 @@ function buildTaskPayloadBuilderInput({
     projectLookupByAny: autoRender.projectLookupByAny,
     availableRenderWorkers: autoRender.availableRenderWorkers,
     taskSequenceName: autoRender.taskSequenceName,
+    autoRenderOffscreen: autoRender.autoRenderOffscreen,
+    autoRenderExportDestinationIds: autoRender.autoRenderExportDestinationIds,
   };
 }
 

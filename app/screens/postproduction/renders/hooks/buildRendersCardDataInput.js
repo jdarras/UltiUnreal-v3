@@ -51,6 +51,8 @@ function buildRendersCardDataPreferences(preferences = {}) {
     listSortDir: preferences.listSortDir,
     queueSortKey: preferences.queueSortKey,
     queueSortDir: preferences.queueSortDir,
+    queueRuntimeMode: preferences.queueRuntimeMode,
+    setQueueRuntimeMode: preferences.setQueueRuntimeMode,
   };
 }
 

@@ -1,4 +1,4 @@
-import { TASK_STATUS_FLOW } from "../../helpers";
+import { TASK_VISUAL_STATUS_FLOW } from "../../helpers";
 import { useTasksPreferences } from "../useTasksPreferences";
 import { useTasksCatalogOptions } from "../useTasksCatalogOptions";
 import { useTasksListController } from "../useTasksListController";
@@ -24,7 +24,7 @@ export function useTasksCardListData({
     onFormModeChange,
   });
 
-  const browsePreferences = useTasksPreferences({ taskStatusFlow: TASK_STATUS_FLOW });
+  const browsePreferences = useTasksPreferences({ taskStatusFlow: TASK_VISUAL_STATUS_FLOW });
 
   const catalog = useTasksCatalogOptions(buildTasksCatalogOptionsInput({
     renderWorkers,

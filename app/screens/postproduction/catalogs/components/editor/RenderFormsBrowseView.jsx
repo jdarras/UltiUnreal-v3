@@ -17,6 +17,7 @@ function RenderFormsBrowseView({
   onSelectProjectRef = null,
   startEdit = null,
   onDeleteRenderForm = null,
+  onNavigateToProject = null,
 }) {
   const [formToDelete, setFormToDelete] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -45,6 +46,7 @@ function RenderFormsBrowseView({
     isFormFavorite = null,
     toggleFormFavorite = null,
     formProjectLabel = null,
+    formProjectId = null,
   } = listController || {};
 
   return (
@@ -87,8 +89,10 @@ function RenderFormsBrowseView({
         isFormFavorite={isFormFavorite}
         onToggleFormFavorite={toggleFormFavorite}
         formProjectLabel={formProjectLabel}
+        formProjectId={formProjectId}
         onEditForm={startEdit}
         onDeleteForm={canManageRenderTemplates ? setFormToDelete : null}
+        onNavigateToProject={onNavigateToProject}
       />
 
       <RenderFormsConfirmDialog

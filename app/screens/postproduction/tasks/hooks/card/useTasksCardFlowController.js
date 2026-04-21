@@ -26,6 +26,7 @@ export function useTasksCardFlowController({
   onUpdateTask = null,
   onDeleteTask = null,
   onCreateRender = null,
+  onReserveRenderId = null,
   data = {},
 } = {}) {
   const lifecycle = useTaskFormLifecycleController(
@@ -45,6 +46,7 @@ export function useTasksCardFlowController({
       onCreateTask,
       onUpdateTask,
       onCreateRender,
+      onReserveRenderId,
       data,
       lifecycle,
     })

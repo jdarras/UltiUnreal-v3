@@ -14,6 +14,13 @@ export function useRenderReviewController({
   const canReviewRenders = useMemo(() => canEditRenderReviewStatus(user), [user]);
   const [busyRenderId, setBusyRenderId] = useState(0);
 
+  const isNoChangesError = useCallback((error) => {
+    const code = String(error?.code || "").trim().toLowerCase();
+    if (code === "no_changes") return true;
+    const message = String(error?.message || "").trim().toLowerCase();
+    return message === "no_changes" || message.includes("no_changes");
+  }, []);
+
   const applyReviewStatus = useCallback(async (render, nextReviewStatus) => {
     if (!canReviewRenders) return;
     const renderId = toRenderId(render?.id);
@@ -29,12 +36,18 @@ export function useRenderReviewController({
     try {
       for (const transitionPayload of transitionSteps) {
         if (!transitionPayload || typeof transitionPayload !== "object") continue;
-        await Promise.resolve(onTransitionRender(renderId, transitionPayload));
+        try {
+          await Promise.resolve(onTransitionRender(renderId, transitionPayload));
+        } catch (error) {
+          // Ignore benign intermediate "no_changes" so subsequent validation step can still run.
+          if (isNoChangesError(error)) continue;
+          throw error;
+        }
       }
     } finally {
       setBusyRenderId(0);
     }
-  }, [canReviewRenders, onTransitionRender]);
+  }, [canReviewRenders, onTransitionRender, isNoChangesError]);
 
   return {
     canReviewRenders,

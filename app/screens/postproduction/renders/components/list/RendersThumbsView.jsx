@@ -1,4 +1,5 @@
-import { formatDate, safeT } from "../../../shared/helpers";
+import { useEffect, useState } from "react";
+import { formatDate, safeT, simplifyUnrealAssetDisplayName } from "../../../shared/helpers";
 
 function firstNonEmptyString(values = []) {
   for (const value of Array.isArray(values) ? values : []) {
@@ -8,12 +9,33 @@ function firstNonEmptyString(values = []) {
   return "";
 }
 
-function resolveRenderProjectRef(render = null) {
+function normalizeProjectLookupKey(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeProjectNumericKey(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw || !/^\d+$/.test(raw)) return "";
+  return String(Math.trunc(Number(raw)));
+}
+
+function readProjectLabel(projectLabelByRef = new Map(), rawValue = "") {
+  if (!(projectLabelByRef instanceof Map)) return "";
+  const key = normalizeProjectLookupKey(rawValue);
+  if (!key) return "";
+  const direct = String(projectLabelByRef.get(key) || "").trim();
+  if (direct) return direct;
+  const numericKey = normalizeProjectNumericKey(rawValue);
+  if (!numericKey) return "";
+  return String(projectLabelByRef.get(numericKey) || "").trim();
+}
+
+function resolveRenderProjectMeta(render = null, projectLabelByRef = new Map()) {
   const item = render && typeof render === "object" ? render : {};
   const payload = item?.payload && typeof item.payload === "object" && !Array.isArray(item.payload)
     ? item.payload
     : {};
-  return firstNonEmptyString([
+  const projectRef = firstNonEmptyString([
     item?.projectId,
     item?.projectRef,
     payload?.projectId,
@@ -21,6 +43,27 @@ function resolveRenderProjectRef(render = null) {
     item?.projectName,
     payload?.projectName,
   ]);
+  const rawProjectName = firstNonEmptyString([
+    item?.projectDisplayName,
+    payload?.projectDisplayName,
+    item?.projectTitle,
+    payload?.projectTitle,
+    item?.projectLabel,
+    payload?.projectLabel,
+    item?.projectName,
+    payload?.projectName,
+  ]);
+  const projectName = firstNonEmptyString([
+    readProjectLabel(projectLabelByRef, projectRef),
+    readProjectLabel(projectLabelByRef, rawProjectName),
+    rawProjectName,
+  ]);
+  return {
+    projectRef,
+    projectName,
+    projectRefLower: normalizeProjectLookupKey(projectRef),
+    projectNameLower: normalizeProjectLookupKey(projectName),
+  };
 }
 
 function resolveRenderLinkedTaskMeta(render = null) {
@@ -35,6 +78,37 @@ function resolveRenderLinkedTaskMeta(render = null) {
     payload?.taskTitle,
   ]);
   return { taskId, taskTitle };
+}
+
+function resolveRenderFormMeta(render = null) {
+  const item = render && typeof render === "object" ? render : {};
+  const payload = item?.payload && typeof item.payload === "object" && !Array.isArray(item.payload)
+    ? item.payload
+    : {};
+  const formIdRaw = Number(item?.formId || item?.renderFormId || payload?.formId || payload?.renderFormId || 0);
+  const formId = Number.isFinite(formIdRaw) && formIdRaw > 0 ? Math.trunc(formIdRaw) : 0;
+  const formName = firstNonEmptyString([
+    item?.formName, item?.renderFormName, payload?.formName, payload?.renderFormName, payload?.formLabel,
+  ]);
+  return { formId, formName };
+}
+
+function resolveRenderSequenceLabel(render = null) {
+  const item = render && typeof render === "object" ? render : {};
+  const payload = item?.payload && typeof item.payload === "object" && !Array.isArray(item.payload)
+    ? item.payload
+    : {};
+  const raw = firstNonEmptyString([
+    item?.sequenceName, payload?.sequenceName, payload?.levelSequence, payload?.levelSequenceName,
+  ]);
+  return simplifyUnrealAssetDisplayName(raw) || raw || "-";
+}
+
+function reviewStatusClassName(reviewStatus = "") {
+  const key = String(reviewStatus || "").trim().toLowerCase();
+  if (key === "validated") return "status-validated";
+  if (key === "rejected" || key === "to_modify" || key === "canceled") return "status-rejected";
+  return "status-to-validate";
 }
 
 function RendersThumbsView({
@@ -53,8 +127,9 @@ function RendersThumbsView({
   onApplyReviewStatus = null,
   onOpenRenderDetail = null,
   onDeleteRender = null,
-  onRequestOpenTasks = null,
   onNavigateToProject = null,
+  onNavigateToRenderForm = null,
+  projectLabelByRef = new Map(),
 }) {
   return (
     <div className="uu-render-grid thumbs">
@@ -76,8 +151,9 @@ function RendersThumbsView({
           onApplyReviewStatus={onApplyReviewStatus}
           onOpenRenderDetail={onOpenRenderDetail}
           onDeleteRender={onDeleteRender}
-          onRequestOpenTasks={onRequestOpenTasks}
           onNavigateToProject={onNavigateToProject}
+          onNavigateToRenderForm={onNavigateToRenderForm}
+          projectLabelByRef={projectLabelByRef}
         />
       ))}
     </div>
@@ -100,35 +176,51 @@ function RendersThumbCard({
   onApplyReviewStatus = null,
   onOpenRenderDetail = null,
   onDeleteRender = null,
-  onRequestOpenTasks = null,
   onNavigateToProject = null,
+  onNavigateToRenderForm = null,
+  projectLabelByRef = new Map(),
 }) {
   const renderId = Number(render?.id || 0);
   const reviewStatus = typeof renderReviewStatusKey === "function" ? renderReviewStatusKey(render) : "to_validate";
   const thumbCandidates = typeof buildRenderThumbCandidates === "function" ? buildRenderThumbCandidates(render) : [];
-  const thumbSrc = thumbCandidates[0] || "";
+  const [thumbIndex, setThumbIndex] = useState(0);
+  const thumbSrc = thumbCandidates[thumbIndex] || "";
+  const [thumbError, setThumbError] = useState(false);
   const isBusy = busyRenderId === renderId;
-  const outputPath = String(render?.outputPath || "").trim();
   const canDeleteRender = (
     typeof onDeleteRender === "function"
     && Number.isFinite(renderId)
     && renderId > 0
   );
-  const projectRef = resolveRenderProjectRef(render);
-  const projectLabel = String(render?.projectName || "").trim() || projectRef || "-";
-  const projectRefLower = projectRef.toLowerCase();
-  const projectLabelLower = projectLabel.toLowerCase();
+  const projectMeta = resolveRenderProjectMeta(render, projectLabelByRef);
+  const projectRef = projectMeta.projectRef;
+  const projectLabel = projectMeta.projectName || projectRef || "-";
   const showProjectRefTag = Boolean(
     projectRef
     && projectLabel
-    && projectRefLower !== projectLabelLower
+    && projectMeta.projectRefLower !== projectMeta.projectNameLower
   );
+  const hasThumb = Boolean(thumbSrc) && !thumbError;
   const { taskId: linkedTaskId, taskTitle: linkedTaskTitle } = resolveRenderLinkedTaskMeta(render);
+  const { formId, formName } = resolveRenderFormMeta(render);
+  const sequenceLabel = resolveRenderSequenceLabel(render);
   const linkedTaskFallback = typeof renderLinkedTaskValue === "function"
     ? String(renderLinkedTaskValue(render) || "").trim()
     : "";
+  const formPrimaryLabel = String(formName || (formId > 0 ? formId : "-")).trim() || "-";
+  const formIdText = formId > 0 ? String(formId) : "";
+  const showFormIdTag = Boolean(
+    formIdText
+    && formName
+    && String(formName).trim().toLowerCase() !== formIdText.toLowerCase()
+  );
   const canOpenProjectLink = typeof onNavigateToProject === "function" && !!projectRef;
-  const canOpenTaskLink = typeof onRequestOpenTasks === "function" && linkedTaskId > 0;
+  const canOpenFormLink = typeof onNavigateToRenderForm === "function" && formId > 0;
+
+  useEffect(() => {
+    setThumbIndex(0);
+    setThumbError(false);
+  }, [renderId, thumbCandidates.join("|")]);
 
   const handleDeleteRender = async () => {
     if (!canDeleteRender || rendersLoading || isBusy) return;
@@ -142,16 +234,11 @@ function RendersThumbCard({
     onNavigateToProject?.(projectRef);
   };
 
-  const handleOpenTask = (event) => {
+  const handleOpenForm = (event) => {
     event?.preventDefault?.();
     event?.stopPropagation?.();
-    if (!canOpenTaskLink) return;
-    onRequestOpenTasks?.({
-      type: "task",
-      action: "edit",
-      ref: String(linkedTaskId),
-      task: null,
-    });
+    if (!canOpenFormLink) return;
+    onNavigateToRenderForm?.({ id: formId, name: formName || "" });
   };
 
   return (
@@ -160,85 +247,79 @@ function RendersThumbCard({
       style={{ cursor: "pointer" }}
       onClick={() => onOpenRenderDetail?.(render)}
     >
-      {thumbSrc ? (
-        <img
-          src={thumbSrc}
-          alt={typeof renderOutputFilename === "function" ? renderOutputFilename(render) : "-"}
-          className="uu-render-thumb"
-          onError={(e) => {
-            e.currentTarget.style.display = "none";
-          }}
-        />
-      ) : (
-        <div className="uu-render-thumb placeholder">{safeT(t, "postprod.renders.preview.none", "Aucun apercu")}</div>
-      )}
+      <div className="uu-render-thumb-frame">
+        {hasThumb ? (
+          <img
+            src={thumbSrc}
+            alt={typeof renderOutputFilename === "function" ? renderOutputFilename(render) : "-"}
+            className="uu-render-thumb"
+            onError={() => {
+              const nextIndex = thumbIndex + 1;
+              if (nextIndex < thumbCandidates.length) {
+                setThumbError(false);
+                setThumbIndex(nextIndex);
+                return;
+              }
+              setThumbError(true);
+            }}
+          />
+        ) : (
+          <div className="uu-render-thumb placeholder">{safeT(t, "postprod.renders.preview.none", "Aucun apercu")}</div>
+        )}
+      </div>
       <div className="uu-row mt-8" style={{ justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontWeight: 600 }}>
           {typeof renderOutputFilename === "function" ? renderOutputFilename(render) : "-"}
         </div>
       </div>
-      <div className="uu-muted mt-8" onClick={(e) => e.stopPropagation()}>
-        <span>{safeT(t, "postprod.renders.table.project", "Projet")}: </span>
-        {canOpenProjectLink ? (
-          <>
-            <button
-              type="button"
-              className="uu-link uu-muted"
-              style={{ textAlign: "left" }}
-              onClick={handleOpenProject}
-            >
-              {projectLabel}
-            </button>
-            {showProjectRefTag ? (
-              <button
-                type="button"
-                className="uu-link uu-muted"
-                style={{ marginLeft: "6px" }}
-                onClick={handleOpenProject}
-              >
-                [{projectRef}]
-              </button>
-            ) : null}
-          </>
-        ) : (
-          <span>{projectLabel}</span>
-        )}
+      <div className="uu-render-thumb-meta-row mt-8" onClick={(e) => e.stopPropagation()}>
+        <span className="uu-muted">{safeT(t, "postprod.renders.table.project", "Projet")}: </span>
+        <span
+          onClick={canOpenProjectLink ? handleOpenProject : undefined}
+          style={canOpenProjectLink ? { cursor: "pointer" } : undefined}
+        >
+          {projectLabel}
+        </span>
+        {showProjectRefTag ? (
+          <span style={{ marginLeft: "6px", opacity: 0.4 }}>#{projectRef}</span>
+        ) : null}
       </div>
-      <div className="uu-muted mt-8" onClick={(e) => e.stopPropagation()}>
-        <span>{safeT(t, "postprod.renders.table.linkedTask", "Tache")}: </span>
+      <div className="uu-render-thumb-meta-row mt-8" onClick={(e) => e.stopPropagation()}>
+        <span className="uu-muted">{safeT(t, "postprod.renders.table.linkedTask", "Tache")}: </span>
         {linkedTaskId > 0 ? (
           <>
-            {linkedTaskTitle ? <span>{linkedTaskTitle} </span> : null}
-            {canOpenTaskLink ? (
-              <button
-                type="button"
-                className="uu-link"
-                onClick={handleOpenTask}
-              >
-                ({linkedTaskId})
-              </button>
-            ) : (
-              <span>({linkedTaskId})</span>
-            )}
+            {linkedTaskTitle ? <span>{linkedTaskTitle}</span> : null}
+            <span style={{ marginLeft: linkedTaskTitle ? "6px" : "0", opacity: 0.4 }}>
+              #{String(linkedTaskId).padStart(4, "0")}
+            </span>
           </>
         ) : (
-          <span>{linkedTaskTitle || linkedTaskFallback || "-"}</span>
+          <span className="uu-render-thumb-meta-value">{linkedTaskTitle || linkedTaskFallback || "-"}</span>
         )}
       </div>
-      <div className="uu-muted mt-8">
-        {safeT(t, "postprod.renders.meta.updated", "Mise a jour: {value}", {
-          value: formatDate(render?.updatedAt),
-        })}
+      <div className="uu-render-thumb-meta-row mt-8" onClick={(e) => e.stopPropagation()}>
+        <span className="uu-muted">{safeT(t, "postprod.renders.detail.form", "Formulaire")}: </span>
+        <span
+          onClick={canOpenFormLink ? handleOpenForm : undefined}
+          style={canOpenFormLink ? { cursor: "pointer" } : undefined}
+        >
+          {formPrimaryLabel}
+        </span>
+        {showFormIdTag ? (
+          <span style={{ marginLeft: "6px", opacity: 0.4 }}>[{formIdText}]</span>
+        ) : null}
       </div>
-      {outputPath ? (
-        <div className="uu-muted mt-8" style={{ wordBreak: "break-all" }}>
-          {outputPath}
-        </div>
-      ) : null}
-      <div className="uu-row mt-12" onClick={(e) => e.stopPropagation()}>
+      <div className="uu-render-thumb-meta-row mt-8">
+        <span className="uu-muted">{safeT(t, "postprod.data.forms.levelSequence", "LS")}: </span>
+        <span className="uu-render-thumb-meta-value">{sequenceLabel || "-"}</span>
+      </div>
+      <div className="uu-render-thumb-meta-row mt-8">
+        <span className="uu-muted">{safeT(t, "postprod.renders.meta.updatedShort", "MàJ")}: </span>
+        <span className="uu-render-thumb-meta-value">{formatDate(render?.updatedAt)}</span>
+      </div>
+      <div className="uu-render-thumb-actions mt-12" onClick={(e) => e.stopPropagation()}>
         <select
-          className="uu-input"
-          style={{ width: "75%" }}
+          className={`uu-input uu-render-thumb-validation uu-status-select ${reviewStatusClassName(reviewStatus)}`}
           value={reviewStatus}
           disabled={rendersLoading || isBusy || !onTransitionRender || !canReviewRenders}
           onChange={async (e) => {
@@ -253,7 +334,11 @@ function RendersThumbCard({
             </option>
           ))}
         </select>
-        <button className="uu-btn-ghost" type="button" onClick={() => onOpenRenderDetail?.(render)}>
+        <button
+          className="uu-btn-ghost uu-render-thumb-view-btn"
+          type="button"
+          onClick={() => onOpenRenderDetail?.(render)}
+        >
           {safeT(t, "postprod.renders.detail.view", "Voir")}
         </button>
         <button
@@ -268,6 +353,7 @@ function RendersThumbCard({
             minWidth: "32px",
             height: "32px",
             padding: "0",
+            flex: "0 0 32px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

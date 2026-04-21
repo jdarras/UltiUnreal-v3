@@ -12,7 +12,7 @@ export function useTaskListSorting({
   setListSortKey = null,
   setListSortDir = null,
   taskRenderStateByTaskId = new Map(),
-  resolveTaskAutoRenderState = () => "",
+  resolveTaskVisualStatus = () => "",
   taskExpectedRenderName = () => "",
   taskRenderWorkerLabel = () => "",
 } = {}) {
@@ -24,7 +24,7 @@ export function useTaskListSorting({
         b,
         listSortKey,
         taskRenderStateByTaskId,
-        resolveTaskAutoRenderState,
+        resolveTaskVisualStatus,
         taskExpectedRenderName,
         taskRenderWorkerLabel,
       });
@@ -37,7 +37,15 @@ export function useTaskListSorting({
       return listSortDir === "asc" ? cmp : -cmp;
     });
     return list;
-  }, [filteredTasks, listSortKey, listSortDir, taskExpectedRenderName, taskRenderWorkerLabel]);
+  }, [
+    filteredTasks,
+    listSortKey,
+    listSortDir,
+    taskRenderStateByTaskId,
+    resolveTaskVisualStatus,
+    taskExpectedRenderName,
+    taskRenderWorkerLabel,
+  ]);
 
   function setListSortFromSelect(valueRaw) {
     const raw = String(valueRaw || "").trim();

@@ -7,8 +7,10 @@ function RenderFormsThumbsView({
   isFormFavorite = null,
   onToggleFormFavorite = null,
   formProjectLabel = null,
+  formProjectId = null,
   onEditForm = null,
   onDeleteForm = null,
+  onNavigateToProject = null,
 }) {
   return (
     <div
@@ -31,7 +33,10 @@ function RenderFormsThumbsView({
             <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
               <div className="uu-row uu-align-center uu-gap-8" style={{ minWidth: 0 }}>
                 <span className={`uu-dot ${availabilityClass}`} title={availabilityTitle} />
-                <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{String(form?.name || "-")}</div>
+                <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+                  {String(form?.name || "-")}
+                  {id > 0 && <span style={{ marginLeft: "6px", opacity: 0.4 }}>#{id}</span>}
+                </div>
               </div>
               <button
                 type="button"
@@ -45,7 +50,16 @@ function RenderFormsThumbsView({
                 ★
               </button>
             </div>
-            <div className="mt-8"><span className="uu-muted">{safeT(t, "postprod.data.project", "Projet")}: </span>{formProjectLabel?.(form) || "-"}</div>
+            <div className="mt-8">
+              <span className="uu-muted">{safeT(t, "postprod.data.project", "Projet")}: </span>
+              <span
+                onClick={typeof onNavigateToProject === "function" ? () => onNavigateToProject(form?.projectName) : undefined}
+                style={typeof onNavigateToProject === "function" ? { cursor: "pointer" } : undefined}
+              >
+                {formProjectLabel?.(form) || "-"}
+              </span>
+              {(() => { const pid = formProjectId?.(form); return pid > 0 ? <span style={{ marginLeft: "6px", opacity: 0.4 }}>#{String(pid).padStart(4, "0")}</span> : null; })()}
+            </div>
             <div className="mt-4"><span className="uu-muted">{safeT(t, "postprod.data.forms.level", "Level")}: </span>{simplifyUnrealAssetName(form?.mapName)}</div>
             <div className="mt-4"><span className="uu-muted">{safeT(t, "postprod.data.forms.levelSequence", "LS")}: </span>{Array.isArray(form?.allowedSequences) && form.allowedSequences.length > 0 ? form.allowedSequences.map(simplifyUnrealAssetName).join(", ") : "-"}</div>
             <div className="mt-4"><span className="uu-muted">{safeT(t, "postprod.data.forms.wrcFiles", "WRC")}: </span>{Array.isArray(form?.wrcFiles) && form.wrcFiles.length > 0 ? form.wrcFiles.map(simplifyUnrealAssetName).join(", ") : "-"}</div>

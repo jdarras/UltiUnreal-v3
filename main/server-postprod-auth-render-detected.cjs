@@ -41,6 +41,7 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
   const renderDetectedScanState = {
     lastRunMs: 0,
     lastSummary: null,
+    lastWarnFingerprint: '',
   };
   let renderDetectedAutoScanTimer = null;
   let renderDetectedAutoScanBusy = false;
@@ -88,11 +89,23 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       for (const entry of entries) {
         if (!entry || !entry.name) continue;
         const absPath = path.join(next.currentDir, entry.name);
+        const entryName = String(entry.name || '').trim();
+        const entryNameLower = entryName.toLowerCase();
         if (entry.isDirectory()) {
+          if (entryNameLower === 'proxy' || entryNameLower === '_proxy') {
+            continue;
+          }
           stack.push({ sourceDir: next.sourceDir, currentDir: absPath });
           continue;
         }
         if (!entry.isFile()) continue;
+        if (
+          entryNameLower === 'proxy.mp4'
+          || entryNameLower === 'proxy_alpha.mp4'
+          || entryNameLower === 'thumbnail.jpg'
+        ) {
+          continue;
+        }
         const ext = String(path.extname(entry.name || '') || '').trim().toLowerCase();
         if (allowedExtensions.size > 0 && ext && !allowedExtensions.has(ext)) continue;
         if (allowedExtensions.size > 0 && !ext) continue;
@@ -114,6 +127,14 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
             return entry.name;
           }
         })();
+        const relPathNormalized = String(relPath || entry.name || '').replace(/\\/g, '/').toLowerCase();
+        if (
+          relPathNormalized.includes('/proxy/')
+          || relPathNormalized.includes('/_proxy/')
+          || relPathNormalized.endsWith('/thumbnail.jpg')
+        ) {
+          continue;
+        }
         out.push({
           sourceDir: next.sourceDir,
           filePath: absPath,
@@ -217,6 +238,8 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
         '',
         payload.finishedAt,
         payload.finishedAt,
+        null,
+        0,
         createdAt,
         createdAt
       );
@@ -255,6 +278,7 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
     let errors = 0;
     let matched = 0;
     let unmatched = 0;
+    let firstErrorMessage = '';
     for (const candidate of candidates) {
       const signature = buildRenderDetectedFileSignature(
         candidate.filePath,
@@ -353,6 +377,9 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
           continue;
         }
         errors += 1;
+        if (!firstErrorMessage) {
+          firstErrorMessage = msg;
+        }
       }
     }
     if (imported > 0) {
@@ -382,6 +409,7 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       matched,
       unmatched,
       scanned: candidates.length,
+      firstErrorMessage,
       roots: detectedRoots,
       maxFiles: renderDetectedScanMaxFiles,
       scanIntervalMs: renderDetectedScanIntervalMs,
@@ -396,12 +424,31 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
     renderDetectedAutoScanBusy = true;
     try {
       const summary = importDetectedRenderOutputs({ force });
-      if (Number(summary?.imported || 0) > 0 || Number(summary?.errors || 0) > 0) {
+      const importedCount = Number(summary?.imported || 0);
+      const errorCount = Number(summary?.errors || 0);
+      const firstErrorMessage = String(summary?.firstErrorMessage || '').trim();
+      if (errorCount > 0) {
+        const warnFingerprint = `${errorCount}|${firstErrorMessage}`;
+        const shouldLogWarn = renderDetectedScanState.lastWarnFingerprint !== warnFingerprint;
+        if (!shouldLogWarn) return;
+        renderDetectedScanState.lastWarnFingerprint = warnFingerprint;
         logLine({
-          level: Number(summary?.errors || 0) > 0 ? 'warn' : 'info',
+          level: 'warn',
           src: 'postprod',
           action: 'render_detected_auto_scan',
-          message: `Scan auto rendus detectes: +${Number(summary?.imported || 0)} / dup ${Number(summary?.duplicates || 0)} / err ${Number(summary?.errors || 0)}`,
+          message: firstErrorMessage
+            ? `Scan auto rendus detectes: +${importedCount} / dup ${Number(summary?.duplicates || 0)} / err ${errorCount} (${firstErrorMessage})`
+            : `Scan auto rendus detectes: +${importedCount} / dup ${Number(summary?.duplicates || 0)} / err ${errorCount}`,
+          data: summary,
+        });
+        return;
+      }
+      if (importedCount > 0) {
+        logLine({
+          level: 'info',
+          src: 'postprod',
+          action: 'render_detected_auto_scan',
+          message: `Scan auto rendus detectes: +${importedCount} / dup ${Number(summary?.duplicates || 0)} / err 0`,
           data: summary,
         });
       }

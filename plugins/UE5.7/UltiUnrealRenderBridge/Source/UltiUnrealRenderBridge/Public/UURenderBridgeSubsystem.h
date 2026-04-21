@@ -47,6 +47,7 @@ private:
     bool DecodeUtf8JsonObject(const FString& InJsonUtf8OrText, TSharedPtr<FJsonObject>& OutObject, FString& OutError) const;
     bool BuildPendingUpdates(FString& OutErrorCode, FString& OutErrorMessage);
     bool LoadMetadataFromRenderJob();
+    bool ApplyRenderOutputOverrides();
     bool CoercePropertyValue(const FString& PropertyName, const TSharedPtr<FJsonValue>& InValue, TSharedPtr<FJsonValue>& OutValue, FString& OutError) const;
     bool CoerceValueAsType(const FString& TypeName, const TSharedPtr<FJsonValue>& InValue, TSharedPtr<FJsonValue>& OutValue, FString& OutError) const;
     bool JsonValueToNumber(const TSharedPtr<FJsonValue>& InValue, double& OutNumber) const;
@@ -90,6 +91,8 @@ private:
     FString PresetName;
     FString FormDataB64;
     FString RenderJobB64;
+    FString OutputDirectoryOverride;
+    FString OutputFileNameOverride;
     FString JobId;
     FString FormId;
 
@@ -102,6 +105,7 @@ private:
     int32 CurrentIndex = 0;
     int32 StartupAttemptCount = 0;
     int32 MaxRetriesPerField = 3;
+    bool bOutputOverridesApplied = false;
 
     bool bGenerateTransaction = true;
     bool bContinueOnFieldFailure = false;

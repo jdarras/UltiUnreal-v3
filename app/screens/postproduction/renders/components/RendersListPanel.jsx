@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { safeT } from "../../shared/helpers";
 import { RenderFormsConfirmDialog } from "../../catalogs/components/RenderFormsConfirmDialog";
 import { RendersListTableView } from "./list/RendersListTableView";
@@ -7,6 +7,8 @@ import { RendersThumbsView } from "./list/RendersThumbsView";
 function RendersListPanel({
   t,
   sortedDisplayedRenders = [],
+  title = "",
+  emptyLabel = "",
   viewMode = "thumbs",
   listSortIndicator = null,
   toggleListSort = null,
@@ -25,10 +27,17 @@ function RendersListPanel({
   onDeleteRender = null,
   onRequestOpenTasks = null,
   onNavigateToProject = null,
+  onNavigateToRenderForm = null,
+  projectLabelByRef = new Map(),
 }) {
   const [deleteDialogRender, setDeleteDialogRender] = useState(null);
   const [deleteDialogBusy, setDeleteDialogBusy] = useState(false);
+  const [showInitialLoading, setShowInitialLoading] = useState(true);
   const deleteDialogOpen = !!(deleteDialogRender && typeof deleteDialogRender === "object");
+
+  useEffect(() => {
+    if (!rendersLoading) setShowInitialLoading(false);
+  }, [rendersLoading]);
 
   const requestDeleteRender = (render = null) => {
     if (typeof onDeleteRender !== "function") return;
@@ -82,14 +91,16 @@ function RendersListPanel({
       <div className="uu-card mt-12">
         <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
           <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
-            {safeT(t, "postprod.renders.list.title", "Liste des rendus")}
+            {String(title || "").trim() || safeT(t, "postprod.renders.list.title", "Liste des rendus")}
           </h4>
         </div>
-        {rendersLoading ? (
+        {rendersLoading && showInitialLoading ? (
           <div className="uu-muted mb-8">{safeT(t, "postprod.renders.loading", "Chargement des rendus...")}</div>
         ) : null}
         {!rendersLoading && sortedDisplayedRenders.length === 0 ? (
-          <div className="uu-muted">{safeT(t, "postprod.renders.empty", "Aucun rendu.")}</div>
+          <div className="uu-muted">
+            {String(emptyLabel || "").trim() || safeT(t, "postprod.renders.empty", "Aucun rendu.")}
+          </div>
         ) : viewMode === "list" ? (
           <RendersListTableView
             t={t}
@@ -130,6 +141,8 @@ function RendersListPanel({
             onDeleteRender={requestDeleteRender}
             onRequestOpenTasks={onRequestOpenTasks}
             onNavigateToProject={onNavigateToProject}
+            onNavigateToRenderForm={onNavigateToRenderForm}
+            projectLabelByRef={projectLabelByRef}
           />
         )}
       </div>

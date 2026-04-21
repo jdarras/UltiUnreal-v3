@@ -9,6 +9,8 @@ const DATA_KEYS = [
   "setSearchQuery",
   "hasActiveListFilters",
   "favoriteOnly",
+  "showHistory",
+  "setShowHistory",
   "viewMode",
   "setViewMode",
   "searchExpanded",
@@ -37,6 +39,7 @@ const DATA_KEYS = [
   "taskRenderModeName",
   "isTaskFavorite",
   "toggleTaskFavorite",
+  "resolveTaskVisualStatusKey",
 ];
 
 const LIFECYCLE_KEYS = [

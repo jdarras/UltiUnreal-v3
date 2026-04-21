@@ -23,6 +23,7 @@ function TasksCard({
   renderWorkersLoading = false,
   renderWorkersError = "",
   renderOutputDir = "",
+  renderExportDestinationOptions = [],
   taskFocusRequest = null,
   onTaskFocusHandled = null,
   tasksLoading = false,
@@ -31,9 +32,12 @@ function TasksCard({
   onUpdateTask = null,
   onDeleteTask = null,
   onCreateRender = null,
+  onReserveRenderId = null,
   onLoadRenderFormFields = null,
   onLoadProjectUnrealCatalog = null,
   onFormModeChange = null,
+  onNavigateToProject = null,
+  onNavigateToRenderForm = null,
 }) {
   const {
     browseSectionProps,
@@ -57,6 +61,7 @@ function TasksCard({
     renderWorkersLoading,
     renderWorkersError,
     renderOutputDir,
+    renderExportDestinationOptions,
     taskFocusRequest,
     onTaskFocusHandled,
     tasksLoading,
@@ -65,6 +70,7 @@ function TasksCard({
     onUpdateTask,
     onDeleteTask,
     onCreateRender,
+    onReserveRenderId,
     onLoadRenderFormFields,
     onLoadProjectUnrealCatalog,
     onFormModeChange,
@@ -76,7 +82,7 @@ function TasksCard({
 
   return (
     <section className="uu-section">
-      <TasksBrowseSection {...browseSectionProps} />
+      <TasksBrowseSection {...browseSectionProps} onNavigateToProject={onNavigateToProject} onEditRenderForm={onNavigateToRenderForm} />
       <TasksEditorSection {...editorSectionProps} />
       <TasksStatusMessages {...statusMessagesProps} />
       <TaskDeleteDialog {...deleteDialogProps} />
@@ -88,4 +94,3 @@ export {
   TasksCard,
   AuditHistoryCard,
 };
-

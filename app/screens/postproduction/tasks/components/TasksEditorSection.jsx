@@ -37,6 +37,11 @@ function TasksEditorSection({
   onChangeAutoRenderScheduledMode = null,
   autoRenderScheduledAt = "",
   onChangeAutoRenderScheduledAt = null,
+  autoRenderOffscreen = false,
+  onChangeAutoRenderOffscreen = null,
+  autoRenderExportDestinationIds = [],
+  onChangeAutoRenderExportDestinationIds = null,
+  renderExportDestinationOptions = [],
   taskSequenceName = "",
   onChangeAutoRenderSequence = null,
   projectCatalogSequenceOptions = [],
@@ -46,7 +51,9 @@ function TasksEditorSection({
   autoRenderFormValues = {},
   onUpdateAutoRenderFormValue = null,
   renderOutputDir = "",
+  reservedRenderId = 0,
   autoExpectedRenderName = "",
+  autoOutputType = null,
   formError = "",
   submitDisabled = false,
   submitLabel = "",
@@ -91,6 +98,11 @@ function TasksEditorSection({
       onChangeAutoRenderScheduledMode={onChangeAutoRenderScheduledMode}
       autoRenderScheduledAt={autoRenderScheduledAt}
       onChangeAutoRenderScheduledAt={onChangeAutoRenderScheduledAt}
+      autoRenderOffscreen={autoRenderOffscreen}
+      onChangeAutoRenderOffscreen={onChangeAutoRenderOffscreen}
+      autoRenderExportDestinationIds={autoRenderExportDestinationIds}
+      onChangeAutoRenderExportDestinationIds={onChangeAutoRenderExportDestinationIds}
+      renderExportDestinationOptions={renderExportDestinationOptions}
       taskSequenceName={taskSequenceName}
       onChangeAutoRenderSequence={onChangeAutoRenderSequence}
       projectCatalogSequenceOptions={projectCatalogSequenceOptions}
@@ -100,7 +112,9 @@ function TasksEditorSection({
       autoRenderFormValues={autoRenderFormValues}
       onUpdateAutoRenderFormValue={onUpdateAutoRenderFormValue}
       renderOutputDir={renderOutputDir}
+      reservedRenderId={reservedRenderId}
       autoExpectedRenderName={autoExpectedRenderName}
+      autoOutputType={autoOutputType}
       formError={formError}
       submitDisabled={submitDisabled}
       submitLabel={submitLabel}

@@ -10,6 +10,7 @@ import {
   getInitialTaskFilter,
   getInitialQueueSortDir,
   getInitialQueueSortKey,
+  getInitialQueueRuntimeMode,
   getInitialReviewFilter,
   getInitialSequenceFilter,
   getInitialSearchQuery,
@@ -33,6 +34,7 @@ export function useRendersPreferences() {
   const [listSortDir, setListSortDir] = useState(getInitialListSortDir);
   const [queueSortKey, setQueueSortKey] = useState(getInitialQueueSortKey);
   const [queueSortDir, setQueueSortDir] = useState(getInitialQueueSortDir);
+  const [queueRuntimeMode, setQueueRuntimeMode] = useState(getInitialQueueRuntimeMode);
 
   usePersistRendersPreferences({
     searchQuery,
@@ -49,6 +51,7 @@ export function useRendersPreferences() {
     listSortDir,
     queueSortKey,
     queueSortDir,
+    queueRuntimeMode,
   });
 
   return {
@@ -82,5 +85,7 @@ export function useRendersPreferences() {
     setQueueSortKey,
     queueSortDir,
     setQueueSortDir,
+    queueRuntimeMode,
+    setQueueRuntimeMode,
   };
 }

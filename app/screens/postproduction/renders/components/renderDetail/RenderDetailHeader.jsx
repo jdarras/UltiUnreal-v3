@@ -7,19 +7,23 @@ function RenderDetailHeader({
   onOpenOutputExternally = null,
   onClose = null,
 } = {}) {
+  const rawOutputPath = String(render?.outputPath || "").trim();
+  const isTemplateToken = /^\s*\{\{[^{}]+\}\}\s*$/i.test(rawOutputPath);
+  const outputPath = !rawOutputPath || isTemplateToken ? "-" : rawOutputPath;
+
   return (
     <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
       <div style={{ minWidth: 0 }}>
         <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>{renderOutputName}</h4>
         <div className="uu-muted mt-8" style={{ wordBreak: "break-all" }}>
-          {String(render?.outputPath || "").trim() || "-"}
+          {outputPath}
         </div>
       </div>
       <div className="uu-row">
         <button
           className="uu-btn-ghost"
           type="button"
-          disabled={!String(render?.outputPath || "").trim()}
+          disabled={outputPath === "-"}
           onClick={() => onOpenOutputExternally?.(render)}
         >
           {safeT(t, "postprod.renders.preview.openExternal", "Ouvrir en externe")}

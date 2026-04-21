@@ -13,6 +13,7 @@ import {
   postProjectsImport,
   postLibraryImportRemote,
   postLibraryImportRemotePreview,
+  postprodRegenerateAllProxies,
 } from '../utils/agent';
 import { createT } from '../i18n';
 import { NoticeContext } from '../NoticeContext';
@@ -21,7 +22,13 @@ const EMPTY_COMMON = {
   refreshSec: '',
   logWarnLines: 1500,
   logHardLimitLines: 2000,
+  auditWarnLines: 5000,
+  auditHardLimitLines: 10000,
   renderOutputDir: '',
+  proxyEnabled: false,
+  proxyResolution: 50,
+  proxyCrf: 23,
+  renderExportDestinations: [],
   rcHttpPort: '',
   rcWsPort: '',
   wrcMaxAttempts: 10,
@@ -34,6 +41,68 @@ const EMPTY_COMMON = {
 };
 
 const APP_MODE_POSTPROD = 'postprod';
+const PROXY_RESOLUTION_ALLOWED = new Set([25, 50, 75]);
+const PROXY_CRF_ALLOWED = new Set([18, 23, 28]);
+
+function sanitizeExportDestinationId(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+function buildExportDestinationId(name = '', pathValue = '', index = 0) {
+  const byName = sanitizeExportDestinationId(name);
+  if (byName) return byName;
+  const byPath = sanitizeExportDestinationId(String(pathValue || '').replace(/[\\/]+/g, '-'));
+  if (byPath) return byPath;
+  return `dest-${Math.max(1, Number(index) + 1)}`;
+}
+
+function normalizeExportDestinations(value, fallback = [], options = {}) {
+  const keepEmpty = options && typeof options === 'object' && options.keepEmpty === true;
+  const src = Array.isArray(value)
+    ? value
+    : (Array.isArray(fallback) ? fallback : []);
+  const out = [];
+  const seen = new Set();
+  for (let index = 0; index < src.length; index += 1) {
+    const entry = src[index];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const destinationPath = String(entry.path || entry.destinationPath || entry.dir || '').trim();
+    if (!destinationPath && !keepEmpty) continue;
+    const name = String(entry.name || entry.label || entry.title || '').trim();
+    const id = sanitizeExportDestinationId(
+      entry.id
+      || entry.destinationId
+      || buildExportDestinationId(name, destinationPath, index)
+    );
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      name: name || id,
+      path: destinationPath,
+      isActive: entry.isActive !== false && entry.enabled !== false,
+    });
+  }
+  return out;
+}
+
+function normalizeProxyResolution(value, fallback = 50) {
+  const n = Number(value);
+  const normalized = Number.isFinite(n) ? Math.trunc(n) : Math.trunc(Number(fallback) || 50);
+  return PROXY_RESOLUTION_ALLOWED.has(normalized) ? normalized : 50;
+}
+
+function normalizeProxyCrf(value, fallback = 23) {
+  const n = Number(value);
+  const normalized = Number.isFinite(n) ? Math.trunc(n) : Math.trunc(Number(fallback) || 23);
+  return PROXY_CRF_ALLOWED.has(normalized) ? normalized : 23;
+}
 
 function formatLicenseDate(exp, lang) {
   const raw = String(exp || '').trim();
@@ -74,6 +143,7 @@ export default function ConfigurationScreen({
   onNavigate,
   onLibraryImported,
   onIdentityUpdated,
+  onScanDetectedRenders = null,
   appMode = '',
   canViewResources = true,
   canManageProjects = true,
@@ -103,6 +173,9 @@ export default function ConfigurationScreen({
 
   const [cfg, setCfg] = React.useState(EMPTY_COMMON);
   const [infoMsg, setInfoMsg] = React.useState({ text: '', type: '', section: '' }); // section: common|versions|projects
+  const [proxyRegenBusy, setProxyRegenBusy] = React.useState(false);
+  const [proxyRegenResult, setProxyRegenResult] = React.useState('');
+  const [detectedScanBusy, setDetectedScanBusy] = React.useState(false);
   const [versions, setVersions] = React.useState([]); // [{name, path}]
   const [projectRoots, setProjectRoots] = React.useState([]);
   const [projectScanMsg, setProjectScanMsg] = React.useState('');
@@ -201,9 +274,30 @@ export default function ConfigurationScreen({
             prev.renderOutputDir ??
             ''
           ).trim(),
+          proxyEnabled: typeof c?.proxyEnabled === 'boolean'
+            ? c.proxyEnabled
+            : (
+              typeof c?.proxy_enabled === 'boolean'
+                ? c.proxy_enabled
+                : !!prev.proxyEnabled
+            ),
+          proxyResolution: normalizeProxyResolution(
+            c?.proxyResolution ?? c?.proxy_resolution,
+            prev.proxyResolution
+          ),
+          proxyCrf: normalizeProxyCrf(
+            c?.proxyCrf ?? c?.proxy_crf,
+            prev.proxyCrf
+          ),
+          renderExportDestinations: normalizeExportDestinations(
+            c?.renderExportDestinations ?? c?.render_export_destinations,
+            prev.renderExportDestinations
+          ),
           refreshSec: c?.refreshSec ?? prev.refreshSec,
           logWarnLines: c?.logWarnLines ?? prev.logWarnLines,
           logHardLimitLines: c?.logHardLimitLines ?? prev.logHardLimitLines,
+          auditWarnLines: c?.auditWarnLines ?? prev.auditWarnLines,
+          auditHardLimitLines: c?.auditHardLimitLines ?? prev.auditHardLimitLines,
           wrcMaxAttempts: c?.wrcMaxAttempts ?? prev.wrcMaxAttempts ?? 10,
           wrcRetryDelaySec: c?.wrcRetryDelaySec ?? prev.wrcRetryDelaySec ?? 3,
           startLayoutSendDelaySec: c?.startLayoutSendDelaySec ?? prev.startLayoutSendDelaySec ?? 3,
@@ -397,7 +491,8 @@ export default function ConfigurationScreen({
         field.startsWith('wrc') ? 'common' :
         field === 'refreshSec' ||
         field === 'rcHttpPort' || field === 'rcWsPort' ||
-        field === 'logWarnLines' || field === 'logHardLimitLines'
+        field === 'logWarnLines' || field === 'logHardLimitLines' ||
+        field === 'auditWarnLines' || field === 'auditHardLimitLines'
           ? 'common'
           : 'common');
     setCfg(prev => {
@@ -412,6 +507,71 @@ export default function ConfigurationScreen({
     } else {
       scheduleSave(section);
     }
+  }
+
+  function updateExportDestination(index, patch = {}) {
+    const safeIndex = Number(index);
+    if (!Number.isFinite(safeIndex) || safeIndex < 0) return;
+    setCfg((prev) => {
+      const current = normalizeExportDestinations(prev.renderExportDestinations, [], { keepEmpty: true });
+      if (safeIndex >= current.length) return prev;
+      const next = current.map((entry, entryIndex) => {
+        if (entryIndex !== safeIndex) return entry;
+        const merged = {
+          ...entry,
+          ...(patch && typeof patch === 'object' ? patch : {}),
+        };
+        const safePath = String(merged.path || '').trim();
+        const safeName = String(merged.name || '').trim();
+        const safeId = sanitizeExportDestinationId(
+          merged.id || buildExportDestinationId(safeName, safePath, entryIndex)
+        );
+        return {
+          id: safeId || buildExportDestinationId(safeName, safePath, entryIndex),
+          name: safeName,
+          path: safePath,
+          isActive: merged.isActive !== false,
+        };
+      });
+      const normalized = normalizeExportDestinations(next, [], { keepEmpty: true });
+      const updated = { ...prev, renderExportDestinations: normalized };
+      cfgRef.current = updated;
+      return updated;
+    });
+    scheduleSave('common');
+  }
+
+  function addExportDestination() {
+    setCfg((prev) => {
+      const current = normalizeExportDestinations(prev.renderExportDestinations, [], { keepEmpty: true });
+      const nextIndex = current.length;
+      const nextEntry = {
+        id: buildExportDestinationId('', '', nextIndex),
+        name: '',
+        path: '',
+        isActive: true,
+      };
+      const updated = {
+        ...prev,
+        renderExportDestinations: [...current, nextEntry],
+      };
+      cfgRef.current = updated;
+      return updated;
+    });
+    scheduleSave('common');
+  }
+
+  function removeExportDestination(index) {
+    const safeIndex = Number(index);
+    if (!Number.isFinite(safeIndex) || safeIndex < 0) return;
+    setCfg((prev) => {
+      const current = normalizeExportDestinations(prev.renderExportDestinations, [], { keepEmpty: true });
+      const next = current.filter((_, entryIndex) => entryIndex !== safeIndex);
+      const updated = { ...prev, renderExportDestinations: next };
+      cfgRef.current = updated;
+      return updated;
+    });
+    scheduleSave('common');
   }
 
   const handleLaunchUnrealVersion = React.useCallback(async (versionName = '') => {
@@ -484,9 +644,16 @@ export default function ConfigurationScreen({
       refreshSec: Number(currentCfg.refreshSec || 0),
       logWarnLines: Number(currentCfg.logWarnLines || 0),
       logHardLimitLines: Number(currentCfg.logHardLimitLines || 0),
+      auditWarnLines: Number(currentCfg.auditWarnLines || 0),
+      auditHardLimitLines: Number(currentCfg.auditHardLimitLines || 0),
       wrcMaxAttempts: Number(currentCfg.wrcMaxAttempts || 0),
       wrcRetryDelaySec: Number(currentCfg.wrcRetryDelaySec || 0),
       startLayoutSendDelaySec: Number(currentCfg.startLayoutSendDelaySec || 0),
+      proxyEnabled: !!currentCfg.proxyEnabled,
+      proxyResolution: normalizeProxyResolution(currentCfg.proxyResolution, 50),
+      proxyCrf: normalizeProxyCrf(currentCfg.proxyCrf, 23),
+      renderExportDestinations: normalizeExportDestinations(currentCfg.renderExportDestinations, []),
+      render_export_destinations: normalizeExportDestinations(currentCfg.renderExportDestinations, []),
       unrealVersions: versionNames,
       project_roots: currentRoots,
       fab_resources_enabled: !!currentCfg.fabResourcesEnabled,
@@ -541,6 +708,45 @@ export default function ConfigurationScreen({
       setInfoMsg({ text: '', type: '', section: '' });
     }, 2500);
   }
+
+  const handleRegenerateAllProxies = React.useCallback(async () => {
+    if (proxyRegenBusy) return;
+    setProxyRegenBusy(true);
+    setProxyRegenResult('');
+    try {
+      const currentCfg = cfgRef.current || {};
+      const res = await postprodRegenerateAllProxies({
+        proxyResolution: normalizeProxyResolution(currentCfg.proxyResolution, 50),
+        proxyCrf: normalizeProxyCrf(currentCfg.proxyCrf, 23),
+      });
+      if (!res || res.ok === false) {
+        throw new Error(String(res?.error || 'proxy_regenerate_failed'));
+      }
+      const countRaw = Number(res?.count ?? res?.regenerated ?? 0);
+      const count = Number.isFinite(countRaw) ? Math.max(0, Math.trunc(countRaw)) : 0;
+      setProxyRegenResult(t('config.postprod.proxy.regenerateDone', { count }));
+    } catch (e) {
+      setInfoMsg({
+        text: String(e?.message || 'proxy_regenerate_failed'),
+        type: 'error',
+        section: 'common',
+      });
+      setTimeout(() => setInfoMsg({ text: '', type: '', section: '' }), 3500);
+    } finally {
+      setProxyRegenBusy(false);
+    }
+  }, [proxyRegenBusy, t]);
+
+  const handleScanDetectedRenders = React.useCallback(async () => {
+    if (detectedScanBusy) return;
+    if (typeof onScanDetectedRenders !== 'function') return;
+    setDetectedScanBusy(true);
+    try {
+      await onScanDetectedRenders();
+    } finally {
+      setDetectedScanBusy(false);
+    }
+  }, [detectedScanBusy, onScanDetectedRenders]);
 
   async function handleProjectScan() {
     const cleaned = normalizeProjectRoots(projectRootsRef.current);
@@ -1088,6 +1294,32 @@ export default function ConfigurationScreen({
               />
             </div>
 
+            <div className="uu-grid-field uu-maxw-420 mt-12">
+              <label className="uu-label">
+                {t('config.audit.warnLimit')}
+              </label>
+              <input
+                type="number"
+                min={100}
+                className="uu-input w-160"
+                value={cfg.auditWarnLines}
+                onChange={(e) => updateField('auditWarnLines', e.target.value)}
+              />
+            </div>
+
+            <div className="uu-grid-field uu-maxw-420 mt-12">
+              <label className="uu-label">
+                {t('config.audit.hardLimit')}
+              </label>
+              <input
+                type="number"
+                min={200}
+                className="uu-input w-160"
+                value={cfg.auditHardLimitLines}
+                onChange={(e) => updateField('auditHardLimitLines', e.target.value)}
+              />
+            </div>
+
             {/* Port RC HTTP */}
             <div className="uu-grid-field uu-maxw-420 mt-12">
               <label className="uu-label">
@@ -1159,7 +1391,6 @@ export default function ConfigurationScreen({
         <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
           <h3 className="uu-h3 uu-block-title">{t('config.postprod.sectionTitle')}</h3>
         </div>
-        <div className="uu-muted">{t('config.postprod.sectionHint')}</div>
         <div className="uu-grid-field uu-maxw-720 mt-12">
           <label className="uu-label">
             {t('config.renders.outputDir')}
@@ -1188,6 +1419,164 @@ export default function ConfigurationScreen({
               {t('common.browse')}
             </button>
           </div>
+        </div>
+        {isPostprodMode ? (
+          <div className="uu-row mt-12">
+            <button
+              type="button"
+              className="uu-btn-ghost"
+              disabled={detectedScanBusy || typeof onScanDetectedRenders !== 'function'}
+              onClick={() => { void handleScanDetectedRenders(); }}
+            >
+              {detectedScanBusy
+                ? t('common.loading')
+                : t('postprod.renders.detectedScan.button')}
+            </button>
+          </div>
+        ) : null}
+
+        <div className="uu-grid-field uu-maxw-720 mt-16">
+          <label className="uu-label">
+            {t('config.postprod.proxy.title')}
+          </label>
+
+          <label className="uu-check mt-8">
+            <input
+              type="checkbox"
+              checked={!!cfg.proxyEnabled}
+              onChange={(e) => updateField('proxyEnabled', !!e.target.checked)}
+            />
+            {t('config.postprod.proxy.enabled')}
+          </label>
+
+          {cfg.proxyEnabled ? (
+            <>
+              <div className="uu-row mt-12" style={{ alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap' }}>
+                <div className="uu-grid-field" style={{ minWidth: '250px', maxWidth: '340px' }}>
+                  <label className="uu-label">{t('config.postprod.proxy.resolution')}</label>
+                  <select
+                    className="uu-select"
+                    value={String(normalizeProxyResolution(cfg.proxyResolution, 50))}
+                    onChange={(e) => updateField('proxyResolution', normalizeProxyResolution(e.target.value, 50))}
+                  >
+                    <option value="75">{t('config.postprod.proxy.resolutionHigh')}</option>
+                    <option value="50">{t('config.postprod.proxy.resolutionMedium')}</option>
+                    <option value="25">{t('config.postprod.proxy.resolutionLow')}</option>
+                  </select>
+                </div>
+
+                <div className="uu-grid-field" style={{ minWidth: '250px', maxWidth: '340px' }}>
+                  <label className="uu-label">{t('config.postprod.proxy.quality')}</label>
+                  <select
+                    className="uu-select"
+                    value={String(normalizeProxyCrf(cfg.proxyCrf, 23))}
+                    onChange={(e) => updateField('proxyCrf', normalizeProxyCrf(e.target.value, 23))}
+                  >
+                    <option value="18">{t('config.postprod.proxy.qualityHigh')}</option>
+                    <option value="23">{t('config.postprod.proxy.qualityMedium')}</option>
+                    <option value="28">{t('config.postprod.proxy.qualityLow')}</option>
+                  </select>
+                </div>
+
+                <div className="uu-grid-field">
+                  <button
+                    type="button"
+                    className="uu-btn"
+                    disabled={proxyRegenBusy}
+                    onClick={() => { void handleRegenerateAllProxies(); }}
+                  >
+                    {proxyRegenBusy
+                      ? t('config.postprod.proxy.regenerating')
+                      : t('config.postprod.proxy.regenerateAll')}
+                  </button>
+                </div>
+              </div>
+
+              {proxyRegenResult ? <div className="uu-msg ok mt-8">{proxyRegenResult}</div> : null}
+            </>
+          ) : null}
+        </div>
+
+        <div className="uu-grid-field uu-maxw-720 mt-16">
+          <label className="uu-label">
+            {t('config.postprod.exports.title', 'Destinations d’export des rendus validés')}
+          </label>
+
+          <div className="uu-row mt-12">
+            <button
+              type="button"
+              className="uu-btn"
+              onClick={() => addExportDestination()}
+            >
+              {t('config.postprod.exports.add', '+ Ajouter une destination')}
+            </button>
+          </div>
+
+          {normalizeExportDestinations(cfg.renderExportDestinations, [], { keepEmpty: true }).length <= 0 ? (
+            <div className="uu-muted mt-8">
+              {t('config.postprod.exports.empty', 'Aucune destination configurée.')}
+            </div>
+          ) : null}
+
+          {normalizeExportDestinations(cfg.renderExportDestinations, [], { keepEmpty: true }).map((entry, idx) => (
+            <div key={`config-export-destination-${entry.id || idx}`} className="uu-grid-field mt-12">
+              <div className="uu-export-destination-grid">
+                <div className="uu-grid-field">
+                  <label className="uu-label">{t('config.postprod.exports.name', 'Nom')}</label>
+                  <div className="uu-export-destination-name-row">
+                    <label className="uu-check uu-export-destination-active">
+                      <input
+                        type="checkbox"
+                        checked={entry.isActive !== false}
+                        onChange={(e) => updateExportDestination(idx, { isActive: !!e.target.checked })}
+                      />
+                      {t('config.postprod.exports.active', 'Active')}
+                    </label>
+                    <input
+                      className="uu-input"
+                      value={String(entry.name || '')}
+                      onChange={(e) => updateExportDestination(idx, { name: e.target.value })}
+                      placeholder={t('config.postprod.exports.namePlaceholder', 'Ex: Client / Livraison')}
+                    />
+                  </div>
+                </div>
+                <div className="uu-grid-field">
+                  <label className="uu-label">{t('config.postprod.exports.path', 'Chemin')}</label>
+                  <div className="uu-export-destination-path-row">
+                    <input
+                      className="uu-input"
+                      value={String(entry.path || '')}
+                      onChange={(e) => updateExportDestination(idx, { path: e.target.value })}
+                      placeholder="D:\\Livraison\\Rendus"
+                    />
+                    <button
+                      type="button"
+                      className="uu-btn"
+                      onClick={async () => {
+                        if (!window.electron?.chooseFolder) return;
+                        let folder = '';
+                        try {
+                          folder = await window.electron.chooseFolder();
+                        } catch {}
+                        const picked = String(folder || '').trim();
+                        if (!picked) return;
+                        updateExportDestination(idx, { path: picked });
+                      }}
+                    >
+                      {t('common.browse')}
+                    </button>
+                    <button
+                      type="button"
+                      className="uu-btn"
+                      onClick={() => removeExportDestination(idx)}
+                    >
+                      {t('common.delete')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
       </div>

@@ -20,11 +20,15 @@ const DATA_KEYS = [
   "autoRenderLaunchMode",
   "autoRenderScheduledMode",
   "autoRenderScheduledAt",
+  "autoRenderOffscreen",
+  "autoRenderExportDestinationIds",
+  "renderExportDestinationOptions",
   "autoRenderFormFieldsLoading",
   "autoRenderFormFieldsError",
   "visibleAutoRenderFormFields",
   "autoRenderFormValues",
   "autoExpectedRenderName",
+  "autoOutputType",
   "formError",
   "taskSequenceName",
   "projectCatalogSequenceOptions",
@@ -40,6 +44,7 @@ const EDITOR_KEYS = [
   "canSubmitTaskForm",
   "submitTaskFormLabel",
   "handleSubmitTaskForm",
+  "reservedRenderId",
 ];
 
 const UI_KEYS = [
@@ -51,6 +56,8 @@ const UI_KEYS = [
   "changeAutoRenderScheduledMode",
   "changeAutoRenderScheduledAt",
   "changeAutoRenderSequence",
+  "changeAutoRenderOffscreen",
+  "changeAutoRenderExportDestinationIds",
 ];
 
 export function buildTasksSectionPropsInputEditor({

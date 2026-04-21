@@ -10,6 +10,37 @@ const EMPTY_TRANSITIONS_STATE = Object.freeze({
   loaded: false,
 });
 
+function isTemplateToken(value = "") {
+  return /^\s*\{\{[^{}]+\}\}\s*$/i.test(String(value || "").trim());
+}
+
+function resolveOutputDirFromRender(render = null, payload = {}) {
+  const outputPath = String(
+    render?.outputPath
+    || payload?.outputPath
+    || ""
+  ).trim();
+  if (!outputPath || isTemplateToken(outputPath)) return "";
+  const normalized = outputPath.replace(/\//g, "\\");
+  const idx = normalized.lastIndexOf("\\");
+  if (idx <= 0) return "";
+  return normalized.slice(0, idx);
+}
+
+function joinWindowsPath(base = "", leaf = "") {
+  const left = String(base || "").trim().replace(/[\\/]+$/g, "");
+  const right = String(leaf || "").trim().replace(/^[\\/]+/g, "");
+  if (!left) return right;
+  if (!right) return left;
+  return `${left}\\${right}`;
+}
+
+function toUiMediaSource(raw = "") {
+  const source = String(raw || "").trim();
+  if (!source) return "";
+  return source.replace(/^file:/i, "uu-media:");
+}
+
 function toRenderId(value) {
   const numeric = Number(value || 0);
   if (!Number.isFinite(numeric) || numeric <= 0) return 0;
@@ -40,8 +71,10 @@ function resolveDetailPreview({
   const detailPreviewIndex = Number.isFinite(detailPreviewIndexRaw) && detailPreviewIndexRaw >= 0
     ? Math.min(Math.trunc(detailPreviewIndexRaw), Math.max(0, candidates.length - 1))
     : 0;
-  const source = String(candidates[detailPreviewIndex] || "").trim();
-  const kind = isVideoPath(source) ? "video" : (isImagePath(source) ? "image" : "none");
+  const rawSource = String(candidates[detailPreviewIndex] || "").trim();
+  const kind = isVideoPath(rawSource) ? "video" : (isImagePath(rawSource) ? "image" : "none");
+  // Videos served via uu-media:// protocol to bypass file:// CSP restrictions and support range requests
+  const source = kind === "video" ? rawSource.replace(/^file:/i, "uu-media:") : rawSource;
   const error = String(detailPreviewState?.error || "").trim();
   return {
     candidates,
@@ -116,15 +149,25 @@ function collectRenderThumbCandidates(render = null) {
     payload?.outputThumbnail,
     payload?.outputPreview,
   ]);
+  const outputDir = resolveOutputDirFromRender(render, payload);
+  if (outputDir) {
+    candidates.push(
+      joinWindowsPath(outputDir, "images\\thumbnail.jpg"),
+      joinWindowsPath(outputDir, "proxy\\thumbnail.jpg"),
+      joinWindowsPath(outputDir, "_proxy\\thumbnail.jpg"),
+    );
+  }
   const normalized = [];
   for (const entry of candidates) {
     const source = normalizeThumbnailPath(entry);
-    if (source) normalized.push(source);
+    const uiSource = toUiMediaSource(source);
+    if (uiSource) normalized.push(uiSource);
   }
   const outputPath = String(render?.outputPath || "").trim();
   if (outputPath && isImagePath(outputPath)) {
     const normalizedOutput = normalizeThumbnailPath(outputPath);
-    if (normalizedOutput) normalized.push(normalizedOutput);
+    const uiSource = toUiMediaSource(normalizedOutput);
+    if (uiSource) normalized.push(uiSource);
   }
   return normalizeThumbCandidates(normalized);
 }

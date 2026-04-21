@@ -1,5 +1,18 @@
-import { resolveTaskAutoRenderState } from "../../helpers";
+import { resolveTaskVisualStatus } from "../../helpers";
 import { taskRenderFormId, taskRenderModeName, taskTargetRenderWorkerKey } from "./taskListUtils";
+
+function normalizeFilterValues(values = []) {
+  const source = Array.isArray(values) ? values : [values];
+  const out = [];
+  const seen = new Set();
+  for (const value of source) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized || normalized === "all" || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
 
 function buildProjectSearchText(task = null, projectLabelsByRef = new Map()) {
   return (Array.isArray(task?.projectRefs) ? task.projectRefs : [])
@@ -59,11 +72,11 @@ function filterTasksList({
   favoriteOnly = false,
   isTaskFavorite = () => false,
   searchQuery = "",
-  listStatusFilter = "all",
-  listRenderWorkerFilter = "all",
-  listProjectFilter = "all",
-  listFormFilter = "all",
-  listRenderModeFilter = "all",
+  listStatusFilter = [],
+  listRenderWorkerFilter = [],
+  listProjectFilter = [],
+  listFormFilter = [],
+  listRenderModeFilter = [],
   taskRenderStateByTaskId = new Map(),
   projectLabelsByRef = new Map(),
   resourceLabelsByRef = new Map(),
@@ -88,49 +101,58 @@ function filterTasksList({
     });
   }
 
-  const normalizedStatusFilter = String(listStatusFilter || "").trim();
-  if (normalizedStatusFilter !== "all") {
-    if (normalizedStatusFilter === "__render_waiting" || normalizedStatusFilter === "__render_running" || normalizedStatusFilter === "__render_error") {
-      const targetState = normalizedStatusFilter.replace("__render_", "");
-      list = list.filter((task) => resolveTaskAutoRenderState(task, taskRenderStateByTaskId) === targetState);
-    } else {
-      list = list.filter((task) => String(task?.status || "").trim() === normalizedStatusFilter);
-    }
+  const selectedStatus = new Set(normalizeFilterValues(listStatusFilter));
+  if (selectedStatus.size > 0) {
+    const legacyStatusMap = {
+      __render_waiting: "waiting",
+      __render_running: "running",
+      __render_error: "error",
+      planifiee: "planned",
+      "planifiée": "planned",
+      "a faire": "waiting",
+      a_faire: "waiting",
+      "en cours": "running",
+      en_cours: "running",
+      "a valider": "to_validate",
+      a_valider: "to_validate",
+      validee: "validated",
+      "validée": "validated",
+      rejetee: "rejected",
+      "rejetée": "rejected",
+    };
+    const targetStatuses = new Set(
+      [...selectedStatus].map((entry) => String(legacyStatusMap[entry] || entry).trim().toLowerCase())
+    );
+    list = list.filter((task) => targetStatuses.has(resolveTaskVisualStatus(task, taskRenderStateByTaskId)));
   }
 
-  const normalizedWorkerFilter = String(listRenderWorkerFilter || "all").trim();
-  if (normalizedWorkerFilter !== "all") {
-    if (normalizedWorkerFilter === "__auto") {
-      list = list.filter((task) => (
-        String(task?.requestType || "").trim().toLowerCase() === "auto_render"
-        && !taskTargetRenderWorkerKey(task)
-      ));
-    } else {
-      list = list.filter((task) => (
-        String(task?.requestType || "").trim().toLowerCase() === "auto_render"
-        && taskTargetRenderWorkerKey(task) === normalizedWorkerFilter
-      ));
-    }
-  }
-
-  if (listProjectFilter !== "all") {
+  const selectedWorkers = new Set(normalizeFilterValues(listRenderWorkerFilter));
+  if (selectedWorkers.size > 0) {
     list = list.filter((task) => {
-      const refs = Array.isArray(task?.projectRefs) ? task.projectRefs : [];
-      return refs.some((ref) => String(ref || "").trim() === listProjectFilter);
+      const isAutoTask = String(task?.requestType || "").trim().toLowerCase() === "auto_render";
+      if (!isAutoTask) return false;
+      const workerKey = String(taskTargetRenderWorkerKey(task) || "").trim().toLowerCase();
+      if (!workerKey) return selectedWorkers.has("__auto");
+      return selectedWorkers.has(workerKey);
     });
   }
 
-  const normalizedFormFilter = String(listFormFilter || "").trim();
-  if (normalizedFormFilter && normalizedFormFilter !== "all") {
-    const targetFormId = Number(normalizedFormFilter);
-    if (Number.isFinite(targetFormId) && targetFormId > 0) {
-      list = list.filter((task) => taskRenderFormId(task) === Math.trunc(targetFormId));
-    }
+  const selectedProjects = new Set(normalizeFilterValues(listProjectFilter));
+  if (selectedProjects.size > 0) {
+    list = list.filter((task) => {
+      const refs = Array.isArray(task?.projectRefs) ? task.projectRefs : [];
+      return refs.some((ref) => selectedProjects.has(String(ref || "").trim().toLowerCase()));
+    });
   }
 
-  const normalizedRenderModeFilter = String(listRenderModeFilter || "").trim();
-  if (normalizedRenderModeFilter && normalizedRenderModeFilter !== "all") {
-    list = list.filter((task) => taskRenderModeName(task) === normalizedRenderModeFilter);
+  const selectedForms = new Set(normalizeFilterValues(listFormFilter));
+  if (selectedForms.size > 0) {
+    list = list.filter((task) => selectedForms.has(String(taskRenderFormId(task)).toLowerCase()));
+  }
+
+  const selectedRenderModes = new Set(normalizeFilterValues(listRenderModeFilter));
+  if (selectedRenderModes.size > 0) {
+    list = list.filter((task) => selectedRenderModes.has(String(taskRenderModeName(task) || "").trim().toLowerCase()));
   }
 
   return list;
@@ -139,20 +161,20 @@ function filterTasksList({
 function hasActiveTaskListFilters({
   searchQuery = "",
   favoriteOnly = false,
-  listStatusFilter = "all",
-  listRenderWorkerFilter = "all",
-  listProjectFilter = "all",
-  listFormFilter = "all",
-  listRenderModeFilter = "all",
+  listStatusFilter = [],
+  listRenderWorkerFilter = [],
+  listProjectFilter = [],
+  listFormFilter = [],
+  listRenderModeFilter = [],
 } = {}) {
   return (
     String(searchQuery || "").trim().length > 0
     || favoriteOnly
-    || String(listStatusFilter || "all").trim() !== "all"
-    || String(listRenderWorkerFilter || "all").trim() !== "all"
-    || String(listProjectFilter || "all").trim() !== "all"
-    || String(listFormFilter || "all").trim() !== "all"
-    || String(listRenderModeFilter || "all").trim() !== "all"
+    || normalizeFilterValues(listStatusFilter).length > 0
+    || normalizeFilterValues(listRenderWorkerFilter).length > 0
+    || normalizeFilterValues(listProjectFilter).length > 0
+    || normalizeFilterValues(listFormFilter).length > 0
+    || normalizeFilterValues(listRenderModeFilter).length > 0
   );
 }
 

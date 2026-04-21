@@ -19,9 +19,13 @@ function TaskListPanel({
   isTaskFavorite = null,
   toggleTaskFavorite = null,
   renderTaskActions = null,
+  normalizedProjectOptions = [],
+  onNavigateToProject = null,
+  onEditRenderForm = null,
+  emptyLabel = "",
 }) {
   if (!Array.isArray(displayedTasks) || displayedTasks.length <= 0) {
-    return <div className="uu-muted">{safeT(t, "postprod.tasks.empty", "Aucune tache.")}</div>;
+    return <div className="uu-muted">{String(emptyLabel || "").trim() || safeT(t, "postprod.tasks.empty", "Aucune tache.")}</div>;
   }
 
   if (viewMode === "list") {
@@ -33,12 +37,12 @@ function TaskListPanel({
         listSortDir={listSortDir}
         toggleListSort={toggleListSort}
         taskVisualStatus={taskVisualStatus}
-        taskExpectedRenderName={taskExpectedRenderName}
-        taskRenderWorkerLabel={taskRenderWorkerLabel}
         taskProjectLabel={taskProjectLabel}
         isTaskFavorite={isTaskFavorite}
         toggleTaskFavorite={toggleTaskFavorite}
         renderTaskActions={renderTaskActions}
+        normalizedProjectOptions={normalizedProjectOptions}
+        onNavigateToProject={onNavigateToProject}
       />
     );
   }
@@ -55,6 +59,9 @@ function TaskListPanel({
       isTaskFavorite={isTaskFavorite}
       toggleTaskFavorite={toggleTaskFavorite}
       renderTaskActions={renderTaskActions}
+      normalizedProjectOptions={normalizedProjectOptions}
+      onNavigateToProject={onNavigateToProject}
+      onEditRenderForm={onEditRenderForm}
     />
   );
 }

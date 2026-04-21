@@ -1,5 +1,5 @@
 import { safeT } from "../../../shared/helpers";
-import { taskAutoRenderStateLevel } from "../../../tasks/helpers";
+import { taskVisualStatusClass } from "../../../tasks/helpers";
 import { queueRenderStateShortLabel } from "../../helpers";
 
 function simplifySequenceName(raw) {
@@ -17,6 +17,7 @@ function RendersQueueTableRow({
   deleteBusyTaskId = 0,
   rendersLoading = false,
   canLaunchRenders = false,
+  queueRuntimeMode = "active",
   queueEntryWorkerLabel = null,
   getQueueEntryLaunchMeta = null,
   onLaunchScheduledTaskRender = null,
@@ -51,6 +52,8 @@ function RendersQueueTableRow({
     : { renderState: "waiting", canLaunchFromQueue: false };
   const renderState = queueLaunchMeta.renderState;
   const canLaunchFromQueue = queueLaunchMeta.canLaunchFromQueue;
+  const queueMode = String(queueRuntimeMode || "").trim().toLowerCase() === "paused" ? "paused" : "active";
+  const allowManualLaunch = queueMode === "paused";
   const canEditQueueTask = (
     typeof onEditQueueTask === "function"
     && Number.isFinite(taskId)
@@ -64,6 +67,7 @@ function RendersQueueTableRow({
   const canMoveUp = typeof canMoveQueueEntry === "function" ? canMoveQueueEntry(queueEntry, -1) : false;
   const canMoveDown = typeof canMoveQueueEntry === "function" ? canMoveQueueEntry(queueEntry, 1) : false;
   const canOpenTaskLink = typeof onRequestOpenTasks === "function" && normalizedTaskId > 0;
+  const taskIdLabel = normalizedTaskId > 0 ? `#${String(normalizedTaskId).padStart(4, "0")}` : "";
   const actionSlotStyle = {
     width: "74px",
     minWidth: "74px",
@@ -140,27 +144,25 @@ function RendersQueueTableRow({
             minWidth: 0,
           }}
         >
-          <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{String(task?.title || "-")}</span>
-          {normalizedTaskId > 0 ? (
-            canOpenTaskLink ? (
-              <button
-                type="button"
-                className="uu-link"
-                style={{ whiteSpace: "nowrap" }}
-                onClick={handleOpenTask}
-              >
-                ({normalizedTaskId})
-              </button>
-            ) : (
-              <span style={{ whiteSpace: "nowrap" }}>({normalizedTaskId})</span>
-            )
+          <span
+            onClick={canOpenTaskLink ? handleOpenTask : undefined}
+            style={canOpenTaskLink
+              ? { fontWeight: 600, overflowWrap: "anywhere", cursor: "pointer" }
+              : { fontWeight: 600, overflowWrap: "anywhere" }}
+          >
+            {String(task?.title || "-")}
+          </span>
+          {taskIdLabel ? (
+            <span className="uu-muted" style={{ whiteSpace: "nowrap" }}>
+              {taskIdLabel}
+            </span>
           ) : null}
         </div>
       </td>
       <td style={{ overflowWrap: "anywhere", textAlign: "center" }}>{queueSequenceName || "-"}</td>
       <td style={{ overflowWrap: "anywhere", paddingLeft: `${stationOffsetPx}px` }}>{queueWorker || "-"}</td>
       <td style={{ overflowWrap: "anywhere", textAlign: "right" }}>
-        <span className={`uu-chip lvl-${taskAutoRenderStateLevel(renderState)} chip-on`}>
+        <span className={`uu-chip chip-on ${taskVisualStatusClass(renderState)}`}>
           {queueRenderStateShortLabel(t, renderState)}
         </span>
       </td>
@@ -181,7 +183,7 @@ function RendersQueueTableRow({
             }}
           >
             <span style={actionSlotStyle}>
-              {canLaunchFromQueue ? (
+              {allowManualLaunch && canLaunchFromQueue ? (
                 <button
                   className="uu-btn"
                   type="button"

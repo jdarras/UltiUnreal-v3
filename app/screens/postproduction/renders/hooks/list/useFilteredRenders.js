@@ -12,6 +12,40 @@ import {
   resolveRenderTaskMeta,
 } from "./renderListUtils";
 
+function isTechnicalProxyRenderRow(render = null) {
+  const item = render && typeof render === "object" ? render : {};
+  const payload = item?.payload && typeof item.payload === "object" && !Array.isArray(item.payload)
+    ? item.payload
+    : {};
+  const outputPath = String(
+    item?.outputPath
+    || item?.output_path
+    || payload?.filePath
+    || payload?.outputPath
+    || ""
+  ).trim();
+  const outputPathNormalized = outputPath.replace(/\\/g, "/").toLowerCase();
+  const fileName = String(
+    outputPathNormalized.split("/").filter(Boolean).pop()
+    || payload?.fileName
+    || ""
+  ).trim().toLowerCase();
+  if (
+    fileName === "proxy.mp4"
+    || fileName === "proxy_alpha.mp4"
+    || fileName === "thumbnail.jpg"
+  ) {
+    return true;
+  }
+  if (
+    /\/_?proxy\/(proxy|proxy_alpha)\.mp4$/i.test(outputPathNormalized)
+    || /\/images\/thumbnail\.jpg$/i.test(outputPathNormalized)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function useFilteredRenders({
   detectedRenders = [],
   searchQuery = "",
@@ -38,6 +72,9 @@ export function useFilteredRenders({
     const list = Array.isArray(detectedRenders) ? [...detectedRenders] : [];
     list.sort((a, b) => String(b?.updatedAt || "").localeCompare(String(a?.updatedAt || "")));
     return list.filter((render) => {
+      const renderStatus = String(render?.status || "").trim().toLowerCase();
+      if (renderStatus !== "done") return false;
+      if (isTechnicalProxyRenderRow(render)) return false;
       const reviewStatus = renderReviewStatusKey(render);
       if (selectedReviewSet.size > 0 && !selectedReviewSet.has(String(reviewStatus || "").trim().toLowerCase())) return false;
       const projectMeta = resolveRenderProjectMeta(render);

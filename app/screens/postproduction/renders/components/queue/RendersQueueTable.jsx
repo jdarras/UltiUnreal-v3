@@ -9,6 +9,7 @@ function RendersQueueTable({
   busyScheduledTaskId = 0,
   rendersLoading = false,
   canLaunchRenders = false,
+  queueRuntimeMode = "active",
   queueEntryWorkerLabel = null,
   getQueueEntryLaunchMeta = null,
   queueSortIndicator = null,
@@ -93,7 +94,7 @@ function RendersQueueTable({
               </th>
               <th style={{ textAlign: "left", paddingLeft: `${stationOffsetPx}px` }}>
                 <button type="button" className="uu-link" onClick={() => onToggleQueueSort?.("worker")}>
-                  {safeT(t, "postprod.renders.queue.table.worker", "Station")}
+                  {safeT(t, "postprod.renders.queue.table.worker", "Machine")}
                   {typeof queueSortIndicator === "function" ? queueSortIndicator("worker") : ""}
                 </button>
               </th>
@@ -120,6 +121,7 @@ function RendersQueueTable({
                 deleteBusyTaskId={deleteBusy ? pendingTaskId : 0}
                 rendersLoading={rendersLoading}
                 canLaunchRenders={canLaunchRenders}
+                queueRuntimeMode={queueRuntimeMode}
                 queueEntryWorkerLabel={queueEntryWorkerLabel}
                 getQueueEntryLaunchMeta={getQueueEntryLaunchMeta}
                 onLaunchScheduledTaskRender={onLaunchScheduledTaskRender}

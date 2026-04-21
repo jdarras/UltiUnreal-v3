@@ -10,17 +10,48 @@ function buildVisibleAutoRenderFormFields(autoRenderFormFields = []) {
     .sort((a, b) => Number(a?.sortOrder || 0) - Number(b?.sortOrder || 0));
 }
 
+function inferOutputTypeFromProfile(outputProfile = "") {
+  const p = String(outputProfile || "").toLowerCase();
+  if (!p) return null;
+  const imageExts = ["png", "exr", "tga", "bmp", "jpg", "jpeg", "dpx", "hdr"];
+  const videoExts = ["prores", "h264", "h265", "hevc", "mov", "mp4", "avi", "dnxhd", "dnxhr"];
+  if (imageExts.some((ext) => p.includes(ext))) return "image_sequence";
+  if (videoExts.some((ext) => p.includes(ext))) return "clip";
+  return null;
+}
+
+function inferExpectedExtFromProfile(outputProfile = "") {
+  const p = String(outputProfile || "").toLowerCase();
+  const type = inferOutputTypeFromProfile(outputProfile);
+  if (type === "image_sequence") {
+    if (p.includes("exr")) return ".exr";
+    if (p.includes("jpg") || p.includes("jpeg")) return ".jpg";
+    return ".png";
+  }
+  if (p.includes("h264") || p.includes("h265") || p.includes("hevc") || p.includes("mp4")) return ".mp4";
+  if (p.includes("mxf") || p.includes("dnxhd") || p.includes("dnxhr")) return ".mxf";
+  if (p.includes("avi")) return ".avi";
+  if (p.includes("webm")) return ".webm";
+  return ".mov";
+}
+
 function buildExpectedRenderMeta({
   title = "",
   expectedRenderCountInput = "1",
+  outputProfile = "",
 } = {}) {
   const expectedRenderCountForForm = normalizeTaskExpectedRenderCountInput(expectedRenderCountInput);
   const expectedRenderNamesPreview = buildTaskExpectedRenderNamesPreview(title, expectedRenderCountForForm);
-  const autoExpectedRenderName = String(expectedRenderNamesPreview[0] || "").trim();
+  const ext = inferExpectedExtFromProfile(outputProfile);
+  const autoExpectedRenderName = String(expectedRenderNamesPreview[0] || "").trim()
+    ? `${expectedRenderNamesPreview[0]}${ext}`
+    : "";
+  const autoOutputType = inferOutputTypeFromProfile(outputProfile);
   return {
     expectedRenderCountForForm,
     expectedRenderNamesPreview,
     autoExpectedRenderName,
+    autoOutputType,
   };
 }
 
@@ -35,6 +66,12 @@ function applyAutoRenderStateSetters(stateSetters = {}, nextState = {}) {
   stateSetters.setAutoRenderScheduledMode?.(nextState.autoRenderScheduledMode ?? "");
   stateSetters.setAutoRenderScheduledAt?.(nextState.autoRenderScheduledAt ?? "");
   stateSetters.setTaskSequenceName?.(nextState.taskSequenceName ?? "");
+  stateSetters.setAutoRenderOffscreen?.(nextState.autoRenderOffscreen === true);
+  stateSetters.setAutoRenderExportDestinationIds?.(
+    Array.isArray(nextState.autoRenderExportDestinationIds)
+      ? nextState.autoRenderExportDestinationIds
+      : []
+  );
 }
 
 export {

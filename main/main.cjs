@@ -1,5 +1,10 @@
 // main/main.cjs — Electron + Agent HTTP (clean, sans uu_ ni local_agent.json)
-const { app, BrowserWindow, ipcMain, dialog, Menu, clipboard, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, clipboard, nativeImage, protocol, net } = require('electron');
+
+// Must be called before app is ready
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'uu-media', privileges: { secure: true, supportFetchAPI: true, stream: true, bypassCSP: true } },
+]);
 
 const path   = require('path');
 const fs     = require('fs');
@@ -12,6 +17,9 @@ const i18nEn = require('../app/i18n/en.json');
 const { initLicenseIpc } = require('./license.cjs');
 const { setProcessDataDir } = require('./data-path.cjs');
 const { getSharedStore } = require('./server-shared-sqlite.cjs');
+const {
+  normalizeExportDestinationEntries,
+} = require('./server-postprod-export-destinations.cjs');
 const fabAuth = require('./fab-auth.cjs');
 
 const VERSION = '2026.3';
@@ -38,6 +46,10 @@ const DEFAULT_COMMON = {
   unrealVersions: [],
   launchMode: 'production',
   allowStartDesynced: false,
+  proxyEnabled: false,
+  proxyResolution: 50,
+  proxyCrf: 23,
+  renderExportDestinations: [],
 };
 const DEFAULT_HOSTS = {};
 const DEFAULT_PROJECTS = {
@@ -183,8 +195,51 @@ function ensureDataFiles() {
   // Migration douce: si la clé n'existe pas encore, on force la valeur par défaut à false.
   try {
     const commonRaw = readJson(COMMON_FILE, {}) || {};
-    if (typeof commonRaw.allowStartDesynced !== 'boolean') {
-      const next = { ...commonRaw, allowStartDesynced: false };
+    const next = { ...commonRaw };
+    let changed = false;
+    if (typeof next.allowStartDesynced !== 'boolean') {
+      next.allowStartDesynced = false;
+      changed = true;
+    }
+    if (typeof next.proxyEnabled !== 'boolean') {
+      next.proxyEnabled = false;
+      changed = true;
+    }
+    const proxyResolution = Number(next.proxyResolution);
+    if (!Number.isFinite(proxyResolution) || ![25, 50, 75].includes(Math.trunc(proxyResolution))) {
+      next.proxyResolution = 50;
+      changed = true;
+    } else {
+      next.proxyResolution = Math.trunc(proxyResolution);
+    }
+    const proxyCrf = Number(next.proxyCrf);
+    if (!Number.isFinite(proxyCrf) || ![18, 23, 28].includes(Math.trunc(proxyCrf))) {
+      next.proxyCrf = 23;
+      changed = true;
+    } else {
+      next.proxyCrf = Math.trunc(proxyCrf);
+    }
+    if (!Object.prototype.hasOwnProperty.call(next, 'renderExportDestinations')) {
+      if (Object.prototype.hasOwnProperty.call(next, 'render_export_destinations')) {
+        next.renderExportDestinations = next.render_export_destinations;
+      } else {
+        next.renderExportDestinations = [];
+      }
+      changed = true;
+    }
+    const normalizedRenderExportDestinations = normalizeExportDestinationEntries(
+      next.renderExportDestinations,
+      []
+    );
+    if (JSON.stringify(normalizedRenderExportDestinations) !== JSON.stringify(next.renderExportDestinations || [])) {
+      next.renderExportDestinations = normalizedRenderExportDestinations;
+      changed = true;
+    }
+    if (Object.prototype.hasOwnProperty.call(next, 'render_export_destinations')) {
+      delete next.render_export_destinations;
+      changed = true;
+    }
+    if (changed) {
       fs.writeFileSync(COMMON_FILE, JSON.stringify(next, null, 2), 'utf8');
     }
   } catch {}
@@ -676,6 +731,132 @@ ipcMain.handle('open-network-center', async () => {
   }
 });
 
+ipcMain.handle('check-pid-alive', async (_evt, opts) => {
+  const pid = Number(typeof opts === 'number' ? opts : opts?.pid ?? 0);
+  if (!Number.isFinite(pid) || pid <= 0) return { alive: false, error: 'invalid_pid' };
+  try {
+    process.kill(pid, 0);
+    return { alive: true, pid };
+  } catch (err) {
+    if (err?.code === 'EPERM') return { alive: true, pid };
+    return { alive: false, pid, error: String(err?.code || err?.message || 'unknown') };
+  }
+});
+
+ipcMain.handle('check-file-exists', async (_evt, filePath) => {
+  const p = String(filePath || '').trim();
+  if (!p) return { exists: false };
+  try { fs.accessSync(p, fs.constants.F_OK); return { exists: true }; } catch { return { exists: false }; }
+});
+
+const RENDER_OUTPUT_SCAN_EXTS = new Set([
+  '.mp4', '.mov', '.mxf', '.avi', '.webm', '.mkv',
+  '.png', '.jpg', '.jpeg', '.exr', '.tga', '.bmp', '.dpx', '.hdr',
+]);
+
+function scanRenderOutputsRecursive({
+  rootDir = '',
+  minMtimeMs = 0,
+  maxDepth = 4,
+  limit = 200,
+} = {}) {
+  const out = [];
+  const root = String(rootDir || '').trim();
+  if (!root || !fs.existsSync(root)) return out;
+  const safeDepth = Number.isFinite(Number(maxDepth))
+    ? Math.max(1, Math.min(12, Math.trunc(Number(maxDepth))))
+    : 4;
+  const safeLimit = Number.isFinite(Number(limit))
+    ? Math.max(1, Math.min(5000, Math.trunc(Number(limit))))
+    : 200;
+  const minMtime = Number.isFinite(Number(minMtimeMs))
+    ? Math.max(0, Math.trunc(Number(minMtimeMs)))
+    : 0;
+
+  const walk = (dir, depth) => {
+    if (out.length >= safeLimit) return;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (out.length >= safeLimit) break;
+      const absPath = path.join(dir, entry.name);
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        if (depth < safeDepth) walk(absPath, depth + 1);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const ext = String(path.extname(entry.name || '') || '').toLowerCase();
+      if (!RENDER_OUTPUT_SCAN_EXTS.has(ext)) continue;
+      let stat = null;
+      try {
+        stat = fs.statSync(absPath);
+      } catch {
+        stat = null;
+      }
+      if (!stat || !stat.isFile()) continue;
+      const mtimeMs = Number(stat.mtimeMs || 0);
+      if (minMtime > 0 && mtimeMs < minMtime) continue;
+      out.push({
+        path: absPath,
+        size: Number.isFinite(Number(stat.size)) ? Math.max(0, Math.trunc(Number(stat.size))) : 0,
+        mtimeMs,
+      });
+    }
+  };
+
+  walk(root, 0);
+  out.sort((a, b) => {
+    const mtimeDiff = Number(b?.mtimeMs || 0) - Number(a?.mtimeMs || 0);
+    if (mtimeDiff !== 0) return mtimeDiff;
+    return String(a?.path || '').localeCompare(String(b?.path || ''));
+  });
+  if (out.length > safeLimit) return out.slice(0, safeLimit);
+  return out;
+}
+
+ipcMain.handle('find-render-outputs', async (_evt, opts = {}) => {
+  const rootDir = String(opts?.rootDir || '').trim();
+  if (!rootDir) return { ok: false, error: 'missing_root_dir', files: [] };
+  let resolvedRoot = rootDir;
+  try {
+    resolvedRoot = path.resolve(rootDir);
+  } catch {
+    resolvedRoot = rootDir;
+  }
+  const files = scanRenderOutputsRecursive({
+    rootDir: resolvedRoot,
+    minMtimeMs: Number(opts?.minMtimeMs || 0),
+    maxDepth: Number(opts?.maxDepth || 4),
+    limit: Number(opts?.limit || 200),
+  });
+  return { ok: true, rootDir: resolvedRoot, files };
+});
+
+ipcMain.handle('read-render-pid', async (_evt, pidTag) => {
+  const tag = String(pidTag || '').trim().replace(/[^a-z0-9_-]/gi, '').slice(0, 64);
+  if (!tag) return { pid: null, error: 'invalid_tag' };
+  const pidFile = path.join(app.getPath('userData'), `uu_render_${tag}.pid`);
+  try {
+    const content = fs.readFileSync(pidFile, 'utf8');
+    const pid = parseInt(content.trim(), 10);
+    if (!Number.isFinite(pid) || pid <= 0) return { pid: null, error: 'invalid_pid_in_file' };
+    return { pid, pidFile };
+  } catch { return { pid: null, error: 'pid_file_not_found' }; }
+});
+
+ipcMain.handle('delete-render-pid', async (_evt, pidTag) => {
+  const tag = String(pidTag || '').trim().replace(/[^a-z0-9_-]/gi, '').slice(0, 64);
+  if (!tag) return { ok: false };
+  const pidFile = path.join(app.getPath('userData'), `uu_render_${tag}.pid`);
+  try { fs.unlinkSync(pidFile); } catch {}
+  return { ok: true };
+});
+
 ipcMain.handle('run-process', async (_evt, opts = {}) => {
   const commandRaw = String(opts?.command || '').trim();
   if (!commandRaw) return { ok: false, error: 'missing_command' };
@@ -778,6 +959,27 @@ ipcMain.handle('run-process', async (_evt, opts = {}) => {
       const stat = fs.statSync(cwdRaw);
       if (stat && stat.isDirectory()) cwd = cwdRaw;
     } catch {}
+  }
+
+  if (opts?.detached === true) {
+    const pidTag = String(opts?.pidTag || '').trim().replace(/[^a-z0-9_-]/gi, '').slice(0, 64);
+    const pidFile = pidTag ? path.join(app.getPath('userData'), `uu_render_${pidTag}.pid`) : null;
+    let child;
+    try {
+      child = spawn(command, args, {
+        windowsHide: false,
+        shell: false,
+        detached: true,
+        stdio: 'ignore',
+        ...(cwd ? { cwd } : {}),
+      });
+    } catch (err) {
+      return { ok: false, error: String(err?.message || 'spawn_failed') };
+    }
+    child.unref();
+    const pid = child.pid;
+    if (pidFile) { try { fs.writeFileSync(pidFile, String(pid)); } catch {} }
+    return { ok: true, detached: true, pid, pidFile: pidFile || null };
   }
 
   return await new Promise((resolve) => {
@@ -942,6 +1144,83 @@ ipcMain.handle('app:quit', async () => {
 app.whenReady().then(() => {
   console.log(`UltiUnreal — version ${VERSION} — © ${APP_AUTHOR} — contact : ${APP_CONTACT}`);
   ensureDataFiles();
+
+  // Proxy uu-media:// → fichier local avec range requests (seeking vidéo)
+  protocol.handle('uu-media', async (request) => {
+    let filePath;
+    try {
+      const rawUrl = request.url.replace(/^uu-media:/i, 'file:');
+      const urlObj = new URL(rawUrl);
+      filePath = decodeURIComponent(urlObj.pathname);
+      if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) {
+        filePath = filePath.slice(1);
+      }
+      filePath = path.normalize(filePath);
+    } catch {
+      return new Response('Bad Request', { status: 400 });
+    }
+
+    let stat;
+    try {
+      stat = fs.statSync(filePath);
+    } catch {
+      return new Response('Not Found', { status: 404 });
+    }
+
+    const total = stat.size;
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+      '.mp4': 'video/mp4', '.webm': 'video/webm', '.ogg': 'video/ogg',
+      '.mkv': 'video/x-matroska', '.mov': 'video/quicktime', '.avi': 'video/x-msvideo',
+      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+      '.gif': 'image/gif', '.webp': 'image/webp', '.tga': 'image/x-tga',
+    };
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+    const rangeHeader = request.headers.get('range') || '';
+    const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+    if (match) {
+      const start = match[1] ? parseInt(match[1], 10) : 0;
+      const end = match[2] ? Math.min(parseInt(match[2], 10), total - 1) : total - 1;
+      const chunkSize = end - start + 1;
+      const nodeStream = fs.createReadStream(filePath, { start, end });
+      const webStream = new ReadableStream({
+        start(ctrl) {
+          nodeStream.on('data', (chunk) => ctrl.enqueue(chunk));
+          nodeStream.on('end', () => ctrl.close());
+          nodeStream.on('error', (err) => ctrl.error(err));
+        },
+        cancel() { nodeStream.destroy(); },
+      });
+      return new Response(webStream, {
+        status: 206,
+        headers: {
+          'Content-Range': `bytes ${start}-${end}/${total}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': String(chunkSize),
+          'Content-Type': contentType,
+        },
+      });
+    }
+
+    const nodeStream = fs.createReadStream(filePath);
+    const webStream = new ReadableStream({
+      start(ctrl) {
+        nodeStream.on('data', (chunk) => ctrl.enqueue(chunk));
+        nodeStream.on('end', () => ctrl.close());
+        nodeStream.on('error', (err) => ctrl.error(err));
+      },
+      cancel() { nodeStream.destroy(); },
+    });
+    return new Response(webStream, {
+      status: 200,
+      headers: {
+        'Accept-Ranges': 'bytes',
+        'Content-Length': String(total),
+        'Content-Type': contentType,
+      },
+    });
+  });
 
   // Désactiver complètement la barre de menu (File / Edit / View / Window / Help)
   Menu.setApplicationMenu(null);

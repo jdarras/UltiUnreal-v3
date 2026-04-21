@@ -27,6 +27,8 @@ function useTasksUiActions({
   setAutoRenderScheduledMode = null,
   setAutoRenderScheduledAt = null,
   setTaskSequenceName = null,
+  setAutoRenderOffscreen = null,
+  setAutoRenderExportDestinationIds = null,
 }) {
   const renderTaskActions = useCallback((task) => (
     <TaskRowActions
@@ -41,11 +43,11 @@ function useTasksUiActions({
 
   const clearListFilters = useCallback(() => {
     setSearchQuery?.("");
-    setListStatusFilter?.("all");
-    setListRenderWorkerFilter?.("all");
-    setListProjectFilter?.("all");
-    setListFormFilter?.("all");
-    setListRenderModeFilter?.("all");
+    setListStatusFilter?.([]);
+    setListRenderWorkerFilter?.([]);
+    setListProjectFilter?.([]);
+    setListFormFilter?.([]);
+    setListRenderModeFilter?.([]);
     setFavoriteOnly?.(false);
     setSearchExpanded?.(false);
   }, [
@@ -132,6 +134,25 @@ function useTasksUiActions({
     setTaskSequenceName?.(String(value || "").trim());
   }, [setTaskSequenceName]);
 
+  const changeAutoRenderOffscreen = useCallback((value) => {
+    setAutoRenderOffscreen?.(value === true);
+    setFormError?.("");
+  }, [setAutoRenderOffscreen, setFormError]);
+
+  const changeAutoRenderExportDestinationIds = useCallback((values) => {
+    const src = Array.isArray(values) ? values : [];
+    const out = [];
+    const seen = new Set();
+    for (const raw of src) {
+      const id = String(raw || "").trim().toLowerCase();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+    }
+    setAutoRenderExportDestinationIds?.(out);
+    setFormError?.("");
+  }, [setAutoRenderExportDestinationIds, setFormError]);
+
   return {
     renderTaskActions,
     clearListFilters,
@@ -146,6 +167,8 @@ function useTasksUiActions({
     changeAutoRenderScheduledMode,
     changeAutoRenderScheduledAt,
     changeAutoRenderSequence,
+    changeAutoRenderOffscreen,
+    changeAutoRenderExportDestinationIds,
   };
 }
 

@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const { getDataDir } = require('./data-path.cjs');
@@ -82,6 +83,23 @@ function normalizePort(agentPort) {
   return Math.max(1, Math.min(65535, Math.trunc(n)));
 }
 
+function resolveLocalIpCandidates() {
+  const out = new Set(['127.0.0.1']);
+  try {
+    const interfaces = os.networkInterfaces() || {};
+    const allEntries = Object.values(interfaces);
+    for (const entries of allEntries) {
+      if (!Array.isArray(entries)) continue;
+      for (const entry of entries) {
+        const ip = normalizeHostCandidate(entry?.address || '');
+        if (!ip) continue;
+        out.add(ip);
+      }
+    }
+  } catch {}
+  return out;
+}
+
 function readKnownStations() {
   const hostsServerFile = getHostsServerFilePath();
   try {
@@ -132,12 +150,14 @@ async function selectBestStation(excludeIp, agentPort) {
   const excluded = normalizeHostCandidate(excludeIp);
   const port = normalizePort(agentPort);
   const hosts = readKnownStations();
+  const localIpCandidates = resolveLocalIpCandidates();
+  if (excluded) localIpCandidates.add(excluded);
 
   const candidates = hosts
     .map((host) => {
       const ip = normalizeHostCandidate(host?.ip || host?.address || '');
       if (!ip) return null;
-      if (excluded && ip === excluded) return null;
+      if (localIpCandidates.has(ip)) return null;
       return {
         ip,
         stationName: String(host?.name || host?.stationName || ip).trim() || ip,
@@ -275,4 +295,3 @@ module.exports = {
   sendJobToStation,
   notifyJobStatusUpdate,
 };
-

@@ -29,6 +29,25 @@ const {
 } = require('./server-postprod-remote-dispatcher.cjs');
 const { hostsToList } = require('./server-normalize.cjs');
 
+const DEFAULT_AUDIT_WARN_LINES = 5000;
+const DEFAULT_AUDIT_HARD_LIMIT_LINES = 10000;
+let AUDIT_WARN_LINES = DEFAULT_AUDIT_WARN_LINES;
+let AUDIT_HARD_LIMIT_LINES = DEFAULT_AUDIT_HARD_LIMIT_LINES;
+
+function applyAuditStorageLimitsFromCommon(raw = null) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const coerce = (v, fb, min) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= min ? Math.trunc(n) : fb;
+  };
+  let warnAt = coerce(src.auditWarnLines, AUDIT_WARN_LINES, 100);
+  let hardLimit = coerce(src.auditHardLimitLines, AUDIT_HARD_LIMIT_LINES, 200);
+  if (hardLimit <= warnAt) hardLimit = warnAt + 1;
+  AUDIT_WARN_LINES = warnAt;
+  AUDIT_HARD_LIMIT_LINES = hardLimit;
+  return { warnAt, hardLimit };
+}
+
 const DEFAULT_USERS_SYNC_POLL_INTERVAL_MS = 8000;
 const MIN_USERS_SYNC_POLL_INTERVAL_MS = 2000;
 const MAX_USERS_SYNC_POLL_INTERVAL_MS = 60000;
@@ -621,7 +640,10 @@ function normalizeRenderTemplateAllowedRolesJson(value, rolesCache) {
 }
 
 function sanitizeRenderOutputPath(value) {
-  return String(value || '').trim().slice(0, MAX_RENDER_OUTPUT_PATH_LEN);
+  const s = String(value || '').trim();
+  // Reject unresolved template tokens like {{outputpath}}
+  if (/^\{\{[^{}]+\}\}$/.test(s)) return '';
+  return s.slice(0, MAX_RENDER_OUTPUT_PATH_LEN);
 }
 
 function sanitizeRenderErrorMessage(value) {
@@ -5585,6 +5607,13 @@ function createStatements(db) {
       WHERE action = ?
         AND created_at < ?
     `),
+    countAllAuditEntries: db.prepare(`
+      SELECT COUNT(*) AS n
+      FROM audit_log
+    `),
+    deleteAllAuditEntries: db.prepare(`
+      DELETE FROM audit_log
+    `),
     countResourcesIndex: db.prepare(`
       SELECT COUNT(*) AS n
       FROM resources_index
@@ -6295,6 +6324,53 @@ function createStatements(db) {
       WHERE r.id = ?
       LIMIT 1
     `),
+    reserveRenderJobId: db.prepare(`
+      INSERT INTO render_jobs(
+        project_name,
+        template_name,
+        payload_json,
+        status,
+        review_status,
+        requested_by_user_id,
+        validated_by_user_id,
+        requires_validation,
+        output_path,
+        error_message,
+        started_at,
+        finished_at,
+        scheduled_at,
+        queue_order,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `),
+    deleteReservedRenderJobById: db.prepare(`
+      DELETE FROM render_jobs
+      WHERE id = ? AND status = 'Reserved'
+    `),
+    insertRenderJobWithId: db.prepare(`
+      INSERT INTO render_jobs(
+        id,
+        project_name,
+        template_name,
+        payload_json,
+        status,
+        review_status,
+        requested_by_user_id,
+        validated_by_user_id,
+        requires_validation,
+        output_path,
+        error_message,
+        started_at,
+        finished_at,
+        scheduled_at,
+        queue_order,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `),
     insertRenderJob: db.prepare(`
       INSERT INTO render_jobs(
         project_name,
@@ -6327,6 +6403,11 @@ function createStatements(db) {
         started_at = ?,
         finished_at = ?,
         updated_at = ?
+      WHERE id = ?
+    `),
+    updateRenderJobPayload: db.prepare(`
+      UPDATE render_jobs
+      SET payload_json = ?, updated_at = ?
       WHERE id = ?
     `),
     insertRenderJobEvent: db.prepare(`
@@ -7649,11 +7730,11 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     return roots;
   }
 
-  function buildRenderOutputSubdir(jobId, projectName, baseDir) {
-    const paddedJobId = String(Math.trunc(Math.max(0, Number(jobId) || 0))).padStart(3, '0');
+  function buildRenderOutputSubdir(jobId, projectId, baseDir) {
+    const renderId = String(Math.trunc(Math.max(0, Number(jobId) || 0)));
     // eslint-disable-next-line no-control-regex
-    const cleanProjectName = String(projectName || '').trim().replace(/[/\\:*?"<>|]/g, '_').replace(/\s+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 80) || 'projet';
-    const subdirName = `${paddedJobId}_${cleanProjectName}`;
+    const cleanProjectId = String(projectId || '').trim().replace(/[/\\:*?"<>|]/g, '_').replace(/\s+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 80) || 'projet';
+    const subdirName = `${renderId}_${cleanProjectId}`;
     return path.join(String(baseDir || '').trim(), subdirName);
   }
 
@@ -7668,9 +7749,21 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
         ''
       ).trim();
       if (!baseDir) return { ok: false, error: 'render_output_dir_not_configured' };
-      const outputPath = buildRenderOutputSubdir(jobId, projectName, baseDir);
-      fs.mkdirSync(outputPath, { recursive: true });
-      return { ok: true, outputPath };
+      let projectId = '';
+      try {
+        const projects = loadPostprodProjectsCatalog(sharedStore, stmts);
+        const nameNorm = String(projectName || '').trim().toLowerCase();
+        const matched = projects.find((p) => (
+          String(p?.name || '').trim().toLowerCase() === nameNorm ||
+          String(p?.id || '').trim().toLowerCase() === nameNorm
+        ));
+        projectId = String(matched?.id || '').trim();
+      } catch {}
+      const jobDir = buildRenderOutputSubdir(jobId, projectId || projectName, baseDir);
+      fs.mkdirSync(path.join(jobDir, 'logs'), { recursive: true });
+      fs.mkdirSync(path.join(jobDir, 'images'), { recursive: true });
+      fs.mkdirSync(path.join(jobDir, 'proxy'), { recursive: true });
+      return { ok: true, outputPath: jobDir };
     } catch (err) {
       return { ok: false, error: String(err?.message || 'create_subdir_failed') };
     }
@@ -7704,14 +7797,30 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
       ? renderPayload
       : {};
     const roots = Array.isArray(detectedRoots) ? detectedRoots : [];
-    if (roots.length <= 0) return true;
-
-    const sourceDir = sanitizeRenderOutputPath(payload?.sourceDir || '');
     const filePath = sanitizeRenderOutputPath(
       payload?.filePath ||
       payload?.outputPath ||
       ''
     );
+    const fileNameLower = String(
+      payload?.fileName
+      || (filePath ? path.basename(filePath) : '')
+      || ''
+    ).trim().toLowerCase();
+    const filePathLower = String(filePath || '').replace(/\\/g, '/').toLowerCase();
+    if (
+      fileNameLower === 'proxy.mp4'
+      || fileNameLower === 'proxy_alpha.mp4'
+      || fileNameLower === 'thumbnail.jpg'
+      || /\/_?proxy\/(proxy|proxy_alpha)\.mp4$/i.test(filePathLower)
+      || /\/images\/thumbnail\.jpg$/i.test(filePathLower)
+    ) {
+      return false;
+    }
+
+    if (roots.length <= 0) return true;
+
+    const sourceDir = sanitizeRenderOutputPath(payload?.sourceDir || '');
 
     if (sourceDir) {
       return roots.some((root) => isPathUnderRoot(sourceDir, root));
@@ -7970,6 +8079,9 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
 
   function audit(actorUserId, action, payload = {}, scopeType = 'auth', scopeId = '') {
     try {
+      const countRow = stmts.countAllAuditEntries.get();
+      const count = Number.isFinite(Number(countRow?.n)) ? Math.trunc(Number(countRow.n)) : 0;
+      if (count >= AUDIT_HARD_LIMIT_LINES) return;
       stmts.insertAudit.run(
         Number.isFinite(Number(actorUserId)) ? Number(actorUserId) : null,
         String(action || ''),
@@ -7979,6 +8091,22 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
         nowIso()
       );
     } catch {}
+  }
+
+  function getAuditStorageStatus() {
+    try {
+      const row = stmts.countAllAuditEntries.get();
+      const count = Number.isFinite(Number(row?.n)) ? Math.trunc(Number(row.n)) : 0;
+      return {
+        count,
+        warnAt: AUDIT_WARN_LINES,
+        hardLimit: AUDIT_HARD_LIMIT_LINES,
+        saturated: count >= AUDIT_HARD_LIMIT_LINES,
+        warnReached: count >= AUDIT_WARN_LINES,
+      };
+    } catch {
+      return { count: 0, warnAt: AUDIT_WARN_LINES, hardLimit: AUDIT_HARD_LIMIT_LINES, saturated: false, warnReached: false };
+    }
   }
   const {
     renderDetectedScanState,
@@ -8349,6 +8477,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     emitUserSyncUpsert,
     emitUserSyncDelete,
     emitRoleSyncUpsert,
+    getAuditStorageStatus,
   });
 
   const postprodRouteDispatchDeps = createPostprodRouteDispatchDeps({
@@ -8367,6 +8496,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     postprodRouteUsersRolesDeps,
     getRenderDetectedAutoScanBusy: isRenderDetectedAutoScanBusy,
     getRolesCache: () => rolesCache,
+    getAuditStorageStatus,
   });
   async function handleRoutes(req, res, url, { sendJSON, parseBody }) {
     const pathname = String(url?.pathname || '');
@@ -8429,6 +8559,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
 module.exports = {
   createPostprodAuth,
   normalizeRole,
+  applyAuditStorageLimitsFromCommon,
 };
 
 

@@ -14,6 +14,27 @@ function toTrimmedString(value) {
   return String(value || "").trim();
 }
 
+function withRenderOffscreenExecution(execution = null, renderOffscreen = false) {
+  if (!execution || typeof execution !== "object" || Array.isArray(execution)) return null;
+  const offscreen = renderOffscreen === true;
+  const cloned = {
+    ...execution,
+    renderOffscreen: offscreen,
+  };
+  const args = Array.isArray(execution?.args) ? execution.args : [];
+  if (args.length <= 0) {
+    if (offscreen) cloned.args = ["-RenderOffscreen"];
+    return cloned;
+  }
+  const nextArgs = args
+    .map((arg) => String(arg || "").trim())
+    .filter(Boolean)
+    .filter((arg) => String(arg || "").trim().toLowerCase() !== "-renderoffscreen");
+  if (offscreen) nextArgs.push("-RenderOffscreen");
+  cloned.args = nextArgs;
+  return cloned;
+}
+
 function resolveLinkedQueuedRender(queueEntry = null) {
   const linkedRenderId = toPositiveInt(
     queueEntry?.linkedRender?.id
@@ -40,6 +61,14 @@ function buildScheduledTaskCreateRenderInput(task = null) {
   const basePayloadSource = resolveAutoRenderPayload(task);
   const basePayload = basePayloadSource ? { ...basePayloadSource } : {};
   const preferredWorkerKey = resolveAutoRenderTargetWorkerKey(task);
+  const normalizedPreferredWorkerKey = String(preferredWorkerKey || "").trim();
+  const isAutoDispatcherWorker = (
+    normalizedPreferredWorkerKey === ""
+    || normalizedPreferredWorkerKey.toLowerCase() === "auto"
+    || normalizedPreferredWorkerKey.toLowerCase() === "local"
+    || normalizedPreferredWorkerKey.toLowerCase() === "auto_dispatcher"
+    || normalizedPreferredWorkerKey.toLowerCase() === "__auto"
+  );
 
   const mapName = toTrimmedString(autoRenderConfig?.mapName || basePayload?.mapName);
   const sequenceName = toTrimmedString(autoRenderConfig?.sequenceName || basePayload?.sequenceName);
@@ -58,18 +87,25 @@ function buildScheduledTaskCreateRenderInput(task = null) {
           ? basePayload.execution
           : null
       );
+  const renderOffscreen = (
+    autoRenderConfig?.renderOffscreen === true
+      || basePayload?.renderOffscreen === true
+      || execution?.renderOffscreen === true
+  ) === true;
+  const normalizedExecution = withRenderOffscreenExecution(execution, renderOffscreen);
 
-  if (preferredWorkerKey) {
-    basePayload.preferredWorkerKey = preferredWorkerKey;
-    basePayload.targetWorkerKey = preferredWorkerKey;
+  if (!isAutoDispatcherWorker) {
+    basePayload.preferredWorkerKey = normalizedPreferredWorkerKey;
+    basePayload.targetWorkerKey = normalizedPreferredWorkerKey;
   }
   if (mapName) basePayload.mapName = mapName;
   if (sequenceName) basePayload.sequenceName = sequenceName;
   if (outputProfile) basePayload.outputProfile = outputProfile;
   if (outputDir) basePayload.outputDir = outputDir;
   if (textValue) basePayload.textValue = textValue;
-  if (execution && !basePayload.execution) {
-    basePayload.execution = { ...execution };
+  basePayload.renderOffscreen = renderOffscreen;
+  if (normalizedExecution) {
+    basePayload.execution = { ...normalizedExecution };
   }
 
   const expectedRenderNames = Array.isArray(task?.expectedRenderNames) ? task.expectedRenderNames : [];
@@ -110,4 +146,3 @@ export {
   removeLaunchedTaskIdsFromSelection,
   resolveLinkedQueuedRender,
 };
-

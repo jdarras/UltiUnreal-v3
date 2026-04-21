@@ -27,6 +27,9 @@ const DIRECT_KEYS = [
   "autoRenderLaunchMode",
   "autoRenderScheduledMode",
   "autoRenderScheduledAt",
+  "autoRenderOffscreen",
+  "autoRenderExportDestinationIds",
+  "renderExportDestinationOptions",
   "taskSequenceName",
   "projectCatalogSequenceOptions",
   "autoRenderFormFieldsLoading",
@@ -35,7 +38,9 @@ const DIRECT_KEYS = [
   "autoRenderFormValues",
   "renderOutputDir",
   "autoExpectedRenderName",
+  "autoOutputType",
   "formError",
+  "reservedRenderId",
 ];
 
 const ALIASES = {
@@ -49,6 +54,8 @@ const ALIASES = {
   onChangeAutoRenderLaunchMode: "changeAutoRenderLaunchMode",
   onChangeAutoRenderScheduledMode: "changeAutoRenderScheduledMode",
   onChangeAutoRenderScheduledAt: "changeAutoRenderScheduledAt",
+  onChangeAutoRenderOffscreen: "changeAutoRenderOffscreen",
+  onChangeAutoRenderExportDestinationIds: "changeAutoRenderExportDestinationIds",
   onChangeAutoRenderSequence: "changeAutoRenderSequence",
   onUpdateAutoRenderFormValue: "handleUpdateAutoRenderFormValue",
   submitLabel: "submitTaskFormLabel",

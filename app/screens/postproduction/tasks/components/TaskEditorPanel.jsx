@@ -39,6 +39,11 @@ function TaskEditorPanel({
   onChangeAutoRenderScheduledMode = null,
   autoRenderScheduledAt = "",
   onChangeAutoRenderScheduledAt = null,
+  autoRenderOffscreen = false,
+  onChangeAutoRenderOffscreen = null,
+  autoRenderExportDestinationIds = [],
+  onChangeAutoRenderExportDestinationIds = null,
+  renderExportDestinationOptions = [],
   taskSequenceName = "",
   onChangeAutoRenderSequence = null,
   projectCatalogSequenceOptions = [],
@@ -48,7 +53,9 @@ function TaskEditorPanel({
   autoRenderFormValues = {},
   onUpdateAutoRenderFormValue = null,
   renderOutputDir = "",
+  reservedRenderId = 0,
   autoExpectedRenderName = "",
+  autoOutputType = null,
   formError = "",
   submitDisabled = false,
   submitLabel = "",
@@ -57,7 +64,7 @@ function TaskEditorPanel({
 }) {
   return (
     <div
-      className="uu-card mt-12"
+      className="mt-12"
       onBlurCapture={(event) => {
         const tag = String(event?.target?.tagName || "").trim().toLowerCase();
         if (tag !== "input" && tag !== "textarea" && tag !== "select") return;
@@ -66,51 +73,55 @@ function TaskEditorPanel({
         }
       }}
     >
-      <TaskEditorTitleFields
-        t={t}
-        isEditingTask={isEditingTask}
-        editingTaskId={editingTaskId}
-        tasksLoading={tasksLoading}
-        title={title}
-        description={description}
-        onTitleChange={onTitleChange}
-        onDescriptionChange={onDescriptionChange}
-      />
+      <div className="uu-card">
+        <TaskEditorTitleFields
+          t={t}
+          isEditingTask={isEditingTask}
+          editingTaskId={editingTaskId}
+          tasksLoading={tasksLoading}
+          title={title}
+          description={description}
+          onTitleChange={onTitleChange}
+          onDescriptionChange={onDescriptionChange}
+        />
 
-      <TaskEditorAutoConfigFields
-        t={t}
-        tasksLoading={tasksLoading}
-        normalizedProjectOptions={normalizedProjectOptions}
-        autoRenderProjectRef={autoRenderProjectRef}
-        onChangeAutoRenderProject={onChangeAutoRenderProject}
-        filteredAutoRenderForms={filteredAutoRenderForms}
-        autoRenderFormId={autoRenderFormId}
-        onChangeAutoRenderForm={onChangeAutoRenderForm}
-        renderFormsLoading={renderFormsLoading}
-        renderFormsError={renderFormsError}
-        canManageRenderTemplates={canManageRenderTemplates}
-        renderTemplatesForSelectedAutoForm={renderTemplatesForSelectedAutoForm}
-        autoRenderTemplateId={autoRenderTemplateId}
-        onChangeAutoRenderTemplate={onChangeAutoRenderTemplate}
-        autoRenderProjectCatalogLoading={autoRenderProjectCatalogLoading}
-        autoRenderProjectCatalogError={autoRenderProjectCatalogError}
-        selectedAutoRenderForm={selectedAutoRenderForm}
-        autoRenderWorkerKey={autoRenderWorkerKey}
-        onChangeAutoRenderWorker={onChangeAutoRenderWorker}
-        availableRenderWorkers={availableRenderWorkers}
-        renderWorkersLoading={renderWorkersLoading}
-        renderWorkersError={renderWorkersError}
-        autoRenderLaunchMode={autoRenderLaunchMode}
-        onChangeAutoRenderLaunchMode={onChangeAutoRenderLaunchMode}
-        autoRenderScheduledMode={autoRenderScheduledMode}
-        onChangeAutoRenderScheduledMode={onChangeAutoRenderScheduledMode}
-        autoRenderScheduledAt={autoRenderScheduledAt}
-        onChangeAutoRenderScheduledAt={onChangeAutoRenderScheduledAt}
-        taskSequenceName={taskSequenceName}
-        onChangeAutoRenderSequence={onChangeAutoRenderSequence}
-        projectCatalogSequenceOptions={projectCatalogSequenceOptions}
-        isEditingTask={isEditingTask}
-      />
+        <TaskEditorAutoConfigFields
+          t={t}
+          tasksLoading={tasksLoading}
+          normalizedProjectOptions={normalizedProjectOptions}
+          autoRenderProjectRef={autoRenderProjectRef}
+          onChangeAutoRenderProject={onChangeAutoRenderProject}
+          filteredAutoRenderForms={filteredAutoRenderForms}
+          autoRenderFormId={autoRenderFormId}
+          onChangeAutoRenderForm={onChangeAutoRenderForm}
+          renderFormsLoading={renderFormsLoading}
+          renderFormsError={renderFormsError}
+          canManageRenderTemplates={canManageRenderTemplates}
+          renderTemplatesForSelectedAutoForm={renderTemplatesForSelectedAutoForm}
+          autoRenderTemplateId={autoRenderTemplateId}
+          onChangeAutoRenderTemplate={onChangeAutoRenderTemplate}
+          autoRenderProjectCatalogLoading={autoRenderProjectCatalogLoading}
+          autoRenderProjectCatalogError={autoRenderProjectCatalogError}
+          selectedAutoRenderForm={selectedAutoRenderForm}
+          autoRenderWorkerKey={autoRenderWorkerKey}
+          onChangeAutoRenderWorker={onChangeAutoRenderWorker}
+          availableRenderWorkers={availableRenderWorkers}
+          renderWorkersLoading={renderWorkersLoading}
+          renderWorkersError={renderWorkersError}
+          autoRenderLaunchMode={autoRenderLaunchMode}
+          onChangeAutoRenderLaunchMode={onChangeAutoRenderLaunchMode}
+          autoRenderScheduledMode={autoRenderScheduledMode}
+          onChangeAutoRenderScheduledMode={onChangeAutoRenderScheduledMode}
+          autoRenderScheduledAt={autoRenderScheduledAt}
+          onChangeAutoRenderScheduledAt={onChangeAutoRenderScheduledAt}
+          autoRenderOffscreen={autoRenderOffscreen}
+          onChangeAutoRenderOffscreen={onChangeAutoRenderOffscreen}
+          taskSequenceName={taskSequenceName}
+          onChangeAutoRenderSequence={onChangeAutoRenderSequence}
+          projectCatalogSequenceOptions={projectCatalogSequenceOptions}
+          isEditingTask={isEditingTask}
+        />
+      </div>
 
       <TaskEditorFormDataCard
         t={t}
@@ -127,11 +138,17 @@ function TaskEditorPanel({
         t={t}
         isEditingTask={isEditingTask}
         renderOutputDir={renderOutputDir}
+        autoRenderProjectRef={autoRenderProjectRef}
+        reservedRenderId={reservedRenderId}
         autoExpectedRenderName={autoExpectedRenderName}
+        autoOutputType={autoOutputType}
         formError={formError}
         submitDisabled={submitDisabled}
         submitLabel={submitLabel}
         tasksLoading={tasksLoading}
+        exportDestinationOptions={renderExportDestinationOptions}
+        selectedExportDestinationIds={autoRenderExportDestinationIds}
+        onChangeExportDestinationIds={onChangeAutoRenderExportDestinationIds}
         onSubmit={onSubmit}
         onCancel={onCancel}
       />

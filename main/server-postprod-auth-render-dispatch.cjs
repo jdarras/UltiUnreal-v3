@@ -144,12 +144,23 @@ function extractRenderJobRequiredCapabilities(jobRow) {
 function extractRenderJobPreferredWorkerKey(jobRow) {
   const payload = parseRenderPayloadJson(jobRow?.payload_json);
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return '';
-  return sanitizeRenderWorkerKey(
+  const preferredWorkerKey = sanitizeRenderWorkerKey(
     payload.preferredWorkerKey
     ?? payload.targetWorkerKey
     ?? payload.workerKey
     ?? ''
   );
+  const normalizedPreferredWorkerKey = String(preferredWorkerKey || '').trim().toLowerCase();
+  if (
+    !normalizedPreferredWorkerKey
+    || normalizedPreferredWorkerKey === 'auto'
+    || normalizedPreferredWorkerKey === 'local'
+    || normalizedPreferredWorkerKey === 'auto_dispatcher'
+    || normalizedPreferredWorkerKey === '__auto'
+  ) {
+    return '';
+  }
+  return preferredWorkerKey;
 }
 
 function computeRenderWorkerCapabilitiesScore(capabilities) {

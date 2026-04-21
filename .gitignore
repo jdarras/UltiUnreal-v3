@@ -23,3 +23,8 @@ main/license-core.cjs
 main/license-public.pem
 main/license.cjs
 build/
+
+# FFmpeg local binaries (do not commit)
+tools/ffmpeg/win/ffmpeg.exe
+tools/ffmpeg/win/ffplay.exe
+tools/ffmpeg/win/ffprobe.exe

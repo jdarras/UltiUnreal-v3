@@ -51,7 +51,7 @@ function autoRenderStateShortLabel(t, stateRaw) {
   const state = String(stateRaw || "").trim().toLowerCase();
   if (state === "running") return safeT(t, "postprod.renders.queue.state.short.running", "Rendu");
   if (state === "error") return safeT(t, "postprod.renders.queue.state.short.error", "Erreur");
-  return safeT(t, "postprod.renders.queue.state.short.waiting", "Attente");
+  return safeT(t, "postprod.renders.queue.state.short.waiting", "En attente");
 }
 
 function autoRenderStateLevel(stateRaw) {

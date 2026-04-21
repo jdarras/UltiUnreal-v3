@@ -17,6 +17,8 @@ function TasksToolbar({
   onOpenAdvancedSearch = null,
   favoriteOnly = false,
   onToggleFavoriteOnly = null,
+  showHistory = false,
+  onSetShowHistory = null,
   viewMode = "thumbs",
   onSetViewMode = null,
 }) {
@@ -71,7 +73,7 @@ function TasksToolbar({
               <button
                 type="button"
                 className="uu-btn uu-btn-icon"
-                disabled={tasksLoading || !hasActiveListFilters}
+                disabled={tasksLoading}
                 onClick={() => onClearFilters?.()}
                 title={safeT(t, "postprod.tasks.search.clear", "Effacer filtres")}
                 style={{ width: "36px", minWidth: "36px", height: "36px", padding: "0 6px", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -100,6 +102,16 @@ function TasksToolbar({
               </button>
               <span>{safeT(t, "resources.detail.labels.favorite", "Favoris")}</span>
             </div>
+
+            <label className="uu-check" style={{ marginLeft: "10px", whiteSpace: "nowrap" }}>
+              <input
+                type="checkbox"
+                checked={showHistory === true}
+                disabled={tasksLoading}
+                onChange={(e) => onSetShowHistory?.(e.target.checked === true)}
+              />
+              {safeT(t, "postprod.tasks.history.toggle", "Historique")}
+            </label>
           </div>
 
           <div className="uu-row uu-gap-4" style={{ marginLeft: "auto" }}>

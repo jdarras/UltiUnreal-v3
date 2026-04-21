@@ -16,6 +16,7 @@ async function handlePostprodAuditRoutes(options = {}) {
     buildAuditCsvLine,
     nowIso,
     audit,
+    getAuditStorageStatus,
   } = options;
 
   if (!req || !res || !pathname) return false;
@@ -101,6 +102,7 @@ async function handlePostprodAuditRoutes(options = {}) {
     );
     const entries = rows.map(buildAuditEntryPayload);
     const pageFromOffset = limit > 0 ? Math.floor(offset / limit) + 1 : 1;
+    const auditLogStore = typeof getAuditStorageStatus === 'function' ? getAuditStorageStatus() : null;
     sendJSON(res, 200, {
       ok: true,
       entries,
@@ -121,6 +123,7 @@ async function handlePostprodAuditRoutes(options = {}) {
         fromAt: fromAt || '',
         toAt: toAt || '',
       },
+      auditLogStore,
     });
     return true;
   }

@@ -64,6 +64,40 @@ async function handlePostprodActivityAndAuditMaintenanceRoutes({
     return true;
   }
 
+  if (pathname === '/agent/postprod/audit/purge') {
+    if (req.method !== 'POST') {
+      sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
+      return true;
+    }
+    const auth = requireSession(req, res, sendJSON);
+    if (!auth) return true;
+    const perms = requireManageRoles(auth, res, sendJSON);
+    if (!perms) return true;
+    const now = nowIso();
+    let beforeCount = 0;
+    try {
+      const row = stmts.countAllAuditEntries.get();
+      beforeCount = Number.isFinite(Number(row?.n)) ? Math.max(0, Math.trunc(Number(row.n))) : 0;
+    } catch {}
+    let deleted = 0;
+    try {
+      const result = stmts.deleteAllAuditEntries.run();
+      deleted = Number.isFinite(Number(result?.changes)) ? Math.max(0, Math.trunc(Number(result.changes))) : beforeCount;
+    } catch (err) {
+      sendJSON(res, 500, { ok: false, error: 'purge_failed' });
+      return true;
+    }
+    audit(
+      auth.session.user_id,
+      'audit_purge_manual',
+      { beforeCount, deleted, at: now },
+      'audit',
+      null
+    );
+    sendJSON(res, 200, { ok: true, purge: { beforeCount, deleted, at: now } });
+    return true;
+  }
+
   if (pathname === '/agent/postprod/audit/maintenance/render-health') {
     if (req.method !== 'GET') {
       sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });

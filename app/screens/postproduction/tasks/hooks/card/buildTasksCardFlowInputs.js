@@ -31,6 +31,7 @@ function buildTaskEditorControllerInput({
   onCreateTask = null,
   onUpdateTask = null,
   onCreateRender = null,
+  onReserveRenderId = null,
   data = {},
   lifecycle = {},
 } = {}) {
@@ -52,6 +53,7 @@ function buildTaskEditorControllerInput({
     onCreateTask,
     onUpdateTask,
     onCreateRender,
+    onReserveRenderId,
     selectedAutoRenderForm: data.selectedAutoRenderForm,
     buildTaskPayloadFromCurrentForm: data.buildTaskPayloadFromCurrentForm,
     setFormError: data.setFormError,
@@ -97,6 +99,8 @@ function buildTasksUiActionsInput({
     setAutoRenderScheduledMode: data.setAutoRenderScheduledMode,
     setAutoRenderScheduledAt: data.setAutoRenderScheduledAt,
     setTaskSequenceName: data.setTaskSequenceName,
+    setAutoRenderOffscreen: data.setAutoRenderOffscreen,
+    setAutoRenderExportDestinationIds: data.setAutoRenderExportDestinationIds,
   };
 }
 

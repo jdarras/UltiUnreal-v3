@@ -51,14 +51,14 @@ function useTaskFocusRequestController({
       setAutoRenderFormId?.("");
       setAutoRenderTemplateId?.("");
       setAutoRenderFormValues?.({});
-      setListProjectFilter?.("all");
+      setListProjectFilter?.([]);
       setListResourceFilter?.("all");
     } else if (normalizedTaskFocusRequest.type === "project") {
-      setListProjectFilter?.(normalizedTaskFocusRequest.ref);
+      setListProjectFilter?.([String(normalizedTaskFocusRequest.ref || "").trim().toLowerCase()]);
       setListResourceFilter?.("all");
     } else if (normalizedTaskFocusRequest.type === "resource") {
       setListResourceFilter?.(normalizedTaskFocusRequest.ref);
-      setListProjectFilter?.("all");
+      setListProjectFilter?.([]);
     } else if (normalizedTaskFocusRequest.type === "task") {
       const taskId = Number(normalizedTaskFocusRequest.ref || 0);
       if (Number.isFinite(taskId) && taskId > 0) {
@@ -87,10 +87,10 @@ function useTaskFocusRequestController({
         setEditingTaskId?.(0);
         setShowCreateForm?.(false);
       }
-      setListProjectFilter?.("all");
+      setListProjectFilter?.([]);
       setListResourceFilter?.("all");
     }
-    setListStatusFilter?.("all");
+    setListStatusFilter?.([]);
     if (normalizedTaskFocusRequest.type !== "task" && !isCreateFromProject) {
       setEditingTaskId?.(0);
       setShowCreateForm?.(false);

@@ -13,9 +13,15 @@
 #include "Misc/DefaultValueHelper.h"
 #include "Misc/Guid.h"
 #include "Misc/Parse.h"
+#include "Misc/Paths.h"
 #include "Engine/World.h"
+#include "MoviePipelineOutputSetting.h"
+#include "MoviePipelinePrimaryConfig.h"
+#include "MoviePipelineQueue.h"
+#include "MoviePipelineSetting.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "UObject/UObjectIterator.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUURenderBridge, Log, All);
 
@@ -73,6 +79,48 @@ namespace
 
         return false;
     }
+
+    bool TryGetCaseInsensitiveStringField(const TSharedPtr<FJsonObject>& Object, const TCHAR* PreferredName, FString& OutValue)
+    {
+        if (!Object.IsValid())
+        {
+            return false;
+        }
+
+        if (Object->TryGetStringField(PreferredName, OutValue))
+        {
+            return true;
+        }
+
+        const FString LowerName = FString(PreferredName).ToLower();
+        for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Object->Values)
+        {
+            if (Pair.Key.ToLower() != LowerName || !Pair.Value.IsValid())
+            {
+                continue;
+            }
+
+            if (Pair.Value->Type == EJson::String)
+            {
+                OutValue = Pair.Value->AsString();
+                return true;
+            }
+
+            if (Pair.Value->Type == EJson::Number)
+            {
+                OutValue = LexToString(Pair.Value->AsNumber());
+                return true;
+            }
+
+            if (Pair.Value->Type == EJson::Boolean)
+            {
+                OutValue = Pair.Value->AsBool() ? TEXT("true") : TEXT("false");
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
 
 bool UURenderBridgeSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -92,6 +140,8 @@ void UURenderBridgeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
         FailBridge(ErrorCode, ErrorMessage);
         return;
     }
+
+    ApplyRenderOutputOverrides();
 
     PostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UURenderBridgeSubsystem::HandlePostLoadMap);
     StartBridge();
@@ -124,6 +174,7 @@ bool UURenderBridgeSubsystem::ReadCommandLine(FString& OutErrorCode, FString& Ou
     FParse::Value(Cmd, TEXT("UURenderPreset="), PresetName);
     FParse::Value(Cmd, TEXT("UURenderFormDataB64="), FormDataB64);
     FParse::Value(Cmd, TEXT("UURenderJobB64="), RenderJobB64);
+    FParse::Value(Cmd, TEXT("UURenderOutputDir="), OutputDirectoryOverride);
     FParse::Value(Cmd, TEXT("UURenderBridgeStartupTimeout="), StartupTimeoutSeconds);
     FParse::Value(Cmd, TEXT("UURenderBridgeRequestTimeout="), RequestTimeoutSeconds);
     FParse::Value(Cmd, TEXT("UURenderBridgeRetryDelay="), RetryDelaySeconds);
@@ -336,7 +387,128 @@ bool UURenderBridgeSubsystem::LoadMetadataFromRenderJob()
         }
     }
 
+    auto ReadOutputOverridesFromObject = [this](const TSharedPtr<FJsonObject>& SourceObject)
+    {
+        if (!SourceObject.IsValid())
+        {
+            return;
+        }
+
+        if (OutputDirectoryOverride.IsEmpty())
+        {
+            FString Candidate;
+            if (TryGetCaseInsensitiveStringField(SourceObject, TEXT("outputDir"), Candidate))
+            {
+                OutputDirectoryOverride = Candidate.TrimStartAndEnd();
+            }
+        }
+
+        if (OutputFileNameOverride.IsEmpty())
+        {
+            FString Candidate;
+            if (TryGetCaseInsensitiveStringField(SourceObject, TEXT("expectedRenderName"), Candidate))
+            {
+                OutputFileNameOverride = Candidate.TrimStartAndEnd();
+            }
+        }
+
+        if (OutputFileNameOverride.IsEmpty())
+        {
+            FString OutputPathCandidate;
+            if (TryGetCaseInsensitiveStringField(SourceObject, TEXT("outputPath"), OutputPathCandidate))
+            {
+                OutputPathCandidate = OutputPathCandidate.TrimStartAndEnd();
+                if (!OutputPathCandidate.IsEmpty())
+                {
+                    OutputFileNameOverride = FPaths::GetCleanFilename(OutputPathCandidate).TrimStartAndEnd();
+                }
+            }
+        }
+    };
+
+    ReadOutputOverridesFromObject(RenderJobObject);
+
+    const TSharedPtr<FJsonObject>* PayloadObject = nullptr;
+    if (RenderJobObject->TryGetObjectField(TEXT("payload"), PayloadObject) && PayloadObject != nullptr && PayloadObject->IsValid())
+    {
+        ReadOutputOverridesFromObject(*PayloadObject);
+    }
+
     return true;
+}
+
+bool UURenderBridgeSubsystem::ApplyRenderOutputOverrides()
+{
+    const FString CleanOutputDir = OutputDirectoryOverride.TrimStartAndEnd();
+    const FString CleanOutputFile = OutputFileNameOverride.TrimStartAndEnd();
+
+    if (CleanOutputDir.IsEmpty() && CleanOutputFile.IsEmpty())
+    {
+        return false;
+    }
+
+    const FString FileNameStem = CleanOutputFile.IsEmpty()
+        ? FString()
+        : FPaths::GetBaseFilename(CleanOutputFile);
+
+    int32 UpdatedJobs = 0;
+    for (TObjectIterator<UMoviePipelineExecutorJob> It; It; ++It)
+    {
+        UMoviePipelineExecutorJob* Job = *It;
+        if (!IsValid(Job) || Job->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+        {
+            continue;
+        }
+
+        UMoviePipelinePrimaryConfig* JobConfig = Job->GetConfiguration();
+        if (!IsValid(JobConfig))
+        {
+            continue;
+        }
+
+        UMoviePipelineOutputSetting* OutputSettings = JobConfig->FindSetting<UMoviePipelineOutputSetting>(true);
+        if (!IsValid(OutputSettings))
+        {
+            OutputSettings = Cast<UMoviePipelineOutputSetting>(
+                JobConfig->FindOrAddSettingByClass(UMoviePipelineOutputSetting::StaticClass(), true, false)
+            );
+        }
+        if (!IsValid(OutputSettings))
+        {
+            continue;
+        }
+
+        bool bChanged = false;
+        if (!CleanOutputDir.IsEmpty() && OutputSettings->OutputDirectory.Path != CleanOutputDir)
+        {
+            OutputSettings->OutputDirectory.Path = CleanOutputDir;
+            bChanged = true;
+        }
+
+        if (!FileNameStem.IsEmpty() && OutputSettings->FileNameFormat != FileNameStem)
+        {
+            OutputSettings->FileNameFormat = FileNameStem;
+            bChanged = true;
+        }
+
+        if (bChanged)
+        {
+            ++UpdatedJobs;
+        }
+    }
+
+    if (UpdatedJobs > 0)
+    {
+        bOutputOverridesApplied = true;
+        LogEvent(
+            ELogVerbosity::Log,
+            TEXT("output_override_applied"),
+            FString::Printf(TEXT("Applied output overrides to %d job(s): dir='%s' file='%s'."), UpdatedJobs, *CleanOutputDir, *FileNameStem)
+        );
+        return true;
+    }
+
+    return false;
 }
 
 bool UURenderBridgeSubsystem::BuildPendingUpdates(FString& OutErrorCode, FString& OutErrorMessage)
@@ -1089,6 +1261,11 @@ void UURenderBridgeSubsystem::HandlePostLoadMap(UWorld* LoadedWorld)
 
     const FString LoadedWorldName = LoadedWorld ? LoadedWorld->GetName() : TEXT("null");
     LogEvent(ELogVerbosity::Log, TEXT("map_loaded"), FString(TEXT("PostLoadMapWithWorld received for '")) + LoadedWorldName + TEXT("'"));
+
+    if (!bOutputOverridesApplied)
+    {
+        ApplyRenderOutputOverrides();
+    }
 
     if (Phase == EBridgePhase::WaitingForPreset)
     {

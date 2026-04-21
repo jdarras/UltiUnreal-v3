@@ -110,7 +110,7 @@ function RenderWorkersPanel({
   return (
     <div className="uu-card mt-12">
       <p className="uu-h3 uu-block-title">
-        {safeT(t, "postprod.renders.workers.title", "Stations de rendu")}
+        {safeT(t, "postprod.renders.workers.title", "Machines de rendu")}
       </p>
 
       {renderWorkersLoading && workers.length === 0 ? (
@@ -126,7 +126,7 @@ function RenderWorkersPanel({
           <table className="uu-table" style={{ width: "100%" }}>
             <thead>
               <tr>
-                <th>{safeT(t, "postprod.renders.workers.col.name", "Station")}</th>
+                <th>{safeT(t, "postprod.renders.workers.col.name", "Machine")}</th>
                 <th>{safeT(t, "postprod.renders.workers.col.job", "Tâche en cours")}</th>
                 <th>{safeT(t, "postprod.renders.workers.col.aptitude", "Aptitude")}</th>
                 <th></th>

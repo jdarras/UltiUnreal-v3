@@ -11,13 +11,16 @@ function isRenderQueuedWithError(render) {
 
 function renderReviewStatusKey(render) {
   const explicit = String(render?.reviewStatus || "").trim().toLowerCase();
-  if (explicit === "to_validate" || explicit === "validated" || explicit === "to_modify" || explicit === "canceled") {
+  if (explicit === "to_validate" || explicit === "validated") {
     return explicit;
   }
+  if (explicit === "to_modify" || explicit === "canceled" || explicit === "rejected") {
+    return "rejected";
+  }
   const status = String(render?.status || "").trim();
-  if (status === "Canceled") return "canceled";
-  if (status === "Failed") return "to_modify";
-  if (isRenderQueuedWithError(render)) return "to_modify";
+  if (status === "Canceled") return "rejected";
+  if (status === "Failed") return "rejected";
+  if (isRenderQueuedWithError(render)) return "rejected";
   const validatedByUserId = Number(render?.validatedByUserId || 0);
   if (status === "Done" && Number.isFinite(validatedByUserId) && validatedByUserId > 0) {
     return "validated";
@@ -28,28 +31,28 @@ function renderReviewStatusKey(render) {
 function renderReviewStatusLabel(t, reviewStatus) {
   const key = String(reviewStatus || "").trim();
   if (key === "validated") {
-    return safeT(t, "postprod.renders.review.validated", "Valide");
+    return safeT(t, "postprod.renders.review.validated", "Validee");
   }
-  if (key === "to_modify") {
-    return safeT(t, "postprod.renders.review.toModify", "A modifier");
-  }
-  if (key === "canceled") {
-    return safeT(t, "postprod.renders.review.canceled", "Annule");
+  if (key === "rejected" || key === "to_modify" || key === "canceled") {
+    return safeT(t, "postprod.renders.review.rejected", "Rejetee");
   }
   return safeT(t, "postprod.renders.review.toValidate", "A valider");
 }
 
 function renderOutputFilename(render) {
+  const isTemplateToken = (value = "") => (
+    /^\s*\{\{[^{}]+\}\}\s*$/i.test(String(value || "").trim())
+  );
   const rawOutputPath = String(render?.outputPath || "").trim();
   if (rawOutputPath) {
     const parts = rawOutputPath.split(/[\\/]+/g).filter(Boolean);
     const fileName = String(parts[parts.length - 1] || "").trim();
-    if (fileName) return fileName;
+    if (fileName && !isTemplateToken(fileName)) return fileName;
   }
   const matchedExpected = String(render?.matchedExpectedRenderName || "").trim();
-  if (matchedExpected) return matchedExpected;
+  if (matchedExpected && !isTemplateToken(matchedExpected)) return matchedExpected;
   const templateName = String(render?.templateName || "").trim();
-  if (templateName) return templateName;
+  if (templateName && !isTemplateToken(templateName)) return templateName;
   return "-";
 }
 
@@ -57,8 +60,8 @@ function renderLinkedTaskValue(render) {
   const taskIdRaw = Number(render?.linkedTaskId || 0);
   const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
   const taskTitle = String(render?.linkedTaskTitle || "").trim();
-  if (taskId > 0 && taskTitle) return `${taskTitle} (#${taskId})`;
-  if (taskId > 0) return `#${taskId}`;
+  if (taskId > 0 && taskTitle) return `${taskTitle} (${taskId})`;
+  if (taskId > 0) return String(taskId);
   return taskTitle;
 }
 

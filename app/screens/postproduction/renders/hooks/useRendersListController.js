@@ -95,7 +95,8 @@ export function useRendersListController({
   setListSortDir = null,
 } = {}) {
   const renderJobs = useMemo(() => {
-    return Array.isArray(renders) ? renders : [];
+    const list = Array.isArray(renders) ? renders : [];
+    return list.filter((render) => String(render?.status || "").trim().toLowerCase() === "done");
   }, [renders]);
 
   const projectFilterOptions = useMemo(
@@ -131,9 +132,8 @@ export function useRendersListController({
   );
   const reviewFilterOptions = useMemo(() => ([
     { value: "to_validate", label: safeT(t, "postprod.renders.review.toValidate", "A valider") },
-    { value: "validated", label: safeT(t, "postprod.renders.review.validated", "Valide") },
-    { value: "to_modify", label: safeT(t, "postprod.renders.review.toModify", "A modifier") },
-    { value: "canceled", label: safeT(t, "postprod.renders.review.canceled", "Annule") },
+    { value: "validated", label: safeT(t, "postprod.renders.review.validated", "Validee") },
+    { value: "rejected", label: safeT(t, "postprod.renders.review.rejected", "Rejetee") },
   ]), [t]);
 
   useSyncSelectionWithOptions(projectFilter, setProjectFilter, projectFilterOptions);

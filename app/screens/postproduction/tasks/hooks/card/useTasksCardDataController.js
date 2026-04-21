@@ -12,6 +12,7 @@ export function useTasksCardDataController({
   renderForms = [],
   renderWorkers = [],
   renderOutputDir = "",
+  renderExportDestinationOptions = [],
   taskFocusRequest = null,
   onTaskFocusHandled = null,
   onLoadRenderFormFields = null,
@@ -68,6 +69,9 @@ export function useTasksCardDataController({
   return {
     ...listData,
     ...autoRenderData,
+    renderExportDestinationOptions: Array.isArray(renderExportDestinationOptions)
+      ? renderExportDestinationOptions
+      : [],
   };
 }
 
