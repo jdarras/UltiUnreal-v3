@@ -97,7 +97,7 @@ function RenderDetailModal({
   projectLabelByRef = new Map(),
   onNavigateToProject = null,
   onNavigateToRenderForm = null,
-  onRequestOpenTasks = null,
+  onRequestOpenRenderEditor = null,
   tasks = [],
   renderForms = [],
   renderExportDestinationOptions = [],
@@ -153,7 +153,7 @@ function RenderDetailModal({
           projectLabelByRef={projectLabelByRef}
           onNavigateToProject={onNavigateToProject}
           onNavigateToRenderForm={onNavigateToRenderForm}
-          onRequestOpenTasks={onRequestOpenTasks}
+          onRequestOpenRenderEditor={onRequestOpenRenderEditor}
           tasks={tasks}
           renderForms={renderForms}
           renderExportDestinationOptions={renderExportDestinationOptions}

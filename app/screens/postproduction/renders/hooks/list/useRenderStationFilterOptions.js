@@ -28,14 +28,14 @@ export function useRenderStationFilterOptions({
     const options = [
       {
         key: "all",
-        label: safeT(t, "postprod.renders.filter.allStations", "Toutes les machines"),
+        label: safeT(t, "postprod.renders.filter.allStations", "Toutes les stations"),
       },
     ];
 
     if (hasLocal) {
       options.push({
         key: "local",
-        label: safeT(t, "postprod.renders.filter.localOnly", "Machine locale"),
+        label: safeT(t, "postprod.renders.filter.localOnly", "Station locale"),
       });
     }
 

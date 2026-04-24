@@ -26,8 +26,8 @@ const preloaders = {
   License: () => import("./screens/license.jsx"),
   Utilisateurs: () => import("./screens/postproduction.jsx"),
   Dashboard: () => import("./screens/postproduction.jsx"),
-  Taches: () => import("./screens/postproduction.jsx"),
   Rendus: () => import("./screens/postproduction.jsx"),
+  RendusCreate: () => import("./screens/postproduction.jsx"),
   Datas: () => import("./screens/postproduction.jsx"),
   Profils: () => import("./screens/postproduction.jsx"),
 };
@@ -62,6 +62,7 @@ import {
   postprodListRoles,
   postprodCreateRole,
   postprodUpdateRole,
+  postprodDeleteRole,
   postprodListTasks,
   postprodListProjects,
   postprodListProjectRenderTemplates,
@@ -107,7 +108,6 @@ import {
   postprodPatchRenderWorkerAptitude,
   postprodListRenderTransitions,
   postprodRegenerateAllProxies,
-  runLocalProcess,
   spawnDetachedRender,
   checkPidAlive,
   checkFileExists,
@@ -137,8 +137,17 @@ const ScreenFallback = <div className="uu-loading" style={{ padding: '24px' }}>â
 const APP_MODE_LIVE = 'live';
 const APP_MODE_POSTPROD = 'postprod';
 const POSTPROD_TAB_USERS = "Utilisateurs";
-const POSTPROD_TABS_BASE = [POSTPROD_TAB_USERS, "Projets", "Synchronisation", "Ressources", "Datas", "Taches", "Rendus"];
 const POSTPROD_TAB_PROFILES = "Profils";
+const POSTPROD_TAB_RENDERS_CREATE = "RendusCreate";
+const POSTPROD_TABS_BASE = [
+  POSTPROD_TAB_USERS,
+  "Projets",
+  "Synchronisation",
+  "Ressources",
+  "Datas",
+  "Rendus",
+  POSTPROD_TAB_RENDERS_CREATE,
+];
 const LIVE_MODE_BLOCKED_FALLBACK_ROLES = new Set([
   "Graphiste",
   "Journaliste",
@@ -259,7 +268,7 @@ function getPostprodTabsForUser(
         tab !== POSTPROD_TAB_USERS
         && (tab !== "Datas" || canManageForms)
         && (tab !== "Ressources" || canAccessResources)
-        && (tab !== "Taches" || canCreateTasks)
+        && (tab !== POSTPROD_TAB_RENDERS_CREATE || canCreateTasks)
         && (tab !== "Synchronisation" || canSyncScenes)
       )
     )
@@ -540,6 +549,7 @@ function resolvePostprodRolesError(err, t) {
   if (code === 'invalid_manageable_roles') return t('postprod.roles.error.invalidManageableRoles');
   if (code === 'invalid_mode_access') return t('postprod.roles.error.invalidModeAccess');
   if (code === 'last_manage_roles_forbidden') return t('postprod.roles.error.lastManageRolesForbidden');
+  if (code === 'role_not_found') return t('postprod.roles.error.roleNotFound');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   return t('postprod.roles.error.generic');
 }
@@ -582,6 +592,7 @@ function resolvePostprodRendersError(err, t) {
   if (code === 'unknown_project') return t('postprod.renders.error.unknownProject');
   if (code === 'project_not_render_enabled') return t('postprod.renders.error.projectNotAutoRenderable');
   if (code === 'invalid_render_id') return t('postprod.renders.error.invalidRender');
+  if (code === 'missing_linked_task' || code === 'task_not_found') return t('postprod.tasks.error.taskNotFound');
   if (code === 'invalid_worker_key') return t('postprod.renders.error.invalidWorker');
   if (code === 'invalid_worker_capabilities') return t('postprod.renders.error.invalidPayload');
   if (code === 'worker_capabilities_too_large') return t('postprod.renders.error.payloadTooLarge');
@@ -1161,7 +1172,6 @@ function buildDefaultUnrealProcessExecution({
   mapName = '',
   sequenceName = '',
   outputProfile = '',
-  outputDir = '',
   presetName = '',
   formData = null,
   textValue = '',
@@ -1170,7 +1180,6 @@ function buildDefaultUnrealProcessExecution({
   const safeMapName = normalizeUnrealMapLaunchArg(mapName);
   const safeSequenceName = String(sequenceName || '').trim();
   const safeOutputProfile = String(outputProfile || '').trim();
-  const safeOutputDir = String(outputDir || '').trim();
   const safePresetRaw = String(presetName || '').trim();
   const safePresetName = normalizeUnrealPresetName(safePresetRaw);
   const safePresetPath = safePresetRaw.startsWith('/') ? safePresetRaw : '';
@@ -1302,7 +1311,11 @@ function getSidebarItems({
       ...(hasUsers ? [POSTPROD_TAB_USERS] : []),
     ];
     const restTabs = tabs.filter(
-      (tab) => tab !== POSTPROD_TAB_PROFILES && tab !== POSTPROD_TAB_USERS
+      (tab) => (
+        tab !== POSTPROD_TAB_PROFILES
+        && tab !== POSTPROD_TAB_USERS
+        && tab !== POSTPROD_TAB_RENDERS_CREATE
+      )
     );
     return [...accountTabs, ...(postprodCanManageMachines ? ["Setup"] : []), ...restTabs, "Logs"];
   }
@@ -1469,7 +1482,6 @@ function Sidebar({
     Production: t('nav.production'),
     Ressources: t('nav.resources'),
     Utilisateurs: t('nav.users'),
-    Taches: t('nav.tasks'),
     Rendus: t('nav.renders'),
     Datas: t('nav.data'),
     Profils: t('nav.profiles'),
@@ -1485,6 +1497,10 @@ function Sidebar({
       <nav className="uu-nav">
         {items.map((item) => {
           const locked = postprodLockedTabs.includes(item);
+          const isActive = (
+            current === item
+            || (item === "Rendus" && current === POSTPROD_TAB_RENDERS_CREATE)
+          );
           const isLogs = item === 'Logs';
           const logsClass = isLogs
             ? (logsAlert?.level === 'error'
@@ -1497,7 +1513,7 @@ function Sidebar({
           return (
           <button
             key={item}
-            className={`uu-nav-btn ${current === item ? "active" : ""}${logsClass}${locked ? " locked" : ""}`}
+            className={`uu-nav-btn ${isActive ? "active" : ""}${logsClass}${locked ? " locked" : ""}`}
             disabled={locked}
             onClick={() => {
               if (locked) return;
@@ -1617,7 +1633,7 @@ function App() {
     loading: false,
     error: '',
   });
-  const [postprodTaskFocusRequest, setPostprodTaskFocusRequest] = useState(null);
+  const [postprodRenderEditorRequest, setPostprodRenderEditorRequest] = useState(null);
   const [postprodRenderFormFocusRequest, setPostprodRenderFormFocusRequest] = useState(null);
   const [postprodEditUserRequest, setPostprodEditUserRequest] = useState(null);
   const [postprodProjects, setPostprodProjects] = useState({
@@ -1706,7 +1722,6 @@ function App() {
   const [current, setCurrent] = useState("Projets");
   const [userTabKey, setUserTabKey] = useState(0);
   const [roleTabKey, setRoleTabKey] = useState(0);
-  const [taskTabKey, setTaskTabKey] = useState(0);
   const [datasTabKey, setDatasTabKey] = useState(0);
   const [quitDialogOpen, setQuitDialogOpen] = useState(false);
   const [aptitudeCheckPending, setAptitudeCheckPending] = useState(null);
@@ -1816,7 +1831,7 @@ function App() {
 
   useEffect(() => {
     if (!postprodAuthenticated) {
-      setPostprodTaskFocusRequest(null);
+      setPostprodRenderEditorRequest(null);
     }
   }, [postprodAuthenticated]);
 
@@ -2000,6 +2015,7 @@ function App() {
   );
   const postprodCanAccessResources = postprodCanViewResources && resourcesEnabled;
   const postprodCanCreateTasks = postprodAuth.user?.permissions?.canCreateTasks !== false;
+  const postprodCanAssignRenderRequests = postprodAuth.user?.permissions?.canAssignRenderRequests === true;
   const postprodCanBypassPadForTasks = (
     postprodAuth.user?.role === 'Maintenance'
     || postprodAuth.user?.role === 'Responsable Fabrication'
@@ -2100,7 +2116,7 @@ function App() {
     }
 
     const describe = (entry, state) => {
-      const name = String(entry?.name || entry?.ip || 'Machine').trim();
+      const name = String(entry?.name || entry?.ip || 'Station').trim();
       const count = Number(entry?.logStore?.lineCount || 0);
       const warnAt = Number(entry?.logStore?.warnAt || 1500);
       const hardLimit = Number(entry?.logStore?.hardLimit || 2000);
@@ -2185,7 +2201,7 @@ function App() {
 
       const top = transitions[0] || null;
       if (top) {
-        const name = String(top.entry?.name || top.entry?.ip || 'Machine').trim();
+        const name = String(top.entry?.name || top.entry?.ip || 'Station').trim();
         const count = Number(top.entry?.logStore?.lineCount || 0);
         const warnAt = Number(top.entry?.logStore?.warnAt || 1500);
         const hardLimit = Number(top.entry?.logStore?.hardLimit || 2000);
@@ -2291,16 +2307,14 @@ function App() {
     if (item === POSTPROD_TAB_PROFILES) {
       setRoleTabKey((prev) => prev + 1);
     }
-    if (item === "Taches") {
-      setTaskTabKey((prev) => prev + 1);
-    }
     if (item === "Datas") {
       setDatasTabKey((prev) => prev + 1);
     }
     setCurrent(item);
   }, [appMode, postprodCanAccessResources, resourcesTabAvailable]);
-  const handlePostprodOpenTasksFromLink = React.useCallback((payload = {}) => {
-    const type = String(payload?.type || '').trim().toLowerCase();
+  const handlePostprodOpenRenderEditor = React.useCallback((payload = {}) => {
+    const typeRaw = String(payload?.type || '').trim().toLowerCase();
+    const type = typeRaw === "rendu" ? "render" : typeRaw;
     const ref = String(payload?.ref || '').trim();
     if (!ref) return;
     const action = String(payload?.action || '').trim().toLowerCase();
@@ -2311,16 +2325,17 @@ function App() {
       type !== 'project'
       && type !== 'resource'
       && type !== 'task'
+      && type !== 'render'
       && type !== 'project_create'
     ) return;
-    setPostprodTaskFocusRequest({
+    setPostprodRenderEditorRequest({
       id: `${type}:${action}:${ref}:${Date.now()}`,
       type,
       ref,
       action,
       task,
     });
-    setCurrent('Taches');
+    setCurrent(POSTPROD_TAB_RENDERS_CREATE);
   }, []);
   const handlePostprodOpenActivityTarget = React.useCallback((payload = {}) => {
     const type = String(payload?.type || "").trim().toLowerCase();
@@ -2346,12 +2361,12 @@ function App() {
         ? String(Math.trunc(taskIdRaw))
         : String(payload?.ref || "").trim();
       if (!taskRef) return;
-      setPostprodTaskFocusRequest({
-        id: `task:${taskRef}:${Date.now()}`,
-        type: "task",
+      setPostprodRenderEditorRequest({
+        id: `render:${taskRef}:${Date.now()}`,
+        type: "render",
         ref: taskRef,
       });
-      setCurrent("Taches");
+      setCurrent(POSTPROD_TAB_RENDERS_CREATE);
       return;
     }
 
@@ -2485,8 +2500,8 @@ function App() {
     try { localStorage.setItem('uu_pending_detail', ref); } catch {}
     setCurrent('Projets');
   }, [hostsCfg, localIp, showNotice, t, postprodAuth.token, refreshPostprodProjectWrcSnapshots]);
-  const handlePostprodTaskFocusHandled = React.useCallback(() => {
-    setPostprodTaskFocusRequest(null);
+  const handlePostprodRenderEditorHandled = React.useCallback(() => {
+    setPostprodRenderEditorRequest(null);
   }, []);
   const handlePostprodRenderFormFocusHandled = React.useCallback(() => {
     setPostprodRenderFormFocusRequest(null);
@@ -3710,16 +3725,6 @@ function App() {
         const summary = await refreshPostprodProjectWrcSnapshots(projectRef, normalizedCatalog.wrcPresets);
         const projectKey = String(projectRef || '').trim().toLowerCase();
         if (summary?.usingLastKnown > 0) {
-          const noticeKey = `catalog::snapshot::${projectKey}`;
-          const nowTs = Date.now();
-          const previousTs = Number(postprodWrcCacheNoticeRef.current?.[noticeKey] || 0);
-          if (!Number.isFinite(previousTs) || (nowTs - previousTs) > 10000) {
-            postprodWrcCacheNoticeRef.current = {
-              ...(postprodWrcCacheNoticeRef.current || {}),
-              [noticeKey]: nowTs,
-            };
-            showNotice(t('production.error.wrcUnreachableUsingSnapshot'), 'info');
-          }
           return;
         }
         if (summary?.missingSnapshot > 0) {
@@ -3749,18 +3754,6 @@ function App() {
     const opts = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
     try {
       const res = await postprodGetProjectWrcFields(token, projectRef, wrcFile, 10000, opts);
-      if (res?.usingLastKnownPreset === true) {
-        const noticeKey = `${String(projectRef || '').trim()}::${String(wrcFile || '').trim()}`.toLowerCase();
-        const nowTs = Date.now();
-        const previousTs = Number(postprodWrcCacheNoticeRef.current?.[noticeKey] || 0);
-        if (!Number.isFinite(previousTs) || (nowTs - previousTs) > 10000) {
-          postprodWrcCacheNoticeRef.current = {
-            ...(postprodWrcCacheNoticeRef.current || {}),
-            [noticeKey]: nowTs,
-          };
-          showNotice(t('production.error.wrcUnreachableUsingSnapshot'), 'info');
-        }
-      }
       return Array.isArray(res?.fields) ? res.fields : [];
     } catch (e) {
       const code = String(e?.code || '').trim().toLowerCase();
@@ -3970,6 +3963,7 @@ function App() {
         const stationIsLocal = isLocalStation(stationIp);
         return {
           ...item,
+          sourceScope: 'local',
           stationIp,
           stationName,
           stationIsLocal,
@@ -4016,6 +4010,7 @@ function App() {
                 }, resolvedStationIp);
                 return {
                   ...job,
+                  sourceScope: 'remote',
                   stationIp: resolvedStationIp,
                   stationName,
                   stationIsLocal,
@@ -4030,19 +4025,99 @@ function App() {
         }
       }
 
-      const mergedItems = [...localItems, ...remoteItems].sort((a, b) => {
-        const leftRaw = Date.parse(String(a?.createdAt || a?.created_at || '').trim());
-        const rightRaw = Date.parse(String(b?.createdAt || b?.created_at || '').trim());
-        const leftTs = Number.isFinite(leftRaw) ? leftRaw : 0;
-        const rightTs = Number.isFinite(rightRaw) ? rightRaw : 0;
-        if (rightTs !== leftTs) return rightTs - leftTs;
-        const aLocal = a?.stationIsLocal === true ? 1 : 0;
-        const bLocal = b?.stationIsLocal === true ? 1 : 0;
-        if (bLocal !== aLocal) return bLocal - aLocal;
-        const leftId = Number(a?.id || a?.renderId || 0);
-        const rightId = Number(b?.id || b?.renderId || 0);
-        return (Number.isFinite(rightId) ? rightId : 0) - (Number.isFinite(leftId) ? leftId : 0);
-      });
+      const toPositiveInt = (value) => {
+        const numeric = Number(value || 0);
+        return Number.isFinite(numeric) && numeric > 0 ? Math.trunc(numeric) : 0;
+      };
+
+      const localStationIpKeys = new Set([
+        normalizeStationIp(localStationIp),
+        localIpNormalized,
+        localIdentityIpNormalized,
+      ].filter(Boolean));
+
+      const resolveOriginStationIp = (item) => {
+        const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
+          ? item.payload
+          : {};
+        return normalizeStationIp(
+          item?.originStationIp
+          || item?.origin_station_ip
+          || payload?.originStationIp
+          || payload?.origin_station_ip
+          || ''
+        );
+      };
+
+      const resolveRemoteJobId = (item) => {
+        const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
+          ? item.payload
+          : {};
+        return toPositiveInt(item?.remoteJobId || item?.remote_job_id || payload?.remoteJobId || payload?.remote_job_id);
+      };
+
+      const resolveRenderStationIp = (item) => {
+        const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
+          ? item.payload
+          : {};
+        return normalizeStationIp(
+          item?.stationIp
+          || item?.renderStation
+          || item?.render_station
+          || payload?.stationIp
+          || payload?.renderStation
+          || payload?.render_station
+          || ''
+        );
+      };
+
+      const localMirroredRemoteKeys = new Set();
+      for (const localItem of localItems) {
+        const remoteJobId = resolveRemoteJobId(localItem);
+        const originStationIp = resolveOriginStationIp(localItem);
+        const renderStationIp = resolveRenderStationIp(localItem);
+        if (remoteJobId <= 0) continue;
+        if (originStationIp && !localStationIpKeys.has(originStationIp)) {
+          localMirroredRemoteKeys.add(`${originStationIp}::${remoteJobId}`);
+        }
+        if (
+          renderStationIp
+          && !localStationIpKeys.has(renderStationIp)
+          && renderStationIp !== 'local'
+        ) {
+          localMirroredRemoteKeys.add(`${renderStationIp}::${remoteJobId}`);
+        }
+      }
+
+      const mergedItems = [...localItems, ...remoteItems]
+        .filter((item) => {
+          if (item?.stationIsRemote !== true) return true;
+          const remoteStationIp = normalizeStationIp(item?.stationIp || item?.renderStation || item?.originStationIp || '');
+          const remoteRenderId = toPositiveInt(item?.id || item?.renderId);
+          const remoteOriginStationIp = resolveOriginStationIp(item);
+          if (
+            remoteOriginStationIp
+            && localStationIpKeys.has(remoteOriginStationIp)
+          ) {
+            // Echo d'un job initie localement et execute a distance: on ne l'affiche pas.
+            return false;
+          }
+          if (!remoteStationIp || remoteRenderId <= 0) return true;
+          return !localMirroredRemoteKeys.has(`${remoteStationIp}::${remoteRenderId}`);
+        })
+        .sort((a, b) => {
+          const leftRaw = Date.parse(String(a?.createdAt || a?.created_at || '').trim());
+          const rightRaw = Date.parse(String(b?.createdAt || b?.created_at || '').trim());
+          const leftTs = Number.isFinite(leftRaw) ? leftRaw : 0;
+          const rightTs = Number.isFinite(rightRaw) ? rightRaw : 0;
+          if (rightTs !== leftTs) return rightTs - leftTs;
+          const aLocal = a?.stationIsLocal === true ? 1 : 0;
+          const bLocal = b?.stationIsLocal === true ? 1 : 0;
+          if (bLocal !== aLocal) return bLocal - aLocal;
+          const leftId = Number(a?.id || a?.renderId || 0);
+          const rightId = Number(b?.id || b?.renderId || 0);
+          return (Number.isFinite(rightId) ? rightId : 0) - (Number.isFinite(leftId) ? leftId : 0);
+        });
 
       const normalizeOutputKey = (item) => {
         const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
@@ -4063,55 +4138,12 @@ function App() {
           .toLowerCase();
       };
 
-      const toPositiveInt = (value) => {
-        const numeric = Number(value || 0);
-        return Number.isFinite(numeric) && numeric > 0 ? Math.trunc(numeric) : 0;
-      };
-
-      const normalizeRenderNameStem = (value) => {
-        const raw = String(value || '').trim();
-        if (!raw || /\{\{[^{}]+\}\}/.test(raw)) return '';
-        const sanitized = raw.replace(/\\/g, '/');
-        const fileName = String(sanitized.split('/').filter(Boolean).pop() || sanitized).trim();
-        if (!fileName) return '';
-        const withoutQuery = fileName.split('?')[0].split('#')[0];
-        return withoutQuery.replace(/\.[a-z0-9]{2,6}$/i, '').trim().toLowerCase();
-      };
-
       const resolveLinkedTaskId = (item) => {
         const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
           ? item.payload
           : {};
         return toPositiveInt(item?.linkedTaskId || payload?.taskId);
       };
-
-      const resolveRenderNameKey = (item) => {
-        const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
-          ? item.payload
-          : {};
-        const candidates = [
-          item?.outputPath,
-          item?.output_path,
-          payload?.filePath,
-          payload?.outputPath,
-          payload?.fileName,
-          item?.matchedExpectedRenderName,
-          payload?.matchedExpectedRenderName,
-          item?.templateName,
-          payload?.templateName,
-        ];
-        for (const candidate of candidates) {
-          const normalized = normalizeRenderNameStem(candidate);
-          if (normalized) return normalized;
-        }
-        return '';
-      };
-
-      const localStationIpKeys = new Set([
-        normalizeStationIp(localStationIp),
-        localIpNormalized,
-        localIdentityIpNormalized,
-      ].filter(Boolean));
 
       const resolveRemoteRelayIdForLocalOrigin = (item) => {
         const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
@@ -4134,6 +4166,33 @@ function App() {
           : {};
         const statusKey = String(item?.status || '').trim().toLowerCase();
         const sourceKey = String(payload?.source || '').trim().toLowerCase();
+        const hasProjectMeta = Boolean(
+          String(item?.projectName || '').trim()
+          || String(item?.projectDisplayName || '').trim()
+          || String(item?.projectId || '').trim()
+          || String(payload?.projectName || '').trim()
+          || String(payload?.projectDisplayName || '').trim()
+          || String(payload?.projectId || '').trim()
+        );
+        const hasSequenceMeta = Boolean(
+          String(item?.sequenceName || '').trim()
+          || String(payload?.sequenceName || '').trim()
+          || String(payload?.levelSequence || '').trim()
+          || String(payload?.levelSequenceName || '').trim()
+        );
+        const hasFormMeta = Boolean(
+          toPositiveInt(item?.formId || item?.renderFormId || payload?.formId || payload?.renderFormId)
+          || String(item?.formName || '').trim()
+          || String(item?.renderFormName || '').trim()
+          || String(payload?.formName || '').trim()
+          || String(payload?.renderFormName || '').trim()
+          || String(payload?.formLabel || '').trim()
+        );
+        const hasTaskMeta = Boolean(
+          toPositiveInt(item?.linkedTaskId || payload?.taskId)
+          || String(item?.linkedTaskTitle || '').trim()
+          || String(payload?.taskTitle || '').trim()
+        );
         const hasProxyMeta = Boolean(
           String(payload?.proxyPath || '').trim()
           || String(payload?.thumbPath || '').trim()
@@ -4144,14 +4203,34 @@ function App() {
         let score = 0;
         if (outputKey) score += 100;
         if (hasProxyMeta) score += 35;
+        if (hasProjectMeta) score += 8;
+        if (hasSequenceMeta) score += 8;
+        if (hasFormMeta) score += 8;
+        if (hasTaskMeta) score += 5;
         if (statusKey === 'done') score += 10;
-        if (item?.stationIsRemote === true) score += 15;
-        if (item?.stationIsLocal === true) score -= 5;
         if (sourceKey === 'detected_file' || sourceKey === 'detected') score -= 12;
         return score;
       };
 
-      const selectDedupKey = (item, outputKey = '', relayLocalRenderId = 0) => {
+      const computeItemRecency = (item) => {
+        const candidates = [
+          item?.updatedAt,
+          item?.updated_at,
+          item?.finishedAt,
+          item?.finished_at,
+          item?.createdAt,
+          item?.created_at,
+        ];
+        let best = 0;
+        for (const candidate of candidates) {
+          const parsed = Date.parse(String(candidate || '').trim());
+          if (Number.isFinite(parsed) && parsed > best) best = parsed;
+        }
+        return best;
+      };
+
+      const selectDedupKey = (item, outputKey = '', linkedTaskId = 0, relayLocalRenderId = 0) => {
+        if (linkedTaskId > 0) return `task:${linkedTaskId}`;
         if (outputKey) return `output:${outputKey}`;
         if (relayLocalRenderId > 0) return `relay:${relayLocalRenderId}`;
         const fallbackKey = `${String(item?.stationIp || '').trim().toLowerCase()}|${String(item?.id || item?.renderId || '').trim()}`;
@@ -4163,51 +4242,43 @@ function App() {
       for (const item of mergedItems) {
         const outputKey = normalizeOutputKey(item);
         const linkedTaskId = resolveLinkedTaskId(item);
-        const renderNameKey = resolveRenderNameKey(item);
-        const taskNameKey = linkedTaskId > 0 && renderNameKey
-          ? `${linkedTaskId}|${renderNameKey}`
-          : '';
         const relayLocalRenderId = resolveRemoteRelayIdForLocalOrigin(item)
           || ((item?.stationIsLocal === true && !outputKey) ? toPositiveInt(item?.id || item?.renderId) : 0);
-        const dedupKey = selectDedupKey(item, outputKey, relayLocalRenderId);
+        const dedupKey = selectDedupKey(item, outputKey, linkedTaskId, relayLocalRenderId);
         const score = computeItemQuality(item, outputKey);
+        const recency = computeItemRecency(item);
+        const numericId = toPositiveInt(item?.id || item?.renderId || 0);
         const existing = dedupBuckets.get(dedupKey);
         if (!existing) {
           dedupBuckets.set(dedupKey, {
             item,
-            outputKey,
-            taskNameKey,
             score,
+            recency,
+            numericId,
             order: orderIndex++,
           });
           continue;
         }
-        if (score > existing.score) {
+        const shouldReplace = (
+          recency > Number(existing.recency || 0)
+          || (recency === Number(existing.recency || 0) && (
+            score > Number(existing.score || 0)
+            || (score === Number(existing.score || 0) && numericId > Number(existing.numericId || 0))
+          ))
+        );
+        if (shouldReplace) {
           dedupBuckets.set(dedupKey, {
             ...existing,
             item,
-            outputKey,
-            taskNameKey,
             score,
+            recency,
+            numericId,
           });
         }
       }
 
-      const dedupRows = Array.from(dedupBuckets.values())
-        .sort((a, b) => a.order - b.order);
-      const taskNameWithOutput = new Set(
-        dedupRows
-          .filter((entry) => !!entry.outputKey && !!entry.taskNameKey)
-          .map((entry) => entry.taskNameKey)
-      );
-      const dedupedItems = dedupRows
-        .filter((entry) => {
-          if (entry.outputKey) return true;
-          if (!entry.taskNameKey || !taskNameWithOutput.has(entry.taskNameKey)) return true;
-          const statusKey = String(entry?.item?.status || '').trim().toLowerCase();
-          if (statusKey === 'queued' || statusKey === 'running' || statusKey === 'failed') return true;
-          return false;
-        })
+      const dedupedItems = Array.from(dedupBuckets.values())
+        .sort((a, b) => a.order - b.order)
         .map((entry) => entry.item);
 
       if (!isLatestRequest()) return;
@@ -4931,6 +5002,32 @@ function App() {
     }
   }, [postprodAuth.token, loadPostprodRoles, showNotice, t]);
 
+  const handlePostprodDeleteRole = useCallback(async (roleKey) => {
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return false;
+    const affectedUsers = (postprodUsers.items || []).filter(
+      (u) => String(u?.role || '').trim().toLowerCase() === String(roleKey || '').trim().toLowerCase()
+    );
+    setPostprodRoles((prev) => ({ ...prev, loading: true, error: '' }));
+    try {
+      for (const u of affectedUsers) {
+        const uid = Number(u?.id || 0);
+        if (uid > 0) await postprodUpdateUser(token, uid, { role: 'journaliste' });
+      }
+      await postprodDeleteRole(token, roleKey);
+      await Promise.all([loadPostprodRoles(), loadPostprodUsers()]);
+      showNotice(t('postprod.roles.msg.deleted'), 'ok');
+      return true;
+    } catch (e) {
+      setPostprodRoles((prev) => ({
+        ...prev,
+        loading: false,
+        error: resolvePostprodRolesError(e, t),
+      }));
+      return false;
+    }
+  }, [postprodAuth.token, postprodUsers.items, loadPostprodRoles, loadPostprodUsers, showNotice, t]);
+
   const handlePostprodCreateTask = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
     if (!token) return false;
@@ -5494,73 +5591,18 @@ function App() {
     }
   }, [postprodAuth.token, loadPostprodRenders, showNotice]);
 
-  const handlePostprodDeleteRender = useCallback(async (renderId, renderObj = null) => {
+  const handlePostprodDeleteRender = useCallback(async (renderId) => {
     const token = String(postprodAuth.token || '').trim();
     if (!token) return false;
-
-    const normalizeOutputKey = (item) => {
-      const payload = item?.payload && typeof item.payload === 'object' && !Array.isArray(item.payload)
-        ? item.payload
-        : {};
-      const raw = String(
-        item?.outputPath
-        || item?.output_path
-        || payload?.filePath
-        || payload?.outputPath
-        || ''
-      ).trim();
-      if (!raw || /\{\{[^{}]+\}\}/.test(raw)) return '';
-      return raw
-        .replace(/\\/g, '/')
-        .replace(/\/+/g, '/')
-        .toLowerCase();
-    };
-
-    const normalizeRenderId = (value) => {
-      const n = Number(value || 0);
-      return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
-    };
-
-    const baseRenderId = normalizeRenderId(renderId);
-    if (baseRenderId <= 0) return false;
-    const currentItems = Array.isArray(postprodRenders.items) ? postprodRenders.items : [];
-    const baseRender = (renderObj && typeof renderObj === 'object')
-      ? renderObj
-      : (currentItems.find((item) => normalizeRenderId(item?.id) === baseRenderId) || null);
-    const targetOutputKey = normalizeOutputKey(baseRender);
-
-    const deleteIdList = (() => {
-      if (!targetOutputKey) return [baseRenderId];
-      const out = [];
-      const seen = new Set();
-      for (const item of currentItems) {
-        const itemId = normalizeRenderId(item?.id);
-        if (itemId <= 0 || seen.has(itemId)) continue;
-        if (normalizeOutputKey(item) !== targetOutputKey) continue;
-        seen.add(itemId);
-        out.push(itemId);
-      }
-      if (!seen.has(baseRenderId)) out.unshift(baseRenderId);
-      return out.length > 0 ? out : [baseRenderId];
-    })();
+    const renderIdNum = Number(renderId);
+    const normalizedRenderId = Number.isFinite(renderIdNum) && renderIdNum > 0
+      ? Math.trunc(renderIdNum)
+      : 0;
+    if (normalizedRenderId <= 0) return false;
 
     setPostprodRenders((prev) => ({ ...prev, loading: true, error: '' }));
     try {
-      let primaryDeleted = false;
-      for (const id of deleteIdList) {
-        try {
-          await postprodDeleteRenderJob(token, id);
-          if (id === baseRenderId) primaryDeleted = true;
-        } catch (e) {
-          const status = Number(e?.status || 0);
-          if (status === 404) continue;
-          if (id === baseRenderId) throw e;
-        }
-      }
-      if (!primaryDeleted && deleteIdList.length > 0) {
-        // Fallback de robustesse: tenter explicitement l'id principal
-        await postprodDeleteRenderJob(token, baseRenderId);
-      }
+      await postprodDeleteRenderJob(token, normalizedRenderId);
       await Promise.all([
         loadPostprodRenders(),
         loadPostprodTasks(),
@@ -5578,7 +5620,6 @@ function App() {
     }
   }, [
     postprodAuth.token,
-    postprodRenders.items,
     loadPostprodRenders,
     loadPostprodTasks,
     loadPostprodRenderHealth,
@@ -5748,7 +5789,7 @@ function App() {
 
   useEffect(() => {
     if (!postprodAuthenticated || !postprodCanManageUsers) return;
-    if (current !== POSTPROD_TAB_USERS && current !== POSTPROD_TAB_PROFILES && current !== 'Taches') return;
+    if (current !== POSTPROD_TAB_USERS && current !== POSTPROD_TAB_PROFILES && current !== POSTPROD_TAB_RENDERS_CREATE) return;
     loadPostprodUsers();
   }, [
     postprodAuthenticated,
@@ -5792,7 +5833,7 @@ function App() {
 
   useEffect(() => {
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
-    if (current !== 'Taches' && current !== 'Rendus') return;
+    if (current !== POSTPROD_TAB_RENDERS_CREATE && current !== 'Rendus') return;
     loadPostprodTasks();
   }, [
     appMode,
@@ -5803,7 +5844,7 @@ function App() {
 
   useEffect(() => {
     if (!postprodAuthenticated) return;
-    if (current !== 'Taches') return;
+    if (current !== POSTPROD_TAB_RENDERS_CREATE) return;
     loadPostprodTaskCatalog();
   }, [
     postprodAuthenticated,
@@ -5842,10 +5883,10 @@ function App() {
 
   useEffect(() => {
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
-    if (current !== 'Taches' && current !== 'Rendus') return;
+    if (current !== POSTPROD_TAB_RENDERS_CREATE && current !== 'Rendus') return;
     loadPostprodRenderTemplates();
     loadPostprodRenderWorkers();
-    if (current === 'Taches') {
+    if (current === POSTPROD_TAB_RENDERS_CREATE) {
       loadPostprodRenderForms();
       loadPostprodRenders();
     }
@@ -5929,7 +5970,7 @@ function App() {
       if (postprodCanAccessResources) {
         queue(loadPostprodResources);
       }
-    } else if (current === 'Taches') {
+    } else if (current === POSTPROD_TAB_RENDERS_CREATE) {
       if (!postprodTaskFormOpen) {
         queue(() => loadPostprodTasks({ silent: true }));
         queue(() => loadPostprodTaskCatalog({ silent: true }));
@@ -5990,7 +6031,7 @@ function App() {
 
   useEffect(() => {
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
-    if (current === 'Datas' || current === 'Logs' || current === 'Rendus') return;
+    if (current === 'Datas' || current === 'Logs' || current === 'Rendus' || current === POSTPROD_TAB_RENDERS_CREATE) return;
 
     let stopped = false;
     let timer = null;
@@ -6102,7 +6143,7 @@ function App() {
   ]);
 
   useEffect(() => {
-    if (current !== 'Taches') {
+    if (current !== POSTPROD_TAB_RENDERS_CREATE) {
       setPostprodTaskFormOpen(false);
     }
     if (current !== POSTPROD_TAB_USERS) {
@@ -7043,7 +7084,7 @@ function App() {
                 onCreateTaskFromProject={(projectRef) => {
                   const ref = String(projectRef || "").trim();
                   if (!ref) return;
-                  handlePostprodOpenTasksFromLink({
+                  handlePostprodOpenRenderEditor({
                     type: "project_create",
                     action: "create",
                     ref,
@@ -7068,7 +7109,6 @@ function App() {
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}
                 userTabKey={userTabKey}
                 roleTabKey={roleTabKey}
-                taskTabKey={taskTabKey}
                 datasTabKey={datasTabKey}
                 titleOverride={current === POSTPROD_TAB_USERS ? t('nav.users') : ''}
                 hideStubNotice={true}
@@ -7089,8 +7129,7 @@ function App() {
                 canManageProjectPermissions={postprodCanManageProjectPermissions}
                 canViewResources={postprodCanAccessResources}
                 canCreateTasks={postprodCanCreateTasks}
-                canEditProjects={postprodCanEditProjects}
-                canManageLayouts={postprodCanManageLayouts}
+                canAssignRenderRequests={postprodCanAssignRenderRequests}
                 manageableRoles={postprodManageableRoles}
                 users={postprodUsers.items}
                 usersLoading={postprodUsers.loading}
@@ -7167,6 +7206,7 @@ function App() {
                 onRefreshUsers={loadPostprodUsers}
                 onCreateRole={handlePostprodCreateRole}
                 onUpdateRole={handlePostprodUpdateRole}
+                onDeleteRole={handlePostprodDeleteRole}
                 onOpenUser={handlePostprodOpenUser}
                 onRefreshRoles={loadPostprodRoles}
                 onUpdateMe={handlePostprodUpdateMe}
@@ -7222,11 +7262,11 @@ function App() {
                 onScanDetectedRenders={handlePostprodScanDetectedRenders}
                 onRefreshRenderHealth={loadPostprodRenderHealth}
                 onRefreshRenderWorkers={loadPostprodRenderWorkers}
-                taskFocusRequest={postprodTaskFocusRequest}
-                onTaskFocusHandled={handlePostprodTaskFocusHandled}
+                renderFocusRequest={postprodRenderEditorRequest}
+                onRenderFocusHandled={handlePostprodRenderEditorHandled}
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
-                onRequestOpenTasks={handlePostprodOpenTasksFromLink}
+                onRequestOpenRenderEditor={handlePostprodOpenRenderEditor}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
                 renderFormFocusRequest={postprodRenderFormFocusRequest}
@@ -7241,7 +7281,6 @@ function App() {
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}
                 userTabKey={userTabKey}
                 roleTabKey={roleTabKey}
-                taskTabKey={taskTabKey}
                 datasTabKey={datasTabKey}
                 titleOverride={current === POSTPROD_TAB_USERS ? t('nav.users') : ''}
                 hideStubNotice={true}
@@ -7262,8 +7301,7 @@ function App() {
                 canManageProjectPermissions={postprodCanManageProjectPermissions}
                 canViewResources={postprodCanAccessResources}
                 canCreateTasks={postprodCanCreateTasks}
-                canEditProjects={postprodCanEditProjects}
-                canManageLayouts={postprodCanManageLayouts}
+                canAssignRenderRequests={postprodCanAssignRenderRequests}
                 manageableRoles={postprodManageableRoles}
                 users={postprodUsers.items}
                 usersLoading={postprodUsers.loading}
@@ -7340,6 +7378,7 @@ function App() {
                 onRefreshUsers={loadPostprodUsers}
                 onCreateRole={handlePostprodCreateRole}
                 onUpdateRole={handlePostprodUpdateRole}
+                onDeleteRole={handlePostprodDeleteRole}
                 onOpenUser={handlePostprodOpenUser}
                 onRefreshRoles={loadPostprodRoles}
                 onUpdateMe={handlePostprodUpdateMe}
@@ -7395,11 +7434,11 @@ function App() {
                 onScanDetectedRenders={handlePostprodScanDetectedRenders}
                 onRefreshRenderHealth={loadPostprodRenderHealth}
                 onRefreshRenderWorkers={loadPostprodRenderWorkers}
-                taskFocusRequest={postprodTaskFocusRequest}
-                onTaskFocusHandled={handlePostprodTaskFocusHandled}
+                renderFocusRequest={postprodRenderEditorRequest}
+                onRenderFocusHandled={handlePostprodRenderEditorHandled}
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
-                onRequestOpenTasks={handlePostprodOpenTasksFromLink}
+                onRequestOpenRenderEditor={handlePostprodOpenRenderEditor}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
                 renderFormFocusRequest={postprodRenderFormFocusRequest}
@@ -7441,7 +7480,6 @@ function App() {
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}
                 userTabKey={userTabKey}
                 roleTabKey={roleTabKey}
-                taskTabKey={taskTabKey}
                 datasTabKey={datasTabKey}
                 hideStubNotice={true}
                 t={t}
@@ -7535,6 +7573,7 @@ function App() {
                 onRefreshUsers={loadPostprodUsers}
                 onCreateRole={handlePostprodCreateRole}
                 onUpdateRole={handlePostprodUpdateRole}
+                onDeleteRole={handlePostprodDeleteRole}
                 onOpenUser={handlePostprodOpenUser}
                 onRefreshRoles={loadPostprodRoles}
                 onUpdateMe={handlePostprodUpdateMe}
@@ -7590,11 +7629,11 @@ function App() {
                 onScanDetectedRenders={handlePostprodScanDetectedRenders}
                 onRefreshRenderHealth={loadPostprodRenderHealth}
                 onRefreshRenderWorkers={loadPostprodRenderWorkers}
-                taskFocusRequest={postprodTaskFocusRequest}
-                onTaskFocusHandled={handlePostprodTaskFocusHandled}
+                renderFocusRequest={postprodRenderEditorRequest}
+                onRenderFocusHandled={handlePostprodRenderEditorHandled}
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
-                onRequestOpenTasks={handlePostprodOpenTasksFromLink}
+                onRequestOpenRenderEditor={handlePostprodOpenRenderEditor}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
                 renderFormFocusRequest={postprodRenderFormFocusRequest}
@@ -7609,7 +7648,6 @@ function App() {
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}
                 userTabKey={userTabKey}
                 roleTabKey={roleTabKey}
-                taskTabKey={taskTabKey}
                 datasTabKey={datasTabKey}
                 hideStubNotice={true}
                 t={t}
@@ -7703,6 +7741,7 @@ function App() {
                 onRefreshUsers={loadPostprodUsers}
                 onCreateRole={handlePostprodCreateRole}
                 onUpdateRole={handlePostprodUpdateRole}
+                onDeleteRole={handlePostprodDeleteRole}
                 onOpenUser={handlePostprodOpenUser}
                 onRefreshRoles={loadPostprodRoles}
                 onUpdateMe={handlePostprodUpdateMe}
@@ -7758,11 +7797,11 @@ function App() {
                 onScanDetectedRenders={handlePostprodScanDetectedRenders}
                 onRefreshRenderHealth={loadPostprodRenderHealth}
                 onRefreshRenderWorkers={loadPostprodRenderWorkers}
-                taskFocusRequest={postprodTaskFocusRequest}
-                onTaskFocusHandled={handlePostprodTaskFocusHandled}
+                renderFocusRequest={postprodRenderEditorRequest}
+                onRenderFocusHandled={handlePostprodRenderEditorHandled}
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
-                onRequestOpenTasks={handlePostprodOpenTasksFromLink}
+                onRequestOpenRenderEditor={handlePostprodOpenRenderEditor}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
                 renderFormFocusRequest={postprodRenderFormFocusRequest}

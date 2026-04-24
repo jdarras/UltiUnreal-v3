@@ -200,7 +200,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     resolveRenderDetectedRoots,
     buildRenderJobPayload,
     shouldExposeDetectedRender,
-    buildRenderOutputSubdir,
     createRenderOutputSubdir,
     requireRenderLaunchForProject,
     sanitizeRenderComment,

@@ -341,7 +341,7 @@ export default function WelcomeScreen({
         </h1>
 
         <h2 className="welcome-section-title uu-block-title">
-          {t('welcome.section.machine') || 'Identification de la machine'}
+          {t('welcome.section.machine') || 'Identification de la station'}
         </h2>
 
         <div className="welcome-grid">

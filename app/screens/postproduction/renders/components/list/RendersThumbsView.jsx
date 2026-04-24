@@ -9,6 +9,40 @@ function firstNonEmptyString(values = []) {
   return "";
 }
 
+function toPositiveInt(value = 0) {
+  if (Number.isFinite(Number(value)) && Number(value) > 0) return Math.trunc(Number(value));
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  if (/^\#?\d+$/.test(raw)) return Math.trunc(Number(raw.replace(/^#/, "")));
+  return 0;
+}
+
+function firstPositiveInt(values = []) {
+  const list = Array.isArray(values) ? values : [];
+  for (const value of list) {
+    const parsed = toPositiveInt(value);
+    if (parsed > 0) return parsed;
+  }
+  return 0;
+}
+
+function extractFormIdFromTemplateLike(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  const match = /^form[\s\-_#]*(\d+)$/i.exec(raw);
+  if (!match) return 0;
+  return toPositiveInt(match[1]);
+}
+
+function resolveLinkedRenderFormEntry(formId = 0, renderForms = []) {
+  const normalizedFormId = Number.isFinite(Number(formId)) && Number(formId) > 0
+    ? Math.trunc(Number(formId))
+    : 0;
+  if (normalizedFormId <= 0) return null;
+  const list = Array.isArray(renderForms) ? renderForms : [];
+  return list.find((entry) => Number(entry?.id || 0) === normalizedFormId) || null;
+}
+
 function normalizeProjectLookupKey(value = "") {
   return String(value || "").trim().toLowerCase();
 }
@@ -80,15 +114,32 @@ function resolveRenderLinkedTaskMeta(render = null) {
   return { taskId, taskTitle };
 }
 
-function resolveRenderFormMeta(render = null) {
+function resolveRenderFormMeta(render = null, renderForms = []) {
   const item = render && typeof render === "object" ? render : {};
   const payload = item?.payload && typeof item.payload === "object" && !Array.isArray(item.payload)
     ? item.payload
     : {};
-  const formIdRaw = Number(item?.formId || item?.renderFormId || payload?.formId || payload?.renderFormId || 0);
-  const formId = Number.isFinite(formIdRaw) && formIdRaw > 0 ? Math.trunc(formIdRaw) : 0;
+  const formId = firstPositiveInt([
+    item?.formId,
+    item?.renderFormId,
+    item?.formRef,
+    item?.renderFormRef,
+    payload?.formId,
+    payload?.renderFormId,
+    payload?.formRef,
+    payload?.renderFormRef,
+    extractFormIdFromTemplateLike(item?.templateName),
+    extractFormIdFromTemplateLike(payload?.templateName),
+  ]);
+  const formEntry = resolveLinkedRenderFormEntry(formId, renderForms);
   const formName = firstNonEmptyString([
-    item?.formName, item?.renderFormName, payload?.formName, payload?.renderFormName, payload?.formLabel,
+    item?.formName,
+    item?.renderFormName,
+    payload?.formName,
+    payload?.renderFormName,
+    payload?.formLabel,
+    formEntry?.name,
+    formEntry?.label,
   ]);
   return { formId, formName };
 }
@@ -114,6 +165,7 @@ function reviewStatusClassName(reviewStatus = "") {
 function RendersThumbsView({
   t,
   sortedDisplayedRenders = [],
+  renderForms = [],
   buildRenderThumbCandidates = null,
   renderOutputFilename = null,
   renderLinkedTaskValue = null,
@@ -138,6 +190,7 @@ function RendersThumbsView({
           key={`postprod-render-card-${Number(render?.id || 0)}`}
           t={t}
           render={render}
+          renderForms={renderForms}
           buildRenderThumbCandidates={buildRenderThumbCandidates}
           renderOutputFilename={renderOutputFilename}
           renderLinkedTaskValue={renderLinkedTaskValue}
@@ -163,6 +216,7 @@ function RendersThumbsView({
 function RendersThumbCard({
   t,
   render,
+  renderForms = [],
   buildRenderThumbCandidates = null,
   renderOutputFilename = null,
   renderLinkedTaskValue = null,
@@ -191,6 +245,7 @@ function RendersThumbCard({
     typeof onDeleteRender === "function"
     && Number.isFinite(renderId)
     && renderId > 0
+    && String(render?.sourceScope || "").trim().toLowerCase() !== "remote"
   );
   const projectMeta = resolveRenderProjectMeta(render, projectLabelByRef);
   const projectRef = projectMeta.projectRef;
@@ -202,18 +257,13 @@ function RendersThumbCard({
   );
   const hasThumb = Boolean(thumbSrc) && !thumbError;
   const { taskId: linkedTaskId, taskTitle: linkedTaskTitle } = resolveRenderLinkedTaskMeta(render);
-  const { formId, formName } = resolveRenderFormMeta(render);
+  const { formId, formName } = resolveRenderFormMeta(render, renderForms);
   const sequenceLabel = resolveRenderSequenceLabel(render);
   const linkedTaskFallback = typeof renderLinkedTaskValue === "function"
     ? String(renderLinkedTaskValue(render) || "").trim()
     : "";
-  const formPrimaryLabel = String(formName || (formId > 0 ? formId : "-")).trim() || "-";
-  const formIdText = formId > 0 ? String(formId) : "";
-  const showFormIdTag = Boolean(
-    formIdText
-    && formName
-    && String(formName).trim().toLowerCase() !== formIdText.toLowerCase()
-  );
+  const formNameLabel = String(formName || "").trim();
+  const formIdText = formId > 0 ? `#${String(formId)}` : "";
   const canOpenProjectLink = typeof onNavigateToProject === "function" && !!projectRef;
   const canOpenFormLink = typeof onNavigateToRenderForm === "function" && formId > 0;
 
@@ -238,7 +288,7 @@ function RendersThumbCard({
     event?.preventDefault?.();
     event?.stopPropagation?.();
     if (!canOpenFormLink) return;
-    onNavigateToRenderForm?.({ id: formId, name: formName || "" });
+    onNavigateToRenderForm?.({ id: formId, name: formNameLabel || "" });
   };
 
   return (
@@ -299,14 +349,19 @@ function RendersThumbCard({
       </div>
       <div className="uu-render-thumb-meta-row mt-8" onClick={(e) => e.stopPropagation()}>
         <span className="uu-muted">{safeT(t, "postprod.renders.detail.form", "Formulaire")}: </span>
-        <span
-          onClick={canOpenFormLink ? handleOpenForm : undefined}
-          style={canOpenFormLink ? { cursor: "pointer" } : undefined}
-        >
-          {formPrimaryLabel}
-        </span>
-        {showFormIdTag ? (
-          <span style={{ marginLeft: "6px", opacity: 0.4 }}>[{formIdText}]</span>
+        {formNameLabel ? (
+          <span
+            onClick={canOpenFormLink ? handleOpenForm : undefined}
+            style={canOpenFormLink ? { cursor: "pointer" } : undefined}
+          >
+            {formNameLabel}
+          </span>
+        ) : null}
+        {formIdText ? (
+          <span style={{ marginLeft: formNameLabel ? "6px" : "0", opacity: 0.4 }}>{formIdText}</span>
+        ) : null}
+        {!formNameLabel && !formIdText ? (
+          <span className="uu-render-thumb-meta-value">-</span>
         ) : null}
       </div>
       <div className="uu-render-thumb-meta-row mt-8">

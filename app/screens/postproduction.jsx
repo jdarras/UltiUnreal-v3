@@ -5,7 +5,7 @@ import {
   ProfileCard,
   UserManagementCard,
   RoleManagementCard,
-  TasksCard,
+  RenderEditorCard,
   ProjectsCatalogCard,
   ResourcesCatalogCard,
   DatasCard,
@@ -17,7 +17,6 @@ export default function PostProductionScreen({
   tabKey = "Utilisateurs",
   userTabKey = 0,
   roleTabKey = 0,
-  taskTabKey = 0,
   datasTabKey = 0,
   titleOverride = "",
   hideStubNotice = false,
@@ -36,8 +35,7 @@ export default function PostProductionScreen({
   canManageProjectPermissions = false,
   canViewResources = false,
   canCreateTasks = false,
-  canEditProjects = false,
-  canManageLayouts = false,
+  canAssignRenderRequests = false,
   onNotify = null,
   manageableRoles = [],
   users = [],
@@ -102,6 +100,7 @@ export default function PostProductionScreen({
   onRefreshUsers = null,
   onCreateRole = null,
   onUpdateRole = null,
+  onDeleteRole = null,
   onOpenUser = null,
   onRefreshRoles = null,
   onUpdateMe = null,
@@ -119,8 +118,8 @@ export default function PostProductionScreen({
   onTransitionTask = null,
   onReserveRenderId = null,
   onTaskFormOpenChange = null,
-  taskFocusRequest = null,
-  onTaskFocusHandled = null,
+  renderFocusRequest = null,
+  onRenderFocusHandled = null,
   editUserIdRequest = null,
   onEditUserIdHandled = null,
   onOpenActivityTarget = null,
@@ -128,7 +127,7 @@ export default function PostProductionScreen({
   renderFormFocusRequest = null,
   onRenderFormFocusHandled = null,
   onNavigateToRenderForm = null,
-  onRequestOpenTasks = null,
+  onRequestOpenRenderEditor = null,
   onRefreshProjects = null,
   onUserEditorModeChange = null,
   onLoadProjectRenderTemplates = null,
@@ -159,6 +158,14 @@ export default function PostProductionScreen({
   renderOutputDir = "",
   renderExportDestinationOptions = [],
 }) {
+  const normalizedRenderFocusRequest = (
+    renderFocusRequest && typeof renderFocusRequest === "object"
+      ? renderFocusRequest
+      : null
+  );
+  const handleRenderFocusHandled = onRenderFocusHandled;
+  const handleRequestOpenRenderEditor = onRequestOpenRenderEditor;
+
   const title = String(titleOverride || "").trim() || resolveTitle(tabKey, t);
   const intro = safeT(t, "postprod.stub.intro", "Workspace under construction (v2026.3).");
   const description = safeT(
@@ -243,10 +250,9 @@ export default function PostProductionScreen({
         />
       ) : null}
 
-      {tabKey === "Taches" ? (
-        <TasksCard
+      {tabKey === "RendusCreate" ? (
+        <RenderEditorCard
           t={t}
-          tabKey={taskTabKey}
           tasks={tasks}
           renders={renders}
           projectOptions={taskProjectOptions}
@@ -257,13 +263,16 @@ export default function PostProductionScreen({
           renderFormsError={renderFormsError}
           canManageRenderTemplates={canManageRenderTemplates}
           canCreateTasks={canCreateTasks}
+          canAssignRenderRequests={canAssignRenderRequests}
+          currentUser={user}
+          users={users}
           renderWorkers={renderWorkers}
           renderWorkersLoading={renderWorkersLoading}
           renderWorkersError={renderWorkersError}
           renderOutputDir={renderOutputDir}
           renderExportDestinationOptions={renderExportDestinationOptions}
-          taskFocusRequest={taskFocusRequest}
-          onTaskFocusHandled={onTaskFocusHandled}
+          renderFocusRequest={normalizedRenderFocusRequest}
+          onRenderFocusHandled={handleRenderFocusHandled}
           tasksLoading={tasksLoading || taskCatalogLoading}
           tasksError={tasksError}
           onCreateTask={onCreateTask}
@@ -287,7 +296,7 @@ export default function PostProductionScreen({
           tasks={tasks}
           loading={projectsLoading}
           error={projectsError}
-          onOpenLinkedTasks={onRequestOpenTasks}
+          onOpenLinkedTasks={handleRequestOpenRenderEditor}
           onLoadProjectRenderTemplates={onLoadProjectRenderTemplates}
           onSyncProject={onSyncProject}
           onLoadProjectDataTables={onLoadProjectDataTables}
@@ -303,7 +312,7 @@ export default function PostProductionScreen({
           sync={resourcesSync}
           loading={resourcesLoading}
           error={resourcesError}
-          onOpenLinkedTasks={onRequestOpenTasks}
+          onOpenLinkedTasks={handleRequestOpenRenderEditor}
           onRefreshResources={onRefreshResources}
           onReindexResources={onReindexResources}
           onLoadResourceDetail={onLoadResourceDetail}
@@ -383,7 +392,7 @@ export default function PostProductionScreen({
           onDeleteTask={canCreateTasks ? onDeleteTask : null}
           onDeleteRender={onDeleteRender}
           onGenerateProxy={onGenerateProxy}
-          onRequestOpenTasks={onRequestOpenTasks}
+          onRequestOpenRenderEditor={handleRequestOpenRenderEditor}
           onNavigateToProject={onNavigateToProject}
           onNavigateToRenderForm={onNavigateToRenderForm}
           renderExportDestinationOptions={renderExportDestinationOptions}
@@ -430,6 +439,7 @@ export default function PostProductionScreen({
           users={users}
           onCreateRole={onCreateRole}
           onUpdateRole={onUpdateRole}
+          onDeleteRole={onDeleteRole}
           onOpenUser={onOpenUser}
           onRefreshRoles={onRefreshRoles}
         />

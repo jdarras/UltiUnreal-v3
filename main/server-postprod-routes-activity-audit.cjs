@@ -83,7 +83,7 @@ async function handlePostprodActivityAndAuditMaintenanceRoutes({
     try {
       const result = stmts.deleteAllAuditEntries.run();
       deleted = Number.isFinite(Number(result?.changes)) ? Math.max(0, Math.trunc(Number(result.changes))) : beforeCount;
-    } catch (err) {
+    } catch {
       sendJSON(res, 500, { ok: false, error: 'purge_failed' });
       return true;
     }

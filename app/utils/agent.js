@@ -6,31 +6,6 @@ import { buildColorPropertyBody } from './colorutils.mjs';
 
 function ensureLeadingSlash(p) { return p.startsWith('/') ? p : '/' + p; }
 
-function normalizeHttpBase(raw, fallbackPort = 0, protocolHint = 'http:') {
-  const input = String(raw || '').trim();
-  if (!input) return '';
-  const withProto = /^[a-z][a-z0-9+.-]*:\/\//i.test(input)
-    ? input
-    : `${protocolHint}//${input}`;
-  try {
-    const u = new URL(withProto);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
-    if (!u.port) {
-      const n = Number(fallbackPort);
-      if (Number.isFinite(n) && n > 0) {
-        u.port = String(Math.trunc(n));
-      }
-    }
-    u.search = '';
-    u.hash = '';
-    u.pathname = String(u.pathname || '').replace(/\/+$/g, '');
-    const out = u.toString();
-    return out.endsWith('/') ? out.slice(0, -1) : out;
-  } catch {
-    return '';
-  }
-}
-
 function getBase() {
   const id = readIdentity();
   const mode = String(id?.mode || '').trim().toLowerCase();
@@ -1073,6 +1048,26 @@ export async function postprodUpdateRole(token = '', roleKey = '', payload = {},
       Authorization: `Bearer ${authToken}`,
     },
     body,
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true };
+}
+
+export async function postprodDeleteRole(token = '', roleKey = '', timeoutMs = 8000) {
+  const authToken = assertPostprodToken(token);
+  const key = String(roleKey || '').trim();
+  if (!key) {
+    const err = new Error('invalid_role_key');
+    err.code = 'invalid_role_key';
+    err.status = 400;
+    throw err;
+  }
+  const res = await httpRequest(`/agent/postprod/roles/${encodeURIComponent(key)}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+    },
     timeoutMs,
   });
   if (!res.ok) throw toRequestError(res);

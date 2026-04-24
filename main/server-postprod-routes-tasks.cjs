@@ -27,7 +27,6 @@ async function handlePostprodTaskRoutes(options = {}) {
     normalizeTaskAutoRenderConfig,
     normalizeTaskRefsInput,
     ensureProjectCanAutoRender,
-    normalizeRole,
     TASK_STATUSES,
     nowIso,
     computeTaskDeadlineIso,
@@ -80,6 +79,11 @@ async function handlePostprodTaskRoutes(options = {}) {
       const assigneeUserId = assigneeUserIdRaw == null || assigneeUserIdRaw === ''
         ? null
         : Number(assigneeUserIdRaw);
+      const actorUserIdRaw = Number(auth.session.user_id);
+      const actorUserId = Number.isFinite(actorUserIdRaw) && actorUserIdRaw > 0
+        ? Math.trunc(actorUserIdRaw)
+        : null;
+      const canAssignRenderRequests = actorPerms.canAssignRenderRequests === true;
       const hasDueAtInput =
         Object.prototype.hasOwnProperty.call(body || {}, 'dueAt')
         && String(body?.dueAt || '').trim() !== '';
@@ -164,22 +168,25 @@ async function handlePostprodTaskRoutes(options = {}) {
           return true;
         }
       }
-      if (assigneeUserId != null) {
-        if (!Number.isFinite(assigneeUserId) || assigneeUserId <= 0) {
+      const effectiveAssigneeUserId = canAssignRenderRequests
+        ? assigneeUserId
+        : actorUserId;
+      if (!canAssignRenderRequests && effectiveAssigneeUserId == null) {
+        sendJSON(res, 400, { ok: false, error: 'invalid_assignee' });
+        return true;
+      }
+      if (effectiveAssigneeUserId != null) {
+        if (!Number.isFinite(effectiveAssigneeUserId) || effectiveAssigneeUserId <= 0) {
           sendJSON(res, 400, { ok: false, error: 'invalid_assignee' });
           return true;
         }
-        const assigneeUser = stmts.findUserById.get(assigneeUserId);
+        const assigneeUser = stmts.findUserById.get(effectiveAssigneeUserId);
         if (!assigneeUser || Number(assigneeUser.is_active) !== 1) {
           sendJSON(res, 400, { ok: false, error: 'invalid_assignee' });
           return true;
         }
-        if (normalizeRole(assigneeUser.role, '') !== 'Graphiste') {
-          sendJSON(res, 409, { ok: false, error: 'assignee_must_be_graphiste' });
-          return true;
-        }
       }
-      if (status === 'En cours' && assigneeUserId == null) {
+      if (status === 'En cours' && effectiveAssigneeUserId == null) {
         sendJSON(res, 409, { ok: false, error: 'assignee_required_for_in_progress' });
         return true;
       }
@@ -209,7 +216,7 @@ async function handlePostprodTaskRoutes(options = {}) {
         expectedRenderCount,
         expectedRenderNamesJson,
         normalizedAutoRenderConfig.configJson,
-        assigneeUserId,
+        effectiveAssigneeUserId,
         projectRefsJson,
         resourceRefsJson,
         Number(auth.session.user_id),
@@ -246,7 +253,7 @@ async function handlePostprodTaskRoutes(options = {}) {
           expectedRenderCount,
           expectedRenderNames,
           autoRenderConfig: normalizedAutoRenderConfig.config,
-          assigneeUserId: assigneeUserId == null ? null : Number(assigneeUserId),
+          assigneeUserId: effectiveAssigneeUserId == null ? null : Number(effectiveAssigneeUserId),
           projectRefs: effectiveProjectRefs,
           resourceRefs,
           dueAt,
@@ -312,6 +319,11 @@ async function handlePostprodTaskRoutes(options = {}) {
     const body = await parseBody(req);
     const currentPayload = buildTaskPayloadWithRelations(currentTask);
     const hasField = (key) => Object.prototype.hasOwnProperty.call(body || {}, key);
+    const canAssignRenderRequests = actorPerms.canAssignRenderRequests === true;
+    const actorUserIdRaw = Number(auth.session.user_id);
+    const actorUserId = Number.isFinite(actorUserIdRaw) && actorUserIdRaw > 0
+      ? Math.trunc(actorUserIdRaw)
+      : null;
 
     const title = hasField('title')
       ? sanitizeTaskTitle(body?.title, '')
@@ -464,22 +476,27 @@ async function handlePostprodTaskRoutes(options = {}) {
         return true;
       }
     }
-    if (assigneeUserId != null) {
-      if (!Number.isFinite(assigneeUserId) || assigneeUserId <= 0) {
+    const effectiveAssigneeUserId = (() => {
+      if (canAssignRenderRequests) return assigneeUserId;
+      if (hasField('assigneeUserId')) return actorUserId;
+      return assigneeUserId;
+    })();
+    if (!canAssignRenderRequests && hasField('assigneeUserId') && effectiveAssigneeUserId == null) {
+      sendJSON(res, 400, { ok: false, error: 'invalid_assignee' });
+      return true;
+    }
+    if (effectiveAssigneeUserId != null) {
+      if (!Number.isFinite(effectiveAssigneeUserId) || effectiveAssigneeUserId <= 0) {
         sendJSON(res, 400, { ok: false, error: 'invalid_assignee' });
         return true;
       }
-      const assigneeUser = stmts.findUserById.get(assigneeUserId);
+      const assigneeUser = stmts.findUserById.get(effectiveAssigneeUserId);
       if (!assigneeUser || Number(assigneeUser.is_active) !== 1) {
         sendJSON(res, 400, { ok: false, error: 'invalid_assignee' });
         return true;
       }
-      if (normalizeRole(assigneeUser.role, '') !== 'Graphiste') {
-        sendJSON(res, 409, { ok: false, error: 'assignee_must_be_graphiste' });
-        return true;
-      }
     }
-    if (normalizeTaskStatus(currentTask?.status, 'A faire') === 'En cours' && assigneeUserId == null) {
+    if (normalizeTaskStatus(currentTask?.status, 'A faire') === 'En cours' && effectiveAssigneeUserId == null) {
       sendJSON(res, 409, { ok: false, error: 'assignee_required_for_in_progress' });
       return true;
     }
@@ -492,7 +509,7 @@ async function handlePostprodTaskRoutes(options = {}) {
       expectedRenderCount,
       expectedRenderNamesJson,
       normalizedAutoRenderConfig.configJson,
-      assigneeUserId,
+      effectiveAssigneeUserId,
       projectRefsJson,
       resourceRefsJson,
       dueAt,
@@ -513,7 +530,7 @@ async function handlePostprodTaskRoutes(options = {}) {
         expectedRenderCount,
         expectedRenderNames,
         autoRenderConfig: normalizedAutoRenderConfig.config,
-        assigneeUserId: assigneeUserId == null ? null : Number(assigneeUserId),
+        assigneeUserId: effectiveAssigneeUserId == null ? null : Number(effectiveAssigneeUserId),
         projectRefs: effectiveProjectRefs,
         resourceRefs,
         dueAt,
@@ -565,10 +582,6 @@ async function handlePostprodTaskRoutes(options = {}) {
       const assigneeUser = stmts.findUserById.get(assigneeUserId);
       if (!assigneeUser || Number(assigneeUser.is_active) !== 1) {
         sendJSON(res, 400, { ok: false, error: 'invalid_assignee' });
-        return true;
-      }
-      if (normalizeRole(assigneeUser.role, '') !== 'Graphiste') {
-        sendJSON(res, 409, { ok: false, error: 'assignee_must_be_graphiste' });
         return true;
       }
     }

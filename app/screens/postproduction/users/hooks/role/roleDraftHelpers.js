@@ -16,6 +16,7 @@ export const DEFAULT_ROLE_DRAFT = Object.freeze({
   canLaunchRenders: true,
   canViewResources: true,
   canCreateTasks: true,
+  canAssignRenderRequests: false,
   canEditProjects: true,
   canManageLayouts: true,
   manageableRoles: [],
@@ -49,6 +50,7 @@ export function buildRoleDraftFromRole(role) {
     canLaunchRenders: role?.canLaunchRenders !== false,
     canViewResources: role?.canViewResources === true,
     canCreateTasks: role?.canCreateTasks === true,
+    canAssignRenderRequests: role?.canAssignRenderRequests === true,
     canEditProjects: role?.canEditProjects === true,
     canManageLayouts: role?.canManageLayouts === true,
     manageableRoles: Array.isArray(role?.manageableRoles) ? role.manageableRoles : [],
@@ -74,6 +76,7 @@ export function buildRolePayloadFromDraft(roleDraft = {}) {
     canLaunchRenders: roleDraft?.canLaunchRenders !== false,
     canViewResources: roleDraft?.canViewResources === true,
     canCreateTasks: roleDraft?.canCreateTasks === true,
+    canAssignRenderRequests: roleDraft?.canAssignRenderRequests === true,
     canEditProjects: roleDraft?.canEditProjects === true,
     canManageLayouts: roleDraft?.canManageLayouts === true,
     manageableRoles: canManageUsers

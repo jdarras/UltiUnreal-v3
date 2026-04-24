@@ -1,0 +1,181 @@
+import MultiSelectDropdown from "../../../../../components/MultiSelectDropdown";
+import { safeT } from "../../../shared/helpers";
+
+const DESTINATION_DROPDOWN_STYLE = { flex: "none", minWidth: 0, width: "100%" };
+
+function normalizeExportDestinationOptions(options = []) {
+  const source = Array.isArray(options) ? options : [];
+  const out = [];
+  const seen = new Set();
+  for (const entry of source) {
+    const rawValue = entry?.value ?? entry?.id ?? "";
+    const value = String(rawValue || "").trim().toLowerCase();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    const label = String(entry?.label || entry?.name || rawValue || "").trim();
+    out.push({
+      value,
+      label: label || value,
+    });
+  }
+  return out;
+}
+
+function normalizeExportDestinationValues(values = []) {
+  const source = Array.isArray(values) ? values : [values];
+  const out = [];
+  const seen = new Set();
+  for (const rawValue of source) {
+    const value = String(rawValue || "").trim().toLowerCase();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
+
+function TaskEditorFooter({
+  t,
+  renderOutputDir = "",
+  autoRenderProjectRef = "",
+  reservedRenderId = 0,
+  autoExpectedRenderName = "",
+  autoOutputType = null,
+  formError = "",
+  submitDisabled = false,
+  submitLabel = "",
+  tasksLoading = false,
+  exportDestinationOptions = [],
+  selectedExportDestinationIds = [],
+  onChangeExportDestinationIds = null,
+  onSubmit = null,
+  onCancel = null,
+}) {
+  const baseDir = String(renderOutputDir || "").trim();
+  const projectRef = String(autoRenderProjectRef || "").trim();
+  const reservedIdNum = Number(reservedRenderId || 0);
+  const hasReservedId = Number.isFinite(reservedIdNum) && reservedIdNum > 0;
+  const normalizedDestinationOptions = normalizeExportDestinationOptions(exportDestinationOptions);
+  const normalizedDestinationValues = normalizeExportDestinationValues(selectedExportDestinationIds);
+  const effectiveSubmitLabel = String(submitLabel || "").trim()
+    || safeT(t, "postprod.tasks.form.submit.createRender", "Créer le rendu");
+
+  let outputTypeLabel = null;
+  if (autoOutputType === "clip") {
+    outputTypeLabel = safeT(t, "postprod.tasks.form.outputType.clip", "Clip vidéo");
+  } else if (autoOutputType === "image_sequence") {
+    outputTypeLabel = safeT(t, "postprod.tasks.form.outputType.imageSequence", "Suite d'images");
+  }
+
+  return (
+    <>
+      <div className="uu-card mt-12">
+        <h4 className="uu-h3 uu-block-title" style={{ margin: "0 0 8px 0" }}>
+          {safeT(t, "postprod.tasks.form.output.title", "Output")}
+        </h4>
+        <div className="uu-grid-2">
+          <div className="uu-row uu-row-nowrap">
+            <label className="uu-label" style={{ width: 160, flex: "0 0 160px" }}>
+              {safeT(t, "postprod.tasks.form.autoRenderOutputDir", "Dossier de sortie")}
+            </label>
+            <div className="uu-value" style={{ fontWeight: 600 }}>
+              {baseDir ? (
+                <>
+                  <span className="uu-muted">{baseDir}</span>
+                  {projectRef ? (
+                    <span className="uu-muted" style={{ opacity: 0.5 }}>
+                      {`\\${hasReservedId ? Math.trunc(reservedIdNum) : "{id}"}_${projectRef}`}
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                <span className="uu-muted">{safeT(t, "postprod.tasks.form.autoRenderOutputDir.missing", "Non configure")}</span>
+              )}
+            </div>
+          </div>
+          <div className="uu-row uu-row-nowrap">
+            <label className="uu-label" style={{ width: 160, flex: "0 0 160px" }}>
+              {safeT(t, "postprod.tasks.form.expectedRenderNameSingle", "Nom du rendu attendu")}
+            </label>
+            <div className="uu-muted uu-value" style={{ fontWeight: 600 }}>
+              {autoExpectedRenderName || "-"}
+            </div>
+          </div>
+          {outputTypeLabel ? (
+            <div className="uu-row uu-row-nowrap">
+              <label className="uu-label" style={{ width: 160, flex: "0 0 160px" }}>
+                {safeT(t, "postprod.tasks.form.outputType.label", "Type de média")}
+              </label>
+              <div className="uu-muted uu-value" style={{ fontWeight: 600 }}>
+                {outputTypeLabel}
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="uu-grid-2 mt-12">
+          <div className="uu-grid-field">
+            <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
+              <label className="uu-label" style={{ width: 160, marginBottom: 0 }}>
+                {safeT(t, "postprod.tasks.form.exportDestinations", "Destination")}
+              </label>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <MultiSelectDropdown
+                  options={normalizedDestinationOptions}
+                  values={normalizedDestinationValues}
+                  onChange={(nextValues) => {
+                    if (tasksLoading) return;
+                    onChangeExportDestinationIds?.(normalizeExportDestinationValues(nextValues));
+                  }}
+                  placeholder={safeT(
+                    t,
+                    "postprod.tasks.form.exportDestinations.placeholder",
+                    "Sélectionner une ou plusieurs destinations"
+                  )}
+                  noneLabel={safeT(t, "postprod.tasks.form.exportDestinations.none", "Aucune destination")}
+                  style={DESTINATION_DROPDOWN_STYLE}
+                />
+              </div>
+            </div>
+            {normalizedDestinationOptions.length <= 0 ? (
+              <div className="uu-muted mt-8">
+                {safeT(
+                  t,
+                  "postprod.tasks.form.exportDestinations.empty",
+                  "Aucune destination configurée. Configurez-les dans la page Configuration."
+                )}
+              </div>
+            ) : null}
+          </div>
+          <div />
+        </div>
+      </div>
+      {formError ? (
+        <div className="uu-msg error mt-12">{formError}</div>
+      ) : null}
+      <div className="uu-row uu-gap-4 mt-12">
+        <button
+          className="uu-btn"
+          type="button"
+          disabled={submitDisabled}
+          onClick={() => {
+            if (typeof onSubmit === "function") {
+              void onSubmit();
+            }
+          }}
+        >
+          {effectiveSubmitLabel}
+        </button>
+        <button
+          className="uu-btn-ghost"
+          type="button"
+          disabled={tasksLoading}
+          onClick={() => onCancel?.()}
+        >
+          {safeT(t, "common.cancel", "Annuler")}
+        </button>
+      </div>
+    </>
+  );
+}
+
+export { TaskEditorFooter };

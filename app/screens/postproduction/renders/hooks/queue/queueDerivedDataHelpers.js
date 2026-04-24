@@ -32,15 +32,22 @@ function getQueueEntryLaunchMeta(queueEntry = null) {
 function queueEntryWorkerLabel(queueEntry = null, queueWorkerLabelByKey = new Map(), t) {
   const workerName = String(queueEntry?.workerName || "").trim();
   const workerKey = String(queueEntry?.workerKey || "").trim();
-  if (workerName && workerKey && workerName !== workerKey) {
-    return `${workerName} (${workerKey})`;
-  }
+
   if (workerName) return workerName;
-  if (workerKey) return workerKey;
+
+  if (workerKey) {
+    const mappedWorkerLabel = String(queueWorkerLabelByKey.get(workerKey) || "").trim();
+    if (mappedWorkerLabel && mappedWorkerLabel !== workerKey) {
+      return mappedWorkerLabel;
+    }
+  }
 
   const fallbackTargetWorker = resolveAutoRenderTargetWorkerKey(queueEntry?.task);
   if (fallbackTargetWorker) {
-    return String(queueWorkerLabelByKey.get(fallbackTargetWorker) || fallbackTargetWorker).trim();
+    const fallbackWorkerLabel = String(queueWorkerLabelByKey.get(fallbackTargetWorker) || "").trim();
+    if (fallbackWorkerLabel && fallbackWorkerLabel !== fallbackTargetWorker) {
+      return fallbackWorkerLabel;
+    }
   }
   return safeT(t, "postprod.renders.queue.worker.pending", "Auto (dispatcher)");
 }

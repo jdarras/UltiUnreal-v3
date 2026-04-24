@@ -444,7 +444,7 @@ function RenderDetailInfoPanel({
   projectLabelByRef = new Map(),
   onNavigateToProject = null,
   onNavigateToRenderForm = null,
-  onRequestOpenTasks = null,
+  onRequestOpenRenderEditor = null,
   tasks = [],
   renderForms = [],
   renderExportDestinationOptions = [],
@@ -472,7 +472,7 @@ function RenderDetailInfoPanel({
   const renderPresetLabel = resolveRenderPresetLabel(render, linkedTask);
   const stationLabel = resolveStationLabel(render);
   const canOpenProjectLink = typeof onNavigateToProject === "function" && !!projectMeta.projectRef;
-  const canOpenTaskLink = typeof onRequestOpenTasks === "function" && taskMeta.taskId > 0;
+  const canOpenTaskLink = typeof onRequestOpenRenderEditor === "function" && taskMeta.taskId > 0;
   const canOpenFormLink = typeof onNavigateToRenderForm === "function" && formMeta.formId > 0;
   const projectIdTag = formatIdTag(projectMeta.projectRef, 4);
   const taskIdTag = taskMeta.taskId > 0 ? formatIdTag(taskMeta.taskId, 4) : "";
@@ -503,8 +503,8 @@ function RenderDetailInfoPanel({
     event?.preventDefault?.();
     event?.stopPropagation?.();
     if (!canOpenTaskLink) return;
-    onRequestOpenTasks?.({
-      type: "task",
+    onRequestOpenRenderEditor?.({
+      type: "render",
       action: "edit",
       ref: String(taskMeta.taskId),
       task: null,
@@ -691,7 +691,7 @@ function RenderDetailInfoPanel({
           <span className="uu-render-detail-info-value-text">{renderPresetLabel}</span>
         </DetailInfoRow>
 
-        <DetailInfoRow label={safeT(t, "postprod.renders.table.worker", "Machine de rendu")}>
+        <DetailInfoRow label={safeT(t, "postprod.renders.table.worker", "Station de rendu")}>
           <span className="uu-render-detail-info-value-text">{stationLabel}</span>
         </DetailInfoRow>
 

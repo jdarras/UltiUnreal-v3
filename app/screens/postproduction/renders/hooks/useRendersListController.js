@@ -96,7 +96,10 @@ export function useRendersListController({
 } = {}) {
   const renderJobs = useMemo(() => {
     const list = Array.isArray(renders) ? renders : [];
-    return list.filter((render) => String(render?.status || "").trim().toLowerCase() === "done");
+    return list.filter((render) => {
+      const statusKey = String(render?.status || "").trim().toLowerCase();
+      return statusKey === "done";
+    });
   }, [renders]);
 
   const projectFilterOptions = useMemo(

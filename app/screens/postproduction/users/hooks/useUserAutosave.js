@@ -6,7 +6,7 @@ function useUserAutosave({
   editorMode = "list",
   editingUserId = 0,
   usersLoading = false,
-  editorInputFocused = false,
+  editorInputFocused: _editorInputFocused = false,
   autosavePulse = 0,
   onUpdateUser = null,
   buildUserPayloadFromDraft,

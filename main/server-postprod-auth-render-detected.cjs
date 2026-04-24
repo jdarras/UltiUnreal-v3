@@ -46,6 +46,52 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
   let renderDetectedAutoScanTimer = null;
   let renderDetectedAutoScanBusy = false;
 
+  function parsePayloadJsonSafe(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+    const raw = String(value || '').trim();
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function normalizeDetectedOutputPathKey(value = '') {
+    return String(value || '')
+      .trim()
+      .replace(/\\/g, '/')
+      .replace(/\/+$/g, '')
+      .toLowerCase();
+  }
+
+  function buildKnownRenderOutputPathKeySet() {
+    const out = new Set();
+    const rows = Array.isArray(stmts?.listRenderJobs?.all?.())
+      ? stmts.listRenderJobs.all()
+      : [];
+    for (const row of rows) {
+      const outputPath = sanitizeRenderOutputPath(
+        row?.output_path
+        || row?.outputPath
+        || ''
+      );
+      const payload = parsePayloadJsonSafe(row?.payload_json || row?.payloadJson || row?.payload);
+      const payloadOutputPath = sanitizeRenderOutputPath(
+        payload?.outputPath
+        || payload?.output_path
+        || payload?.filePath
+        || ''
+      );
+      const directKey = normalizeDetectedOutputPathKey(outputPath);
+      const payloadKey = normalizeDetectedOutputPathKey(payloadOutputPath);
+      if (directKey) out.add(directKey);
+      if (payloadKey) out.add(payloadKey);
+    }
+    return out;
+  }
+
   function isRenderDetectedAutoScanBusy() {
     return renderDetectedAutoScanBusy === true;
   }
@@ -218,6 +264,7 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       return missingUserSummary;
     }
     const candidates = listRenderDetectedFileCandidates(detectedRoots);
+    const knownOutputPathKeys = buildKnownRenderOutputPathKeySet();
     const taskMatchCatalog = buildExpectedRenderTaskMatchCatalog(stmts);
     const taskDetectedProgressById = new Map();
     const tx = db.transaction((payload) => {
@@ -289,6 +336,11 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       const templateName = resolveDetectedRenderTemplateName(candidate);
       const filePath = sanitizeRenderOutputPath(candidate.filePath);
       const sourceDir = sanitizeRenderOutputPath(candidate.sourceDir);
+      const outputPathKey = normalizeDetectedOutputPathKey(filePath);
+      if (outputPathKey && knownOutputPathKeys.has(outputPathKey)) {
+        duplicates += 1;
+        continue;
+      }
       const fileName = String(candidate.fileName || '').trim().slice(0, 260);
       const fileExt = String(candidate.fileExt || '').trim().slice(0, 32).toLowerCase();
       const fileSize = Math.max(0, Math.trunc(Number(candidate.fileSize) || 0));
@@ -362,6 +414,9 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
         if (result?.duplicate) {
           duplicates += 1;
         } else {
+          if (outputPathKey) {
+            knownOutputPathKeys.add(outputPathKey);
+          }
           imported += 1;
           if (hasMatchedTask) {
             matched += 1;

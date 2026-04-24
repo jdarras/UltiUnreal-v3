@@ -7,6 +7,7 @@ import { RendersThumbsView } from "./list/RendersThumbsView";
 function RendersListPanel({
   t,
   sortedDisplayedRenders = [],
+  renderForms = [],
   title = "",
   emptyLabel = "",
   viewMode = "thumbs",
@@ -25,7 +26,7 @@ function RendersListPanel({
   onApplyReviewStatus = null,
   onOpenRenderDetail = null,
   onDeleteRender = null,
-  onRequestOpenTasks = null,
+  onRequestOpenRenderEditor = null,
   onNavigateToProject = null,
   onNavigateToRenderForm = null,
   projectLabelByRef = new Map(),
@@ -91,7 +92,7 @@ function RendersListPanel({
       <div className="uu-card mt-12">
         <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
           <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
-            {String(title || "").trim() || safeT(t, "postprod.renders.list.title", "Liste des rendus")}
+            {String(title || "").trim() || safeT(t, "postprod.renders.list.title", "Rendus à valider")}
           </h4>
         </div>
         {rendersLoading && showInitialLoading ? (
@@ -105,6 +106,7 @@ function RendersListPanel({
           <RendersListTableView
             t={t}
             sortedDisplayedRenders={sortedDisplayedRenders}
+            renderForms={renderForms}
             listSortIndicator={listSortIndicator}
             toggleListSort={toggleListSort}
             buildRenderThumbCandidates={buildRenderThumbCandidates}
@@ -120,12 +122,14 @@ function RendersListPanel({
             onApplyReviewStatus={onApplyReviewStatus}
             onOpenRenderDetail={onOpenRenderDetail}
             onDeleteRender={requestDeleteRender}
-            onRequestOpenTasks={onRequestOpenTasks}
+            onRequestOpenRenderEditor={onRequestOpenRenderEditor}
+            onNavigateToRenderForm={onNavigateToRenderForm}
           />
         ) : (
           <RendersThumbsView
             t={t}
             sortedDisplayedRenders={sortedDisplayedRenders}
+            renderForms={renderForms}
             buildRenderThumbCandidates={buildRenderThumbCandidates}
             renderOutputFilename={renderOutputFilename}
             renderLinkedTaskValue={renderLinkedTaskValue}
@@ -139,7 +143,7 @@ function RendersListPanel({
             onApplyReviewStatus={onApplyReviewStatus}
             onOpenRenderDetail={onOpenRenderDetail}
             onDeleteRender={requestDeleteRender}
-            onRequestOpenTasks={onRequestOpenTasks}
+            onRequestOpenRenderEditor={onRequestOpenRenderEditor}
             onNavigateToProject={onNavigateToProject}
             onNavigateToRenderForm={onNavigateToRenderForm}
             projectLabelByRef={projectLabelByRef}

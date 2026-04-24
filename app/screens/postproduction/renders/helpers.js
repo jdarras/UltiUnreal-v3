@@ -11,18 +11,17 @@ function isRenderQueuedWithError(render) {
 
 function renderReviewStatusKey(render) {
   const explicit = String(render?.reviewStatus || "").trim().toLowerCase();
-  if (explicit === "to_validate" || explicit === "validated") {
-    return explicit;
-  }
+  if (explicit === "validated") return "validated";
   if (explicit === "to_modify" || explicit === "canceled" || explicit === "rejected") {
     return "rejected";
   }
-  const status = String(render?.status || "").trim();
-  if (status === "Canceled") return "rejected";
-  if (status === "Failed") return "rejected";
+  const status = String(render?.status || "").trim().toLowerCase();
+  if (status === "canceled" || status === "cancelled") return "rejected";
+  if (status === "failed") return "rejected";
   if (isRenderQueuedWithError(render)) return "rejected";
+  if (explicit === "to_validate") return "to_validate";
   const validatedByUserId = Number(render?.validatedByUserId || 0);
-  if (status === "Done" && Number.isFinite(validatedByUserId) && validatedByUserId > 0) {
+  if (status === "done" && Number.isFinite(validatedByUserId) && validatedByUserId > 0) {
     return "validated";
   }
   return "to_validate";

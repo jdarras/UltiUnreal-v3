@@ -25,7 +25,6 @@ async function handlePostprodRenderDispatchRoutes({
   resolveRequestedRenderDispatchConfig,
   buildRenderDispatchPolicyStorageJson,
   audit,
-  parseBooleanFlag,
   coercePositiveInt,
   MAX_RENDER_DISPATCH_MAX_JOBS,
   DEFAULT_RENDER_DISPATCH_MAX_JOBS,

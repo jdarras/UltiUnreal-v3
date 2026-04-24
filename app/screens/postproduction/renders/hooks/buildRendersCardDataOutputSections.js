@@ -1,6 +1,6 @@
 function buildPreferencesOutput({
   preferences = {},
-  toolbar = {},
+  toolbar: _toolbar = {},
   list = {},
 } = {}) {
   return {

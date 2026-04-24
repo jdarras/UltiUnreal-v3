@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { buildTaskAutoRenderStateByTaskId } from "../../../tasks/helpers";
+import { buildTaskAutoRenderStateByTaskId } from "../../../renderEditor/helpers";
 import { buildRenderQueueTasks } from "./buildRenderQueueTasks";
 import { filterRenderQueueTasks } from "./filterRenderQueueTasks";
 import { sortRenderQueueTasks } from "./sortRenderQueueTasks";

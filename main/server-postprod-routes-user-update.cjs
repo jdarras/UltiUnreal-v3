@@ -25,7 +25,6 @@ async function handlePostprodUserUpdateRoutes({
   DEFAULT_USER_LANGUAGE,
   normalizeNotificationPreferences,
   MIN_PASSWORD_LEN,
-  MAX_USERNAME_LEN,
   isValidEmail,
   isValidAvatarPath,
   parseIsoDateOrNull,

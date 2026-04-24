@@ -1977,7 +1977,7 @@ export default function SynchronisationScreen() {
               <>
                 {syncHosts.length > 0 && (
                   <div className="uu-section">
-                    <h3 className="uu-h3 uu-block-title">
+                    <h3 className="uu-h3 uu-block-title" style={{ marginBottom: "12px" }}>
                       {t('sync.server.section.syncHosts')}
                     </h3>
                     <div className="uu-list">
@@ -1988,7 +1988,7 @@ export default function SynchronisationScreen() {
 
                 {localProjectHosts.length > 0 && (
                   <div className="uu-section">
-                    <h3 className="uu-h3 uu-block-title">
+                    <h3 className="uu-h3 uu-block-title" style={{ marginBottom: "12px" }}>
                       {isRenderMode
                         ? 'Stations non configurees pour la synchronisation'
                         : t('sync.server.section.localProject')}
@@ -2009,7 +2009,7 @@ export default function SynchronisationScreen() {
 
                 {excludedHosts.length > 0 && (
                   <div className="uu-section">
-                    <h3 className="uu-h3 uu-block-title">
+                    <h3 className="uu-h3 uu-block-title" style={{ marginBottom: "12px" }}>
                       {isRenderMode
                         ? 'Stations exclues de la synchronisation'
                         : t('sync.server.section.excluded')}

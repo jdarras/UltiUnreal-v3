@@ -46,7 +46,7 @@ export function useRenderFormMetaController({
     setMetaNote(String(selectedForm?.note || ""));
     setMetaError("");
     setMetaInfo("");
-  }, [selectedForm?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedForm?.id]);
 
   const {
     createRenderForm,

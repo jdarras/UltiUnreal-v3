@@ -205,6 +205,27 @@ function createTaskRenderStateHelpers(options = {}) {
       };
     }
 
+    if (action === 'reject') {
+      if (!canReview) {
+        return { ok: false, error: 'forbidden_render_review_role' };
+      }
+      if (fromStatus !== 'Done') {
+        return { ok: false, error: 'render_validation_requires_done' };
+      }
+      return {
+        ok: true,
+        fromStatus,
+        toStatus: fromStatus,
+        reviewStatus: 'to_modify',
+        validatedByUserId: null,
+        outputPath: sanitizeRenderOutputPath(renderRow?.output_path),
+        errorMessage: sanitizeRenderErrorMessage(renderRow?.error_message),
+        startedAt: renderRow?.started_at || null,
+        finishedAt: renderRow?.finished_at || now,
+        commentDefault: 'render_rejected',
+      };
+    }
+
     const toStatus = normalizeRenderStatus(toStatusRaw, '');
     if (!RENDER_STATUSES.includes(toStatus)) {
       return { ok: false, error: 'invalid_render_status' };

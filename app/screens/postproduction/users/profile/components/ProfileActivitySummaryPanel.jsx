@@ -23,12 +23,11 @@ function ProfileActivitySummaryPanel({
 } = {}) {
   return (
     <div className="uu-col mt-8">
-      <div className="uu-muted">
-        {safeT(t, "postprod.profile.activity.summary.projects", "Projets touches: {value}", {
-          value: Array.isArray(activitySummary?.projects) && activitySummary.projects.length > 0
-            ? activitySummary.projects.join(", ")
-            : "-",
-        })}
+      <div>
+        <span className="uu-muted">{safeT(t, "postprod.profile.activity.summary.projects.label", "Projets touchés")}:</span>{" "}
+        {Array.isArray(activitySummary?.projects) && activitySummary.projects.length > 0
+          ? activitySummary.projects.join(", ")
+          : "-"}
       </div>
       <div className="uu-muted">
         {safeT(
@@ -110,27 +109,28 @@ function ProfileActivitySummaryPanel({
           );
         })}
       </div>
-      <div className="uu-muted">
-        {safeT(t, "postprod.users.activity.summary.filtered", "Affichage: {shown}/{total}", {
-          shown: filteredActivityItems.length,
-          total: activityItems.length,
-        })}
+      <div>
+        <span className="uu-muted">{safeT(t, "postprod.users.activity.summary.filtered.label", "Affichage")}:</span>{" "}
+        {filteredActivityItems.length}/{activityItems.length}
       </div>
       {filteredActivityItems.length === 0 ? (
         <div className="uu-muted">
           {safeT(t, "postprod.profile.activity.empty", "Aucune action recente.")}
         </div>
       ) : filteredActivityItems.map((activity) => (
-        <div key={`my-activity-${Number(activity?.id || 0)}`} className="uu-muted">
-          {formatDate(activity?.createdAt)} - {activityActionLabel(activity)}
-          {String(activity?.toStatus || "").trim()
-            ? ` (${String(activity?.toStatus || "").trim()})`
-            : ""}
-          {Array.isArray(activity?.projectRefs) && activity.projectRefs.length > 0
-            ? ` - ${safeT(t, "postprod.profile.activity.item.projects", "Projets: {value}", {
-              value: activity.projectRefs.join(", "),
-            })}`
-            : ""}
+        <div key={`my-activity-${Number(activity?.id || 0)}`} style={{ display: "flex", flexWrap: "wrap", columnGap: "4px" }}>
+          <span className="uu-muted">{formatDate(activity?.createdAt)} —</span>
+          <span>
+            {activityActionLabel(activity)}
+            {String(activity?.toStatus || "").trim()
+              ? ` (${String(activity?.toStatus || "").trim()})`
+              : ""}
+            {Array.isArray(activity?.projectRefs) && activity.projectRefs.length > 0
+              ? ` — ${safeT(t, "postprod.profile.activity.item.projects", "Projets: {value}", {
+                value: activity.projectRefs.join(", "),
+              })}`
+              : ""}
+          </span>
         </div>
       ))}
     </div>

@@ -59,24 +59,24 @@ const MAX_USERS_SYNC_FETCH_LIMIT = 1000;
 const DEFAULT_USERS_SYNC_AGENT_PORT = 4000;
 
 const {
-  DEFAULT_BOOTSTRAP_USER,
+  DEFAULT_BOOTSTRAP_USER: _DEFAULT_BOOTSTRAP_USER,
   DEFAULT_BOOTSTRAP_PASSWORD,
-  DEFAULT_BOOTSTRAP_ROLE,
+  DEFAULT_BOOTSTRAP_ROLE: _DEFAULT_BOOTSTRAP_ROLE,
   DEFAULT_SESSION_TTL_SEC,
   DEFAULT_PBKDF2_ITERS,
   PASSWORD_KEY_LEN,
   MIN_PASSWORD_LEN,
   MAX_USERNAME_LEN,
-  MAX_DISPLAY_NAME_LEN,
-  MAX_USER_EMAIL_LEN,
-  MAX_USER_PHONE_LEN,
-  MAX_EMPLOYMENT_TYPE_LEN,
-  MAX_TIMEZONE_LEN,
-  MAX_USER_LANGUAGE_LEN,
-  MAX_USER_NOTE_LEN,
-  MAX_USER_AVATAR_PATH_LEN,
-  MAX_ROLE_KEY_LEN,
-  MAX_ROLE_NOTE_LEN,
+  MAX_DISPLAY_NAME_LEN: _MAX_DISPLAY_NAME_LEN,
+  MAX_USER_EMAIL_LEN: _MAX_USER_EMAIL_LEN,
+  MAX_USER_PHONE_LEN: _MAX_USER_PHONE_LEN,
+  MAX_EMPLOYMENT_TYPE_LEN: _MAX_EMPLOYMENT_TYPE_LEN,
+  MAX_TIMEZONE_LEN: _MAX_TIMEZONE_LEN,
+  MAX_USER_LANGUAGE_LEN: _MAX_USER_LANGUAGE_LEN,
+  MAX_USER_NOTE_LEN: _MAX_USER_NOTE_LEN,
+  MAX_USER_AVATAR_PATH_LEN: _MAX_USER_AVATAR_PATH_LEN,
+  MAX_ROLE_KEY_LEN: _MAX_ROLE_KEY_LEN,
+  MAX_ROLE_NOTE_LEN: _MAX_ROLE_NOTE_LEN,
   MAX_TASK_TITLE_LEN,
   MAX_TASK_DESCRIPTION_LEN,
   MAX_TASK_COMMENT_LEN,
@@ -144,7 +144,7 @@ const {
   DEFAULT_RENDER_DETECTED_TEMPLATE_NAME,
   AUTO_RENDER_PROJECT_USAGE_MODES,
   DEFAULT_USER_LANGUAGE,
-  USER_LANGUAGE_ALLOWED,
+  USER_LANGUAGE_ALLOWED: _USER_LANGUAGE_ALLOWED,
   MAX_FAILED_LOGIN_COUNT,
   FAILED_LOGIN_LOCK_SECONDS,
   MAX_PROJECT_REF_LEN,
@@ -186,13 +186,13 @@ const {
   DEFAULT_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
   MIN_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
   MAX_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
-  DEFAULT_ROLE_KEYS,
+  DEFAULT_ROLE_KEYS: _DEFAULT_ROLE_KEYS,
   RENDER_VALIDATION_ALLOWED_ROLES,
   RENDER_TEMPLATE_FIELD_VALUE_TYPES,
   RENDER_TEMPLATE_FIELD_INPUT_KINDS,
   RENDER_FORM_SOURCE_TYPES,
   RENDER_FORM_MODE_DEFAULTS,
-  EMPLOYMENT_TYPE_LOOKUP,
+  EMPLOYMENT_TYPE_LOOKUP: _EMPLOYMENT_TYPE_LOOKUP,
   DEFAULT_ROLE_POLICIES,
   ROLE_ALIAS_MAP,
 } = require('./server-postprod-auth-constants.cjs');
@@ -202,13 +202,13 @@ const {
   parseBooleanFlag,
   parseEnvPathList,
   normalizeRenderDetectedExtensions,
-  normalizeRenderDetectedFilePathForSignature,
+  normalizeRenderDetectedFilePathForSignature: _normalizeRenderDetectedFilePathForSignature,
   buildRenderDetectedFileSignature,
   nowIso,
   normalizeAscii,
   normalizeRoleLookupKey,
   normalizeUsername,
-  normalizeUsernameSeed,
+  normalizeUsernameSeed: _normalizeUsernameSeed,
   buildAutoUsername,
   sanitizeDisplayName,
   sanitizeFirstName,
@@ -245,30 +245,30 @@ const { buildPostprodRouteDispatchGroups } = require('./server-postprod-auth-rou
 const {
   sanitizeRenderWorkerKey,
   sanitizeRenderWorkerName,
-  normalizeRenderWorkerCapabilityKey,
-  normalizeRenderWorkerCapabilityAtom,
-  normalizeRenderWorkerCapabilitiesObject,
+  normalizeRenderWorkerCapabilityKey: _normalizeRenderWorkerCapabilityKey,
+  normalizeRenderWorkerCapabilityAtom: _normalizeRenderWorkerCapabilityAtom,
+  normalizeRenderWorkerCapabilitiesObject: _normalizeRenderWorkerCapabilitiesObject,
   normalizeRenderWorkerCapabilities,
   parseRenderWorkerCapabilitiesJson,
-  extractRenderJobRequiredCapabilities,
-  extractRenderJobPreferredWorkerKey,
-  computeRenderWorkerCapabilitiesScore,
-  normalizeCapabilityCollection,
-  workerCapabilityContains,
-  doesWorkerMatchRequiredCapabilities,
+  extractRenderJobRequiredCapabilities: _extractRenderJobRequiredCapabilities,
+  extractRenderJobPreferredWorkerKey: _extractRenderJobPreferredWorkerKey,
+  computeRenderWorkerCapabilitiesScore: _computeRenderWorkerCapabilitiesScore,
+  normalizeCapabilityCollection: _normalizeCapabilityCollection,
+  workerCapabilityContains: _workerCapabilityContains,
+  doesWorkerMatchRequiredCapabilities: _doesWorkerMatchRequiredCapabilities,
   buildRenderDispatchPairs,
-  normalizeRenderDispatchPriority,
-  normalizeRenderDispatchQuota,
-  normalizeRenderDispatchProjectMap,
-  normalizeRenderDispatchPolicy,
-  serializeRenderDispatchProjectMap,
+  normalizeRenderDispatchPriority: _normalizeRenderDispatchPriority,
+  normalizeRenderDispatchQuota: _normalizeRenderDispatchQuota,
+  normalizeRenderDispatchProjectMap: _normalizeRenderDispatchProjectMap,
+  normalizeRenderDispatchPolicy: _normalizeRenderDispatchPolicy,
+  serializeRenderDispatchProjectMap: _serializeRenderDispatchProjectMap,
   buildRenderDispatchPolicyStorageJson,
   resolveRenderDispatchConfig,
   buildRenderDispatchPolicyPayload,
   resolveRequestedRenderDispatchConfig,
   computeRenderDispatchFetchLimit,
-  normalizeRenderProjectLoadMap,
-  countRenderJobsByProject,
+  normalizeRenderProjectLoadMap: _normalizeRenderProjectLoadMap,
+  countRenderJobsByProject: _countRenderJobsByProject,
   normalizeDispatchRenderIds,
   isDispatchableRenderRow,
   toDispatchableRenderRow,
@@ -301,15 +301,15 @@ const {
   sanitizeTaskComment,
   normalizeTaskRequestType,
   sanitizeTaskExpectedRenderName,
-  sanitizeTaskAutoRenderText,
+  sanitizeTaskAutoRenderText: _sanitizeTaskAutoRenderText,
   normalizeTaskExpectedRenderCount,
-  normalizeTaskExpectedRenderNamesInput,
-  buildTaskExpectedRenderNameBase,
-  generateTaskExpectedRenderNames,
+  normalizeTaskExpectedRenderNamesInput: _normalizeTaskExpectedRenderNamesInput,
+  buildTaskExpectedRenderNameBase: _buildTaskExpectedRenderNameBase,
+  generateTaskExpectedRenderNames: _generateTaskExpectedRenderNames,
   resolveTaskExpectedRenderNames,
-  normalizeExpectedRenderLookupKey,
-  safeIsoToTs,
-  sortTaskExpectedRenderCandidates,
+  normalizeExpectedRenderLookupKey: _normalizeExpectedRenderLookupKey,
+  safeIsoToTs: _safeIsoToTs,
+  sortTaskExpectedRenderCandidates: _sortTaskExpectedRenderCandidates,
   normalizeTaskRefsInput,
   sanitizeTaskRefForStorage,
   parseTaskRefsJson,
@@ -352,14 +352,14 @@ const {
 
 const { createProjectsCatalogHelpers } = require('./server-postprod-auth-projects-catalog.cjs');
 const {
-  normalizePostprodProjectsResyncTtlMs,
-  resetPostprodProjectsCatalogCache,
-  syncProjectsIndexFromSharedStore,
-  buildSharedStoreProjectPathIndex,
-  normalizeProjectMetaStatus,
-  isValidatedPostprodProjectStatus,
+  normalizePostprodProjectsResyncTtlMs: _normalizePostprodProjectsResyncTtlMs,
+  resetPostprodProjectsCatalogCache: _resetPostprodProjectsCatalogCache,
+  syncProjectsIndexFromSharedStore: _syncProjectsIndexFromSharedStore,
+  buildSharedStoreProjectPathIndex: _buildSharedStoreProjectPathIndex,
+  normalizeProjectMetaStatus: _normalizeProjectMetaStatus,
+  isValidatedPostprodProjectStatus: _isValidatedPostprodProjectStatus,
   getPostprodProjectVisibilityPolicy,
-  buildSharedStoreProjectMetaIndex,
+  buildSharedStoreProjectMetaIndex: _buildSharedStoreProjectMetaIndex,
   loadPostprodProjectsCatalog,
   buildProjectTaskRefCatalog,
   parseProjectUsageModeFilters,
@@ -379,21 +379,21 @@ const {
 
 const { createActivityAuditHelpers } = require('./server-postprod-auth-activity-audit.cjs');
 const {
-  parseAuditPayloadJson,
-  asOptionalPositiveInt,
-  normalizeActivityProjectRefs,
-  normalizeActivityDetailValue,
-  buildUserActivityDetail,
+  parseAuditPayloadJson: _parseAuditPayloadJson,
+  asOptionalPositiveInt: _asOptionalPositiveInt,
+  normalizeActivityProjectRefs: _normalizeActivityProjectRefs,
+  normalizeActivityDetailValue: _normalizeActivityDetailValue,
+  buildUserActivityDetail: _buildUserActivityDetail,
   buildUserActivityPayload,
   buildAuditEntryPayload,
-  escapeCsvCell,
+  escapeCsvCell: _escapeCsvCell,
   buildAuditCsvLine,
   matchesAuditSearch,
   summarizeUserActivity,
-  parseActivityProjectRefsFilter,
+  parseActivityProjectRefsFilter: _parseActivityProjectRefsFilter,
   parseActivityFilters,
   activityMatchesProjectRefs,
-  classifyActivityActionType,
+  classifyActivityActionType: _classifyActivityActionType,
   activityMatchesActionType,
   activityMatchesSearchQuery,
 } = createActivityAuditHelpers({
@@ -408,12 +408,12 @@ const {
 
 const { createResourcesCatalogHelpers } = require('./server-postprod-auth-resources-catalog.cjs');
 const {
-  sanitizeResourceIndexCode,
-  sanitizeResourceIndexType,
-  sanitizeResourceIndexTitle,
-  sanitizeResourceIndexSourcePath,
-  normalizeResourceIndexMetadataForStorage,
-  buildPostprodResourcePayload,
+  sanitizeResourceIndexCode: _sanitizeResourceIndexCode,
+  sanitizeResourceIndexType: _sanitizeResourceIndexType,
+  sanitizeResourceIndexTitle: _sanitizeResourceIndexTitle,
+  sanitizeResourceIndexSourcePath: _sanitizeResourceIndexSourcePath,
+  normalizeResourceIndexMetadataForStorage: _normalizeResourceIndexMetadataForStorage,
+  buildPostprodResourcePayload: _buildPostprodResourcePayload,
   syncResourcesIndexFromLibrary,
   buildResourceTaskRefCatalog,
   listPostprodResources,
@@ -2745,6 +2745,7 @@ function defaultRoleRow(policy) {
     canCreateTasks:
       policy?.canCreateTasks === true
       || (policy?.canCreateTasks == null && canLaunchRenders),
+    canAssignRenderRequests: policy?.canAssignRenderRequests === true,
     canEditProjects:
       policy?.canEditProjects === true
       || (policy?.canEditProjects == null && canLaunchProjects),
@@ -2796,6 +2797,9 @@ function normalizeRoleRow(row = {}) {
     canCreateTasks:
       Number(row?.can_create_tasks ?? row?.canCreateTasks) === 1
       || row?.canCreateTasks === true,
+    canAssignRenderRequests:
+      Number(row?.can_assign_render_requests ?? row?.canAssignRenderRequests) === 1
+      || row?.canAssignRenderRequests === true,
     canEditProjects:
       Number(row?.can_edit_projects ?? row?.canEditProjects) === 1
       || row?.canEditProjects === true,
@@ -2862,6 +2866,7 @@ function buildRolesCache(roleRows = []) {
       canLaunchProjects: row.canLaunchProjects !== false,
       canViewResources: row.canViewResources === true,
       canCreateTasks: row.canCreateTasks === true,
+      canAssignRenderRequests: row.canAssignRenderRequests === true,
       canEditProjects: row.canEditProjects === true,
       canManageLayouts: row.canManageLayouts === true,
       manageableRoles: row.canManageUsers ? manageable : [],
@@ -2885,6 +2890,7 @@ function buildRolesCache(roleRows = []) {
       next.canLaunchProjects = true;
       next.canViewResources = true;
       next.canCreateTasks = true;
+      next.canAssignRenderRequests = true;
       next.canEditProjects = true;
       next.canManageLayouts = true;
       next.manageableRoles = Array.from(baseByKey.keys());
@@ -2973,6 +2979,7 @@ function rolePermissions(roleRaw, rolesCache) {
       canLaunchRenders: true,
       canViewResources: true,
       canCreateTasks: true,
+      canAssignRenderRequests: false,
       canEditProjects: true,
       canManageLayouts: true,
       manageableRoles: [],
@@ -3003,6 +3010,7 @@ function rolePermissions(roleRaw, rolesCache) {
     canLaunchRenders: policy.canLaunchRenders !== false,
     canViewResources: policy.canViewResources === true,
     canCreateTasks: policy.canCreateTasks === true,
+    canAssignRenderRequests: policy.canAssignRenderRequests === true,
     canEditProjects: policy.canEditProjects === true,
     canManageLayouts: policy.canManageLayouts === true && policy.canUseLiveMode !== false,
     manageableRoles: manageable,
@@ -3101,6 +3109,7 @@ function ensureDefaultRoles(db, logLine = () => {}) {
       can_launch_renders,
       can_view_resources,
       can_create_tasks,
+      can_assign_render_requests,
       can_edit_projects,
       can_manage_layouts,
       manageable_roles_json,
@@ -3108,7 +3117,7 @@ function ensureDefaultRoles(db, logLine = () => {}) {
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const now = nowIso();
   let inserted = 0;
@@ -3136,6 +3145,7 @@ function ensureDefaultRoles(db, logLine = () => {}) {
         policy?.canLaunchRenders !== false ? 1 : 0,
         policy?.canViewResources === true ? 1 : 0,
         policy?.canCreateTasks === true ? 1 : 0,
+        policy?.canAssignRenderRequests === true ? 1 : 0,
         policy?.canEditProjects === true ? 1 : 0,
         policy?.canManageLayouts === true ? 1 : 0,
         JSON.stringify(manageableRoles),
@@ -3260,6 +3270,7 @@ function ensureSchema(db, logLine = () => {}) {
         can_launch_renders INTEGER NOT NULL DEFAULT 1,
         can_view_resources INTEGER NOT NULL DEFAULT 1,
         can_create_tasks INTEGER NOT NULL DEFAULT 1,
+        can_assign_render_requests INTEGER NOT NULL DEFAULT 0,
         can_edit_projects INTEGER NOT NULL DEFAULT 1,
         can_manage_layouts INTEGER NOT NULL DEFAULT 1,
         manageable_roles_json TEXT NOT NULL DEFAULT '[]',
@@ -5059,6 +5070,32 @@ function ensureSchema(db, logLine = () => {}) {
       src: 'postprod',
       action: 'db_migration_v46',
       message: 'Migration SQLite postprod v46 appliquee (wrc_files_json sur render_forms, wrc_file sur render_form_fields)',
+    });
+  }
+
+  const hasV47 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 47 LIMIT 1')
+    .get();
+  if (!hasV47) {
+    const roleCols47 = db.prepare('PRAGMA table_info(roles)').all();
+    const roleColNames47 = new Set(roleCols47.map((c) => String(c?.name || '').trim()));
+    if (!roleColNames47.has('can_assign_render_requests')) {
+      db.exec("ALTER TABLE roles ADD COLUMN can_assign_render_requests INTEGER NOT NULL DEFAULT 0");
+    }
+    db.exec(`
+      UPDATE roles
+      SET can_assign_render_requests = CASE
+        WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur') THEN 1
+        ELSE 0
+      END
+      WHERE is_system = 1;
+    `);
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(47, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v47',
+      message: 'Migration SQLite postprod v47 appliquee (permission can_assign_render_requests)',
     });
   }
 
@@ -7003,6 +7040,7 @@ function createStatements(db) {
         can_launch_renders,
         can_view_resources,
         can_create_tasks,
+        can_assign_render_requests,
         can_edit_projects,
         can_manage_layouts,
         manageable_roles_json,
@@ -7033,6 +7071,7 @@ function createStatements(db) {
         can_launch_renders,
         can_view_resources,
         can_create_tasks,
+        can_assign_render_requests,
         can_edit_projects,
         can_manage_layouts,
         manageable_roles_json,
@@ -7064,6 +7103,7 @@ function createStatements(db) {
         can_launch_renders,
         can_view_resources,
         can_create_tasks,
+        can_assign_render_requests,
         can_edit_projects,
         can_manage_layouts,
         manageable_roles_json,
@@ -7071,7 +7111,7 @@ function createStatements(db) {
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     updateRole: db.prepare(`
       UPDATE roles
@@ -7092,6 +7132,7 @@ function createStatements(db) {
         can_launch_renders = ?,
         can_view_resources = ?,
         can_create_tasks = ?,
+        can_assign_render_requests = ?,
         can_edit_projects = ?,
         can_manage_layouts = ?,
         manageable_roles_json = ?,
@@ -7110,6 +7151,9 @@ function createStatements(db) {
       FROM roles
       WHERE can_manage_roles = 1
         AND key <> ?
+    `),
+    deleteRoleByKey: db.prepare(`
+      DELETE FROM roles WHERE key = ? AND is_system = 0
     `),
   };
 }
@@ -7213,6 +7257,7 @@ function buildRolePayload(row) {
     canLaunchRenders: row?.canLaunchRenders !== false,
     canViewResources: row?.canViewResources === true,
     canCreateTasks: row?.canCreateTasks === true,
+    canAssignRenderRequests: row?.canAssignRenderRequests === true,
     canEditProjects: row?.canEditProjects === true,
     canManageLayouts: row?.canManageLayouts === true,
     manageableRoles: normalizeManageableRolesInput(row?.manageableRoles),
@@ -7732,7 +7777,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
 
   function buildRenderOutputSubdir(jobId, projectId, baseDir) {
     const renderId = String(Math.trunc(Math.max(0, Number(jobId) || 0)));
-    // eslint-disable-next-line no-control-regex
     const cleanProjectId = String(projectId || '').trim().replace(/[/\\:*?"<>|]/g, '_').replace(/\s+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 80) || 'projet';
     const subdirName = `${renderId}_${cleanProjectId}`;
     return path.join(String(baseDir || '').trim(), subdirName);
@@ -8178,7 +8222,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     asCount,
     requireSession,
     requireManageUsers,
-    requireBanUsers,
+    requireBanUsers: _requireBanUsers,
     requireManageProjectPermissions,
     requireManageRoles,
     requireRenderTemplateManage,
@@ -8203,8 +8247,8 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     audit,
   });
   const {
-    listTaskProjectRefsFromRelations,
-    listTaskResourceRefsFromRelations,
+    listTaskProjectRefsFromRelations: _listTaskProjectRefsFromRelations,
+    listTaskResourceRefsFromRelations: _listTaskResourceRefsFromRelations,
     replaceTaskRefsRelations,
     buildTaskPayloadWithRelations,
     computeTaskTransitionState,

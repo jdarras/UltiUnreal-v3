@@ -1,5 +1,5 @@
 import { safeT } from "../../../shared/helpers";
-import { taskVisualStatusClass } from "../../../tasks/helpers";
+import { taskVisualStatusClass } from "../../../renderEditor/helpers";
 import { queueRenderStateShortLabel } from "../../helpers";
 
 function simplifySequenceName(raw) {
@@ -23,7 +23,7 @@ function RendersQueueTableRow({
   onLaunchScheduledTaskRender = null,
   onEditQueueTask = null,
   onRequestDeleteQueueTask = null,
-  onRequestOpenTasks = null,
+  onRequestOpenRenderEditor = null,
   queueReorderBusy = false,
   canMoveQueueEntry = null,
   onMoveQueueEntry = null,
@@ -66,7 +66,7 @@ function RendersQueueTableRow({
   );
   const canMoveUp = typeof canMoveQueueEntry === "function" ? canMoveQueueEntry(queueEntry, -1) : false;
   const canMoveDown = typeof canMoveQueueEntry === "function" ? canMoveQueueEntry(queueEntry, 1) : false;
-  const canOpenTaskLink = typeof onRequestOpenTasks === "function" && normalizedTaskId > 0;
+  const canOpenTaskLink = typeof onRequestOpenRenderEditor === "function" && normalizedTaskId > 0;
   const taskIdLabel = normalizedTaskId > 0 ? `#${String(normalizedTaskId).padStart(4, "0")}` : "";
   const actionSlotStyle = {
     width: "74px",
@@ -83,8 +83,8 @@ function RendersQueueTableRow({
     event?.preventDefault?.();
     event?.stopPropagation?.();
     if (!canOpenTaskLink) return;
-    onRequestOpenTasks?.({
-      type: "task",
+    onRequestOpenRenderEditor?.({
+      type: "render",
       action: "edit",
       ref: String(normalizedTaskId),
       task: task && typeof task === "object" ? task : null,

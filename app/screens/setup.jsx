@@ -892,7 +892,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
         machines: [
           ...prev.machines,
           {
-            name: `Machine ${prev.machines.length + 1}`,
+            name: `Station ${prev.machines.length + 1}`,
             color: '',
             ip: '',
             uproject: '',
@@ -1219,7 +1219,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
       if (base.some((m) => String(m?.ip || '').trim().toLowerCase() === ip.toLowerCase())) return;
 
       const nextMachine = {
-        name: entry?.name || `Machine ${base.length + 1}`,
+        name: entry?.name || `Station ${base.length + 1}`,
         color: '',
         ip,
         uproject: '',
@@ -1635,7 +1635,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
       </div>
 
       <div className="uu-section">
-        <h3 className="uu-h3 uu-block-title">
+        <h3 className="uu-h3 uu-block-title" style={{ marginBottom: "12px" }}>
           {isRenderMode ? t('setup.server.machinesRenderEligible') : t('setup.server.machinesEligible')}
         </h3>
         {capableList.length === 0 ? (
@@ -1646,7 +1646,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
       </div>
 
       <div className="uu-section">
-        <h3 className="uu-h3 uu-block-title">
+        <h3 className="uu-h3 uu-block-title" style={{ marginBottom: "12px" }}>
           {isRenderMode ? t('setup.server.machinesRenderExcluded') : t('setup.server.machinesExcluded')}
         </h3>
         {excludedList.length === 0 ? (

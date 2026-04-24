@@ -64,11 +64,13 @@ function RendersValidationCard({
   onDeleteTask = null,
   onDeleteRender = null,
   onGenerateProxy = null,
-  onRequestOpenTasks = null,
+  onRequestOpenRenderEditor = null,
   onNavigateToProject = null,
   onNavigateToRenderForm = null,
   renderExportDestinationOptions = [],
 }) {
+  const requestOpenRenderEditor = onRequestOpenRenderEditor;
+
   const {
     canReviewRenders,
     toolbarProps,
@@ -114,6 +116,15 @@ function RendersValidationCard({
         <>
           <RendersToolbar
             {...toolbarProps}
+            onOpenCreateRender={() => {
+              if (typeof requestOpenRenderEditor !== "function") return;
+              requestOpenRenderEditor({
+                type: "render",
+                action: "create",
+                ref: "new",
+                task: null,
+              });
+            }}
             showHistory={showHistory}
             onSetShowHistory={setShowHistory}
           />
@@ -133,14 +144,14 @@ function RendersValidationCard({
 
           <RendersQueuePanel
             {...queuePanelProps}
-            onRequestOpenTasks={onRequestOpenTasks}
+            onRequestOpenRenderEditor={requestOpenRenderEditor}
             onReorderRenders={onReorderRenders}
             onEditQueueTask={(task) => {
               const taskId = Number(task?.id || 0);
-              if (typeof onRequestOpenTasks !== "function") return;
+              if (typeof requestOpenRenderEditor !== "function") return;
               if (!Number.isFinite(taskId) || taskId <= 0) return;
-              onRequestOpenTasks({
-                type: "task",
+              requestOpenRenderEditor({
+                type: "render",
                 action: "edit",
                 ref: String(Math.trunc(taskId)),
                 task: task && typeof task === "object" ? task : null,
@@ -170,8 +181,9 @@ function RendersValidationCard({
           <RendersListPanel
             {...listPanelProps}
             sortedDisplayedRenders={activeListRenders}
+            renderForms={renderForms}
             onDeleteRender={onDeleteRender}
-            onRequestOpenTasks={onRequestOpenTasks}
+            onRequestOpenRenderEditor={requestOpenRenderEditor}
             onNavigateToProject={onNavigateToProject}
             onNavigateToRenderForm={onNavigateToRenderForm}
             projectLabelByRef={projectLabelByRef}
@@ -182,8 +194,9 @@ function RendersValidationCard({
             <RendersListPanel
               {...listPanelProps}
               sortedDisplayedRenders={historyListRenders}
+              renderForms={renderForms}
               onDeleteRender={onDeleteRender}
-              onRequestOpenTasks={onRequestOpenTasks}
+              onRequestOpenRenderEditor={requestOpenRenderEditor}
               onNavigateToProject={onNavigateToProject}
               onNavigateToRenderForm={onNavigateToRenderForm}
               projectLabelByRef={projectLabelByRef}
@@ -201,7 +214,7 @@ function RendersValidationCard({
         projectLabelByRef={projectLabelByRef}
         onNavigateToProject={onNavigateToProject}
         onNavigateToRenderForm={onNavigateToRenderForm}
-        onRequestOpenTasks={onRequestOpenTasks}
+        onRequestOpenRenderEditor={requestOpenRenderEditor}
         tasks={tasks}
         renderForms={renderForms}
         renderExportDestinationOptions={renderExportDestinationOptions}

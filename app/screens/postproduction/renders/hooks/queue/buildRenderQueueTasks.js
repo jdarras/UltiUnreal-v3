@@ -1,5 +1,5 @@
 import { resolveAutoRenderConfig } from "../../../shared/autoRenderHelpers";
-import { resolveTaskAutoRenderState } from "../../../tasks/helpers";
+import { resolveTaskAutoRenderState } from "../../../renderEditor/helpers";
 
 export function buildRenderQueueTasks({
   tasks = [],
@@ -11,16 +11,18 @@ export function buildRenderQueueTasks({
   for (const task of taskList) {
     const taskId = Number(task?.id || 0);
     if (!Number.isFinite(taskId) || taskId <= 0) continue;
-    if (String(task?.requestType || "").trim().toLowerCase() !== "auto_render") continue;
     const taskStatus = String(task?.status || "").trim();
     if (taskStatus === "Validee" || taskStatus === "Rejetee") continue;
+    const renderStateEntry = autoRenderStateByTaskId.get(Math.trunc(taskId));
+    const visualStatus = String(renderStateEntry?.visualStatus || "").trim().toLowerCase();
+    if (visualStatus === "validated" || visualStatus === "rejected") continue;
     const renderState = resolveTaskAutoRenderState(task, autoRenderStateByTaskId);
     if (renderState !== "waiting" && renderState !== "running" && renderState !== "error") continue;
     const autoRenderConfig = resolveAutoRenderConfig(task);
-    const renderStateEntry = autoRenderStateByTaskId.get(Math.trunc(taskId));
     const linkedRender = renderStateEntry?.render || null;
     const projectName = String(autoRenderConfig?.projectName || linkedRender?.projectName || "").trim();
     const templateName = String(autoRenderConfig?.templateName || linkedRender?.templateName || "").trim();
+    if (!linkedRender && (!projectName || !templateName)) continue;
     const workerName = String(linkedRender?.assignedWorkerName || "").trim();
     const workerKey = String(linkedRender?.assignedWorkerKey || "").trim();
     out.push({

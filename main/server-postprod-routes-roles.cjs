@@ -76,6 +76,7 @@ async function handlePostprodRoleRoutes({
         || (!Object.prototype.hasOwnProperty.call(body || {}, 'canViewResources') && (canUseLiveMode || canUsePostprodMode));
       const canCreateTasks = body?.canCreateTasks === true
         || (!Object.prototype.hasOwnProperty.call(body || {}, 'canCreateTasks') && canLaunchRenders);
+      const canAssignRenderRequests = roleKey === SYSTEM_MAINTENANCE_ROLE || body?.canAssignRenderRequests === true;
       const canEditProjects = body?.canEditProjects === true
         || (!Object.prototype.hasOwnProperty.call(body || {}, 'canEditProjects') && canLaunchProjects);
       const canManageLayouts = body?.canManageLayouts === true
@@ -118,6 +119,7 @@ async function handlePostprodRoleRoutes({
           canLaunchRenders ? 1 : 0,
           canViewResources ? 1 : 0,
           canCreateTasks ? 1 : 0,
+          canAssignRenderRequests ? 1 : 0,
           canEditProjects ? 1 : 0,
           canManageLayouts ? 1 : 0,
           JSON.stringify(manageableRoles),
@@ -157,6 +159,7 @@ async function handlePostprodRoleRoutes({
           canLaunchRenders,
           canViewResources,
           canCreateTasks,
+          canAssignRenderRequests,
           canEditProjects,
           canManageLayouts,
           manageableRoles,
@@ -182,6 +185,45 @@ async function handlePostprodRoleRoutes({
 
   const roleUpdateMatch = /^\/agent\/postprod\/roles\/([^/]+)$/.exec(pathname);
   if (!roleUpdateMatch) return false;
+
+  if (req.method === 'DELETE') {
+    const auth = requireSession(req, res, sendJSON);
+    if (!auth) return true;
+    const rolePerms = requireManageRoles(auth, res, sendJSON);
+    if (!rolePerms) return true;
+
+    let roleKeyRaw = '';
+    try {
+      roleKeyRaw = decodeURIComponent(String(roleUpdateMatch[1] || ''));
+    } catch {
+      roleKeyRaw = String(roleUpdateMatch[1] || '');
+    }
+    const roleKey = resolveRoleInput(roleKeyRaw, rolesCache, '');
+    if (!roleKey || !rolesCache.byKey.has(roleKey)) {
+      sendJSON(res, 404, { ok: false, error: 'role_not_found' });
+      return true;
+    }
+    const current = rolesCache.byKey.get(roleKey);
+    if (current?.isSystem || roleKey === SYSTEM_MAINTENANCE_ROLE) {
+      sendJSON(res, 403, { ok: false, error: 'forbidden' });
+      return true;
+    }
+    const result = stmts.deleteRoleByKey.run(roleKey);
+    if (!result || result.changes === 0) {
+      sendJSON(res, 403, { ok: false, error: 'forbidden' });
+      return true;
+    }
+    refreshRolesCache();
+    audit(
+      auth.session.user_id,
+      'role_deleted',
+      { key: roleKey },
+      'role',
+      roleKey
+    );
+    sendJSON(res, 200, { ok: true });
+    return true;
+  }
 
   if (req.method !== 'PUT' && req.method !== 'POST') {
     sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
@@ -223,6 +265,7 @@ async function handlePostprodRoleRoutes({
   const hasCanLaunchRenders = Object.prototype.hasOwnProperty.call(body || {}, 'canLaunchRenders');
   const hasCanViewResources = Object.prototype.hasOwnProperty.call(body || {}, 'canViewResources');
   const hasCanCreateTasks = Object.prototype.hasOwnProperty.call(body || {}, 'canCreateTasks');
+  const hasCanAssignRenderRequests = Object.prototype.hasOwnProperty.call(body || {}, 'canAssignRenderRequests');
   const hasCanEditProjects = Object.prototype.hasOwnProperty.call(body || {}, 'canEditProjects');
   const hasCanManageLayouts = Object.prototype.hasOwnProperty.call(body || {}, 'canManageLayouts');
   const hasManageableRoles = Object.prototype.hasOwnProperty.call(body || {}, 'manageableRoles');
@@ -251,6 +294,7 @@ async function handlePostprodRoleRoutes({
   if (hasCanLaunchRenders) next.canLaunchRenders = body?.canLaunchRenders === true;
   if (hasCanViewResources) next.canViewResources = body?.canViewResources === true;
   if (hasCanCreateTasks) next.canCreateTasks = body?.canCreateTasks === true;
+  if (hasCanAssignRenderRequests) next.canAssignRenderRequests = body?.canAssignRenderRequests === true;
   if (hasCanEditProjects) next.canEditProjects = body?.canEditProjects === true;
   if (hasCanManageLayouts) next.canManageLayouts = body?.canManageLayouts === true;
 
@@ -289,6 +333,7 @@ async function handlePostprodRoleRoutes({
     next.canLaunchProjects = true;
     next.canViewResources = true;
     next.canCreateTasks = true;
+    next.canAssignRenderRequests = true;
     next.canEditProjects = true;
     next.canManageLayouts = true;
     next.manageableRoles = Array.from(rolesCache.byKey.keys());
@@ -333,6 +378,7 @@ async function handlePostprodRoleRoutes({
     !hasCanLaunchRenders &&
     !hasCanViewResources &&
     !hasCanCreateTasks &&
+    !hasCanAssignRenderRequests &&
     !hasCanEditProjects &&
     !hasCanManageLayouts &&
     !hasManageableRoles;
@@ -358,6 +404,7 @@ async function handlePostprodRoleRoutes({
     current.canLaunchRenders === next.canLaunchRenders &&
     current.canViewResources === next.canViewResources &&
     current.canCreateTasks === next.canCreateTasks &&
+    current.canAssignRenderRequests === next.canAssignRenderRequests &&
     current.canEditProjects === next.canEditProjects &&
     current.canManageLayouts === next.canManageLayouts &&
     sameManageable;
@@ -384,6 +431,7 @@ async function handlePostprodRoleRoutes({
     next.canLaunchRenders ? 1 : 0,
     next.canViewResources ? 1 : 0,
     next.canCreateTasks ? 1 : 0,
+    next.canAssignRenderRequests ? 1 : 0,
     next.canEditProjects ? 1 : 0,
     next.canManageLayouts ? 1 : 0,
     JSON.stringify(nextManageable),
@@ -415,6 +463,7 @@ async function handlePostprodRoleRoutes({
         canLaunchRenders: current.canLaunchRenders !== updated.canLaunchRenders,
         canViewResources: current.canViewResources !== updated.canViewResources,
         canCreateTasks: current.canCreateTasks !== updated.canCreateTasks,
+        canAssignRenderRequests: current.canAssignRenderRequests !== updated.canAssignRenderRequests,
         canEditProjects: current.canEditProjects !== updated.canEditProjects,
         canManageLayouts: current.canManageLayouts !== updated.canManageLayouts,
         manageableRoles: !sameManageable,

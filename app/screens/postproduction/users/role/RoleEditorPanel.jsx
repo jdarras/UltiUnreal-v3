@@ -1,5 +1,4 @@
-﻿import { safeT } from "../../shared/helpers";
-import { RoleManageableRolesSection } from "./components/RoleManageableRolesSection";
+import { safeT } from "../../shared/helpers";
 import { RolePermissionFlags } from "./components/RolePermissionFlags";
 import { RoleUsersSection } from "./components/RoleUsersSection";
 
@@ -19,9 +18,9 @@ function RoleEditorPanel({
   submitEditor,
   displayNameInvalid = false,
   saveNow = null,
-  roleAutosaveBusy = false,
-  roleAutosaveError = "",
-  roleAutosaveInfo = "",
+  roleAutosaveBusy: _roleAutosaveBusy = false,
+  roleAutosaveError: _roleAutosaveError = "",
+  roleAutosaveInfo: _roleAutosaveInfo = "",
 }) {
   return (
     <>
@@ -96,4 +95,3 @@ function RoleEditorPanel({
 }
 
 export { RoleEditorPanel };
-

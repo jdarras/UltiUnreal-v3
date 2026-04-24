@@ -391,6 +391,35 @@ async function handlePostprodRendersRoutes({
       const payloadObject = (() => {
         try { return JSON.parse(normalizedPayload.payloadJson || '{}'); } catch { return {}; }
       })();
+      const linkedTaskIdRaw = Number(payloadObject?.taskId ?? body?.taskId ?? 0);
+      const linkedTaskId = Number.isFinite(linkedTaskIdRaw) && linkedTaskIdRaw > 0
+        ? Math.trunc(linkedTaskIdRaw)
+        : 0;
+      if (linkedTaskId <= 0) {
+        sendJSON(res, 400, { ok: false, error: 'missing_linked_task' });
+        return true;
+      }
+      const linkedTask = typeof stmts.findTaskById?.get === 'function'
+        ? (stmts.findTaskById.get(linkedTaskId) || null)
+        : null;
+      if (!linkedTask) {
+        sendJSON(res, 400, { ok: false, error: 'task_not_found' });
+        return true;
+      }
+      payloadObject.taskId = linkedTaskId;
+      if (!String(payloadObject?.taskTitle || '').trim()) {
+        payloadObject.taskTitle = String(linkedTask?.title || '').trim();
+      }
+      if (!String(payloadObject?.taskStatus || '').trim()) {
+        payloadObject.taskStatus = String(linkedTask?.status || 'A faire').trim();
+      }
+      let payloadJsonForInsert = '{}';
+      try {
+        payloadJsonForInsert = JSON.stringify(payloadObject);
+      } catch {
+        sendJSON(res, 400, { ok: false, error: 'invalid_render_payload' });
+        return true;
+      }
 
       let renderId = 0;
       try {
@@ -399,7 +428,7 @@ async function handlePostprodRendersRoutes({
             requestedReservedRenderId,
             projectName,
             templateName,
-            normalizedPayload.payloadJson,
+            payloadJsonForInsert,
             initialStatus,
             initialReviewStatus,
             Number(auth.session.user_id),
@@ -427,7 +456,7 @@ async function handlePostprodRendersRoutes({
           const result = stmts.insertRenderJob.run(
             projectName,
             templateName,
-            normalizedPayload.payloadJson,
+            payloadJsonForInsert,
             initialStatus,
             initialReviewStatus,
             Number(auth.session.user_id),
@@ -694,15 +723,67 @@ async function handlePostprodRendersRoutes({
       const linkedTaskRow = linkedTaskId > 0 && typeof stmts.findTaskById?.get === 'function'
         ? (stmts.findTaskById.get(linkedTaskId) || null)
         : null;
-      const cleanup = cleanupRenderArtifacts({
-        renderRow: render,
-        readCommonServerConfigFile,
-        commonServerFile,
-        resolveRenderDetectedRoots,
-      });
+      const renderRowsById = new Map();
+      renderRowsById.set(renderId, render);
+      let hasRunningLinkedRender = false;
+      if (linkedTaskId > 0 && typeof stmts.listRenderJobs?.all === 'function') {
+        let allRenderRows = [];
+        try {
+          allRenderRows = stmts.listRenderJobs.all();
+        } catch {
+          allRenderRows = [];
+        }
+        for (const row of Array.isArray(allRenderRows) ? allRenderRows : []) {
+          const rowRenderIdRaw = Number(row?.id || 0);
+          const rowRenderId = Number.isFinite(rowRenderIdRaw) && rowRenderIdRaw > 0
+            ? Math.trunc(rowRenderIdRaw)
+            : 0;
+          if (rowRenderId <= 0 || renderRowsById.has(rowRenderId)) continue;
+          const rowPayload = buildRenderJobPayload(row);
+          const rowTaskIdRaw = Number(
+            rowPayload?.linkedTaskId
+            || rowPayload?.payload?.taskId
+            || 0
+          );
+          const rowTaskId = Number.isFinite(rowTaskIdRaw) && rowTaskIdRaw > 0
+            ? Math.trunc(rowTaskIdRaw)
+            : 0;
+          if (rowTaskId !== linkedTaskId) continue;
+          if (String(row?.status || '') === 'Running') {
+            hasRunningLinkedRender = true;
+            continue;
+          }
+          renderRowsById.set(rowRenderId, row);
+        }
+      }
+      if (hasRunningLinkedRender) {
+        sendJSON(res, 409, { ok: false, error: 'render_running_cannot_delete' });
+        return true;
+      }
+      const cleanupItems = [];
+      for (const [candidateRenderId, candidateRenderRow] of renderRowsById.entries()) {
+        const cleanup = cleanupRenderArtifacts({
+          renderRow: candidateRenderRow,
+          readCommonServerConfigFile,
+          commonServerFile,
+          resolveRenderDetectedRoots,
+        });
+        cleanupItems.push({
+          renderId: candidateRenderId,
+          cleanup,
+        });
+      }
       const deletionResult = db.transaction(() => {
-        const deletedRender = stmts.deleteRenderJobById.run(renderId);
-        const deletedRenderChanges = Number(deletedRender?.changes || 0);
+        let deletedRenderChanges = 0;
+        const deletedRenderIds = [];
+        for (const [candidateRenderId] of renderRowsById.entries()) {
+          const deletedRender = stmts.deleteRenderJobById.run(candidateRenderId);
+          const changes = Number(deletedRender?.changes || 0);
+          if (changes > 0) {
+            deletedRenderChanges += changes;
+            deletedRenderIds.push(candidateRenderId);
+          }
+        }
         let deletedTaskChanges = 0;
         if (
           deletedRenderChanges > 0
@@ -714,6 +795,7 @@ async function handlePostprodRendersRoutes({
         }
         return {
           deletedRenderChanges,
+          deletedRenderIds,
           deletedTaskChanges,
         };
       })();
@@ -721,20 +803,24 @@ async function handlePostprodRendersRoutes({
         sendJSON(res, 404, { ok: false, error: 'render_not_found' });
         return true;
       }
+      const cleanupSummary = cleanupItems.reduce((acc, item) => {
+        const cleanup = item?.cleanup || {};
+        acc.deletedCount += Number(cleanup?.deletedCount || 0);
+        acc.skippedCount += Number(cleanup?.skippedCount || 0);
+        acc.errorCount += Number(cleanup?.errorCount || 0);
+        return acc;
+      }, { deletedCount: 0, skippedCount: 0, errorCount: 0 });
       audit(
         auth.session.user_id,
         'render_deleted',
         {
           renderId,
+          deletedRenderIds: Array.isArray(deletionResult?.deletedRenderIds) ? deletionResult.deletedRenderIds : [renderId],
           projectName: String(render?.project_name || ''),
           templateName: String(render?.template_name || ''),
           status: String(render?.status || ''),
           reviewStatus: String(render?.review_status || ''),
-          cleanup: {
-            deletedCount: Number(cleanup?.deletedCount || 0),
-            skippedCount: Number(cleanup?.skippedCount || 0),
-            errorCount: Number(cleanup?.errorCount || 0),
-          },
+          cleanup: cleanupSummary,
           linkedTask: {
             id: linkedTaskId > 0 ? linkedTaskId : null,
             deleted: Number(deletionResult?.deletedTaskChanges || 0) > 0,
@@ -762,7 +848,8 @@ async function handlePostprodRendersRoutes({
       sendJSON(res, 200, {
         ok: true,
         renderId,
-        cleanup,
+        deletedRenderIds: Array.isArray(deletionResult?.deletedRenderIds) ? deletionResult.deletedRenderIds : [renderId],
+        cleanup: cleanupSummary,
         deletedLinkedTaskId: Number(deletionResult?.deletedTaskChanges || 0) > 0 ? linkedTaskId : null,
       });
       return true;

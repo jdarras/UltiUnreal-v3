@@ -1520,7 +1520,7 @@ export default function ProjectsScreen({
       pendingStartRef.current = false;
       startIntegration(detailId);
     }
-  }, [detailId, serverHost]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [detailId, serverHost]);
 
   // Charger les versions UE connues (page config)
   React.useEffect(() => {
@@ -1618,7 +1618,7 @@ export default function ProjectsScreen({
     setDetailMeta({ status:'', type:'', usageMode:'', category:'', fileVersion:'', referents:{}, keywords:[], note:'', favorite: false });
     setDetailInsights({});
     setDetailPath('');
-    setDetailWrcName('');
+    setDetailWrcNames([]);
     setDetailIsNew(true);
     setDetailMsg('');
     resetHttpBind();

@@ -11,9 +11,9 @@ export {
 } from "./shared/helpers";
 
 export {
-  TasksCard,
+  RenderEditorCard,
   AuditHistoryCard,
-} from "./tasks";
+} from "./renderEditor";
 
 export {
   ProjectsCatalogCard,

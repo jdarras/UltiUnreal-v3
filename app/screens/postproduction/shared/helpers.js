@@ -3,7 +3,7 @@ const TAB_TO_NAV_KEY = {
   Utilisateurs: "users",
   Projets: "projects",
   Ressources: "resources",
-  Taches: "tasks",
+  RendusCreate: "renders",
   Rendus: "renders",
   Datas: "data",
   Validations: "validations",

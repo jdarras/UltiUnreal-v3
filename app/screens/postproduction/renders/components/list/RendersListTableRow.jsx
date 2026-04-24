@@ -9,11 +9,49 @@ function firstNonEmptyString(values = []) {
   return "";
 }
 
+function resolveRenderPayload(render = null) {
+  const payload = render?.payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
+  return payload;
+}
+
+function toPositiveInt(value = 0) {
+  if (Number.isFinite(Number(value)) && Number(value) > 0) return Math.trunc(Number(value));
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  if (/^\#?\d+$/.test(raw)) return Math.trunc(Number(raw.replace(/^#/, "")));
+  return 0;
+}
+
+function firstPositiveInt(values = []) {
+  const list = Array.isArray(values) ? values : [];
+  for (const value of list) {
+    const parsed = toPositiveInt(value);
+    if (parsed > 0) return parsed;
+  }
+  return 0;
+}
+
+function extractFormIdFromTemplateLike(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  const match = /^form[\s\-_#]*(\d+)$/i.exec(raw);
+  if (!match) return 0;
+  return toPositiveInt(match[1]);
+}
+
+function resolveLinkedRenderFormEntry(formId = 0, renderForms = []) {
+  const normalizedFormId = Number.isFinite(Number(formId)) && Number(formId) > 0
+    ? Math.trunc(Number(formId))
+    : 0;
+  if (normalizedFormId <= 0) return null;
+  const list = Array.isArray(renderForms) ? renderForms : [];
+  return list.find((entry) => Number(entry?.id || 0) === normalizedFormId) || null;
+}
+
 function resolveRenderLinkedTaskMeta(render = null) {
   const item = render && typeof render === "object" ? render : {};
-  const payload = item?.payload && typeof item.payload === "object" && !Array.isArray(item.payload)
-    ? item.payload
-    : {};
+  const payload = resolveRenderPayload(item);
   const taskIdRaw = Number(item?.linkedTaskId || payload?.taskId || 0);
   const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
   const taskTitle = firstNonEmptyString([
@@ -21,6 +59,34 @@ function resolveRenderLinkedTaskMeta(render = null) {
     payload?.taskTitle,
   ]);
   return { taskId, taskTitle };
+}
+
+function resolveRenderFormMeta(render = null, renderForms = []) {
+  const item = render && typeof render === "object" ? render : {};
+  const payload = resolveRenderPayload(item);
+  const formId = firstPositiveInt([
+    item?.formId,
+    item?.renderFormId,
+    item?.formRef,
+    item?.renderFormRef,
+    payload?.formId,
+    payload?.renderFormId,
+    payload?.formRef,
+    payload?.renderFormRef,
+    extractFormIdFromTemplateLike(item?.templateName),
+    extractFormIdFromTemplateLike(payload?.templateName),
+  ]);
+  const formEntry = resolveLinkedRenderFormEntry(formId, renderForms);
+  const formName = firstNonEmptyString([
+    item?.formName,
+    item?.renderFormName,
+    payload?.formName,
+    payload?.renderFormName,
+    payload?.formLabel,
+    formEntry?.name,
+    formEntry?.label,
+  ]);
+  return { formId, formName };
 }
 
 function reviewStatusClassName(reviewStatus = "") {
@@ -33,6 +99,7 @@ function reviewStatusClassName(reviewStatus = "") {
 function RendersListTableRow({
   t,
   render = null,
+  renderForms = [],
   buildRenderThumbCandidates = null,
   renderOutputFilename = null,
   renderLinkedTaskValue = null,
@@ -46,7 +113,8 @@ function RendersListTableRow({
   onApplyReviewStatus = null,
   onOpenRenderDetail = null,
   onDeleteRender = null,
-  onRequestOpenTasks = null,
+  onRequestOpenRenderEditor = null,
+  onNavigateToRenderForm = null,
 }) {
   const renderId = Number(render?.id || 0);
   const reviewStatus = typeof renderReviewStatusKey === "function" ? renderReviewStatusKey(render) : "to_validate";
@@ -59,15 +127,20 @@ function RendersListTableRow({
     typeof onDeleteRender === "function"
     && Number.isFinite(renderId)
     && renderId > 0
+    && String(render?.sourceScope || "").trim().toLowerCase() !== "remote"
   );
   const stationName = String(render?.stationName || "").trim();
   const { taskId: linkedTaskId, taskTitle: linkedTaskTitle } = resolveRenderLinkedTaskMeta(render);
+  const { formId, formName } = resolveRenderFormMeta(render, renderForms);
   const linkedTaskFallback = typeof renderLinkedTaskValue === "function"
     ? String(renderLinkedTaskValue(render) || "").trim()
     : "";
+  const formNameLabel = String(formName || "").trim();
+  const formIdLabel = formId > 0 ? `#${String(formId)}` : "";
   const linkedTaskLabel = linkedTaskTitle || linkedTaskFallback || "";
   const linkedTaskIdText = linkedTaskId > 0 ? `#${String(linkedTaskId).padStart(4, "0")}` : "";
-  const canOpenTaskLink = typeof onRequestOpenTasks === "function" && linkedTaskId > 0;
+  const canOpenTaskLink = typeof onRequestOpenRenderEditor === "function" && linkedTaskId > 0;
+  const canOpenFormLink = typeof onNavigateToRenderForm === "function" && formId > 0;
   const actionSlotStyle = {
     width: "74px",
     minWidth: "74px",
@@ -89,12 +162,19 @@ function RendersListTableRow({
     event?.preventDefault?.();
     event?.stopPropagation?.();
     if (!canOpenTaskLink) return;
-    onRequestOpenTasks?.({
-      type: "task",
+    onRequestOpenRenderEditor?.({
+      type: "render",
       action: "edit",
       ref: String(linkedTaskId),
       task: null,
     });
+  };
+
+  const handleOpenForm = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!canOpenFormLink) return;
+    onNavigateToRenderForm?.({ id: formId, name: formNameLabel || "" });
   };
 
   return (
@@ -126,6 +206,27 @@ function RendersListTableRow({
         <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
           {typeof renderOutputFilename === "function" ? renderOutputFilename(render) : "-"}
         </div>
+        {formNameLabel || formIdLabel ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+            {formNameLabel ? (
+              <span
+                onClick={canOpenFormLink ? handleOpenForm : undefined}
+                style={{
+                  color: "#fff",
+                  overflowWrap: "anywhere",
+                  ...(canOpenFormLink ? { cursor: "pointer" } : {}),
+                }}
+              >
+                {formNameLabel}
+              </span>
+            ) : null}
+            {formIdLabel ? (
+              <span style={{ whiteSpace: "nowrap", opacity: 0.4 }}>
+                {formIdLabel}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </td>
       <td style={{ overflowWrap: "anywhere" }}>
         {linkedTaskId > 0 ? (

@@ -34,10 +34,19 @@ function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "") 
   }
 
   if (nextReviewStatus === "rejected" || nextReviewStatus === "to_modify") {
-    return [{
-      toStatus: "Failed",
-      comment: "validation_to_modify",
-    }];
+    const steps = [];
+    if (!isDone) {
+      steps.push({
+        toStatus: "Done",
+        comment: "validation_ready",
+      });
+    }
+    steps.push({
+      action: "reject",
+      toStatus: "Done",
+      comment: "render_rejected",
+    });
+    return steps;
   }
 
   if (nextReviewStatus === "canceled") {

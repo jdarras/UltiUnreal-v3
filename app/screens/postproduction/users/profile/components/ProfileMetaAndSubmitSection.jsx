@@ -10,20 +10,17 @@ function ProfileMetaAndSubmitSection({
   return (
     <>
       <div className="uu-row mt-12">
-        <span className="uu-muted">
-          {safeT(t, "postprod.profile.meta.createdAt", "Cree le: {value}", {
-            value: formatDate(user?.createdAt),
-          })}
+        <span>
+          <span className="uu-muted">{safeT(t, "postprod.profile.meta.createdAt.label", "Créé le")}:</span>{" "}
+          {formatDate(user?.createdAt)}
         </span>
-        <span className="uu-muted">
-          {safeT(t, "postprod.profile.meta.updatedAt", "Mis a jour: {value}", {
-            value: formatDate(user?.updatedAt),
-          })}
+        <span>
+          <span className="uu-muted">{safeT(t, "postprod.profile.meta.updatedAt.label", "Mis à jour")}:</span>{" "}
+          {formatDate(user?.updatedAt)}
         </span>
-        <span className="uu-muted">
-          {safeT(t, "postprod.profile.meta.lastLoginAt", "Derniere connexion: {value}", {
-            value: formatDate(user?.lastLoginAt),
-          })}
+        <span>
+          <span className="uu-muted">{safeT(t, "postprod.profile.meta.lastLoginAt.label", "Dernière connexion")}:</span>{" "}
+          {formatDate(user?.lastLoginAt)}
         </span>
       </div>
 

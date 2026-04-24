@@ -1,5 +1,5 @@
 // main/main.cjs — Electron + Agent HTTP (clean, sans uu_ ni local_agent.json)
-const { app, BrowserWindow, ipcMain, dialog, Menu, clipboard, nativeImage, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, clipboard, nativeImage, protocol } = require('electron');
 
 // Must be called before app is ready
 protocol.registerSchemesAsPrivileged([

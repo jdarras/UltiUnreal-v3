@@ -11,7 +11,6 @@ async function handlePostprodRenderFormsRoutes({
   sanitizeRenderProjectName,
   sanitizeRenderTemplateName,
   sanitizeRenderMapName,
-  sanitizeRenderSequenceName,
   sanitizeRenderOutputProfile,
   normalizeRenderFormModeDefault,
   parseBooleanFlag,

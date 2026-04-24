@@ -118,7 +118,7 @@ function RolePermissionFlags({
           <div className="uu-col" style={{ gap: "8px" }}>
             <h4 className="uu-h3 uu-block-title">{safeT(t, "postprod.roles.form.mode.live", "Mode Live")}</h4>
             <PermissionToggleRow
-              label={safeT(t, "postprod.roles.form.canManageMachinesLive", "Peut gérer les machines")}
+              label={safeT(t, "postprod.roles.form.canManageMachinesLive", "Peut gérer les stations")}
               checked={draft?.canManageMachines === true}
               disabled={rolesLoading}
               onChange={(e) => setDraft?.((prev) => ({ ...(prev || {}), canManageMachines: e.target.checked }))}
@@ -164,7 +164,7 @@ function RolePermissionFlags({
           <div className="uu-col" style={{ gap: "8px" }}>
             <h4 className="uu-h3 uu-block-title">{safeT(t, "postprod.roles.form.mode.render", "Mode Rendu")}</h4>
             <PermissionToggleRow
-              label={safeT(t, "postprod.roles.form.canManageMachines", "Peut gérer les machines de rendu")}
+              label={safeT(t, "postprod.roles.form.canManageMachines", "Peut gérer les stations de rendu")}
               checked={draft?.canManageMachines === true}
               disabled={rolesLoading}
               onChange={(e) => setDraft?.((prev) => ({ ...(prev || {}), canManageMachines: e.target.checked }))}
@@ -204,6 +204,12 @@ function RolePermissionFlags({
               checked={draft?.canCreateTasks === true}
               disabled={rolesLoading || !canUseRenderMode}
               onChange={(e) => setDraft?.((prev) => ({ ...(prev || {}), canCreateTasks: e.target.checked }))}
+            />
+            <PermissionToggleRow
+              label={safeT(t, "postprod.roles.form.canAssignRenderRequests", "Peut assigner la demande de rendus")}
+              checked={draft?.canAssignRenderRequests === true}
+              disabled={rolesLoading || !canUseRenderMode}
+              onChange={(e) => setDraft?.((prev) => ({ ...(prev || {}), canAssignRenderRequests: e.target.checked }))}
             />
             <PermissionToggleRow
               label={safeT(t, "postprod.roles.form.canLaunchRenders", "Peut valider les rendus")}

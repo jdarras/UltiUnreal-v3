@@ -1,5 +1,5 @@
 ﻿import { safeT } from "../../../shared/helpers";
-import { taskAutoRenderStateLabel, taskVisualStatusClass } from "../../../tasks/helpers";
+import { taskAutoRenderStateLabel, taskVisualStatusClass } from "../../../renderEditor/helpers";
 
 function RendersQueueHeader({
   t,
@@ -13,30 +13,25 @@ function RendersQueueHeader({
 
   return (
     <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-      <div className="uu-row" style={{ gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-        <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
-          {safeT(t, "postprod.renders.queue.title", "File d'attente de rendu")}
-        </h4>
-        {canToggleQueueMode ? (
-          <div className="uu-row uu-gap-4">
-            <button
-              className={`uu-btn ${queueMode === "active" ? "prod-toggle-active" : ""}`}
-              type="button"
-              onClick={() => onSetQueueRuntimeMode?.("active")}
-            >
-              {safeT(t, "postprod.renders.queue.mode.active", "Active")}
-            </button>
-            <button
-              className={`uu-btn ${queueMode === "paused" ? "prod-toggle-paused-active" : ""}`}
-              type="button"
-              onClick={() => onSetQueueRuntimeMode?.("paused")}
-            >
-              {safeT(t, "postprod.renders.queue.mode.paused", "En pause")}
-            </button>
-          </div>
-        ) : null}
-      </div>
-      <div className="uu-chip-group" style={{ marginLeft: "auto" }}>
+      {canToggleQueueMode ? (
+        <div className="uu-row uu-gap-4">
+          <button
+            className={`uu-btn ${queueMode === "active" ? "prod-toggle-active" : ""}`}
+            type="button"
+            onClick={() => onSetQueueRuntimeMode?.("active")}
+          >
+            {safeT(t, "postprod.renders.queue.mode.active", "Active")}
+          </button>
+          <button
+            className={`uu-btn ${queueMode === "paused" ? "prod-toggle-paused-active" : ""}`}
+            type="button"
+            onClick={() => onSetQueueRuntimeMode?.("paused")}
+          >
+            {safeT(t, "postprod.renders.queue.mode.paused", "En pause")}
+          </button>
+        </div>
+      ) : <div />}
+      <div className="uu-chip-group" style={{ marginLeft: canToggleQueueMode ? "auto" : 0 }}>
         <span className={`uu-chip chip-on ${taskVisualStatusClass("waiting")}`}>
           {taskAutoRenderStateLabel(t, "waiting")} ({Number(queueStateSummary?.waiting || 0)})
         </span>

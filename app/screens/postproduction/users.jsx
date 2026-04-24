@@ -64,7 +64,7 @@ function UserManagementCard({
 
   useEffect(() => {
     if (inEditor) closeEditor();
-  }, [tabKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tabKey]);
 
   return (
     <section className="uu-section">

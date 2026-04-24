@@ -17,7 +17,7 @@ function RendersQueueTable({
   onLaunchScheduledTaskRender = null,
   onEditQueueTask = null,
   onDeleteQueueTask = null,
-  onRequestOpenTasks = null,
+  onRequestOpenRenderEditor = null,
   queueReorderBusy = false,
   canMoveQueueEntry = null,
   onMoveQueueEntry = null,
@@ -94,7 +94,7 @@ function RendersQueueTable({
               </th>
               <th style={{ textAlign: "left", paddingLeft: `${stationOffsetPx}px` }}>
                 <button type="button" className="uu-link" onClick={() => onToggleQueueSort?.("worker")}>
-                  {safeT(t, "postprod.renders.queue.table.worker", "Machine")}
+                  {safeT(t, "postprod.renders.queue.table.worker", "Station")}
                   {typeof queueSortIndicator === "function" ? queueSortIndicator("worker") : ""}
                 </button>
               </th>
@@ -127,7 +127,7 @@ function RendersQueueTable({
                 onLaunchScheduledTaskRender={onLaunchScheduledTaskRender}
                 onEditQueueTask={onEditQueueTask}
                 onRequestDeleteQueueTask={onDeleteQueueTask ? handleRequestDelete : null}
-                onRequestOpenTasks={onRequestOpenTasks}
+                onRequestOpenRenderEditor={onRequestOpenRenderEditor}
                 queueReorderBusy={queueReorderBusy}
                 canMoveQueueEntry={canMoveQueueEntry}
                 onMoveQueueEntry={onMoveQueueEntry}

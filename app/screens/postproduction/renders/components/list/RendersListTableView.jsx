@@ -4,6 +4,7 @@ import { RendersListTableRow } from "./RendersListTableRow";
 function RendersListTableView({
   t,
   sortedDisplayedRenders = [],
+  renderForms = [],
   listSortIndicator = null,
   toggleListSort = null,
   buildRenderThumbCandidates = null,
@@ -19,7 +20,8 @@ function RendersListTableView({
   onApplyReviewStatus = null,
   onOpenRenderDetail = null,
   onDeleteRender = null,
-  onRequestOpenTasks = null,
+  onRequestOpenRenderEditor = null,
+  onNavigateToRenderForm = null,
 }) {
   return (
     <div style={{ overflowX: "auto" }}>
@@ -56,7 +58,7 @@ function RendersListTableView({
             </th>
             <th style={{ textAlign: "left" }}>
               <button type="button" className="uu-link" onClick={() => toggleListSort?.("station")}>
-                {safeT(t, "postprod.renders.columns.station", "Machine")}
+                {safeT(t, "postprod.renders.columns.station", "Station")}
                 {typeof listSortIndicator === "function" ? listSortIndicator("station") : ""}
               </button>
             </th>
@@ -77,6 +79,7 @@ function RendersListTableView({
               key={`postprod-render-validation-row-${Number(render?.id || 0)}`}
               t={t}
               render={render}
+              renderForms={renderForms}
               buildRenderThumbCandidates={buildRenderThumbCandidates}
               renderOutputFilename={renderOutputFilename}
               renderLinkedTaskValue={renderLinkedTaskValue}
@@ -90,7 +93,8 @@ function RendersListTableView({
               onApplyReviewStatus={onApplyReviewStatus}
               onOpenRenderDetail={onOpenRenderDetail}
               onDeleteRender={onDeleteRender}
-              onRequestOpenTasks={onRequestOpenTasks}
+              onRequestOpenRenderEditor={onRequestOpenRenderEditor}
+              onNavigateToRenderForm={onNavigateToRenderForm}
             />
           ))}
         </tbody>

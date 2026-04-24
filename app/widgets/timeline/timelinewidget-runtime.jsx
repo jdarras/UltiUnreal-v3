@@ -77,7 +77,7 @@ export default function TimelineWidget({
 
   const startPlayback = (requestedStartFrame, initialDirection = 1) => {
     if (fpsWarnings.includes('missing')) {
-      showStatus(t('timeline.status.fpsMissing') || 'FPS manquant sur la machine serveur.');
+      showStatus(t('timeline.status.fpsMissing') || 'FPS manquant sur la station serveur.');
       return;
     }
     if (!timeline.tracks || timeline.tracks.length === 0) {

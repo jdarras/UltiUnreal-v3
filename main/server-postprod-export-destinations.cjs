@@ -308,7 +308,7 @@ function applyRenderExport({
   payload = null,
   destinationEntries = [],
   destinationIds = [],
-  logLine = null,
+  logLine: _logLine = null,
 } = {}) {
   const row = asRecord(renderRow) || {};
   const payloadObj = asRecord(payload) || parsePayloadJsonSafe(row.payload_json);

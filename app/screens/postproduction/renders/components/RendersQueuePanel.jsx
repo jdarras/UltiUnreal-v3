@@ -93,7 +93,7 @@ function RendersQueuePanel({
   onLaunchScheduledTaskRender = null,
   onEditQueueTask = null,
   onDeleteQueueTask = null,
-  onRequestOpenTasks = null,
+  onRequestOpenRenderEditor = null,
   onReorderRenders = null,
 }) {
   const [queueReorderBusy, setQueueReorderBusy] = useState(false);
@@ -178,6 +178,20 @@ function RendersQueuePanel({
 
   return (
     <div className="uu-card mt-12">
+      <div
+        className="uu-row"
+        style={{
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "8px",
+          flexWrap: "wrap",
+          marginBottom: "8px",
+        }}
+      >
+        <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
+          {safeT(t, "postprod.renders.queue.title", "File d'attente de rendu")}
+        </h4>
+      </div>
       <RendersQueueHeader
         t={t}
         renderQueueTasks={renderQueueTasks}
@@ -214,7 +228,7 @@ function RendersQueuePanel({
           onLaunchScheduledTaskRender={onLaunchScheduledTaskRender}
           onEditQueueTask={onEditQueueTask}
           onDeleteQueueTask={onDeleteQueueTask}
-          onRequestOpenTasks={onRequestOpenTasks}
+          onRequestOpenRenderEditor={onRequestOpenRenderEditor}
           queueReorderBusy={queueReorderBusy}
           canMoveQueueEntry={canMoveQueueEntry}
           onMoveQueueEntry={moveQueueEntry}

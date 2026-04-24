@@ -14,6 +14,7 @@ export function useRoleManagementCardController({
   rolesLoading = false,
   onCreateRole = null,
   onUpdateRole = null,
+  onDeleteRole = null,
   onOpenUser = null,
   users = [],
 } = {}) {
@@ -165,6 +166,7 @@ export function useRoleManagementCardController({
     users,
     rolesLoading,
     openEdit,
+    onDeleteRole: typeof onDeleteRole === "function" ? onDeleteRole : null,
   };
 
   return {

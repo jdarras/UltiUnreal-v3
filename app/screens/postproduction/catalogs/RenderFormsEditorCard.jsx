@@ -58,14 +58,14 @@ function RenderFormsEditorCard({
 
   useEffect(() => {
     if (showEditor) editorState.backToList();
-  }, [tabKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tabKey]);
 
   useEffect(() => {
     if (!renderFormFocusRequest) return;
     const formId = Number(renderFormFocusRequest?.ref || 0);
     if (formId > 0 && typeof startEdit === "function") startEdit({ id: formId });
     onRenderFormFocusHandled?.();
-  }, [renderFormFocusRequest]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [renderFormFocusRequest]);
 
   return (
     <div className="mt-12">

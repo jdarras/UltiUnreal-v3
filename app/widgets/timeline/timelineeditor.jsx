@@ -539,7 +539,7 @@ export function TimelineEditorRight({
 
   const startEditorPlayback = (requestedStartFrame, initialDirection = 1) => {
     if (fpsWarnings.includes('missing')) {
-      showStatus('FPS manquant sur la machine serveur.');
+      showStatus('FPS manquant sur la station serveur.');
       return;
     }
     if (!timelineDraft.tracks || timelineDraft.tracks.length === 0) {

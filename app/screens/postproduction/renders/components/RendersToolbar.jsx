@@ -19,6 +19,7 @@ function normalizeMultiSelectOptions(options = []) {
 function RendersToolbar({
   t,
   rendersLoading = false,
+  onOpenCreateRender = null,
   listSortKey = "updatedAt",
   listSortDir = "desc",
   onSetListSortFromSelect = null,
@@ -29,50 +30,22 @@ function RendersToolbar({
   onOpenAdvancedSearch = null,
   viewMode = "thumbs",
   onSetViewMode = null,
-  searchExpanded = false,
-  onSetSearchExpanded = null,
-  sortedDisplayedRendersCount = 0,
-  projectFilter = [],
-  onSetProjectFilter = null,
-  stationFilter = [],
-  onSetStationFilter = null,
-  reviewFilter = [],
-  onSetReviewFilter = null,
-  taskFilter = [],
-  onSetTaskFilter = null,
-  formFilter = [],
-  onSetFormFilter = null,
-  requesterFilter = [],
-  onSetRequesterFilter = null,
-  statusFilter = [],
-  onSetStatusFilter = null,
-  sequenceFilter = [],
-  onSetSequenceFilter = null,
-  projectFilterOptions = [],
-  reviewFilterOptions = [],
-  stationFilterOptions = [],
-  taskFilterOptions = [],
-  formFilterOptions = [],
-  requesterFilterOptions = [],
-  statusFilterOptions = [],
-  sequenceFilterOptions = [],
   showHistory = false,
   onSetShowHistory = null,
 }) {
-  const noneLabel = safeT(t, "common.all", "Tous");
-  const projectOptions = normalizeMultiSelectOptions(projectFilterOptions);
-  const reviewOptions = normalizeMultiSelectOptions(reviewFilterOptions);
-  const stationOptions = normalizeMultiSelectOptions(stationFilterOptions);
-  const taskOptions = normalizeMultiSelectOptions(taskFilterOptions);
-  const formOptions = normalizeMultiSelectOptions(formFilterOptions);
-  const requesterOptions = normalizeMultiSelectOptions(requesterFilterOptions);
-  const statusOptions = normalizeMultiSelectOptions(statusFilterOptions);
-  const sequenceOptions = normalizeMultiSelectOptions(sequenceFilterOptions);
-
   return (
     <div className="uu-card">
       <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: "nowrap", alignItems: "center", width: "100%" }}>
         <div className="uu-row uu-gap-8 uu-align-center" style={{ flex: "0 0 auto" }}>
+          <button
+            className="uu-btn"
+            type="button"
+            disabled={typeof onOpenCreateRender !== "function"}
+            onClick={() => onOpenCreateRender?.()}
+          >
+            {safeT(t, "postprod.renders.action.addRender", "+ Ajouter un Rendu")}
+          </button>
+
           <select
             className="uu-select"
             style={{ height: "36px" }}
@@ -85,7 +58,7 @@ function RendersToolbar({
             <option value="project:asc">{safeT(t, "postprod.renders.sort.project", "Projet")}</option>
             <option value="linkedTask:asc">{safeT(t, "postprod.renders.sort.linkedTask", "Tache liee")}</option>
             <option value="requester:asc">{safeT(t, "postprod.renders.sort.requester", "Demandeur")}</option>
-            <option value="station:asc">{safeT(t, "postprod.renders.columns.station", "Machine")}</option>
+            <option value="station:asc">{safeT(t, "postprod.renders.columns.station", "Station")}</option>
             <option value="reviewStatus:asc">{safeT(t, "postprod.renders.sort.reviewStatus", "Validation")}</option>
           </select>
 
@@ -97,7 +70,7 @@ function RendersToolbar({
               value={searchQuery}
               disabled={rendersLoading}
               onChange={(e) => onSetSearchQuery?.(e.target.value)}
-              placeholder={safeT(t, "postprod.renders.search.placeholder", "Template, projet, demandeur, machine de rendu disponible...")}
+              placeholder={safeT(t, "postprod.renders.search.placeholder", "Template, projet, demandeur, station de rendu disponible...")}
             />
             <button
               type="button"
@@ -215,7 +188,7 @@ function RendersAdvancedSearchPanel({
         <div style={FIELD_GRID}>
           <label className="uu-label">{safeT(t, "postprod.renders.filters.projects", "Projets")}</label>
           <MultiSelectDropdown options={projectOptions} values={Array.isArray(projectFilter) ? projectFilter : []} onChange={(v) => { if (!rendersLoading) onSetProjectFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />
-          <label className="uu-label">{safeT(t, "postprod.renders.filters.station", "Machine")}</label>
+          <label className="uu-label">{safeT(t, "postprod.renders.filters.station", "Station")}</label>
           <MultiSelectDropdown options={stationOptions} values={Array.isArray(stationFilter) ? stationFilter : []} onChange={(v) => { if (!rendersLoading) onSetStationFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />
           <label className="uu-label">{safeT(t, "postprod.renders.filters.form", "Formulaire")}</label>
           <MultiSelectDropdown options={formOptions} values={Array.isArray(formFilter) ? formFilter : []} onChange={(v) => { if (!rendersLoading) onSetFormFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />

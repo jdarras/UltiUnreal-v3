@@ -1,0 +1,91 @@
+import { useRenderEditorDataController } from "./card/useRenderEditorDataController";
+import { useRenderEditorFlowController } from "./card/useRenderEditorFlowController";
+
+export function useRenderEditorController({
+  t,
+  tasks = [],
+  renders = [],
+  projectOptions = [],
+  resourceOptions = [],
+  renderTemplates = [],
+  renderForms = [],
+  renderFormsLoading = false,
+  renderFormsError = "",
+  canManageRenderTemplates = false,
+  canCreateTasks = false,
+  canAssignRenderRequests = false,
+  currentUser = null,
+  users = [],
+  renderWorkers = [],
+  renderWorkersLoading = false,
+  renderWorkersError = "",
+  renderOutputDir = "",
+  renderExportDestinationOptions = [],
+  renderFocusRequest = null,
+  onRenderFocusHandled = null,
+  tasksLoading = false,
+  tasksError = "",
+  onCreateTask = null,
+  onUpdateTask = null,
+  onDeleteTask = null,
+  onCreateRender = null,
+  onReserveRenderId = null,
+  onLoadRenderFormFields = null,
+  onLoadProjectUnrealCatalog = null,
+  onFormModeChange = null,
+} = {}) {
+  const data = useRenderEditorDataController({
+    t,
+    tasks,
+    renders,
+    projectOptions,
+    resourceOptions,
+    renderTemplates,
+    renderForms,
+    currentUser,
+    users,
+    canAssignRenderRequests,
+    renderWorkers,
+    renderOutputDir,
+    renderExportDestinationOptions,
+    renderFocusRequest,
+    onRenderFocusHandled,
+    onLoadRenderFormFields,
+    onLoadProjectUnrealCatalog,
+    onFormModeChange,
+  });
+
+  const {
+    browseSectionProps,
+    editorSectionProps,
+    statusMessagesProps,
+    deleteDialogProps,
+  } = useRenderEditorFlowController({
+    t,
+    tasksLoading,
+    tasksError,
+    renderFormsLoading,
+    renderFormsError,
+    canManageRenderTemplates,
+    canCreateTasks,
+    canAssignRenderRequests,
+    renderWorkersLoading,
+    renderWorkersError,
+    renderOutputDir,
+    onCreateTask,
+    onUpdateTask,
+    onDeleteTask,
+    onCreateRender,
+    onReserveRenderId,
+    data,
+  });
+
+  return {
+    browseSectionProps,
+    editorSectionProps,
+    statusMessagesProps,
+    deleteDialogProps,
+  };
+}
+
+export default useRenderEditorController;

@@ -11,6 +11,7 @@ export function RoleManagementCard({
   rolesError = "",
   onCreateRole = null,
   onUpdateRole = null,
+  onDeleteRole = null,
   onOpenUser = null,
   users = [],
 }) {
@@ -26,13 +27,14 @@ export function RoleManagementCard({
     rolesLoading,
     onCreateRole,
     onUpdateRole,
+    onDeleteRole,
     onOpenUser,
     users,
   });
 
   useEffect(() => {
     if (inEditor) closeEditor();
-  }, [tabKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tabKey]);
 
   return (
     <section className="uu-section">
