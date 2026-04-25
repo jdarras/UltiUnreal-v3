@@ -1,10 +1,14 @@
+import { useState, useEffect } from "react";
 import { activityActionLabel, formatDate, safeT } from "../../../shared/helpers";
 import {
   ACTIVITY_TYPE_FILTERS,
+  activityActionTypeFromAction,
   activityActionTypeLabel,
   activityTypeChipLevel,
   normalizeActivityProjectRef,
 } from "../../userSharedHelpers";
+
+const PAGE_SIZES = [25, 50, 100, 200];
 
 function ProfileActivitySummaryPanel({
   t,
@@ -21,6 +25,19 @@ function ProfileActivitySummaryPanel({
   activityItems = [],
   filteredActivityItems = [],
 } = {}) {
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(100);
+
+  useEffect(() => { setPage(0); }, [filteredActivityItems.length, activityActionType, activityProjectRef]);
+
+  const totalItems = filteredActivityItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageStart = safePage * pageSize;
+  const visibleItems = filteredActivityItems.slice(pageStart, pageStart + pageSize);
+  const canPrev = safePage > 0;
+  const canNext = safePage < totalPages - 1;
+
   return (
     <div className="uu-col mt-8">
       <div>
@@ -109,30 +126,58 @@ function ProfileActivitySummaryPanel({
           );
         })}
       </div>
-      <div>
-        <span className="uu-muted">{safeT(t, "postprod.users.activity.summary.filtered.label", "Affichage")}:</span>{" "}
-        {filteredActivityItems.length}/{activityItems.length}
+
+      <div className="uu-row uu-gap-8 uu-align-center" style={{ marginTop: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
+        <div className="uu-row uu-gap-6 uu-align-center">
+          {canPrev ? (
+            <button type="button" className="uu-btn" onClick={() => setPage((p) => Math.max(0, p - 1))}>‹</button>
+          ) : null}
+          <span className="uu-muted">{`Page ${safePage + 1}/${totalPages}`}</span>
+          {canNext ? (
+            <button type="button" className="uu-btn" onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}>›</button>
+          ) : null}
+          <select
+            className="uu-select"
+            value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value) || 100); setPage(0); }}
+            style={{ width: "80px" }}
+          >
+            {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <span className="uu-muted">{totalItems} {safeT(t, "postprod.profile.activity.count", "entrées")}</span>
+        </div>
       </div>
-      {filteredActivityItems.length === 0 ? (
+
+      {visibleItems.length === 0 ? (
         <div className="uu-muted">
           {safeT(t, "postprod.profile.activity.empty", "Aucune action recente.")}
         </div>
-      ) : filteredActivityItems.map((activity) => (
-        <div key={`my-activity-${Number(activity?.id || 0)}`} style={{ display: "flex", flexWrap: "wrap", columnGap: "4px" }}>
-          <span className="uu-muted">{formatDate(activity?.createdAt)} —</span>
-          <span>
-            {activityActionLabel(activity)}
-            {String(activity?.toStatus || "").trim()
-              ? ` (${String(activity?.toStatus || "").trim()})`
-              : ""}
-            {Array.isArray(activity?.projectRefs) && activity.projectRefs.length > 0
-              ? ` — ${safeT(t, "postprod.profile.activity.item.projects", "Projets: {value}", {
-                value: activity.projectRefs.join(", "),
-              })}`
-              : ""}
-          </span>
+      ) : (
+        <div className="log-list">
+          {visibleItems.map((activity) => {
+            const activityId = Number(activity?.id || 0);
+            const actionType = activityActionTypeFromAction(activity?.action, activity);
+            const level = activityTypeChipLevel(actionType).replace("lvl-", "");
+            const toStatus = String(activity?.toStatus || "").trim();
+            const projectRefs = Array.isArray(activity?.projectRefs) && activity.projectRefs.length > 0
+              ? activity.projectRefs.join(", ")
+              : "";
+            return (
+              <div key={`my-activity-${activityId}`} className={`log-row lvl-${level}`}>
+                <div className="log-meta">
+                  <span className="log-ts">{formatDate(activity?.createdAt)}</span>
+                  <span className="log-action">{activityActionTypeLabel(t, actionType)}</span>
+                </div>
+                <div className="log-msg">
+                  {activityActionLabel(activity)}
+                  {toStatus ? ` (${toStatus})` : ""}
+                  {projectRefs ? ` — ${projectRefs}` : ""}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      ))}
+      )}
     </div>
   );
 }

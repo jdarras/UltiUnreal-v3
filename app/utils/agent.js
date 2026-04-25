@@ -340,6 +340,26 @@ export async function getCommon() { return await httpGet('/agent/common'); }
 export async function getPresence() { return await httpGet('/agent/presence'); }
 export async function getOnlineStatus() { return await httpGet('/agent/online'); }
 export async function postPresence(body = {}) { return await httpPost('/agent/presence', body); }
+export async function setAgentRenderAvailability(renderAvailability = 'capable', renderReturnAt = null, timeoutMs = 5000) {
+  const nextAvailability = String(renderAvailability || '').trim().toLowerCase();
+  if (!['capable', 'busy', 'excluded'].includes(nextAvailability)) {
+    throw new Error('invalid renderAvailability, expected: capable | busy | excluded');
+  }
+  const body = {
+    renderAvailability: nextAvailability,
+    renderReturnAt: (nextAvailability === 'busy' && typeof renderReturnAt === 'string' && renderReturnAt.trim())
+      ? renderReturnAt.trim()
+      : null,
+  };
+  const res = await httpRequest('/agent/availability', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true, renderAvailability: nextAvailability, renderReturnAt: body.renderReturnAt };
+}
 export async function getProjectMeta(projectId) {
   const pid = encodeURIComponent(String(projectId || '').trim());
   if (!pid) return { ok:false, error:'missing projectId' };
@@ -740,6 +760,23 @@ export async function postprodListUserActivity(
   );
   if (!res.ok) throw toRequestError(res);
   return res.json || { ok: true, activities: [], summary: { total: 0, actions: {}, projects: [] } };
+}
+
+export async function postprodPurgeUserActivity(token = '', userId = 0, timeoutMs = 8000) {
+  const authToken = assertPostprodToken(token);
+  const idNum = Math.trunc(Number(userId));
+  if (!Number.isFinite(idNum) || idNum <= 0) {
+    const err = new Error('invalid_user_id');
+    err.code = 'invalid_user_id';
+    throw err;
+  }
+  const res = await httpRequest(`/agent/postprod/users/${idNum}/activity`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${authToken}` },
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true, deleted: 0 };
 }
 
 export async function postprodListMyActivity(token = '', limit = 50, options = {}, timeoutMs = 8000) {

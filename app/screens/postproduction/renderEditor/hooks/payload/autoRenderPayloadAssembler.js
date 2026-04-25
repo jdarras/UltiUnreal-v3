@@ -40,6 +40,27 @@ function withRenderOffscreenExecution(execution = null, renderOffscreen = false)
   return cloned;
 }
 
+function normalizeLaunchMode(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "now" || normalized === "scheduled") return normalized;
+  return "";
+}
+
+function normalizeScheduledMode(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "datetime" || normalized === "any_station" || normalized === "specific_station") {
+    return normalized;
+  }
+  return "";
+}
+
+function normalizeScheduledAt(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? raw : "";
+}
+
 export function buildAutoRenderPayloads({
   selectedTemplatePayload = {},
   selectedFormData = {},
@@ -59,6 +80,9 @@ export function buildAutoRenderPayloads({
   selectedFormIdNum = 0,
   autoRenderOffscreen = false,
   autoRenderExportDestinationIds = [],
+  autoRenderLaunchMode = "",
+  autoRenderScheduledMode = "",
+  autoRenderScheduledAt = "",
 } = {}) {
   const offscreenEnabled = autoRenderOffscreen === true;
   const exportDestinationIds = normalizeExportDestinationIds(autoRenderExportDestinationIds);
@@ -98,6 +122,25 @@ export function buildAutoRenderPayloads({
     }
   }
 
+  const launchMode = normalizeLaunchMode(autoRenderLaunchMode);
+  const scheduledMode = launchMode === "scheduled"
+    ? normalizeScheduledMode(autoRenderScheduledMode)
+    : "";
+  const scheduledAt = (
+    launchMode === "scheduled" && scheduledMode === "datetime"
+      ? normalizeScheduledAt(autoRenderScheduledAt)
+      : ""
+  );
+  if (launchMode) {
+    basePayload.launchMode = launchMode;
+  }
+  if (scheduledMode) {
+    basePayload.scheduledMode = scheduledMode;
+  }
+  if (scheduledAt) {
+    basePayload.scheduledAt = scheduledAt;
+  }
+
   const autoRenderConfig = {
     projectName: formProjectRef,
     templateName: effectiveTemplateName,
@@ -123,6 +166,15 @@ export function buildAutoRenderPayloads({
   }
   if (Number(selectedFormIdNum || 0) > 0) autoRenderConfig.formId = Number(selectedFormIdNum || 0);
   if (hasFormData) autoRenderConfig.formData = selectedFormData;
+  if (launchMode) {
+    autoRenderConfig.launchMode = launchMode;
+  }
+  if (scheduledMode) {
+    autoRenderConfig.scheduledMode = scheduledMode;
+  }
+  if (scheduledAt) {
+    autoRenderConfig.scheduledAt = scheduledAt;
+  }
 
   return { basePayload, autoRenderConfig };
 }

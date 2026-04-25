@@ -93,7 +93,7 @@ export default function ProjectsListView({
         ) : null}
         {canCreateTask ? (
           <button className="uu-btn" onClick={() => onCreateTaskFromProject?.(p.id)}>
-            {t('projects.actions.createTask', 'Tâche')}
+            {t('projects.actions.createTask', 'Rendu')}
           </button>
         ) : null}
         {typeof onToggleFavorite === 'function' ? (

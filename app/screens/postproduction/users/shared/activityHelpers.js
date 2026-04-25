@@ -1,6 +1,6 @@
 import { activityActionLabel, safeT } from "../../shared/helpers";
 
-const ACTIVITY_TYPE_FILTERS = ["all", "project", "form", "task", "validation"];
+const ACTIVITY_TYPE_FILTERS = ["all", "project", "form", "render", "validation"];
 
 const PROJECT_ACTIONS = new Set([
   "project_usage_mode_updated",
@@ -17,9 +17,12 @@ const TASK_ACTIONS = new Set([
   "task_created",
 ]);
 
+const RENDER_ACTIONS = new Set([
+  "render_worker_complete",
+]);
+
 const VALIDATION_ACTIONS = new Set([
   "render_transition",
-  "render_worker_complete",
 ]);
 
 const USER_ACTIONS = new Set([
@@ -65,6 +68,9 @@ function activityActionTypeLabel(t, type) {
   if (key === "task") {
     return safeT(t, "postprod.users.activity.filter.actionType.task", "Tache");
   }
+  if (key === "render") {
+    return safeT(t, "postprod.users.activity.filter.actionType.render", "Rendu");
+  }
   if (key === "validation") {
     return safeT(t, "postprod.users.activity.filter.actionType.validation", "Validation");
   }
@@ -82,6 +88,7 @@ function activityTypeChipLevel(type) {
   if (key === "project") return "lvl-info";
   if (key === "form") return "lvl-success";
   if (key === "task") return "lvl-debug";
+  if (key === "render") return "lvl-error";
   if (key === "validation") return "lvl-warn";
   if (key === "user") return "lvl-info";
   if (key === "profile") return "lvl-success";
@@ -99,6 +106,7 @@ function activityActionTypeFromAction(action, activity = null) {
 
   if (TASK_ACTIONS.has(normalized)) return "task";
   if (FORM_ACTIONS.has(normalized)) return "form";
+  if (RENDER_ACTIONS.has(normalized)) return "render";
   if (VALIDATION_ACTIONS.has(normalized)) return "validation";
   if (USER_ACTIONS.has(normalized)) return "user";
   if (PROFILE_ACTIONS.has(normalized)) return "profile";
@@ -133,6 +141,10 @@ function activityActionTypeFromAction(action, activity = null) {
     return "validation";
   }
 
+  if (normalized.startsWith("render_")) {
+    return "render";
+  }
+
   if (
     normalized.startsWith("render_form_")
     && normalized.includes("created")
@@ -144,7 +156,7 @@ function activityActionTypeFromAction(action, activity = null) {
 }
 
 function getActivityTypeSummary(summary, activities = []) {
-  const result = { project: 0, form: 0, task: 0, validation: 0, user: 0, profile: 0, other: 0 };
+  const result = { project: 0, form: 0, task: 0, render: 0, validation: 0, user: 0, profile: 0, other: 0 };
 
   const list = Array.isArray(activities) ? activities : [];
   for (const item of list) {
@@ -162,7 +174,8 @@ function mapActivityActionTypeToApi(actionType) {
   const normalized = String(actionType || "").trim().toLowerCase();
   if (!normalized || normalized === "all") return "all";
   if (normalized === "task") return "task";
-  if (normalized === "validation") return "render";
+  if (normalized === "render") return "render";
+  if (normalized === "validation") return "validation";
   return "all";
 }
 

@@ -5,17 +5,20 @@ export function summarizeQueueStates({
   let waiting = 0;
   let running = 0;
   let error = 0;
+  let toModify = 0;
   for (const entry of renderQueueTasks) {
     const state = String(getQueueEntryLaunchMeta(entry).renderState || "").trim().toLowerCase();
     if (state === "running") {
       running += 1;
     } else if (state === "error") {
       error += 1;
+    } else if (state === "to_modify") {
+      toModify += 1;
     } else {
       waiting += 1;
     }
   }
-  return { waiting, running, error };
+  return { waiting, running, error, toModify };
 }
 
 export default summarizeQueueStates;

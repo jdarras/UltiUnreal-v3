@@ -151,7 +151,7 @@ export default function ProjectsThumbsView({
                   className="uu-btn"
                   onClick={() => onCreateTaskFromProject?.(p.id)}
                 >
-                  {t('projects.actions.createTask', 'Tâche')}
+                  {t('projects.actions.createTask', 'Rendu')}
                 </button>
               ) : null}
             </div>

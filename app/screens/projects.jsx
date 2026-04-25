@@ -3159,7 +3159,7 @@ async function activateOne(projectKey) {
                     className="uu-btn"
                     onClick={() => { createTaskFromProject(detailId); }}
                   >
-                    {t('projects.actions.createTask', 'Tâche')}
+                    {t('projects.actions.createTask', 'Rendu')}
                   </button>
                 ) : null}
                 <button className="uu-btn" onClick={() => { removeOne(detailId); setDetailId(''); }}>{t('projects.server.card.delete')}</button>

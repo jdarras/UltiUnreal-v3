@@ -226,6 +226,27 @@ textarea::placeholder {
 .uu-gap-16 { gap: 16px !important; }
 .uu-muted { opacity:0.5; align-self:center; }
 
+.uu-datetime-confirm {
+  position: relative;
+}
+
+.uu-datetime-confirm-trigger {
+  cursor: pointer;
+}
+
+.uu-datetime-confirm-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1400;
+  min-width: 320px;
+  max-width: min(92vw, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
 /* launchcontrol */
 .uu-col { display:flex; flex-direction:column; gap:12px; }
 .uu-config-stack { display:flex; flex-direction:column; gap:12px; }
@@ -765,6 +786,11 @@ textarea::placeholder {
   box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.28) inset;
 }
 
+.uu-nav-btn.logs-alert-warn.active {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.45) inset;
+}
+
 .uu-nav-btn.logs-alert-warn:not(.active):hover {
   background: #5c4611;
   border-color: #f59e0b;
@@ -775,6 +801,11 @@ textarea::placeholder {
   border-color: #ef4444;
   color: #fff;
   box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.28) inset;
+}
+
+.uu-nav-btn.logs-alert-error.active {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.45) inset;
 }
 
 .uu-nav-btn.logs-alert-error:not(.active):hover {

@@ -32,6 +32,7 @@ function canSubmitTaskForm({
   autoRenderFormId = "",
   renderOutputDir = "",
 } = {}) {
+  const blockByLoading = isEditingTask ? false : tasksLoading;
   const launchModeOk = isEditingTask || !!String(autoRenderLaunchMode || "").trim();
   const statusKey = normalizeTaskVisualStatusKey(editingTaskVisualStatusKey);
   const createRenderAfterEdit = isEditingTask && (
@@ -46,7 +47,7 @@ function canSubmitTaskForm({
     || !(autoRenderLaunchMode === "scheduled" && autoRenderScheduledMode === "datetime")
     || isValidFutureDate(autoRenderScheduledAt);
   return (
-    !tasksLoading
+    !blockByLoading
     && canCreateTasks === true
     && !!taskSaveHandler
     && !(!isEditingTask && autoRenderLaunchMode === "now" && !onCreateRender)

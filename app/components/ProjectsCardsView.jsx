@@ -218,7 +218,7 @@ export default function ProjectsCardsView({
                   className="uu-btn"
                   onClick={() => onCreateTaskFromProject?.(p.id)}
                 >
-                  {t('projects.actions.createTask', 'Tâche')}
+                  {t('projects.actions.createTask', 'Rendu')}
                 </button>
               ) : null}
 
@@ -240,7 +240,7 @@ export default function ProjectsCardsView({
                   className="uu-btn"
                   onClick={() => onCreateTaskFromProject?.(p.id)}
                 >
-                  {t('projects.actions.createTask', 'Tâche')}
+                  {t('projects.actions.createTask', 'Rendu')}
                 </button>
               ) : null}
 

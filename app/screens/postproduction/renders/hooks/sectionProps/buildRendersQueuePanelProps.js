@@ -44,9 +44,9 @@ function buildQueuePanelProps(input = {}) {
     onLaunchQueueBatch: (entries) => {
       if (typeof launchQueueBatch === "function") void launchQueueBatch(entries);
     },
-    onLaunchScheduledTaskRender: (task, queueEntry) => {
+    onLaunchScheduledTaskRender: (task, queueEntry, launchOptions = null) => {
       if (typeof launchScheduledTaskRender === "function") {
-        void launchScheduledTaskRender(task, queueEntry);
+        void launchScheduledTaskRender(task, queueEntry, launchOptions);
       }
     },
   };

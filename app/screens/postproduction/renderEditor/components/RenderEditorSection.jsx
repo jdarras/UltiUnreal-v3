@@ -5,6 +5,7 @@ function RenderEditorSection({
   showCreateForm = false,
   isEditingTask = false,
   editingTaskVisualStatusKey = "planned",
+  editingTaskRejectionInfo = null,
   editingTaskId = 0,
   tasksLoading = false,
   title = "",
@@ -71,6 +72,7 @@ function RenderEditorSection({
       t={t}
       isEditingTask={isEditingTask}
       editingTaskVisualStatusKey={editingTaskVisualStatusKey}
+      editingTaskRejectionInfo={editingTaskRejectionInfo}
       editingTaskId={editingTaskId}
       tasksLoading={tasksLoading}
       title={title}

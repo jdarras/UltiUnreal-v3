@@ -11,6 +11,7 @@ import {
   getOnlineStatus,
   setProjectAssociation,
 } from '../utils/agent';
+import DateTimeConfirmPicker from '../components/DateTimeConfirmPicker';
 import { createT } from '../i18n';
 
 const EMPTY_CFG = {
@@ -192,13 +193,17 @@ function ReturnAtPicker({ value, onChange, t }) {
       <span style={{ fontSize: '0.82em', color: 'var(--uu-text-muted, #888)', whiteSpace: 'nowrap' }}>
         {t('renderReturnAt.label')}
       </span>
-      <input
-        type="datetime-local"
-        className="uu-input"
-        style={{ minWidth: 170, fontSize: '0.9em' }}
-        value={isoToLocal(value)}
-        onChange={(e) => onChange(localToIso(e.target.value))}
-      />
+      <div style={{ minWidth: 220, maxWidth: 280, flex: '1 1 220px' }}>
+        <DateTimeConfirmPicker
+          value={isoToLocal(value)}
+          onChange={(nextValue) => onChange(localToIso(nextValue))}
+          placeholder="jj/mm/aaaa hh:mm"
+          applyLabel={t('postprod.renders.queue.jobs.save') || 'Valider'}
+          cancelLabel={t('postprod.renders.queue.jobs.cancel') || 'Annuler'}
+          clearLabel={t('renderReturnAt.clear') || 'Effacer'}
+          locale="fr-FR"
+        />
+      </div>
       {RETURN_PRESETS_MIN.map((m) => (
         <button
           key={m}
@@ -210,14 +215,6 @@ function ReturnAtPicker({ value, onChange, t }) {
           {m >= 60 ? `${m/60}h` : `${m}m`}
         </button>
       ))}
-      {value && (
-        <button
-          className="uu-btn"
-          style={{ fontSize: '0.8em', padding: '2px 6px' }}
-          onClick={() => onChange(null)}
-          title={t('renderReturnAt.clear')}
-        >✕</button>
-      )}
     </div>
   );
 }

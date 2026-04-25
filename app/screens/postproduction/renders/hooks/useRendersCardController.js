@@ -61,6 +61,13 @@ export function useRendersCardController({
 
   return {
     canReviewRenders: data.canReviewRenders,
+    busyReviewRenderId: data.busyRenderId,
+    rejectDialogOpen: data.rejectDialogOpen,
+    rejectDialogRender: data.rejectDialogRender,
+    rejectDialogReason: data.rejectDialogReason,
+    setRejectDialogReason: data.setRejectDialogReason,
+    closeRejectDialog: data.closeRejectDialog,
+    confirmRejectDialog: data.confirmRejectDialog,
     rendersError,
     toolbarProps,
     queuePanelProps,

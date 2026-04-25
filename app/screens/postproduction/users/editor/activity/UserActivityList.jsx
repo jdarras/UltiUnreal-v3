@@ -97,56 +97,42 @@ function UserActivityList({
   };
 
   return (
-    <table className="uu-table" style={{ width: "100%", tableLayout: "fixed", marginTop: "8px" }}>
-      <thead>
-        <tr>
-          <th style={{ width: "200px", textAlign: "left" }}>
-            {safeT(t, "postprod.users.activity.table.dateTime", "Date et heure")}
-          </th>
-          <th style={{ width: "220px", textAlign: "left" }}>
-            {safeT(t, "postprod.users.activity.table.actionType", "Type d'action")}
-          </th>
-          <th style={{ textAlign: "left" }}>
-            {safeT(t, "postprod.users.activity.table.detailProject", "Detail")}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {filteredEditingActivities.map((activity) => {
-          const rowId = Number(activity?.id || 0);
-          const actionType = activityActionTypeFromAction(activity?.action, activity);
-          const actionTypeLabel = activityActionTypeLabel(t, actionType);
-          const detailLink = buildActivityDetailTarget(activity, actionType);
-          const canOpenDetail = detailLink?.target && typeof onOpenActivityTarget === "function";
-          return (
-            <tr key={`activity-${rowId > 0 ? rowId : `${String(activity?.createdAt || "")}-${String(activity?.action || "")}`}`}>
-              <td style={{ paddingTop: "6px", paddingBottom: "6px", verticalAlign: "top" }}>
-                {formatDate(activity?.createdAt)}
-              </td>
-              <td style={{ paddingTop: "6px", paddingBottom: "6px", verticalAlign: "top" }}>
-                <span className={`uu-chip ${activityTypeChipLevel(actionType)} chip-on`}
-                  style={{ display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1.2 }}>
-                  {actionTypeLabel}
-                </span>
-              </td>
-              <td style={{ overflowWrap: "anywhere", lineHeight: 1.35, paddingTop: "6px", paddingBottom: "6px", verticalAlign: "top" }}>
-                {canOpenDetail ? (
-                  <button
-                    type="button"
-                    className="uu-link"
-                    onClick={() => onOpenActivityTarget?.(detailLink.target)}
-                  >
-                    {detailLink.label || "-"}
-                  </button>
-                ) : (
-                  detailLink.label || "-"
-                )}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div className="log-list" style={{ marginTop: "8px" }}>
+      {filteredEditingActivities.map((activity) => {
+        const rowId = Number(activity?.id || 0);
+        const actionType = activityActionTypeFromAction(activity?.action, activity);
+        const actionTypeLabel = activityActionTypeLabel(t, actionType);
+        const level = activityTypeChipLevel(actionType).replace("lvl-", "");
+        const detailLink = buildActivityDetailTarget(activity, actionType);
+        const canOpenDetail = detailLink?.target && typeof onOpenActivityTarget === "function";
+        const rawAction = String(activity?.action || "").trim();
+        return (
+          <div
+            key={`activity-${rowId > 0 ? rowId : `${String(activity?.createdAt || "")}-${rawAction}`}`}
+            className={`log-row lvl-${level}`}
+          >
+            <div className="log-meta">
+              <span className="log-ts">{formatDate(activity?.createdAt)}</span>
+              <span className="log-action">{actionTypeLabel}</span>
+              {rawAction ? <span className="log-action">{rawAction}</span> : null}
+            </div>
+            <div className="log-msg">
+              {canOpenDetail ? (
+                <button
+                  type="button"
+                  className="uu-link"
+                  onClick={() => onOpenActivityTarget?.(detailLink.target)}
+                >
+                  {detailLink.label || "-"}
+                </button>
+              ) : (
+                detailLink.label || "-"
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

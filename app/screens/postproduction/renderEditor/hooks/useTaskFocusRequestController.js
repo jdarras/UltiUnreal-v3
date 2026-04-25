@@ -1,9 +1,284 @@
 import { useEffect, useMemo } from "react";
 
+function asRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value;
+}
+
+function toTrimmedString(value = "") {
+  return String(value || "").trim();
+}
+
+function firstNonEmptyString(values = []) {
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = toTrimmedString(value);
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function toPositiveInt(value = 0) {
+  if (Number.isFinite(Number(value)) && Number(value) > 0) return Math.trunc(Number(value));
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  if (/^\#?\d+$/.test(raw)) return Math.trunc(Number(raw.replace(/^#/, "")));
+  return 0;
+}
+
+function firstPositiveInt(values = []) {
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = toPositiveInt(value);
+    if (normalized > 0) return normalized;
+  }
+  return 0;
+}
+
+function extractFormIdFromTemplateLike(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  const match = /^form[\s\-_#]*(\d+)$/i.exec(raw);
+  if (!match) return 0;
+  return toPositiveInt(match[1]);
+}
+
+function resolveRenderPayload(render = null) {
+  return asRecord(render?.payload) || {};
+}
+
+function resolveRenderSourceToken(render = null) {
+  const payload = resolveRenderPayload(render);
+  return toTrimmedString(
+    render?.origin
+    || payload?.source
+  ).toLowerCase();
+}
+
+function isDetectedRenderSource(source = "") {
+  const token = toTrimmedString(source).toLowerCase();
+  return token === "detected" || token === "detected_file";
+}
+
+function toRenderSortStamp(render = null) {
+  const candidates = [
+    render?.updatedAt,
+    render?.finishedAt,
+    render?.startedAt,
+    render?.createdAt,
+  ];
+  for (const candidate of candidates) {
+    const parsed = Date.parse(String(candidate || "").trim());
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
+}
+
+function resolveRenderLinkedTaskId(render = null) {
+  const item = asRecord(render);
+  if (!item) return 0;
+  const payload = resolveRenderPayload(item);
+  return firstPositiveInt([item.linkedTaskId, payload.taskId]);
+}
+
+function resolveLatestRenderForTask(taskId = 0, renders = []) {
+  const normalizedTaskId = toPositiveInt(taskId);
+  if (normalizedTaskId <= 0) return null;
+  let bestPreferredRender = null;
+  let bestPreferredStamp = 0;
+  let bestPreferredId = 0;
+  let bestFallbackRender = null;
+  let bestFallbackStamp = 0;
+  let bestFallbackId = 0;
+  for (const render of Array.isArray(renders) ? renders : []) {
+    if (resolveRenderLinkedTaskId(render) !== normalizedTaskId) continue;
+    const stamp = toRenderSortStamp(render);
+    const renderId = toPositiveInt(render?.id || 0);
+    const shouldReplaceFallback = (
+      !bestFallbackRender
+      || stamp > bestFallbackStamp
+      || (stamp === bestFallbackStamp && renderId > bestFallbackId)
+    );
+    if (shouldReplaceFallback) {
+      bestFallbackRender = render;
+      bestFallbackStamp = stamp;
+      bestFallbackId = renderId;
+    }
+
+    const source = resolveRenderSourceToken(render);
+    if (isDetectedRenderSource(source)) continue;
+    const shouldReplacePreferred = (
+      !bestPreferredRender
+      || stamp > bestPreferredStamp
+      || (stamp === bestPreferredStamp && renderId > bestPreferredId)
+    );
+    if (!shouldReplacePreferred) continue;
+    bestPreferredRender = render;
+    bestPreferredStamp = stamp;
+    bestPreferredId = renderId;
+  }
+  return bestPreferredRender || bestFallbackRender;
+}
+
+function resolveMergedAutoRenderConfig(task = null, latestRender = null) {
+  const sourceTask = asRecord(task) || {};
+  const sourceRender = asRecord(latestRender) || {};
+  const taskAutoConfig = asRecord(sourceTask.autoRenderConfig) || {};
+  const taskAutoPayload = asRecord(taskAutoConfig.payload) || {};
+  const renderPayload = resolveRenderPayload(sourceRender);
+
+  const mergedFormData = (
+    asRecord(taskAutoConfig.formData)
+    || asRecord(taskAutoPayload.formData)
+    || asRecord(sourceRender.formData)
+    || asRecord(renderPayload.formData)
+    || {}
+  );
+  const mergedFormId = firstPositiveInt([
+    taskAutoConfig.formId,
+    taskAutoConfig.renderFormId,
+    taskAutoConfig.formRef,
+    taskAutoConfig.renderFormRef,
+    taskAutoPayload.formId,
+    taskAutoPayload.renderFormId,
+    taskAutoPayload.formRef,
+    taskAutoPayload.renderFormRef,
+    sourceRender.formId,
+    sourceRender.renderFormId,
+    sourceRender.formRef,
+    sourceRender.renderFormRef,
+    renderPayload.formId,
+    renderPayload.renderFormId,
+    renderPayload.formRef,
+    renderPayload.renderFormRef,
+    extractFormIdFromTemplateLike(taskAutoConfig.templateName),
+    extractFormIdFromTemplateLike(taskAutoPayload.templateName),
+    extractFormIdFromTemplateLike(sourceRender.templateName),
+    extractFormIdFromTemplateLike(renderPayload.templateName),
+    extractFormIdFromTemplateLike(taskAutoConfig.renderModeName),
+    extractFormIdFromTemplateLike(taskAutoPayload.renderModeName),
+    extractFormIdFromTemplateLike(renderPayload.renderModeName),
+  ]);
+
+  const mergedPayload = {
+    ...renderPayload,
+    ...taskAutoPayload,
+  };
+  if (mergedFormId > 0) mergedPayload.formId = mergedFormId;
+  if (Object.keys(mergedFormData).length > 0) mergedPayload.formData = mergedFormData;
+
+  const projectRef = firstNonEmptyString(
+    Array.isArray(sourceTask.projectRefs) ? sourceTask.projectRefs : []
+  );
+  const mergedProjectName = firstNonEmptyString([
+    taskAutoConfig.projectName,
+    projectRef,
+    sourceRender.projectName,
+    renderPayload.projectName,
+    renderPayload.projectRef,
+  ]);
+  const mergedTemplateName = firstNonEmptyString([
+    taskAutoConfig.templateName,
+    taskAutoPayload.templateName,
+    sourceRender.templateName,
+    renderPayload.templateName,
+    taskAutoConfig.renderModeName,
+    taskAutoPayload.renderModeName,
+    renderPayload.renderModeName,
+  ]);
+  const mergedOutputProfile = firstNonEmptyString([
+    taskAutoConfig.outputProfile,
+    taskAutoPayload.outputProfile,
+    sourceRender.outputProfile,
+    renderPayload.outputProfile,
+  ]);
+  const mergedMapName = firstNonEmptyString([
+    taskAutoConfig.mapName,
+    taskAutoPayload.mapName,
+    renderPayload.mapName,
+  ]);
+  const mergedSequenceName = firstNonEmptyString([
+    taskAutoConfig.sequenceName,
+    taskAutoPayload.sequenceName,
+    renderPayload.sequenceName,
+  ]);
+  const mergedPresetName = firstNonEmptyString([
+    taskAutoConfig.presetName,
+    taskAutoPayload.presetName,
+    sourceRender.presetName,
+    renderPayload.presetName,
+  ]);
+  const mergedPresetPath = firstNonEmptyString([
+    taskAutoConfig.presetPath,
+    taskAutoPayload.presetPath,
+    sourceRender.presetPath,
+    renderPayload.presetPath,
+  ]);
+  const mergedLaunchMode = firstNonEmptyString([
+    taskAutoConfig.launchMode,
+    taskAutoPayload.launchMode,
+    renderPayload.launchMode,
+    sourceRender.launchMode,
+  ]);
+  const mergedScheduledMode = firstNonEmptyString([
+    taskAutoConfig.scheduledMode,
+    taskAutoPayload.scheduledMode,
+    renderPayload.scheduledMode,
+    sourceTask.scheduledMode,
+  ]);
+  const mergedScheduledAt = firstNonEmptyString([
+    taskAutoConfig.scheduledAt,
+    taskAutoPayload.scheduledAt,
+    sourceRender.scheduledAt,
+    renderPayload.scheduledAt,
+    sourceTask.scheduledAt,
+  ]);
+
+  if (mergedProjectName) mergedPayload.projectName = mergedProjectName;
+  if (mergedTemplateName) mergedPayload.templateName = mergedTemplateName;
+  if (mergedOutputProfile) mergedPayload.outputProfile = mergedOutputProfile;
+  if (mergedMapName) mergedPayload.mapName = mergedMapName;
+  if (mergedSequenceName) mergedPayload.sequenceName = mergedSequenceName;
+  if (mergedPresetName) mergedPayload.presetName = mergedPresetName;
+  if (mergedPresetPath) mergedPayload.presetPath = mergedPresetPath;
+  if (mergedLaunchMode) mergedPayload.launchMode = mergedLaunchMode;
+  if (mergedScheduledMode) mergedPayload.scheduledMode = mergedScheduledMode;
+  if (mergedScheduledAt) mergedPayload.scheduledAt = mergedScheduledAt;
+
+  const mergedConfig = {
+    ...taskAutoConfig,
+    payload: mergedPayload,
+  };
+  if (mergedFormId > 0) mergedConfig.formId = mergedFormId;
+  if (Object.keys(mergedFormData).length > 0) mergedConfig.formData = mergedFormData;
+  if (mergedProjectName) mergedConfig.projectName = mergedProjectName;
+  if (mergedTemplateName) mergedConfig.templateName = mergedTemplateName;
+  if (mergedOutputProfile) mergedConfig.outputProfile = mergedOutputProfile;
+  if (mergedMapName) mergedConfig.mapName = mergedMapName;
+  if (mergedSequenceName) mergedConfig.sequenceName = mergedSequenceName;
+  if (mergedPresetName) mergedConfig.presetName = mergedPresetName;
+  if (mergedPresetPath) mergedConfig.presetPath = mergedPresetPath;
+  if (mergedLaunchMode) mergedConfig.launchMode = mergedLaunchMode;
+  if (mergedScheduledMode) mergedConfig.scheduledMode = mergedScheduledMode;
+  if (mergedScheduledAt) mergedConfig.scheduledAt = mergedScheduledAt;
+
+  return mergedConfig;
+}
+
+function buildHydrationTaskSnapshot(task = null, taskId = 0, renders = []) {
+  const sourceTask = asRecord(task);
+  if (!sourceTask) return null;
+  const latestRender = resolveLatestRenderForTask(taskId, renders);
+  if (!latestRender) return sourceTask;
+  return {
+    ...sourceTask,
+    autoRenderConfig: resolveMergedAutoRenderConfig(sourceTask, latestRender),
+  };
+}
+
 function useRenderFocusRequestController({
   renderFocusRequest = null,
   onRenderFocusHandled = null,
   tasks = [],
+  renders = [],
   setListProjectFilter = null,
   setListResourceFilter = null,
   setListStatusFilter = null,
@@ -99,9 +374,13 @@ function useRenderFocusRequestController({
             const entryId = Number(entry?.id || 0);
             return Number.isFinite(entryId) && Math.trunc(entryId) === Math.trunc(taskId);
           }) || null;
-          const taskToEdit = taskFromPayload && typeof taskFromPayload === "object"
-            ? taskFromPayload
-            : taskFromList;
+          const taskToEdit = taskFromList && typeof taskFromList === "object"
+            ? taskFromList
+            : (
+              taskFromPayload && typeof taskFromPayload === "object"
+                ? taskFromPayload
+                : null
+            );
 
           setEditingTaskId?.(Math.trunc(taskId));
           setShowCreateForm?.(true);
@@ -118,7 +397,8 @@ function useRenderFocusRequestController({
                 .map((value) => String(value || "").trim())
                 .filter(Boolean)
             );
-            hydrateAutoRenderFromTask?.(taskToEdit);
+            const hydrationTask = buildHydrationTaskSnapshot(taskToEdit, Math.trunc(taskId), renders) || taskToEdit;
+            hydrateAutoRenderFromTask?.(hydrationTask);
           }
         } else {
           setEditingTaskId?.(0);
@@ -158,6 +438,7 @@ function useRenderFocusRequestController({
     setSelectedResourceRefs,
     hydrateAutoRenderFromTask,
     tasks,
+    renders,
     setViewMode,
     setFormError,
   ]);

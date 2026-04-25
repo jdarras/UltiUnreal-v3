@@ -215,13 +215,12 @@ function RolePermissionFlags({
               label={safeT(t, "postprod.roles.form.canLaunchRenders", "Peut valider les rendus")}
               checked={draft?.canLaunchRenders !== false}
               disabled={rolesLoading}
-              onChange={(e) => setDraft?.((prev) => ({ ...(prev || {}), canLaunchRenders: e.target.checked }))}
-            />
-            <PermissionToggleRow
-              label={safeT(t, "postprod.roles.form.canValidate", "Peut valider")}
-              checked={draft?.canValidate === true}
-              disabled={rolesLoading}
-              onChange={(e) => setDraft?.((prev) => ({ ...(prev || {}), canValidate: e.target.checked }))}
+              onChange={(e) => setDraft?.((prev) => ({
+                ...(prev || {}),
+                canLaunchRenders: e.target.checked,
+                // Permission legacy backend (validation de statut) alignée sur le même toggle.
+                canValidate: e.target.checked,
+              }))}
             />
           </div>
         </div>}

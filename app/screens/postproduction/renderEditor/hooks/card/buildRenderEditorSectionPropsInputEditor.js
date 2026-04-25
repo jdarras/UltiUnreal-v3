@@ -3,6 +3,7 @@ import { pickKeys } from "../../../shared/objectProps";
 const DATA_KEYS = [
   "isEditingTask",
   "editingTaskVisualStatusKey",
+  "editingTaskRejectionInfo",
   "title",
   "description",
   "assigneeUserId",

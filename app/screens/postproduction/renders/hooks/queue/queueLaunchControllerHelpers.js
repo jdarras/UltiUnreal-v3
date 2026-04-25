@@ -20,6 +20,7 @@ async function launchScheduledTaskRenderAction({
   const canDispatchRenders = typeof onDispatchRenders === "function";
   const canCreateRender = typeof onCreateRender === "function";
   if (!canDispatchRenders && !canCreateRender) return false;
+  const forceLaunch = launchOptions?.forceLaunch === true;
 
   const createRenderInput = buildScheduledTaskCreateRenderInput(task);
   const taskId = Number(createRenderInput?.taskId || 0);
@@ -40,6 +41,7 @@ async function launchScheduledTaskRenderAction({
         await Promise.resolve(onDispatchRenders({
           maxJobs: 1,
           renderIds: [linkedRenderId],
+          force: forceLaunch,
         }));
       } finally {
         if (typeof setBusyScheduledTaskId === "function") setBusyScheduledTaskId(0);
@@ -58,7 +60,25 @@ async function launchScheduledTaskRenderAction({
 
   if (typeof setBusyScheduledTaskId === "function") setBusyScheduledTaskId(taskId);
   try {
-    await Promise.resolve(onCreateRender(finalInput));
+    const createdRender = await Promise.resolve(onCreateRender(finalInput));
+    if (forceLaunch && canDispatchRenders) {
+      const createdRenderIdRaw = Number(
+        createdRender?.id
+        || createdRender?.render?.id
+        || createdRender?.renderJob?.id
+        || 0
+      );
+      const createdRenderId = Number.isFinite(createdRenderIdRaw) && createdRenderIdRaw > 0
+        ? Math.trunc(createdRenderIdRaw)
+        : 0;
+      if (createdRenderId > 0) {
+        await Promise.resolve(onDispatchRenders({
+          maxJobs: 1,
+          renderIds: [createdRenderId],
+          force: true,
+        }));
+      }
+    }
   } finally {
     if (typeof setBusyScheduledTaskId === "function") setBusyScheduledTaskId(0);
   }

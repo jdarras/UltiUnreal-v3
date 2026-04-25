@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { safeT } from "../../shared/helpers";
-import { roleLabel } from "../roleHelpers";
 import { RoleDeleteDialog } from "./RoleDeleteDialog";
 
 function resolveRoleModeLabel(t, role = {}) {
@@ -63,7 +62,7 @@ function RoleListPanel({
             <div key={roleKey} className="uu-card">
               <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>{roleLabel(t, roleKey)}</h4>
+                  <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>{String(role?.displayName || roleKey || "").trim() || "-"}</h4>
                   <div>
                     <span className="uu-muted">{safeT(t, "postprod.roles.list.modeLabel", "Modes")}:</span>{" "}
                     {modeLabel}

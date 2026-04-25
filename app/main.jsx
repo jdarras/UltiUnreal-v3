@@ -51,6 +51,7 @@ import {
   postprodListUserProjectPermissions,
   postprodUpdateUserProjectPermissions,
   postprodListUserActivity,
+  postprodPurgeUserActivity,
   postprodListMyActivity,
   postprodListAudit,
   postprodPurgeAudit,
@@ -108,6 +109,7 @@ import {
   postprodPatchRenderWorkerAptitude,
   postprodListRenderTransitions,
   postprodRegenerateAllProxies,
+  setAgentRenderAvailability,
   spawnDetachedRender,
   checkPidAlive,
   checkFileExists,
@@ -122,6 +124,10 @@ import "./global.css";
 import { readIdentity, writeIdentity } from "./utils/identity";
 import { createT } from "./i18n";
 import { NoticeContext } from "./NoticeContext";
+import { buildTaskAutoRenderStateByTaskId } from "./screens/postproduction/renderEditor/helpers";
+import { buildRenderQueueTasks } from "./screens/postproduction/renders/hooks/queue/buildRenderQueueTasks";
+import { getQueueEntryLaunchMeta } from "./screens/postproduction/renders/hooks/queue/queueDerivedDataHelpers";
+import { launchScheduledTaskRenderAction } from "./screens/postproduction/renders/hooks/queue/queueLaunchControllerHelpers";
 
 const APP_VERSION = "2026.3"; // à mettre à jour quand tu changes de version
 const LS_SYNC_KEY = 'uu_client_syncEnabled';
@@ -1260,11 +1266,21 @@ function buildWorkerCompletionReplayPayload(basePayload = {}, render = null, wor
       (fallbackRenderId > 0 ? `renders/render-${fallbackRenderId}.mov` : '')
     ).trim();
     const outputPath = hasProcessTemplateToken(outputPathRaw) ? '' : outputPathRaw;
+    if (!outputPath) {
+      return {
+        ...rawPayload,
+        workerKey: normalizedWorkerKey,
+        success: false,
+        outputPath: '',
+        errorMessage: 'output_file_not_found',
+        comment: String(rawPayload?.comment || '').trim() || 'worker_offline_replay_missing_output',
+      };
+    }
     return {
       ...rawPayload,
       workerKey: normalizedWorkerKey,
       success: true,
-      outputPath: outputPath || (fallbackRenderId > 0 ? `renders/render-${fallbackRenderId}.mov` : ''),
+      outputPath,
       errorMessage: '',
       comment: String(rawPayload?.comment || '').trim() || 'worker_offline_replay_done',
     };
@@ -1458,6 +1474,8 @@ function Sidebar({
   postprodLockedTabs = [],
   postprodLockedTitle = '',
   logsAlert = null,
+  usersAlert = null,
+  rendersAlert = null,
   postprodUser = null,
   onUserClick = null,
 }) {
@@ -1502,14 +1520,17 @@ function Sidebar({
             || (item === "Rendus" && current === POSTPROD_TAB_RENDERS_CREATE)
           );
           const isLogs = item === 'Logs';
-          const logsClass = isLogs
-            ? (logsAlert?.level === 'error'
-              ? ' logs-alert-error'
-              : (logsAlert?.level === 'warn' ? ' logs-alert-warn' : ''))
-            : '';
+          const isUsers = item === 'Utilisateurs';
+          const isRenders = item === 'Rendus';
+          const activeAlert = isLogs
+            ? logsAlert
+            : (isUsers ? usersAlert : (isRenders ? rendersAlert : null));
+          const logsClass = activeAlert?.level === 'error'
+            ? ' logs-alert-error'
+            : (activeAlert?.level === 'warn' ? ' logs-alert-warn' : '');
           const logsTitle = locked
             ? postprodLockedTitle
-            : (isLogs && logsAlert?.tooltip ? logsAlert.tooltip : undefined);
+            : (activeAlert?.tooltip || undefined);
           return (
           <button
             key={item}
@@ -1634,6 +1655,7 @@ function App() {
     error: '',
   });
   const [postprodRenderEditorRequest, setPostprodRenderEditorRequest] = useState(null);
+  const postprodRenderEditorWasOpenRef = useRef(false);
   const [postprodRenderFormFocusRequest, setPostprodRenderFormFocusRequest] = useState(null);
   const [postprodEditUserRequest, setPostprodEditUserRequest] = useState(null);
   const [postprodProjects, setPostprodProjects] = useState({
@@ -1726,6 +1748,7 @@ function App() {
   const [quitDialogOpen, setQuitDialogOpen] = useState(false);
   const [aptitudeCheckPending, setAptitudeCheckPending] = useState(null);
   const [queuePausedLaunchPending, setQueuePausedLaunchPending] = useState(null);
+  const [busyImmediateLaunchPending, setBusyImmediateLaunchPending] = useState(null);
   const [resourcesRefreshKey, setResourcesRefreshKey] = useState(0);
   const [postprodTaskFormOpen, setPostprodTaskFormOpen] = useState(false);
   const [postprodUserEditorOpen, setPostprodUserEditorOpen] = useState(false);
@@ -1751,6 +1774,7 @@ function App() {
   const postprodOfflineReplayLastKickRef = useRef(0);
   const postprodWorkerCompletionReplayLastKickRef = useRef(0);
   const postprodAutoDispatchLastKickRef = useRef(0);
+  const postprodBackgroundQueueLaunchRef = useRef({ taskId: 0, kickAt: 0 });
   const postprodRendersRequestSeqRef = useRef(0);
   const postprodAgentBootRef = useRef({ started: false, port: '' });
   const postprodWrcCacheNoticeRef = useRef({});
@@ -2141,8 +2165,114 @@ function App() {
     };
   }, [appMode, logsStorageSummary, postprodAudit?.auditLogStore, t]);
 
+  const usersNavAlert = useMemo(() => {
+    if (appMode !== APP_MODE_POSTPROD) return null;
+    const store = postprodAudit?.auditLogStore && typeof postprodAudit.auditLogStore === 'object'
+      ? postprodAudit.auditLogStore
+      : null;
+    if (!store) return null;
+    const count = Number(store?.count || 0);
+    const warnAt = Number(store?.warnAt || 5000);
+    const hardLimit = Number(store?.hardLimit || 10000);
+    const saturated = !!store?.saturated || (Number.isFinite(hardLimit) && hardLimit > 0 && count >= hardLimit);
+    const warnReached = !!store?.warnReached
+      || saturated
+      || (Number.isFinite(warnAt) && warnAt > 0 && count >= warnAt);
+    if (saturated) return { level: 'error', tooltip: t('postprod.users.audit.store.saturated') };
+    if (warnReached) return { level: 'warn', tooltip: t('postprod.users.audit.store.warn') };
+    return null;
+  }, [appMode, postprodAudit?.auditLogStore, t]);
+  const resolveRendersToModifyNotice = useCallback((countValue = 0) => {
+    const countRaw = Number(countValue || 0);
+    const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.trunc(countRaw) : 0;
+    if (count <= 0) return '';
+    if (count === 1) {
+      return t(
+        'postprod.renders.toModify.noticeSingular',
+        '1 rendu à modifier vous est assigné ou vous appartient.'
+      );
+    }
+    return t(
+      'postprod.renders.toModify.noticePlural',
+      '{count} rendus à modifier vous sont assignés ou vous appartiennent.',
+      { count }
+    );
+  }, [t]);
+  const rendersNavAlert = useMemo(() => {
+    if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return null;
+    const currentUserIdRaw = Number(postprodAuth.user?.id || 0);
+    const currentUserId = Number.isFinite(currentUserIdRaw) && currentUserIdRaw > 0
+      ? Math.trunc(currentUserIdRaw)
+      : 0;
+    if (currentUserId <= 0) return null;
+
+    const taskItems = Array.isArray(postprodTasks?.items) ? postprodTasks.items : [];
+    const renderItems = (Array.isArray(postprodRenders?.items) ? postprodRenders.items : [])
+      .filter((render) => render?.stationIsRemote !== true);
+    if (taskItems.length <= 0 || renderItems.length <= 0) return null;
+
+    const taskById = new Map();
+    for (const task of taskItems) {
+      const taskIdRaw = Number(task?.id || 0);
+      const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
+      if (taskId <= 0) continue;
+      taskById.set(taskId, task);
+    }
+    const autoRenderStateByTaskId = buildTaskAutoRenderStateByTaskId(renderItems);
+    let toModifyCount = 0;
+    for (const [taskId, stateEntry] of autoRenderStateByTaskId.entries()) {
+      const entryTaskId = Number.isFinite(Number(taskId)) ? Math.trunc(Number(taskId)) : 0;
+      if (entryTaskId <= 0) continue;
+      const linkedRender = stateEntry?.render && typeof stateEntry.render === 'object'
+        ? stateEntry.render
+        : null;
+      const reviewStatus = String(linkedRender?.reviewStatus || '').trim().toLowerCase();
+      if (reviewStatus !== 'to_modify') continue;
+
+      const linkedTask = taskById.get(entryTaskId);
+      const assigneeUserIdRaw = Number(linkedTask?.assigneeUserId || 0);
+      const assigneeUserId = Number.isFinite(assigneeUserIdRaw) && assigneeUserIdRaw > 0
+        ? Math.trunc(assigneeUserIdRaw)
+        : 0;
+      const requestedByUserIdRaw = Number(linkedRender?.requestedByUserId || 0);
+      const requestedByUserId = Number.isFinite(requestedByUserIdRaw) && requestedByUserIdRaw > 0
+        ? Math.trunc(requestedByUserIdRaw)
+        : 0;
+      if (assigneeUserId !== currentUserId && requestedByUserId !== currentUserId) continue;
+
+      toModifyCount += 1;
+    }
+    if (toModifyCount <= 0) return null;
+    return {
+      level: 'warn',
+      count: toModifyCount,
+      tooltip: resolveRendersToModifyNotice(toModifyCount),
+    };
+  }, [
+    appMode,
+    postprodAuthenticated,
+    postprodAuth.user?.id,
+    postprodTasks?.items,
+    postprodRenders?.items,
+    resolveRendersToModifyNotice,
+  ]);
+  const rendersTopNoticeText = useMemo(() => {
+    if (appMode !== APP_MODE_POSTPROD) return '';
+    const countRaw = Number(rendersNavAlert?.count || 0);
+    const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.trunc(countRaw) : 0;
+    if (count <= 0) return '';
+    return resolveRendersToModifyNotice(count);
+  }, [appMode, rendersNavAlert?.count, resolveRendersToModifyNotice]);
+
   useEffect(() => {
     if (showWelcome || showLicense) return;
+    if (
+      appMode === APP_MODE_POSTPROD
+      && current === POSTPROD_TAB_RENDERS_CREATE
+      && postprodTaskFormOpen
+    ) {
+      return;
+    }
 
     let stopped = false;
     let timer = null;
@@ -2168,7 +2298,14 @@ function App() {
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [showWelcome, showLicense, commonCfg?.refreshSec]);
+  }, [
+    showWelcome,
+    showLicense,
+    commonCfg?.refreshSec,
+    appMode,
+    current,
+    postprodTaskFormOpen,
+  ]);
 
   useEffect(() => {
     const entries = Array.isArray(logsNavAlert?.entries) ? logsNavAlert.entries : [];
@@ -4376,13 +4513,18 @@ function App() {
     }
   }, [postprodAuth.token, t]);
 
-  const loadPostprodRenderHealth = useCallback(async () => {
+  const loadPostprodRenderHealth = useCallback(async (options = {}) => {
+    const silent = options?.silent === true;
     const token = String(postprodAuth.token || '').trim();
     if (!token) {
       setPostprodRenderHealth({ data: null, loading: false, error: '' });
       return;
     }
-    setPostprodRenderHealth((prev) => ({ ...prev, loading: true, error: '' }));
+    if (silent) {
+      setPostprodRenderHealth((prev) => ({ ...prev, error: '' }));
+    } else {
+      setPostprodRenderHealth((prev) => ({ ...prev, loading: true, error: '' }));
+    }
     try {
       const res = await postprodGetHealth(token);
       const data = res?.health && typeof res.health === 'object' ? res.health : null;
@@ -4763,6 +4905,55 @@ function App() {
     showNotice(t('postprod.renders.queuePause.noticeKeptPaused'), 'info');
   }, [showNotice, t]);
 
+  const handleBusyImmediateLaunchConfirm = useCallback(async () => {
+    const pending = busyImmediateLaunchPending;
+    setBusyImmediateLaunchPending(null);
+    if (!pending) return;
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return;
+
+    try {
+      await setAgentRenderAvailability('capable', null);
+      const freshHosts = await getHosts().catch(() => null);
+      if (Array.isArray(freshHosts)) {
+        setHostsCfg(freshHosts);
+        setHostsLoaded(true);
+      }
+      await ensureLocalRenderWorkerOnline();
+      const dispatchRes = await postprodDispatchRenders(token, {
+        maxJobs: 1,
+        renderIds: pending.renderId > 0 ? [pending.renderId] : undefined,
+      });
+      const dispatchedCountRaw = Number(dispatchRes?.count || 0);
+      const dispatchedCount = Number.isFinite(dispatchedCountRaw) ? Math.max(0, Math.trunc(dispatchedCountRaw)) : 0;
+      if (dispatchedCount <= 0) {
+        showNotice(
+          "Rendu créé mais non démarré: aucune station de rendu disponible/compatible pour le moment.",
+          "warn"
+        );
+      }
+    } catch {
+      showNotice(
+        "Impossible de passer la station en disponible. Le rendu reste en attente.",
+        "warn"
+      );
+    }
+    await Promise.all([loadPostprodRenders(), loadPostprodRenderWorkers(), loadPostprodRenderHealth()]);
+  }, [
+    busyImmediateLaunchPending,
+    postprodAuth.token,
+    ensureLocalRenderWorkerOnline,
+    loadPostprodRenders,
+    loadPostprodRenderWorkers,
+    loadPostprodRenderHealth,
+    showNotice,
+  ]);
+
+  const handleBusyImmediateLaunchCancel = useCallback(() => {
+    setBusyImmediateLaunchPending(null);
+    showNotice("Rendu immédiat reporté: le rendu reste en attente.", "info");
+  }, [showNotice]);
+
   const handlePostprodUpdateMe = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
     if (!token) return;
@@ -4943,6 +5134,18 @@ function App() {
     if (!token) return { ok: true, activities: [], summary: { total: 0, actions: {}, projects: [] } };
     return await postprodListUserActivity(token, userId, limit, options);
   }, [postprodAuth.token]);
+
+  const handlePostprodPurgeUserActivity = useCallback(async (userId) => {
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return false;
+    try {
+      await postprodPurgeUserActivity(token, userId);
+      showNotice(t('postprod.users.activity.msg.purged'), 'ok');
+      return true;
+    } catch {
+      return false;
+    }
+  }, [postprodAuth.token, showNotice, t]);
 
   const handlePostprodLoadUserProjectPermissions = useCallback(async (userId) => {
     const token = String(postprodAuth.token || '').trim();
@@ -5453,8 +5656,24 @@ function App() {
               (w) => String(w?.workerKey || '').trim() === localWorkerKey
             )
           : null;
+        const localWorkerAvailability = String(
+          localWorkerInList?.renderAvailability || localRenderAvailability || ''
+        ).trim().toLowerCase();
+        const localWorkerIsBusy = localWorkerAvailability === 'busy';
         const localWorkerIsInapte = localWorkerInList && localWorkerInList.apte === false;
-        if (localWorkerIsInapte && !autoDispatcherRequested) {
+        const localWorkerKeyLower = String(localWorkerKey || '').trim().toLowerCase();
+        const launchTargetsLocalWorker = (
+          !requestedStationChoice
+          || requestedStationChoice === 'local'
+          || requestedStationChoice === localWorkerKeyLower
+          || autoDispatcherRequested
+        );
+        if (localWorkerIsBusy && launchTargetsLocalWorker) {
+          setBusyImmediateLaunchPending({
+            renderId: createdRenderId,
+            workerDisplayName: String(localWorkerInList?.displayName || renderWorkerDisplayName || localWorkerKey).trim(),
+          });
+        } else if (localWorkerIsInapte && !autoDispatcherRequested) {
           setAptitudeCheckPending({
             renderId: createdRenderId,
             workerDisplayName: String(localWorkerInList?.displayName || renderWorkerDisplayName || localWorkerKey).trim(),
@@ -5563,8 +5782,10 @@ function App() {
     ensureLocalRenderWorkerOnline,
     renderWorkerKey,
     renderWorkerDisplayName,
+    localRenderAvailability,
     postprodRenderWorkers.items,
     setAptitudeCheckPending,
+    setBusyImmediateLaunchPending,
     handlePatchLocalWorkerAptitude,
     t,
   ]);
@@ -5662,8 +5883,9 @@ function App() {
     const token = String(postprodAuth.token || '').trim();
     const sourcePayload = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
     const silent = sourcePayload.silent === true;
+    const forceDispatch = sourcePayload.force === true;
     if (!token) return { count: 0, compatibilityBlocked: 0 };
-    if (!isPostprodQueueRuntimeActive()) {
+    if (!isPostprodQueueRuntimeActive() && !forceDispatch) {
       if (!silent) {
         showNotice("File d'attente en pause: aucun rendu ne peut etre lance.", "warn");
       }
@@ -5671,6 +5893,7 @@ function App() {
     }
     const dispatchPayload = { ...sourcePayload };
     delete dispatchPayload.silent;
+    delete dispatchPayload.force;
     if (!silent) {
       setPostprodRenders((prev) => ({ ...prev, loading: true, error: '' }));
     }
@@ -5679,8 +5902,8 @@ function App() {
       const res = await postprodDispatchRenders(token, dispatchPayload);
       await Promise.all([
         loadPostprodRenders(silent ? { silent: true } : undefined),
-        loadPostprodRenderWorkers(),
-        loadPostprodRenderHealth(),
+        loadPostprodRenderWorkers(silent ? { silent: true } : undefined),
+        loadPostprodRenderHealth(silent ? { silent: true } : undefined),
       ]);
       const count = Number(res?.count || 0);
       const compatibilityBlockedRaw = res?.compatibilityBlocked;
@@ -5939,6 +6162,7 @@ function App() {
 
   const refreshPostprodCurrentTab = useCallback(async () => {
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
+    if (current === POSTPROD_TAB_RENDERS_CREATE && postprodTaskFormOpen) return;
 
     const jobs = [];
     const queue = (fn) => {
@@ -5946,6 +6170,10 @@ function App() {
     };
 
     queue(loadPostprodRenderHealth);
+    if (current !== POSTPROD_TAB_RENDERS_CREATE && current !== 'Rendus') {
+      queue(() => loadPostprodTasks({ silent: true }));
+      queue(() => loadPostprodRenders({ silent: true }));
+    }
 
     if (current === POSTPROD_TAB_USERS) {
       if (!postprodUserEditorOpen) {
@@ -6115,8 +6343,51 @@ function App() {
         return;
       }
 
+      let dueScheduledQueueEntry = null;
+      if (current !== 'Rendus') {
+        const taskItems = Array.isArray(postprodTasks?.items) ? postprodTasks.items : [];
+        const renderItems = Array.isArray(postprodRenders?.items) ? postprodRenders.items : [];
+        if (taskItems.length > 0) {
+          const autoRenderStateByTaskId = buildTaskAutoRenderStateByTaskId(renderItems);
+          const queueEntries = buildRenderQueueTasks({
+            tasks: taskItems,
+            autoRenderStateByTaskId,
+          });
+          for (const entry of queueEntries) {
+            const launchMeta = getQueueEntryLaunchMeta(entry);
+            if (launchMeta?.isWaitingLaunchable) {
+              dueScheduledQueueEntry = entry;
+              break;
+            }
+          }
+        }
+      }
+
       inFlight = true;
       try {
+        if (dueScheduledQueueEntry) {
+          const nowMs = Date.now();
+          const taskIdRaw = Number(dueScheduledQueueEntry?.task?.id || 0);
+          const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
+          const lastKick = postprodBackgroundQueueLaunchRef.current;
+          const sameTaskCooldownActive = (
+            taskId > 0
+            && Number(lastKick?.taskId || 0) === taskId
+            && (nowMs - Number(lastKick?.kickAt || 0)) < 30_000
+          );
+          if (!sameTaskCooldownActive) {
+            postprodBackgroundQueueLaunchRef.current = { taskId, kickAt: nowMs };
+            postprodAutoDispatchLastKickRef.current = nowMs;
+            await launchScheduledTaskRenderAction({
+              task: dueScheduledQueueEntry?.task || null,
+              queueEntry: dueScheduledQueueEntry,
+              onCreateRender: handlePostprodCreateRender,
+              onDispatchRenders: handlePostprodDispatchRenders,
+            });
+          }
+          return;
+        }
+
         await ensureLocalRenderWorkerOnline();
         postprodAutoDispatchLastKickRef.current = Date.now();
         await Promise.resolve(handlePostprodDispatchRenders({ maxJobs: 1, silent: true })).catch(() => ({}));
@@ -6137,7 +6408,11 @@ function App() {
     postprodAuthenticated,
     postprodCanLaunchRenders,
     localRenderEnabled,
+    current,
+    postprodTasks.items,
+    postprodRenders.items,
     postprodAuth.token,
+    handlePostprodCreateRender,
     ensureLocalRenderWorkerOnline,
     handlePostprodDispatchRenders,
   ]);
@@ -6150,6 +6425,22 @@ function App() {
       setPostprodUserEditorOpen(false);
     }
   }, [current]);
+
+  useEffect(() => {
+    if (current !== POSTPROD_TAB_RENDERS_CREATE) {
+      postprodRenderEditorWasOpenRef.current = postprodTaskFormOpen === true;
+      return;
+    }
+
+    const wasOpen = postprodRenderEditorWasOpenRef.current === true;
+    const isOpen = postprodTaskFormOpen === true;
+    postprodRenderEditorWasOpenRef.current = isOpen;
+
+    // Retour auto vers "Rendus" uniquement quand l'utilisateur ferme un formulaire déjà ouvert.
+    if (wasOpen && !isOpen && !postprodRenderEditorRequest) {
+      setCurrent("Rendus");
+    }
+  }, [current, postprodTaskFormOpen, postprodRenderEditorRequest]);
 
   useEffect(() => {
     if (!postprodAuthenticated) return;
@@ -6327,15 +6618,15 @@ function App() {
             const completionOutputPath = hasProcessTemplateToken(completionOutputPathRaw)
               ? ''
               : completionOutputPathRaw;
-            const shouldEnforceOutputPathCheck = (
-              !!completionOutputPath
-              && !!configuredOutputPathTemplate
-              && !hasProcessTemplateToken(configuredOutputPathTemplate)
-              && !hasProcessTemplateToken(configuredOutputPath)
-            );
             const outputDirForSearch = String(
               templateContext.outputdir || payload?.outputDir || ''
             ).trim();
+            const allowMissingOutputArtifact = normalizeBooleanFlag(
+              execution?.allowMissingOutputArtifact
+                ?? payload?.allowMissingOutputArtifact
+                ?? false,
+              false
+            );
             const processStartMs = Date.now();
             let detectedOutputPath = '';
 
@@ -6400,9 +6691,7 @@ function App() {
                   detectedOutputPath = resolvedOutput;
                   return true;
                 }
-                const requiresOutputArtifact = shouldEnforceOutputPathCheck || !!outputDirForSearch;
-                if (!requiresOutputArtifact) return true;
-                return false;
+                return allowMissingOutputArtifact === true;
               };
 
               if (existingPid > 0) {
@@ -6497,26 +6786,49 @@ function App() {
               execution?.simulateFail === true ||
               payload?.simulateFail === true ||
               payload?.forceFail === true;
-            completionPayload = shouldFail
+            const simulatedOutputPathRaw = String(
+              execution?.outputPath ??
+              payload?.outputPath ??
+              `renders/render-${renderId}.mov`
+            ).trim();
+            const simulatedOutputCandidates = buildRenderOutputPathCandidates(simulatedOutputPathRaw);
+            let simulatedDetectedOutputPath = '';
+            for (const candidate of simulatedOutputCandidates) {
+              const candidatePath = String(candidate || '').trim();
+              if (!candidatePath) continue;
+              const fileRes = await checkFileExists(candidatePath);
+              if (fileRes?.exists === true) {
+                simulatedDetectedOutputPath = candidatePath;
+                break;
+              }
+            }
+            const allowMissingOutputArtifact = normalizeBooleanFlag(
+              execution?.allowMissingOutputArtifact
+                ?? payload?.allowMissingOutputArtifact
+                ?? false,
+              false
+            );
+            const simulatedOutputReady = !!simulatedDetectedOutputPath || allowMissingOutputArtifact === true;
+            const simulatedSuccess = !shouldFail && simulatedOutputReady;
+
+            completionPayload = simulatedSuccess
               ? {
                 workerKey,
-                success: false,
-                errorMessage: String(
-                  execution?.errorMessage ??
-                  payload?.errorMessage ??
-                  'worker_simulated_failure'
-                ),
-                comment: 'worker_auto_fail',
+                success: true,
+                outputPath: simulatedDetectedOutputPath || simulatedOutputPathRaw,
+                comment: 'worker_auto_done',
               }
               : {
                 workerKey,
-                success: true,
-                outputPath: String(
-                  execution?.outputPath ??
-                  payload?.outputPath ??
-                  `renders/render-${renderId}.mov`
-                ),
-                comment: 'worker_auto_done',
+                success: false,
+                errorMessage: shouldFail
+                  ? String(
+                    execution?.errorMessage ??
+                    payload?.errorMessage ??
+                    'worker_simulated_failure'
+                  )
+                  : 'output_file_not_found',
+                comment: shouldFail ? 'worker_auto_fail' : 'worker_auto_missing_output',
               };
           }
 
@@ -6972,6 +7284,8 @@ function App() {
           postprodLockedTabs={postprodLockedTabs}
           postprodLockedTitle={t('postprod.auth.navLocked')}
           logsAlert={logsNavAlert}
+          usersAlert={usersNavAlert}
+          rendersAlert={rendersNavAlert}
           postprodUser={postprodAuthenticated ? postprodAuth.user : null}
           onUserClick={() => {
             handleNavClick('Utilisateurs');
@@ -6983,6 +7297,11 @@ function App() {
       <main className="uu-content">
         <header className="uu-topbar">
           <div className="uu-topbar-notice">
+            {rendersTopNoticeText ? (
+              <span className="uu-top-notice warn" title={rendersTopNoticeText}>
+                {rendersTopNoticeText}
+              </span>
+            ) : null}
             {noticeApi.notice?.text ? (
               <span className={`uu-top-notice ${noticeApi.notice.type || ''}`}>
                 {noticeApi.notice.text}
@@ -7267,6 +7586,7 @@ function App() {
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenRenderEditor={handlePostprodOpenRenderEditor}
+                onPurgeUserActivity={handlePostprodPurgeUserActivity}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
                 renderFormFocusRequest={postprodRenderFormFocusRequest}
@@ -7439,6 +7759,7 @@ function App() {
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenRenderEditor={handlePostprodOpenRenderEditor}
+                onPurgeUserActivity={handlePostprodPurgeUserActivity}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
                 renderFormFocusRequest={postprodRenderFormFocusRequest}
@@ -7634,6 +7955,7 @@ function App() {
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenRenderEditor={handlePostprodOpenRenderEditor}
+                onPurgeUserActivity={handlePostprodPurgeUserActivity}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
                 renderFormFocusRequest={postprodRenderFormFocusRequest}
@@ -7802,6 +8124,7 @@ function App() {
                 editUserIdRequest={postprodEditUserRequest}
                 onEditUserIdHandled={handlePostprodEditUserHandled}
                 onRequestOpenRenderEditor={handlePostprodOpenRenderEditor}
+                onPurgeUserActivity={handlePostprodPurgeUserActivity}
                 onOpenActivityTarget={handlePostprodOpenActivityTarget}
                 onNavigateToProject={handlePostprodNavigateToProject}
                 renderFormFocusRequest={postprodRenderFormFocusRequest}
@@ -7830,6 +8153,19 @@ function App() {
             cancelLabel={t("postprod.renders.queuePause.cancel")}
             onConfirm={handleQueuePausedLaunchConfirm}
             onCancel={handleQueuePausedLaunchContinue}
+          />
+        )}
+
+        {busyImmediateLaunchPending && (
+          <AptitudeCheckModal
+            t={t}
+            workerDisplayName={busyImmediateLaunchPending.workerDisplayName}
+            title={"Station occupée"}
+            body={"La station est actuellement occupée. Voulez-vous la passer en disponible et lancer le rendu immédiat, ou patienter ?"}
+            confirmLabel={"Passer en disponible et lancer"}
+            cancelLabel={"Patienter"}
+            onConfirm={handleBusyImmediateLaunchConfirm}
+            onCancel={handleBusyImmediateLaunchCancel}
           />
         )}
 

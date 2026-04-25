@@ -48,6 +48,7 @@ function UserEditorPanel({
   editingTypeSummary = null,
   editingActivities = [],
   filteredEditingActivities = [],
+  onPurgeUserActivity = null,
   onOpenActivityTarget = null,
   submitDisabled = false,
   submitEditor = null,
@@ -65,7 +66,7 @@ function UserEditorPanel({
 }) {
   return (
     <div
-      className="uu-card mt-12"
+      className="mt-12"
       onFocusCapture={() => {
         if (typeof setEditorInputFocused === "function") {
           setEditorInputFocused(true);
@@ -162,6 +163,7 @@ function UserEditorPanel({
           editingTypeSummary={editingTypeSummary}
           editingActivities={editingActivities}
           filteredEditingActivities={filteredEditingActivities}
+          onPurgeActivity={onPurgeUserActivity}
           onOpenActivityTarget={onOpenActivityTarget}
         />
       ) : null}
@@ -180,15 +182,7 @@ function UserEditorPanel({
             {safeT(t, "postprod.users.form.create", "Créer utilisateur")}
           </button>
         </div>
-      ) : (
-        <>
-          {userAutosaveBusy ? <div className="uu-muted mt-12">{safeT(t, "common.loading", "Chargement…")}</div> : null}
-          {userAutosaveError ? <div className="uu-msg warn mt-12">{userAutosaveError}</div> : null}
-          {!userAutosaveBusy && !userAutosaveError && userAutosaveInfo ? (
-            <div className="uu-msg ok mt-12">{userAutosaveInfo}</div>
-          ) : null}
-        </>
-      )}
+      ) : null}
       <UserDeleteDialog
         t={t}
         open={deleteDialogOpen}

@@ -122,6 +122,7 @@ export default function PostProductionScreen({
   onRenderFocusHandled = null,
   editUserIdRequest = null,
   onEditUserIdHandled = null,
+  onPurgeUserActivity = null,
   onOpenActivityTarget = null,
   onNavigateToProject = null,
   renderFormFocusRequest = null,
@@ -246,6 +247,7 @@ export default function PostProductionScreen({
           onNotify={onNotify}
           editUserIdRequest={editUserIdRequest}
           onEditUserIdHandled={onEditUserIdHandled}
+          onPurgeUserActivity={onPurgeUserActivity}
           onOpenActivityTarget={onOpenActivityTarget}
         />
       ) : null}

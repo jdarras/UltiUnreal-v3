@@ -1,5 +1,6 @@
 import { safeT } from "../../../shared/helpers";
 import { useEffect, useRef, useState } from "react";
+import DateTimeConfirmPicker from "../../../../../components/DateTimeConfirmPicker";
 
 const WARN_SOON_MS = 5 * 60 * 1000;
 
@@ -27,7 +28,6 @@ function getMergedMode(launchMode, scheduledMode) {
 function LaunchModeSection({
   t,
   tasksLoading = false,
-  isEditingTask = false,
   autoRenderLaunchMode = "",
   onChangeAutoRenderLaunchMode = null,
   autoRenderScheduledMode = "",
@@ -70,7 +70,7 @@ function LaunchModeSection({
     }
   };
 
-  const showDatetimePicker = !isEditingTask && mergedMode === "datetime";
+  const showDatetimePicker = mergedMode === "datetime";
   const showStation = mergedMode !== "";
   const stationReadOnly = mergedMode === "any_station";
   const showAutoOption = mergedMode === "now" || mergedMode === "datetime" || mergedMode === "any_station";
@@ -169,12 +169,15 @@ function LaunchModeSection({
                 {safeT(t, "postprod.tasks.form.autoRenderScheduledAt", "Date de lancement")}
               </label>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <input
-                  type="datetime-local"
-                  className="uu-input"
+                <DateTimeConfirmPicker
                   value={autoRenderScheduledAt}
                   disabled={tasksLoading}
-                  onChange={(e) => onChangeAutoRenderScheduledAt?.(String(e.target.value || ""))}
+                  onChange={(nextValue) => onChangeAutoRenderScheduledAt?.(String(nextValue || ""))}
+                  placeholder="jj/mm/aaaa hh:mm"
+                  applyLabel={safeT(t, "postprod.renders.queue.jobs.save", "Valider")}
+                  cancelLabel={safeT(t, "postprod.renders.queue.jobs.cancel", "Annuler")}
+                  clearLabel={safeT(t, "renderReturnAt.clear", "Effacer")}
+                  locale="fr-FR"
                 />
               </div>
             </div>
@@ -233,7 +236,6 @@ function TaskEditorAutoConfigFields({
   taskSequenceName = "",
   onChangeAutoRenderSequence = null,
   projectCatalogSequenceOptions = [],
-  isEditingTask = false,
 }) {
   // En mode "now" : uniquement les stations online + capable (availableNow)
   // En mode "scheduled" : toutes les stations capables (capable ou busy), online ou non
@@ -438,7 +440,6 @@ function TaskEditorAutoConfigFields({
       <LaunchModeSection
         t={t}
         tasksLoading={tasksLoading}
-        isEditingTask={isEditingTask}
         autoRenderLaunchMode={autoRenderLaunchMode}
         onChangeAutoRenderLaunchMode={onChangeAutoRenderLaunchMode}
         autoRenderScheduledMode={autoRenderScheduledMode}

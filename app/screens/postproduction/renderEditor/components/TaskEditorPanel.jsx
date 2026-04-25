@@ -2,11 +2,13 @@ import { TaskEditorAutoConfigFields } from "./editor/TaskEditorAutoConfigFields"
 import { TaskEditorFooter } from "./editor/TaskEditorFooter";
 import { TaskEditorFormDataCard } from "./editor/TaskEditorFormDataCard";
 import { TaskEditorTitleFields } from "./editor/TaskEditorTitleFields";
+import { formatDate, safeT } from "../../shared/helpers";
 
 function TaskEditorPanel({
   t,
   isEditingTask = false,
   editingTaskVisualStatusKey = "planned",
+  editingTaskRejectionInfo = null,
   editingTaskId = 0,
   tasksLoading = false,
   title = "",
@@ -67,6 +69,25 @@ function TaskEditorPanel({
   onSubmit = null,
   onCancel = null,
 }) {
+  const rejectionInfo = editingTaskRejectionInfo && typeof editingTaskRejectionInfo === "object"
+    ? editingTaskRejectionInfo
+    : null;
+  const rejectionBy = String(rejectionInfo?.rejectedByUsername || "").trim();
+  const rejectionByIdRaw = Number(rejectionInfo?.rejectedByUserId || 0);
+  const rejectionById = Number.isFinite(rejectionByIdRaw) && rejectionByIdRaw > 0 ? Math.trunc(rejectionByIdRaw) : 0;
+  const rejectionByLabel = rejectionBy || (rejectionById > 0 ? `#${rejectionById}` : "-");
+  const rejectionAtLabel = formatDate(rejectionInfo?.rejectedAt || "");
+  const rejectionMeta = safeT(
+    t,
+    "postprod.tasks.rejection.banner.meta",
+    "Rejeté par {user} le {at}",
+    { user: rejectionByLabel, at: rejectionAtLabel || "-" }
+  );
+  const rejectionReason = String(rejectionInfo?.reason || "").trim();
+  const rejectionReasonLabel = rejectionReason
+    ? safeT(t, "postprod.tasks.rejection.banner.reason", "Motif : {reason}", { reason: rejectionReason })
+    : safeT(t, "postprod.tasks.rejection.banner.reasonEmpty", "Aucun motif renseigné.");
+
   return (
     <div
       className="mt-12"
@@ -78,6 +99,19 @@ function TaskEditorPanel({
         }
       }}
     >
+      {rejectionInfo ? (
+        <div className="uu-card" style={{ marginBottom: "12px" }}>
+          <div className="uu-msg warn" style={{ margin: 0 }}>
+            <div style={{ fontWeight: 700 }}>
+              {safeT(t, "postprod.tasks.rejection.banner.title", "Rendu rejeté")}
+            </div>
+            <div>{rejectionMeta}</div>
+            <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {rejectionReasonLabel}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="uu-card">
         <TaskEditorTitleFields
           t={t}
@@ -128,7 +162,6 @@ function TaskEditorPanel({
           taskSequenceName={taskSequenceName}
           onChangeAutoRenderSequence={onChangeAutoRenderSequence}
           projectCatalogSequenceOptions={projectCatalogSequenceOptions}
-          isEditingTask={isEditingTask}
         />
       </div>
 

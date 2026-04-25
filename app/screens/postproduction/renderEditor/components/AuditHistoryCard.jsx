@@ -1,8 +1,11 @@
 import { useState, useMemo } from "react";
+import DateTimeConfirmPicker from "../../../../components/DateTimeConfirmPicker";
 import { AuditEntriesList } from "./audit/AuditEntriesList";
 import { safeT } from "../../shared/helpers";
 import {
+  ACTIVITY_TYPE_FILTERS,
   activityActionTypeFromAction,
+  activityActionTypeLabel,
   activityTypeChipLevel,
 } from "../../users/shared/activityHelpers";
 
@@ -47,6 +50,9 @@ function AuditHistoryCard({
 }) {
   const [query, setQuery] = useState("");
   const [activeLevels, setActiveLevels] = useState(ALL_LEVELS);
+  const [fromAtLocal, setFromAtLocal] = useState("");
+  const [toAtLocal, setToAtLocal] = useState("");
+  const [actionType, setActionType] = useState("all");
   const [exportBusy, setExportBusy] = useState(false);
   const [purgeBusy, setPurgeBusy] = useState(false);
 
@@ -66,8 +72,16 @@ function AuditHistoryCard({
   const filteredEntries = useMemo(() => {
     const q = query.trim().toLowerCase();
     const isAllActive = activeLevels.size === ALL_LEVELS.size;
+    const fromMs = fromAtLocal ? new Date(fromAtLocal).getTime() : null;
+    const toMs   = toAtLocal   ? new Date(toAtLocal).getTime()   : null;
     return (Array.isArray(entries) ? entries : []).filter((entry) => {
       if (!isAllActive && !activeLevels.has(entryLevel(entry))) return false;
+      if (actionType !== "all" && activityActionTypeFromAction(entry?.action, entry) !== actionType) return false;
+      if (fromMs !== null || toMs !== null) {
+        const entryMs = entry?.createdAt ? new Date(entry.createdAt).getTime() : 0;
+        if (fromMs !== null && entryMs < fromMs) return false;
+        if (toMs   !== null && entryMs > toMs)   return false;
+      }
       if (!q) return true;
       const hay = [
         entry?.action,
@@ -79,7 +93,7 @@ function AuditHistoryCard({
       ].join(" ").toLowerCase();
       return hay.includes(q);
     });
-  }, [entries, query, activeLevels]);
+  }, [entries, query, activeLevels, fromAtLocal, toAtLocal, actionType]);
 
   const currentPage = Math.max(1, Math.trunc(Number(page || 1)));
   const totalCount = Math.max(0, Math.trunc(Number(total || 0)));
@@ -128,6 +142,63 @@ function AuditHistoryCard({
   return (
     <section className="uu-section">
       <div className="uu-card">
+        <div className="uu-row mt-8" style={{ gap: "8px", flexWrap: "wrap" }}>
+          <div className="uu-col" style={{ minWidth: "200px" }}>
+            <label className="uu-label">{safeT(t, "postprod.users.activity.filter.fromAt", "Du")}</label>
+            <DateTimeConfirmPicker
+              value={fromAtLocal}
+              onChange={(v) => setFromAtLocal(v)}
+              placeholder={safeT(t, "common.datePicker.placeholder", "jj/mm/aaaa hh:mm")}
+              applyLabel={safeT(t, "common.datePicker.apply", "Valider")}
+              cancelLabel={safeT(t, "common.datePicker.cancel", "Annuler")}
+              clearLabel={safeT(t, "common.datePicker.clear", "Effacer")}
+            />
+          </div>
+          <div className="uu-col" style={{ minWidth: "200px" }}>
+            <label className="uu-label">{safeT(t, "postprod.users.activity.filter.toAt", "Au")}</label>
+            <DateTimeConfirmPicker
+              value={toAtLocal}
+              onChange={(v) => setToAtLocal(v)}
+              placeholder={safeT(t, "common.datePicker.placeholder", "jj/mm/aaaa hh:mm")}
+              applyLabel={safeT(t, "common.datePicker.apply", "Valider")}
+              cancelLabel={safeT(t, "common.datePicker.cancel", "Annuler")}
+              clearLabel={safeT(t, "common.datePicker.clear", "Effacer")}
+            />
+          </div>
+          <div className="uu-col" style={{ minWidth: "180px" }}>
+            <label className="uu-label">{safeT(t, "postprod.users.activity.filter.actionType", "Type d'action")}</label>
+            <select
+              className="uu-input"
+              value={actionType}
+              onChange={(e) => setActionType(e.target.value)}
+            >
+              {ACTIVITY_TYPE_FILTERS.map((type) => (
+                <option key={type} value={type}>{activityActionTypeLabel(t, type)}</option>
+              ))}
+            </select>
+          </div>
+          <div className="uu-col" style={{ minWidth: "240px", flex: 1 }}>
+            <label className="uu-label">{safeT(t, "postprod.users.activity.filter.search", "Recherche locale")}</label>
+            <input
+              className="uu-input"
+              type="text"
+              placeholder={safeT(t, "postprod.audit.toolbar.search", "Rechercher...")}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <div className="uu-col" style={{ minWidth: "140px", marginLeft: "auto" }}>
+            <label className="uu-label" style={{ visibility: "hidden" }}>_</label>
+            <button
+              className="uu-btn-ghost"
+              type="button"
+              onClick={() => { setFromAtLocal(""); setToAtLocal(""); setActionType("all"); setQuery(""); }}
+            >
+              {safeT(t, "postprod.users.activity.filter.clear", "Effacer filtres")}
+            </button>
+          </div>
+        </div>
+
         <div className="uu-toolbar">
           <div className="uu-row gap-8" style={{ flexWrap: "wrap" }}>
             <div className="uu-chip-group">
@@ -142,12 +213,6 @@ function AuditHistoryCard({
                 </button>
               ))}
             </div>
-            <input
-              className="uu-input w-240"
-              placeholder={safeT(t, "postprod.audit.toolbar.search", "Rechercher...")}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
           </div>
         </div>
 

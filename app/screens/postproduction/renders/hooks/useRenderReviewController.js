@@ -13,6 +13,8 @@ export function useRenderReviewController({
 } = {}) {
   const canReviewRenders = useMemo(() => canEditRenderReviewStatus(user), [user]);
   const [busyRenderId, setBusyRenderId] = useState(0);
+  const [rejectDialogRender, setRejectDialogRender] = useState(null);
+  const [rejectDialogReason, setRejectDialogReason] = useState("");
 
   const isNoChangesError = useCallback((error) => {
     const code = String(error?.code || "").trim().toLowerCase();
@@ -21,7 +23,7 @@ export function useRenderReviewController({
     return message === "no_changes" || message.includes("no_changes");
   }, []);
 
-  const applyReviewStatus = useCallback(async (render, nextReviewStatus) => {
+  const runReviewTransition = useCallback(async (render, nextReviewStatus, options = {}) => {
     if (!canReviewRenders) return;
     const renderId = toRenderId(render?.id);
     if (renderId <= 0) return;
@@ -29,7 +31,7 @@ export function useRenderReviewController({
     if (isSameReviewStatus(currentReviewStatus, nextReviewStatus)) return;
     if (typeof onTransitionRender !== "function") return;
 
-    const transitionSteps = buildRenderReviewTransitionSteps(render, nextReviewStatus);
+    const transitionSteps = buildRenderReviewTransitionSteps(render, nextReviewStatus, options);
     if (!Array.isArray(transitionSteps) || transitionSteps.length <= 0) return;
 
     setBusyRenderId(renderId);
@@ -49,10 +51,43 @@ export function useRenderReviewController({
     }
   }, [canReviewRenders, onTransitionRender, isNoChangesError]);
 
+  const closeRejectDialog = useCallback(() => {
+    if (busyRenderId > 0) return;
+    setRejectDialogRender(null);
+    setRejectDialogReason("");
+  }, [busyRenderId]);
+
+  const confirmRejectDialog = useCallback(async () => {
+    const render = rejectDialogRender;
+    if (!render || busyRenderId > 0) return;
+    await runReviewTransition(render, "rejected", {
+      rejectionReason: String(rejectDialogReason || ""),
+    });
+    setRejectDialogRender(null);
+    setRejectDialogReason("");
+  }, [busyRenderId, rejectDialogReason, rejectDialogRender, runReviewTransition]);
+
+  const applyReviewStatus = useCallback(async (render, nextReviewStatus) => {
+    if (!canReviewRenders) return;
+    const next = String(nextReviewStatus || "").trim().toLowerCase();
+    if (next === "rejected" || next === "to_modify") {
+      setRejectDialogRender(render && typeof render === "object" ? render : null);
+      setRejectDialogReason("");
+      return;
+    }
+    await runReviewTransition(render, nextReviewStatus);
+  }, [canReviewRenders, runReviewTransition]);
+
   return {
     canReviewRenders,
     busyRenderId,
     applyReviewStatus,
+    rejectDialogOpen: !!rejectDialogRender,
+    rejectDialogRender,
+    rejectDialogReason,
+    setRejectDialogReason,
+    closeRejectDialog,
+    confirmRejectDialog,
   };
 }
 

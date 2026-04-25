@@ -87,10 +87,7 @@ function RendersQueueTable({
                 </button>
               </th>
               <th style={{ textAlign: "center" }}>
-                <button type="button" className="uu-link" onClick={() => onToggleQueueSort?.("sequence")}>
-                  {safeT(t, "postprod.data.forms.levelSequence", "LS")}
-                  {typeof queueSortIndicator === "function" ? queueSortIndicator("sequence") : ""}
-                </button>
+                {safeT(t, "postprod.renders.queue.table.launch", "Lancement")}
               </th>
               <th style={{ textAlign: "left", paddingLeft: `${stationOffsetPx}px` }}>
                 <button type="button" className="uu-link" onClick={() => onToggleQueueSort?.("worker")}>

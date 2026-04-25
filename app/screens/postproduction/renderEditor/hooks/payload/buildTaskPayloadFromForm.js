@@ -29,6 +29,9 @@ export function buildTaskPayloadFromForm({
   taskSequenceName = "",
   autoRenderOffscreen = false,
   autoRenderExportDestinationIds = [],
+  autoRenderLaunchMode = "",
+  autoRenderScheduledMode = "",
+  autoRenderScheduledAt = "",
 } = {}) {
   const selectedForm = selectedAutoRenderForm;
   const inputValidationError = validateTaskPayloadInputs({
@@ -65,6 +68,9 @@ export function buildTaskPayloadFromForm({
     taskSequenceName,
     autoRenderOffscreen,
     autoRenderExportDestinationIds,
+    autoRenderLaunchMode,
+    autoRenderScheduledMode,
+    autoRenderScheduledAt,
   });
 
   if (!context.ok) {

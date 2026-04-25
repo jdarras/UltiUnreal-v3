@@ -62,7 +62,7 @@ export function sortRenderQueueTasks({
 } = {}) {
   const list = [...filteredRenderQueueTasks];
   const dir = queueSortDir === "asc" ? 1 : -1;
-  const statusRank = { waiting: 0, running: 1, error: 2 };
+  const statusRank = { waiting: 0, running: 1, error: 2, to_modify: 3 };
   list.sort((a, b) => {
     const taskA = a?.task && typeof a.task === "object" ? a.task : {};
     const taskB = b?.task && typeof b.task === "object" ? b.task : {};

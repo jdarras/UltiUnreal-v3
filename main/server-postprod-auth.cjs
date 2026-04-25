@@ -5651,6 +5651,9 @@ function createStatements(db) {
     deleteAllAuditEntries: db.prepare(`
       DELETE FROM audit_log
     `),
+    deleteAuditByActorUserId: db.prepare(`
+      DELETE FROM audit_log WHERE actor_user_id = ?
+    `),
     countResourcesIndex: db.prepare(`
       SELECT COUNT(*) AS n
       FROM resources_index

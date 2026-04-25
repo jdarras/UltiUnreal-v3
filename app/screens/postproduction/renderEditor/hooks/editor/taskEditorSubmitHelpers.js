@@ -2,6 +2,27 @@ import { safeT } from "../../../shared/helpers";
 import { normalizeTaskVisualStatusKey } from "../../helpers";
 import { toPayloadSignature } from "./taskEditorAutosaveHelpers";
 
+function normalizeLaunchMode(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "now" || normalized === "scheduled") return normalized;
+  return "";
+}
+
+function normalizeScheduledMode(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "datetime" || normalized === "any_station" || normalized === "specific_station") {
+    return normalized;
+  }
+  return "";
+}
+
+function normalizeScheduledAt(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? raw : "";
+}
+
 function resolveSavedTaskId(savedTask) {
   const value = Number(savedTask?.id || 0);
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
@@ -76,9 +97,15 @@ async function runTaskSubmit({
   if (typeof setFormError === "function") setFormError("");
   if (typeof buildTaskPayloadFromCurrentForm !== "function") return;
 
-  const launchMode = autoRenderLaunchMode;
-  const scheduledMode = autoRenderScheduledMode;
-  const scheduledAt = String(autoRenderScheduledAt || "").trim();
+  const launchMode = normalizeLaunchMode(autoRenderLaunchMode);
+  const scheduledMode = launchMode === "scheduled"
+    ? normalizeScheduledMode(autoRenderScheduledMode)
+    : "";
+  const scheduledAt = (
+    launchMode === "scheduled" && scheduledMode === "datetime"
+      ? normalizeScheduledAt(autoRenderScheduledAt)
+      : ""
+  );
   const normalizedEditingStatus = normalizeTaskVisualStatusKey(editingTaskVisualStatusKey);
   const shouldCreateRenderAfterEdit = isEditingTask && (
     normalizedEditingStatus === "planned"
@@ -108,13 +135,50 @@ async function runTaskSubmit({
     renderStationName,
   } = built;
 
-  if (!isEditingTask && launchMode) {
-    taskPayload.autoRenderConfig = {
-      ...(taskPayload.autoRenderConfig || {}),
-      launchMode,
-      scheduledMode: scheduledMode || "",
-    };
+  const autoRenderConfig = (
+    taskPayload?.autoRenderConfig && typeof taskPayload.autoRenderConfig === "object" && !Array.isArray(taskPayload.autoRenderConfig)
+      ? { ...taskPayload.autoRenderConfig }
+      : {}
+  );
+  if (launchMode) {
+    autoRenderConfig.launchMode = launchMode;
+  } else {
+    delete autoRenderConfig.launchMode;
   }
+  if (scheduledMode) {
+    autoRenderConfig.scheduledMode = scheduledMode;
+  } else {
+    delete autoRenderConfig.scheduledMode;
+  }
+  if (scheduledAt) {
+    autoRenderConfig.scheduledAt = scheduledAt;
+  } else {
+    delete autoRenderConfig.scheduledAt;
+  }
+  const autoRenderPayload = (
+    autoRenderConfig?.payload && typeof autoRenderConfig.payload === "object" && !Array.isArray(autoRenderConfig.payload)
+      ? { ...autoRenderConfig.payload }
+      : null
+  );
+  if (autoRenderPayload) {
+    if (launchMode) {
+      autoRenderPayload.launchMode = launchMode;
+    } else {
+      delete autoRenderPayload.launchMode;
+    }
+    if (scheduledMode) {
+      autoRenderPayload.scheduledMode = scheduledMode;
+    } else {
+      delete autoRenderPayload.scheduledMode;
+    }
+    if (scheduledAt) {
+      autoRenderPayload.scheduledAt = scheduledAt;
+    } else {
+      delete autoRenderPayload.scheduledAt;
+    }
+    autoRenderConfig.payload = autoRenderPayload;
+  }
+  taskPayload.autoRenderConfig = autoRenderConfig;
 
   const savedTask = isEditingTask
     ? await Promise.resolve(onUpdateTask?.(editingTaskId, taskPayload))
@@ -125,11 +189,19 @@ async function runTaskSubmit({
     editAutosaveStateRef.current.signature = toPayloadSignature(taskPayload);
   }
 
-  const shouldCreateRenderNow = (!isEditingTask && launchMode === "now") || shouldCreateRenderAfterEdit;
-  const shouldCreateRenderScheduled = !isEditingTask
-    && launchMode === "scheduled"
+  const wantsScheduledRender = (
+    launchMode === "scheduled"
     && scheduledMode === "datetime"
-    && !!scheduledAt;
+    && !!scheduledAt
+  );
+  const shouldCreateRenderNow = (
+    (!isEditingTask && launchMode === "now")
+    || (shouldCreateRenderAfterEdit && !wantsScheduledRender)
+  );
+  const shouldCreateRenderScheduled = (
+    wantsScheduledRender
+    && (!isEditingTask || shouldCreateRenderAfterEdit)
+  );
 
   if (shouldCreateRenderNow || shouldCreateRenderScheduled) {
     const createRenderInput = buildImmediateRenderRequest({

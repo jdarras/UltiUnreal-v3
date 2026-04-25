@@ -1,8 +1,12 @@
-import { safeT } from "../../shared/helpers";
+import { useState, useEffect } from "react";
+import { formatDate, activityActionLabel, safeT } from "../../shared/helpers";
+import { activityActionTypeFromAction, activityActionTypeLabel } from "../userSharedHelpers";
 import { UserActivityFilters } from "./activity/UserActivityFilters";
 import { UserActivitySummary } from "./activity/UserActivitySummary";
 import { UserActivityList } from "./activity/UserActivityList";
 import { useUserActivityActions } from "./activity/useUserActivityActions";
+
+const ACTIVITY_PAGE_SIZES = [25, 50, 100, 200];
 
 function UserActivityBlock({
   t,
@@ -28,8 +32,53 @@ function UserActivityBlock({
   editingTypeSummary = { project: 0, form: 0, task: 0, validation: 0, other: 0 },
   editingActivities = [],
   filteredEditingActivities = [],
+  onPurgeActivity = null,
   onOpenActivityTarget = null,
 }) {
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(100);
+  const [exportBusy, setExportBusy] = useState(false);
+
+  async function handlePurge() {
+    if (typeof onPurgeActivity !== 'function') return;
+    const ok = await onPurgeActivity(editingUserId);
+    if (ok) loadUserActivity?.();
+  }
+
+  async function handleExport(as = "json") {
+    if (!window.electron?.exportFile) return;
+    setExportBusy(true);
+    try {
+      const ext = as === "txt" ? "txt" : "json";
+      const defaultName = `activite-${new Date().toISOString().replace(/[:.]/g, "-")}.${ext}`;
+      const content = as === "txt"
+        ? filteredEditingActivities.map((it) => {
+            const actionType = activityActionTypeLabel(t, activityActionTypeFromAction(it?.action, it));
+            const label = activityActionLabel(it);
+            const status = String(it?.toStatus || "").trim();
+            return `[${formatDate(it?.createdAt)}] [${actionType}] [${String(it?.action || "")}] ${label}${status ? ` (${status})` : ""}`.trim();
+          }).join("\n")
+        : JSON.stringify(filteredEditingActivities, null, 2);
+      await window.electron.exportFile({
+        defaultName,
+        content,
+        filters: [
+          { name: "JSON", extensions: ["json"] },
+          { name: "Text", extensions: ["txt"] },
+        ],
+      });
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  useEffect(() => { setPage(0); }, [filteredEditingActivities.length, activityActionType, activityProjectRef]);
+
+  const totalItems = filteredEditingActivities.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(page, totalPages - 1);
+  const visibleActivities = filteredEditingActivities.slice(safePage * pageSize, safePage * pageSize + pageSize);
+
   const {
     disabled,
     projectDisabled,
@@ -100,10 +149,21 @@ function UserActivityBlock({
             filteredEditingActivities={filteredEditingActivities}
             onChooseActionType={chooseActionType}
             onChooseProject={chooseProject}
+            page={safePage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            pageSizes={ACTIVITY_PAGE_SIZES}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(0); }}
+            exportBusy={exportBusy}
+            onPurgeActivity={typeof onPurgeActivity === 'function' ? handlePurge : null}
+            onExportJson={() => handleExport("json")}
+            onExportTxt={() => handleExport("txt")}
           />
           <UserActivityList
             t={t}
-            filteredEditingActivities={filteredEditingActivities}
+            filteredEditingActivities={visibleActivities}
             onOpenActivityTarget={onOpenActivityTarget}
           />
         </div>

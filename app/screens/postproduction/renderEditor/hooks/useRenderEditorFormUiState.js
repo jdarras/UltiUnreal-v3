@@ -14,11 +14,8 @@ function useRenderEditorFormUiState({
   const editAutosaveStateRef = useRef({ signature: "", inFlight: false, pending: false });
 
   useEffect(() => {
-    if (typeof onFormModeChange !== "function") return undefined;
+    if (typeof onFormModeChange !== "function") return;
     onFormModeChange(showCreateForm === true);
-    return () => {
-      onFormModeChange(false);
-    };
   }, [showCreateForm, onFormModeChange]);
 
   useEffect(() => {

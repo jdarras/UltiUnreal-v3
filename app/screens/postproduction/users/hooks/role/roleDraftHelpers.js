@@ -59,12 +59,14 @@ export function buildRoleDraftFromRole(role) {
 
 export function buildRolePayloadFromDraft(roleDraft = {}) {
   const canManageUsers = roleDraft?.canManageUsers === true;
+  const canLaunchRenders = roleDraft?.canLaunchRenders !== false;
   return {
     displayName: String(roleDraft?.displayName || ""),
     note: String(roleDraft?.note || ""),
     canUseLiveMode: roleDraft?.canUseLiveMode !== false,
     canUsePostprodMode: roleDraft?.canUsePostprodMode !== false,
-    canValidate: roleDraft?.canValidate === true,
+    // Permission legacy backend: on l'aligne sur le privilège unique visible dans l'UI.
+    canValidate: canLaunchRenders,
     canSyncScenes: roleDraft?.canSyncScenes === true,
     canManageUsers,
     canManageRoles: roleDraft?.canManageRoles === true,
@@ -73,7 +75,7 @@ export function buildRolePayloadFromDraft(roleDraft = {}) {
     canBanUsers: canManageUsers && roleDraft?.canBanUsers === true,
     canManageProjectPermissions: canManageUsers && roleDraft?.canManageProjectPermissions === true,
     canLaunchProjects: roleDraft?.canLaunchProjects !== false,
-    canLaunchRenders: roleDraft?.canLaunchRenders !== false,
+    canLaunchRenders,
     canViewResources: roleDraft?.canViewResources === true,
     canCreateTasks: roleDraft?.canCreateTasks === true,
     canAssignRenderRequests: roleDraft?.canAssignRenderRequests === true,

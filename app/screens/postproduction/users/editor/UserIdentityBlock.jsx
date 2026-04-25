@@ -140,6 +140,20 @@ function UserIdentityBlock({
             <option value="CDD">{safeT(t, "postprod.users.form.employmentType.cdd", "CDD")}</option>
           </select>
         </div>
+        <div className="uu-grid-field" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+            {safeT(t, "postprod.users.form.language", "Langue")}
+          </label>
+          <select
+            className="uu-input"
+            style={{ flex: 1 }}
+            value={String(draft?.language || "fr").trim().toLowerCase() === "en" ? "en" : "fr"}
+            onChange={(e) => setDraft((prev) => ({ ...(prev || {}), language: e.target.value }))}
+          >
+            <option value="fr">{safeT(t, "common.lang.fr", "Français")}</option>
+            <option value="en">{safeT(t, "common.lang.en", "English")}</option>
+          </select>
+        </div>
       </div>
       <div className="uu-grid-field mt-12">
         <label className="uu-label">{safeT(t, "postprod.users.form.note", "Note visible par l'equipe")}</label>

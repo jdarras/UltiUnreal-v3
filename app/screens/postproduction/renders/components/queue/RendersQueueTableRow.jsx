@@ -1,14 +1,6 @@
-import { safeT } from "../../../shared/helpers";
+import { formatDate, safeT } from "../../../shared/helpers";
 import { taskVisualStatusClass } from "../../../renderEditor/helpers";
 import { queueRenderStateShortLabel } from "../../helpers";
-
-function simplifySequenceName(raw) {
-  const source = String(raw || "").trim();
-  if (!source) return "";
-  const tail = source.split("/").filter(Boolean).pop() || source;
-  const shortName = (tail.split(".")[0] || "").trim();
-  return shortName || source;
-}
 
 function RendersQueueTableRow({
   t,
@@ -17,7 +9,6 @@ function RendersQueueTableRow({
   deleteBusyTaskId = 0,
   rendersLoading = false,
   canLaunchRenders = false,
-  queueRuntimeMode = "active",
   queueEntryWorkerLabel = null,
   getQueueEntryLaunchMeta = null,
   onLaunchScheduledTaskRender = null,
@@ -35,25 +26,30 @@ function RendersQueueTableRow({
     : {};
   const taskId = Number(task?.id || 0);
   const normalizedTaskId = Number.isFinite(taskId) && taskId > 0 ? Math.trunc(taskId) : 0;
-  const autoRenderConfig = task?.autoRenderConfig && typeof task.autoRenderConfig === "object" && !Array.isArray(task.autoRenderConfig)
-    ? task.autoRenderConfig
-    : null;
-  const queueSequenceName = simplifySequenceName(
-    autoRenderConfig?.sequenceName
-      || autoRenderConfig?.payload?.sequenceName
-      || task?.payload?.sequenceName
-      || ""
-  );
   const queueWorker = typeof queueEntryWorkerLabel === "function" ? queueEntryWorkerLabel(queueEntry) : "";
   const isBusy = busyScheduledTaskId === taskId;
   const deleteBusy = deleteBusyTaskId === taskId;
   const queueLaunchMeta = typeof getQueueEntryLaunchMeta === "function"
     ? getQueueEntryLaunchMeta(queueEntry)
-    : { renderState: "waiting", canLaunchFromQueue: false };
+    : {
+      renderState: "waiting",
+      canLaunchFromQueue: false,
+      scheduledAt: "",
+      isStationWaitMode: false,
+    };
+  const queueLaunchLabel = (() => {
+    const scheduledAt = String(queueLaunchMeta?.scheduledAt || "").trim();
+    if (scheduledAt) {
+      const formatted = String(formatDate(scheduledAt) || "").trim();
+      return formatted || scheduledAt;
+    }
+    if (queueLaunchMeta?.isStationWaitMode) {
+      return safeT(t, "postprod.renders.queue.launch.waitingStation", "En attente Station");
+    }
+    return "-";
+  })();
   const renderState = queueLaunchMeta.renderState;
   const canLaunchFromQueue = queueLaunchMeta.canLaunchFromQueue;
-  const queueMode = String(queueRuntimeMode || "").trim().toLowerCase() === "paused" ? "paused" : "active";
-  const allowManualLaunch = queueMode === "paused";
   const canEditQueueTask = (
     typeof onEditQueueTask === "function"
     && Number.isFinite(taskId)
@@ -76,7 +72,10 @@ function RendersQueueTableRow({
   };
 
   const handleLaunch = () => {
-    onLaunchScheduledTaskRender?.(task, queueEntry);
+    onLaunchScheduledTaskRender?.(task, queueEntry, {
+      forceLaunch: true,
+      ignoreSchedule: true,
+    });
   };
 
   const handleOpenTask = (event) => {
@@ -159,7 +158,7 @@ function RendersQueueTableRow({
           ) : null}
         </div>
       </td>
-      <td style={{ overflowWrap: "anywhere", textAlign: "center" }}>{queueSequenceName || "-"}</td>
+      <td style={{ overflowWrap: "anywhere", textAlign: "center" }}>{queueLaunchLabel}</td>
       <td style={{ overflowWrap: "anywhere", paddingLeft: `${stationOffsetPx}px` }}>{queueWorker || "-"}</td>
       <td style={{ overflowWrap: "anywhere", textAlign: "right" }}>
         <span className={`uu-chip chip-on ${taskVisualStatusClass(renderState)}`}>
@@ -183,7 +182,7 @@ function RendersQueueTableRow({
             }}
           >
             <span style={actionSlotStyle}>
-              {allowManualLaunch && canLaunchFromQueue ? (
+              {canLaunchFromQueue ? (
                 <button
                   className="uu-btn"
                   type="button"

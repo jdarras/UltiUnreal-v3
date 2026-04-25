@@ -52,7 +52,7 @@ export function useAutoRenderLookupMaps({
     const selectedProjectRef = String(selectedProjectOption?.ref || selectedProjectRaw).trim();
     const list = Array.isArray(renderForms) ? renderForms : [];
     if (!selectedProjectRef) return [];
-    return list.filter((entry) => {
+    const filtered = list.filter((entry) => {
       if (entry?.isActive === false) return false;
       const rawProject = String(entry?.projectName || "").trim();
       if (!rawProject) return false;
@@ -67,13 +67,26 @@ export function useAutoRenderLookupMaps({
       if (!resolvedProjectRef) return false;
       if (!allowedProjects.has(resolvedProjectRef)) return false;
       return resolvedProjectRef === selectedProjectRef;
-    }).sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+    });
+    const currentFormId = String(autoRenderFormId || "").trim();
+    if (currentFormId) {
+      const hasCurrent = filtered.some((entry) => String(entry?.id || "").trim() === currentFormId);
+      if (!hasCurrent) {
+        const fallbackForm = list.find((entry) => {
+          if (entry?.isActive === false) return false;
+          return String(entry?.id || "").trim() === currentFormId;
+        }) || null;
+        if (fallbackForm) filtered.unshift(fallbackForm);
+      }
+    }
+    return filtered.sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")));
   }, [
     renderForms,
     projectOptionByRef,
     projectLookupByAny,
     normalizedProjectOptions,
     autoRenderProjectRef,
+    autoRenderFormId,
   ]);
 
   useEffect(() => {
@@ -111,21 +124,40 @@ export function useAutoRenderLookupMaps({
         .filter(Boolean)
     );
     if (typeof setAutoRenderFormId === "function") {
-      setAutoRenderFormId((prev) => (allowed.has(String(prev || "").trim()) ? String(prev || "").trim() : ""));
+      setAutoRenderFormId((prev) => {
+        const current = String(prev || "").trim();
+        if (!current) return "";
+        if (allowed.has(current)) return current;
+        const fallbackForm = (Array.isArray(renderForms) ? renderForms : []).find((entry) => {
+          if (entry?.isActive === false) return false;
+          return String(entry?.id || "").trim() === current;
+        }) || null;
+        return fallbackForm ? current : "";
+      });
     }
-  }, [filteredAutoRenderForms, setAutoRenderFormId]);
+  }, [filteredAutoRenderForms, renderForms, setAutoRenderFormId]);
 
 
-  const selectedAutoRenderForm = useMemo(
-    () => filteredAutoRenderForms.find((entry) => String(entry?.id || "") === String(autoRenderFormId || "")) || null,
-    [filteredAutoRenderForms, autoRenderFormId]
-  );
+  const selectedAutoRenderForm = useMemo(() => {
+    const currentFormId = String(autoRenderFormId || "").trim();
+    if (!currentFormId) return null;
+    const fromFiltered = filteredAutoRenderForms.find((entry) => String(entry?.id || "").trim() === currentFormId) || null;
+    if (fromFiltered) return fromFiltered;
+    return (Array.isArray(renderForms) ? renderForms : []).find((entry) => {
+      if (entry?.isActive === false) return false;
+      return String(entry?.id || "").trim() === currentFormId;
+    }) || null;
+  }, [filteredAutoRenderForms, renderForms, autoRenderFormId]);
 
   useEffect(() => {
     if (typeof setAutoRenderProjectRef !== "function") return;
     const currentFormId = String(autoRenderFormId || "").trim();
     if (!currentFormId) return;
-    const currentForm = filteredAutoRenderForms.find((entry) => String(entry?.id || "").trim() === currentFormId) || null;
+    const currentForm = (
+      filteredAutoRenderForms.find((entry) => String(entry?.id || "").trim() === currentFormId)
+      || (Array.isArray(renderForms) ? renderForms : []).find((entry) => String(entry?.id || "").trim() === currentFormId)
+      || null
+    );
     const resolvedProjectRef = resolveProjectRefFromForm(currentForm, projectOptionByRef, projectLookupByAny);
     if (!resolvedProjectRef) return;
     setAutoRenderProjectRef((prev) => {
@@ -135,6 +167,7 @@ export function useAutoRenderLookupMaps({
   }, [
     autoRenderFormId,
     filteredAutoRenderForms,
+    renderForms,
     projectOptionByRef,
     projectLookupByAny,
     setAutoRenderProjectRef,

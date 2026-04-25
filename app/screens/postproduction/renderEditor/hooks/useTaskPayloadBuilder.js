@@ -24,6 +24,9 @@ export function useTaskPayloadBuilder({
   taskSequenceName = "",
   autoRenderOffscreen = false,
   autoRenderExportDestinationIds = [],
+  autoRenderLaunchMode = "",
+  autoRenderScheduledMode = "",
+  autoRenderScheduledAt = "",
 }) {
   const buildTaskPayloadFromCurrentForm = useCallback(() => (
     buildTaskPayloadFromForm({
@@ -49,6 +52,9 @@ export function useTaskPayloadBuilder({
       taskSequenceName,
       autoRenderOffscreen,
       autoRenderExportDestinationIds,
+      autoRenderLaunchMode,
+      autoRenderScheduledMode,
+      autoRenderScheduledAt,
     })
   ), [
     t,
@@ -73,6 +79,9 @@ export function useTaskPayloadBuilder({
     taskSequenceName,
     autoRenderOffscreen,
     autoRenderExportDestinationIds,
+    autoRenderLaunchMode,
+    autoRenderScheduledMode,
+    autoRenderScheduledAt,
   ]);
 
   return {

@@ -5,21 +5,29 @@ export function buildRenderQueueTasks({
   tasks = [],
   autoRenderStateByTaskId = new Map(),
 } = {}) {
+  const CLOSED_TASK_STATUS_SET = new Set([
+    "a valider",
+    "à valider",
+    "validee",
+    "rejetee",
+  ]);
   const taskList = Array.isArray(tasks) ? tasks : [];
   if (taskList.length <= 0) return [];
   const out = [];
   for (const task of taskList) {
     const taskId = Number(task?.id || 0);
     if (!Number.isFinite(taskId) || taskId <= 0) continue;
-    const taskStatus = String(task?.status || "").trim();
-    if (taskStatus === "Validee" || taskStatus === "Rejetee") continue;
     const renderStateEntry = autoRenderStateByTaskId.get(Math.trunc(taskId));
     const visualStatus = String(renderStateEntry?.visualStatus || "").trim().toLowerCase();
-    if (visualStatus === "validated" || visualStatus === "rejected") continue;
-    const renderState = resolveTaskAutoRenderState(task, autoRenderStateByTaskId);
-    if (renderState !== "waiting" && renderState !== "running" && renderState !== "error") continue;
-    const autoRenderConfig = resolveAutoRenderConfig(task);
     const linkedRender = renderStateEntry?.render || null;
+    const explicitReviewStatus = String(linkedRender?.reviewStatus || "").trim().toLowerCase();
+    const isToModify = visualStatus === "rejected" && explicitReviewStatus === "to_modify";
+    const taskStatus = String(task?.status || "").trim().toLowerCase();
+    if (CLOSED_TASK_STATUS_SET.has(taskStatus) && !isToModify) continue;
+    if (!isToModify && (visualStatus === "validated" || visualStatus === "rejected")) continue;
+    const renderState = isToModify ? "to_modify" : resolveTaskAutoRenderState(task, autoRenderStateByTaskId);
+    if (renderState !== "waiting" && renderState !== "running" && renderState !== "error" && renderState !== "to_modify") continue;
+    const autoRenderConfig = resolveAutoRenderConfig(task);
     const projectName = String(autoRenderConfig?.projectName || linkedRender?.projectName || "").trim();
     const templateName = String(autoRenderConfig?.templateName || linkedRender?.templateName || "").trim();
     if (!linkedRender && (!projectName || !templateName)) continue;
@@ -35,7 +43,7 @@ export function buildRenderQueueTasks({
       workerKey,
     });
   }
-  const rankByState = { waiting: 0, running: 1, error: 2 };
+  const rankByState = { waiting: 0, running: 1, error: 2, to_modify: 3 };
   out.sort((a, b) => {
     const stateA = String(a?.renderState || "").trim().toLowerCase();
     const stateB = String(b?.renderState || "").trim().toLowerCase();

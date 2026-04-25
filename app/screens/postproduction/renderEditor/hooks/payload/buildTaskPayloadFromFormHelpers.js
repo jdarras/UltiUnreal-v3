@@ -41,6 +41,9 @@ function resolveTaskPayloadBuildContext({
   taskSequenceName = "",
   autoRenderOffscreen = false,
   autoRenderExportDestinationIds = [],
+  autoRenderLaunchMode = "",
+  autoRenderScheduledMode = "",
+  autoRenderScheduledAt = "",
 } = {}) {
   const expectedRenderCount = normalizeTaskExpectedRenderCountInput(expectedRenderCountInput);
   const expectedRenderNames = buildTaskExpectedRenderNamesPreview(title, expectedRenderCount);
@@ -132,6 +135,9 @@ function resolveTaskPayloadBuildContext({
     selectedFormIdNum: context.selectedFormIdNum,
     autoRenderOffscreen: autoRenderOffscreen === true,
     autoRenderExportDestinationIds,
+    autoRenderLaunchMode,
+    autoRenderScheduledMode,
+    autoRenderScheduledAt,
   });
 
   return {

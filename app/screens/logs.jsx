@@ -1,5 +1,6 @@
 // app/screens/logs.jsx
 import React from 'react';
+import DateTimeConfirmPicker from '../components/DateTimeConfirmPicker';
 import { getLogs, getAllLogs, getCommon, purgeLogs } from '../utils/agent';
 import { readIdentity } from '../utils/identity';
 import { createT } from '../i18n';
@@ -70,6 +71,8 @@ export default function LogsScreen() {
   const [quietMode, setQuietMode] = React.useState(false);
   const [refreshSec, setRefreshSec] = React.useState(5);
   const [logStore, setLogStore] = React.useState(null);
+  const [fromAtLocal, setFromAtLocal] = React.useState('');
+  const [toAtLocal, setToAtLocal] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [exportBusy, setExportBusy] = React.useState(false);
   const [expanded, setExpanded] = React.useState({}); // idx -> bool
@@ -192,14 +195,18 @@ export default function LogsScreen() {
     };
   }, [auto, quietMode, refreshSec, fetchLogs]);
 
-  // filtrage texte + niveaux + type d'action
+  // filtrage texte + niveaux + type d'action + dates
   const filtered = React.useMemo(() => {
     const q  = text.trim().toLowerCase();
     const lv = levelFilter;
     const af = actionFilter;
+    const fromMs = fromAtLocal ? new Date(fromAtLocal).getTime() : null;
+    const toMs   = toAtLocal   ? new Date(toAtLocal).getTime()   : null;
 
     return items.filter(it => {
       if (!lv.has(String(it.level || 'info'))) return false;
+      if (fromMs !== null && (it._tsMs ?? 0) < fromMs) return false;
+      if (toMs   !== null && (it._tsMs ?? 0) > toMs)   return false;
 
       const act = String(it.action || '');
 
@@ -220,14 +227,14 @@ export default function LogsScreen() {
 
       return hay.includes(q);
     });
-  }, [items, levelFilter, text, actionFilter]);
+  }, [items, levelFilter, text, actionFilter, fromAtLocal, toAtLocal]);
 
   // Pagination pour limiter le rendu DOM si beaucoup de logs
   const [page, setPage] = React.useState(0);
   const [pageSize, setPageSize] = React.useState(200);
   React.useEffect(() => {
     setPage(0);
-  }, [filtered.length, pageSize, text, Array.from(levelFilter).join(','), actionFilter]);
+  }, [filtered.length, pageSize, text, Array.from(levelFilter).join(','), actionFilter, fromAtLocal, toAtLocal]);
   const totalItems = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const currentPage = Math.min(page, totalPages - 1);
@@ -337,7 +344,64 @@ export default function LogsScreen() {
   return (
     <div className="uu-page">
 
-      {/* Ligne 1 : filtres + options */}
+      {/* Barre de filtres dates + recherche */}
+      <div className="uu-row mt-8" style={{ gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div className="uu-col" style={{ minWidth: '200px' }}>
+          <label className="uu-label">{t('postprod.users.activity.filter.fromAt')}</label>
+          <DateTimeConfirmPicker
+            value={fromAtLocal}
+            onChange={setFromAtLocal}
+            placeholder={t('common.datePicker.placeholder')}
+            applyLabel={t('common.datePicker.apply')}
+            cancelLabel={t('common.datePicker.cancel')}
+            clearLabel={t('common.datePicker.clear')}
+          />
+        </div>
+        <div className="uu-col" style={{ minWidth: '200px' }}>
+          <label className="uu-label">{t('postprod.users.activity.filter.toAt')}</label>
+          <DateTimeConfirmPicker
+            value={toAtLocal}
+            onChange={setToAtLocal}
+            placeholder={t('common.datePicker.placeholder')}
+            applyLabel={t('common.datePicker.apply')}
+            cancelLabel={t('common.datePicker.cancel')}
+            clearLabel={t('common.datePicker.clear')}
+          />
+        </div>
+        <div className="uu-col" style={{ minWidth: '160px' }}>
+          <label className="uu-label">{t('logs.filters.actionType')}</label>
+          <select
+            className="uu-input"
+            value={actionFilter}
+            onChange={(e) => setActionFilter(e.target.value)}
+          >
+            {actionOptions.map(a => (
+              <option key={a.id} value={a.id}>{a.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="uu-col" style={{ minWidth: '220px', flex: 1 }}>
+          <label className="uu-label">{t('postprod.users.activity.filter.search')}</label>
+          <input
+            className="uu-input"
+            placeholder={t('logs.toolbar.searchPlaceholder')}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+        </div>
+        <div className="uu-col">
+          <label className="uu-label" style={{ visibility: 'hidden' }}>_</label>
+          <button
+            className="uu-btn-ghost"
+            type="button"
+            onClick={() => { setFromAtLocal(''); setToAtLocal(''); setText(''); setActionFilter('all'); }}
+          >
+            {t('postprod.users.activity.filter.clear')}
+          </button>
+        </div>
+      </div>
+
+      {/* Ligne 1 : niveau + options */}
       <div className="uu-toolbar">
         <div className="uu-row gap-8">
           <div className="uu-chip-group">
@@ -351,25 +415,6 @@ export default function LogsScreen() {
               </button>
             ))}
           </div>
-
-          <input
-            className="uu-input w-240"
-            placeholder={t('logs.toolbar.searchPlaceholder')}
-            value={text}
-            onChange={(e)=>setText(e.target.value)}
-          />
-
-          <select
-            className="uu-input w-160"
-            value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
-          >
-            {actionOptions.map(a => (
-              <option key={a.id} value={a.id}>
-                {a.label}
-              </option>
-            ))}
-          </select>
 
           <input
             className="uu-input w-100"

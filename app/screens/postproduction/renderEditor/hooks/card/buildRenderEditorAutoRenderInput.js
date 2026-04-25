@@ -52,6 +52,9 @@ function buildTaskPayloadBuilderInput({
     taskSequenceName: autoRender.taskSequenceName,
     autoRenderOffscreen: autoRender.autoRenderOffscreen,
     autoRenderExportDestinationIds: autoRender.autoRenderExportDestinationIds,
+    autoRenderLaunchMode: autoRender.autoRenderLaunchMode,
+    autoRenderScheduledMode: autoRender.autoRenderScheduledMode,
+    autoRenderScheduledAt: autoRender.autoRenderScheduledAt,
   };
 }
 

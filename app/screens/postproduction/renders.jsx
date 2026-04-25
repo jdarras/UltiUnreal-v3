@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { safeT } from "./shared/helpers";
 import { useRendersCardController } from "./renders/hooks/useRendersCardController";
 import { RenderDetailModal } from "./renders/components/RenderDetailModal";
+import { RenderRejectDialog } from "./renders/components/RenderRejectDialog";
 import { RendersListPanel } from "./renders/components/RendersListPanel";
 import { RendersQueuePanel } from "./renders/components/RendersQueuePanel";
 import { RendersAdvancedSearchPanel, RendersToolbar } from "./renders/components/RendersToolbar";
@@ -77,6 +78,13 @@ function RendersValidationCard({
     queuePanelProps,
     listPanelProps,
     detailModalProps,
+    rejectDialogOpen,
+    rejectDialogRender,
+    rejectDialogReason,
+    setRejectDialogReason,
+    closeRejectDialog,
+    confirmRejectDialog,
+    busyReviewRenderId,
   } = useRendersCardController({
     t,
     user,
@@ -104,14 +112,30 @@ function RendersValidationCard({
     ? listPanelProps.sortedDisplayedRenders
     : [];
   const activeListRenders = allListRenders.filter(
-    (render) => String(renderReviewKeyResolver(render) || "").trim().toLowerCase() !== "validated"
+    (render) => String(renderReviewKeyResolver(render) || "").trim().toLowerCase() === "to_validate"
   );
   const historyListRenders = showHistory
     ? allListRenders.filter((render) => String(renderReviewKeyResolver(render) || "").trim().toLowerCase() === "validated")
     : [];
+  const rejectDialogRenderIdRaw = Number(rejectDialogRender?.id || 0);
+  const rejectDialogRenderId = Number.isFinite(rejectDialogRenderIdRaw) && rejectDialogRenderIdRaw > 0
+    ? Math.trunc(rejectDialogRenderIdRaw)
+    : 0;
+  const rejectDialogBusy = busyReviewRenderId > 0 && rejectDialogRenderId > 0 && busyReviewRenderId === rejectDialogRenderId;
 
   return (
     <section className="uu-section">
+      <RenderRejectDialog
+        t={t}
+        open={rejectDialogOpen === true}
+        render={rejectDialogRender}
+        reason={rejectDialogReason}
+        busy={rejectDialogBusy}
+        renderOutputFilename={listPanelProps?.renderOutputFilename}
+        onChangeReason={(nextValue) => setRejectDialogReason?.(nextValue)}
+        onCancel={() => closeRejectDialog?.()}
+        onConfirm={() => { void confirmRejectDialog?.(); }}
+      />
       {!hasRenderDetailPage ? (
         <>
           <RendersToolbar
@@ -141,7 +165,6 @@ function RendersValidationCard({
           ) : null}
 
           {rendersError ? <div className="uu-msg error mt-12">{rendersError}</div> : null}
-
           <RendersQueuePanel
             {...queuePanelProps}
             onRequestOpenRenderEditor={requestOpenRenderEditor}

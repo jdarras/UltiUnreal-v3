@@ -12,10 +12,11 @@ function isSameReviewStatus(currentReviewStatus, nextReviewStatus) {
   return String(nextReviewStatus || "").trim() === String(currentReviewStatus || "").trim();
 }
 
-function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "") {
+function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "", options = {}) {
   const currentStatus = String(render?.status || "").trim();
   const currentStatusKey = normalizeRenderStatusKey(currentStatus);
   const isDone = currentStatusKey === "done";
+  const rejectionReason = String(options?.rejectionReason || "").trim();
 
   if (nextReviewStatus === "validated") {
     const steps = [];
@@ -44,7 +45,10 @@ function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "") 
     steps.push({
       action: "reject",
       toStatus: "Done",
-      comment: "render_rejected",
+      comment: rejectionReason
+        ? `render_rejected: ${rejectionReason}`
+        : "render_rejected",
+      rejectionReason,
     });
     return steps;
   }

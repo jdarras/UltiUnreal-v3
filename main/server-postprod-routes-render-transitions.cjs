@@ -4,6 +4,10 @@ const {
   generateThumbnail,
   resolveFfmpegPath,
 } = require('./server-postprod-ffmpeg.cjs');
+const {
+  applyRenderExport,
+  resolveExportDestinationEntriesFromCommon,
+} = require('./server-postprod-export-destinations.cjs');
 
 const PROXY_RESOLUTION_ALLOWED = new Set([25, 50, 75]);
 const PROXY_CRF_ALLOWED = new Set([18, 23, 28]);
@@ -143,6 +147,58 @@ function scheduleProxyGenerationForDoneRender({
         level: 'error',
         src: 'ffmpeg',
         action: 'proxy_generation_failed',
+        message: String(err?.message || err),
+        data: { renderId },
+      });
+    }
+  });
+}
+
+function scheduleRenderExportForValidatedRender({
+  renderId,
+  renderRow,
+  readCommonServerConfigFile,
+  commonServerFile,
+  logLine,
+}) {
+  setImmediate(() => {
+    try {
+      const common = typeof readCommonServerConfigFile === 'function'
+        ? (readCommonServerConfigFile(commonServerFile) || {})
+        : {};
+      const destinationEntries = resolveExportDestinationEntriesFromCommon(common);
+      if (!destinationEntries.length) return;
+
+      const payload = parsePayloadJsonSafe(renderRow?.payload_json);
+      const destinationIds = Array.isArray(payload?.exportDestinationIds)
+        ? payload.exportDestinationIds
+        : [];
+      if (!destinationIds.length) return;
+
+      const result = applyRenderExport({
+        renderRow,
+        payload,
+        destinationEntries,
+        destinationIds,
+        logLine,
+      });
+      logLineSafe(logLine, {
+        level: result.ok ? 'info' : 'warn',
+        src: 'postprod',
+        action: 'render_export',
+        message: result.ok ? 'render_export_done' : 'render_export_partial',
+        data: {
+          renderId,
+          exportedCount: result.exportedCount,
+          selectedCount: result.selectedCount,
+          errors: result.errors,
+        },
+      });
+    } catch (err) {
+      logLineSafe(logLine, {
+        level: 'error',
+        src: 'postprod',
+        action: 'render_export_failed',
         message: String(err?.message || err),
         data: { renderId },
       });
@@ -369,9 +425,49 @@ async function handlePostprodRenderTransitionRoutes({
         return true;
       }
     }
+    const transitionAction = String(body?.action || '').trim().toLowerCase();
+    const rejectionReason = transitionAction === 'reject'
+      ? String(body?.rejectionReason || '').trim()
+      : '';
+    const eventCommentInput = (() => {
+      const explicitComment = String(body?.comment || '').trim();
+      if (explicitComment) return explicitComment;
+      if (transitionAction === 'reject') {
+        return rejectionReason
+          ? `${String(next.commentDefault || 'render_rejected').trim()}: ${rejectionReason}`
+          : String(next.commentDefault || 'render_rejected');
+      }
+      return String(next.commentDefault || '');
+    })();
+    const eventComment = sanitizeRenderComment(eventCommentInput);
+
+    let nextPayloadJson = '';
+    if (transitionAction === 'reject') {
+      const currentPayload = parsePayloadJsonSafe(currentRender?.payload_json);
+      const historyRaw = Array.isArray(currentPayload?.rejectionHistory)
+        ? currentPayload.rejectionHistory
+        : [];
+      const history = historyRaw.filter((entry) => entry && typeof entry === 'object').slice(-24);
+      const actorIdRaw = Number(auth.session.user_id || 0);
+      const actorId = Number.isFinite(actorIdRaw) && actorIdRaw > 0 ? Math.trunc(actorIdRaw) : null;
+      const rejectionEntry = {
+        reason: rejectionReason,
+        byUserId: actorId,
+        byUsername: String(auth?.session?.username || '').trim(),
+        at: now,
+      };
+      try {
+        nextPayloadJson = JSON.stringify({
+          ...currentPayload,
+          rejection: rejectionEntry,
+          rejectionHistory: [...history, rejectionEntry],
+        });
+      } catch {
+        nextPayloadJson = '';
+      }
+    }
 
     const tx = db.transaction(() => {
-      const eventComment = sanitizeRenderComment(body?.comment || next.commentDefault || '');
       stmts.updateRenderJobTransition.run(
         next.toStatus,
         next.reviewStatus,
@@ -383,6 +479,9 @@ async function handlePostprodRenderTransitionRoutes({
         now,
         renderId
       );
+      if (nextPayloadJson && typeof stmts.updateRenderJobPayload?.run === 'function') {
+        stmts.updateRenderJobPayload.run(nextPayloadJson, now, renderId);
+      }
       stmts.insertRenderJobEvent.run(
         renderId,
         next.fromStatus,
@@ -411,6 +510,9 @@ async function handlePostprodRenderTransitionRoutes({
         taskTitle: String(updatedPayload?.linkedTaskTitle || ''),
         fromStatus: next.fromStatus,
         toStatus: next.toStatus,
+        reviewStatus: next.reviewStatus,
+        action: transitionAction || null,
+        rejectionReason: rejectionReason || null,
       },
       'render',
       String(renderId)
@@ -422,6 +524,15 @@ async function handlePostprodRenderTransitionRoutes({
         readCommonServerConfigFile,
         commonServerFile,
         nowIso,
+        logLine,
+      });
+    }
+    if (next.reviewStatus === 'validated') {
+      scheduleRenderExportForValidatedRender({
+        renderId,
+        renderRow: updated,
+        readCommonServerConfigFile,
+        commonServerFile,
         logLine,
       });
     }

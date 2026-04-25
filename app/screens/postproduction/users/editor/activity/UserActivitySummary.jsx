@@ -19,6 +19,17 @@ function UserActivitySummary({
   filteredEditingActivities = [],
   onChooseActionType,
   onChooseProject,
+  page = 0,
+  totalPages = 1,
+  totalItems = 0,
+  pageSize = 100,
+  pageSizes = [25, 50, 100, 200],
+  onPageChange = null,
+  onPageSizeChange = null,
+  exportBusy = false,
+  onPurgeActivity = null,
+  onExportJson = null,
+  onExportTxt = null,
 }) {
   const disabled = usersLoading || activityLoading || !editingUserId;
 
@@ -81,11 +92,53 @@ function UserActivitySummary({
           );
         })}
       </div>
-      <div className="uu-muted">
-        {safeT(t, "postprod.users.activity.summary.filtered", "Affichage: {shown}/{total}", {
-          shown: filteredEditingActivities.length,
-          total: editingActivities.length,
-        })}
+      <div className="uu-toolbar-sub" style={{ marginTop: "8px", justifyContent: "space-between" }}>
+        <div className="uu-row uu-gap-8">
+          {onPurgeActivity ? (
+            <button
+              type="button"
+              className="uu-btn"
+              disabled={exportBusy || disabled}
+              onClick={() => onPurgeActivity?.()}
+            >
+              {safeT(t, "logs.toolbar.purge", "Purger les logs")}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="uu-btn"
+            disabled={exportBusy}
+            onClick={() => onExportJson?.()}
+          >
+            {exportBusy ? "..." : safeT(t, "logs.toolbar.exportJson", "Exporter JSON")}
+          </button>
+          <button
+            type="button"
+            className="uu-btn"
+            disabled={exportBusy}
+            onClick={() => onExportTxt?.()}
+          >
+            {exportBusy ? "..." : safeT(t, "logs.toolbar.exportTxt", "Exporter TXT")}
+          </button>
+        </div>
+        <div className="uu-row uu-gap-6 uu-align-center">
+          {page > 0 ? (
+            <button type="button" className="uu-btn" onClick={() => onPageChange?.(page - 1)}>‹</button>
+          ) : null}
+          <span className="uu-muted">{`Page ${page + 1}/${totalPages}`}</span>
+          {page < totalPages - 1 ? (
+            <button type="button" className="uu-btn" onClick={() => onPageChange?.(page + 1)}>›</button>
+          ) : null}
+          <select
+            className="uu-select"
+            value={pageSize}
+            onChange={(e) => onPageSizeChange?.(Number(e.target.value) || 100)}
+            style={{ width: "80px" }}
+          >
+            {pageSizes.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <span className="uu-muted">{totalItems} {safeT(t, "postprod.users.activity.count", "entrées")}</span>
+        </div>
       </div>
     </>
   );

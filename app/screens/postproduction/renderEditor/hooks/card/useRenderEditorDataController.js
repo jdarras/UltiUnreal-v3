@@ -4,6 +4,32 @@ import { useRenderEditorCardListData } from "./useRenderEditorCardListData";
 import { useRenderEditorCardAutoRenderData } from "./useRenderEditorCardAutoRenderData";
 import { normalizeTaskVisualStatusKey } from "../../helpers";
 
+function toPositiveTaskId(value = 0) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
+}
+
+function resolveRenderLinkedTaskId(render = null) {
+  const payload = render?.payload && typeof render.payload === "object" && !Array.isArray(render.payload)
+    ? render.payload
+    : {};
+  return toPositiveTaskId(render?.linkedTaskId || payload?.taskId || 0);
+}
+
+function toRenderSortStamp(render = null) {
+  const candidates = [
+    render?.updatedAt,
+    render?.finishedAt,
+    render?.startedAt,
+    render?.createdAt,
+  ];
+  for (const candidate of candidates) {
+    const parsed = Date.parse(String(candidate || "").trim());
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
+}
+
 export function useRenderEditorDataController({
   t,
   tasks = [],
@@ -134,10 +160,76 @@ export function useRenderEditorDataController({
     tasks,
   ]);
 
+  const editingTaskRejectionInfo = useMemo(() => {
+    if (listData?.isEditingTask !== true) return null;
+    if (normalizeTaskVisualStatusKey(editingTaskVisualStatusKey) !== "rejected") return null;
+    const editingTaskId = toPositiveTaskId(listData?.editingTaskId);
+    if (editingTaskId <= 0) return null;
+
+    let latestRejectedRender = null;
+    let latestRejectedStamp = 0;
+    let latestRejectedId = 0;
+    const renderList = Array.isArray(renders) ? renders : [];
+    for (const render of renderList) {
+      if (resolveRenderLinkedTaskId(render) !== editingTaskId) continue;
+      const reviewStatus = String(render?.reviewStatus || "").trim().toLowerCase();
+      if (reviewStatus !== "to_modify") continue;
+      const renderStamp = toRenderSortStamp(render);
+      const renderIdRaw = Number(render?.id || 0);
+      const renderId = Number.isFinite(renderIdRaw) && renderIdRaw > 0 ? Math.trunc(renderIdRaw) : 0;
+      const shouldReplace = (
+        !latestRejectedRender
+        || renderStamp > latestRejectedStamp
+        || (renderStamp === latestRejectedStamp && renderId > latestRejectedId)
+      );
+      if (!shouldReplace) continue;
+      latestRejectedRender = render;
+      latestRejectedStamp = renderStamp;
+      latestRejectedId = renderId;
+    }
+
+    if (!latestRejectedRender) return null;
+    const payload = latestRejectedRender?.payload
+      && typeof latestRejectedRender.payload === "object"
+      && !Array.isArray(latestRejectedRender.payload)
+      ? latestRejectedRender.payload
+      : {};
+    const rejection = payload?.rejection
+      && typeof payload.rejection === "object"
+      && !Array.isArray(payload.rejection)
+      ? payload.rejection
+      : {};
+
+    const rejectedByUsername = String(rejection?.byUsername || "").trim();
+    const rejectedByUserId = toPositiveTaskId(rejection?.byUserId || 0);
+    const rejectedAt = String(
+      rejection?.at
+      || latestRejectedRender?.updatedAt
+      || latestRejectedRender?.finishedAt
+      || latestRejectedRender?.createdAt
+      || ""
+    ).trim();
+    const reason = String(rejection?.reason || "").trim();
+
+    return {
+      renderId: latestRejectedId,
+      rejectedByUsername,
+      rejectedByUserId: rejectedByUserId > 0 ? rejectedByUserId : null,
+      rejectedAt,
+      reason,
+    };
+  }, [
+    editingTaskVisualStatusKey,
+    listData?.editingTaskId,
+    listData?.isEditingTask,
+    renders,
+  ]);
+
   useRenderFocusRequestController({
     renderFocusRequest,
     onRenderFocusHandled,
     tasks,
+    renders,
     setListProjectFilter: listData.setListProjectFilter,
     setListResourceFilter: listData.setListResourceFilter,
     setListStatusFilter: listData.setListStatusFilter,
@@ -162,6 +254,7 @@ export function useRenderEditorDataController({
     ...listData,
     ...autoRenderData,
     editingTaskVisualStatusKey,
+    editingTaskRejectionInfo,
     canAssignRenderRequests: canAssignRenderRequests === true,
     assigneeUserIdLocked: canAssignRenderRequests !== true,
     defaultAssigneeUserId,

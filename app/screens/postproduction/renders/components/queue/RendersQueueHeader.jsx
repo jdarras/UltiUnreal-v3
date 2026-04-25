@@ -3,7 +3,7 @@ import { taskAutoRenderStateLabel, taskVisualStatusClass } from "../../../render
 
 function RendersQueueHeader({
   t,
-  queueStateSummary = { waiting: 0, running: 0, error: 0 },
+  queueStateSummary = { waiting: 0, running: 0, error: 0, toModify: 0 },
   canLaunchRenders = false,
   queueRuntimeMode = "active",
   onSetQueueRuntimeMode = null,
@@ -40,6 +40,9 @@ function RendersQueueHeader({
         </span>
         <span className={`uu-chip chip-on ${taskVisualStatusClass("error")}`}>
           {taskAutoRenderStateLabel(t, "error")} ({Number(queueStateSummary?.error || 0)})
+        </span>
+        <span className={`uu-chip chip-on ${taskVisualStatusClass("rejected")}`}>
+          {safeT(t, "postprod.renders.queue.state.short.toModify", "A modifier")} ({Number(queueStateSummary?.toModify || 0)})
         </span>
       </div>
     </div>

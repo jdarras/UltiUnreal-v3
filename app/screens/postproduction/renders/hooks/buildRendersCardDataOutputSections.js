@@ -36,6 +36,12 @@ function buildReviewOutput({ review = {} } = {}) {
     canReviewRenders: review.canReviewRenders,
     busyRenderId: review.busyRenderId,
     applyReviewStatus: review.applyReviewStatus,
+    rejectDialogOpen: review.rejectDialogOpen,
+    rejectDialogRender: review.rejectDialogRender,
+    rejectDialogReason: review.rejectDialogReason,
+    setRejectDialogReason: review.setRejectDialogReason,
+    closeRejectDialog: review.closeRejectDialog,
+    confirmRejectDialog: review.confirmRejectDialog,
   };
 }
 

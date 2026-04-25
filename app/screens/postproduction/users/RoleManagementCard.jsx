@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { safeT } from "../shared/helpers";
 import { RoleEditorPanel } from "./role/RoleEditorPanel";
 import { RoleListPanel } from "./role/RoleListPanel";
 import { useRoleManagementCardController } from "./hooks/useRoleManagementCardController";
@@ -46,7 +47,7 @@ export function RoleManagementCard({
             onClick={() => openCreate()}
             disabled={rolesLoading}
           >
-            + Ajouter un profil
+            {safeT(t, "postprod.roles.add", "+ Ajouter un profil")}
           </button>
         ) : null}
       </div>

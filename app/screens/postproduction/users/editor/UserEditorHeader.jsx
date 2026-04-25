@@ -19,7 +19,7 @@ function UserEditorHeader({
   deleteUserBusy = false,
 }) {
   return (
-    <>
+    <div className="uu-card">
       <div className="uu-row" style={{ justifyContent: "flex-end", alignItems: "center" }}>
         {!isCreate && canDeleteUser ? (
           <button
@@ -128,7 +128,7 @@ function UserEditorHeader({
           ) : null}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

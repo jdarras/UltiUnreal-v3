@@ -5,6 +5,7 @@ const DIRECT_KEYS = [
   "showCreateForm",
   "isEditingTask",
   "editingTaskVisualStatusKey",
+  "editingTaskRejectionInfo",
   "editingTaskId",
   "tasksLoading",
   "title",

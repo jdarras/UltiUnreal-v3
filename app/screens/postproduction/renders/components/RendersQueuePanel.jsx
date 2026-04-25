@@ -77,7 +77,7 @@ function RendersQueuePanel({
   filteredRenderQueueTasks = [],
   sortedRenderQueueTasks = [],
   launchableQueueTaskIdSet = new Set(),
-  queueStateSummary = { waiting: 0, running: 0, error: 0 },
+  queueStateSummary = { waiting: 0, running: 0, error: 0, toModify: 0 },
   queueBatchError = "",
   queueBatchFeedback = "",
   queueSortKey = "startAt",

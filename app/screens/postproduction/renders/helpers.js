@@ -65,7 +65,11 @@ function renderLinkedTaskValue(render) {
 }
 
 function queueRenderStateShortLabel(t, state) {
-  return autoRenderStateShortLabel(t, state);
+  const normalized = String(state || "").trim().toLowerCase();
+  if (normalized === "to_modify") {
+    return safeT(t, "postprod.renders.queue.state.short.toModify", "A modifier");
+  }
+  return autoRenderStateShortLabel(t, normalized);
 }
 
 function isImagePath(pathValue) {

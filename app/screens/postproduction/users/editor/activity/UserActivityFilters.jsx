@@ -1,3 +1,4 @@
+import DateTimeConfirmPicker from "../../../../../components/DateTimeConfirmPicker";
 import { safeT } from "../../../shared/helpers";
 import { normalizeActivityProjectRef } from "../../userSharedHelpers";
 
@@ -21,24 +22,28 @@ function UserActivityFilters({
 }) {
   return (
     <div className="uu-row mt-8" style={{ gap: "8px", flexWrap: "wrap" }}>
-      <div className="uu-col" style={{ minWidth: "170px" }}>
+      <div className="uu-col" style={{ minWidth: "200px" }}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.fromAt", "Du")}</label>
-        <input
-          className="uu-input"
-          type="datetime-local"
+        <DateTimeConfirmPicker
           value={activityFromAtLocal}
           disabled={disabled}
-          onChange={(e) => setActivityFromAtLocal?.(e.target.value)}
+          onChange={(v) => setActivityFromAtLocal?.(v)}
+          placeholder={safeT(t, "common.datePicker.placeholder", "jj/mm/aaaa hh:mm")}
+          applyLabel={safeT(t, "common.datePicker.apply", "Valider")}
+          cancelLabel={safeT(t, "common.datePicker.cancel", "Annuler")}
+          clearLabel={safeT(t, "common.datePicker.clear", "Effacer")}
         />
       </div>
-      <div className="uu-col" style={{ minWidth: "170px" }}>
+      <div className="uu-col" style={{ minWidth: "200px" }}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.toAt", "Au")}</label>
-        <input
-          className="uu-input"
-          type="datetime-local"
+        <DateTimeConfirmPicker
           value={activityToAtLocal}
           disabled={disabled}
-          onChange={(e) => setActivityToAtLocal?.(e.target.value)}
+          onChange={(v) => setActivityToAtLocal?.(v)}
+          placeholder={safeT(t, "common.datePicker.placeholder", "jj/mm/aaaa hh:mm")}
+          applyLabel={safeT(t, "common.datePicker.apply", "Valider")}
+          cancelLabel={safeT(t, "common.datePicker.cancel", "Annuler")}
+          clearLabel={safeT(t, "common.datePicker.clear", "Effacer")}
         />
       </div>
       <div className="uu-col" style={{ minWidth: "180px" }}>

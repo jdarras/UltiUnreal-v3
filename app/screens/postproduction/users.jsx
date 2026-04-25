@@ -30,6 +30,7 @@ function UserManagementCard({
   onEditUserIdHandled = null,
   onEditorModeChange = null,
   onNotify = null,
+  onPurgeUserActivity = null,
   onOpenActivityTarget = null,
 }) {
   const {
@@ -79,7 +80,7 @@ function UserManagementCard({
       ) : null}
 
       {inEditor ? (
-        <UserEditorPanel {...editorPanelProps} onOpenActivityTarget={onOpenActivityTarget} />
+        <UserEditorPanel {...editorPanelProps} onPurgeUserActivity={onPurgeUserActivity} onOpenActivityTarget={onOpenActivityTarget} />
       ) : (
         <UserBrowsePanel {...browsePanelProps} />
       )}
