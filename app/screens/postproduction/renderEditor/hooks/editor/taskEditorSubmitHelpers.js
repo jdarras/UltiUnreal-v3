@@ -10,7 +10,8 @@ function normalizeLaunchMode(value = "") {
 
 function normalizeScheduledMode(value = "") {
   const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "datetime" || normalized === "any_station" || normalized === "specific_station") {
+  if (normalized === "specific_station") return "any_station";
+  if (normalized === "datetime" || normalized === "any_station") {
     return normalized;
   }
   return "";
@@ -28,6 +29,95 @@ function resolveSavedTaskId(savedTask) {
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
 }
 
+function asRecord(value = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value;
+}
+
+function normalizeFormDataRecord(value = null) {
+  const candidate = asRecord(value);
+  if (!candidate || typeof candidate !== "object") return {};
+  return candidate;
+}
+
+function readTaskLikeFormData(taskLike = null) {
+  const source = asRecord(taskLike);
+  const autoRenderConfig = asRecord(source?.autoRenderConfig);
+  const autoRenderPayload = asRecord(autoRenderConfig?.payload);
+  const payload = asRecord(source?.payload);
+  const candidates = [
+    autoRenderConfig?.formData,
+    autoRenderPayload?.formData,
+    payload?.formData,
+    source?.formData,
+  ];
+  for (const entry of candidates) {
+    const normalized = normalizeFormDataRecord(entry);
+    if (Object.keys(normalized).length > 0) return normalized;
+  }
+  return {};
+}
+
+function normalizeComparableValue(value) {
+  if (value == null) return null;
+  if (Array.isArray(value)) return value.map((entry) => normalizeComparableValue(entry));
+  if (typeof value === "object") {
+    const source = asRecord(value);
+    const normalized = {};
+    const keys = Object.keys(source).sort((a, b) => String(a || "").localeCompare(String(b || "")));
+    for (const key of keys) {
+      normalized[key] = normalizeComparableValue(source[key]);
+    }
+    return normalized;
+  }
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return value;
+  return String(value);
+}
+
+function comparableValueSignature(value) {
+  try {
+    return JSON.stringify(normalizeComparableValue(value));
+  } catch {
+    return String(value ?? "");
+  }
+}
+
+function buildRelaunchMeta({
+  editingTask = null,
+  taskPayload = null,
+  basePayload = null,
+} = {}) {
+  const previousFormData = readTaskLikeFormData(editingTask);
+  const nextFormData = (() => {
+    const payloadRecord = asRecord(basePayload);
+    const fromPayload = normalizeFormDataRecord(payloadRecord?.formData);
+    if (Object.keys(fromPayload).length > 0) return fromPayload;
+    return readTaskLikeFormData(taskPayload);
+  })();
+
+  const keySet = new Set([
+    ...Object.keys(previousFormData),
+    ...Object.keys(nextFormData),
+  ]);
+  const changedFields = Array.from(keySet)
+    .sort((a, b) => String(a || "").localeCompare(String(b || "")))
+    .filter((fieldKey) => (
+      comparableValueSignature(previousFormData[fieldKey])
+      !== comparableValueSignature(nextFormData[fieldKey])
+    ));
+
+  return {
+    comparedAt: new Date().toISOString(),
+    previousFieldCount: Object.keys(previousFormData).length,
+    nextFieldCount: Object.keys(nextFormData).length,
+    changedFieldCount: changedFields.length,
+    changedFields: changedFields.slice(0, 24),
+    hasMoreChangedFields: changedFields.length > 24,
+    noChanges: changedFields.length <= 0,
+  };
+}
+
 function buildImmediateRenderRequest({
   basePayload = {},
   savedTask = null,
@@ -42,6 +132,7 @@ function buildImmediateRenderRequest({
   scheduledAt = null,
   reservedRenderId = 0,
   source = "",
+  relaunchMeta = null,
 } = {}) {
   const taskTitle = String(savedTask?.title || fallbackTaskTitle || "").trim();
   const taskStatus = String(savedTask?.status || "A faire").trim();
@@ -53,6 +144,9 @@ function buildImmediateRenderRequest({
   const normalizedReservedRenderId = Number.isFinite(reservedIdNum) && reservedIdNum > 0
     ? Math.trunc(reservedIdNum)
     : 0;
+  const normalizedRelaunchMeta = relaunchMeta && typeof relaunchMeta === "object" && !Array.isArray(relaunchMeta)
+    ? relaunchMeta
+    : null;
 
   return {
     templateName: effectiveTemplateName,
@@ -64,6 +158,7 @@ function buildImmediateRenderRequest({
     payload: {
       ...(basePayload && typeof basePayload === "object" ? basePayload : {}),
       source: String(source || "").trim() || (isScheduled ? "task_auto_render_scheduled" : "task_auto_render_now"),
+      ...(normalizedRelaunchMeta ? { relaunchMeta: normalizedRelaunchMeta } : {}),
       taskId: createdTaskId > 0 ? createdTaskId : undefined,
       taskTitle,
       taskStatus,
@@ -78,7 +173,9 @@ async function runTaskSubmit({
   t,
   isEditingTask = false,
   editingTaskVisualStatusKey = "planned",
+  assigneeIsCurrentUser = true,
   editingTaskId = 0,
+  editingTask = null,
   autoRenderLaunchMode = "",
   autoRenderScheduledMode = "",
   autoRenderScheduledAt = "",
@@ -97,7 +194,8 @@ async function runTaskSubmit({
   if (typeof setFormError === "function") setFormError("");
   if (typeof buildTaskPayloadFromCurrentForm !== "function") return;
 
-  const launchMode = normalizeLaunchMode(autoRenderLaunchMode);
+  const assigneeOwnsRender = assigneeIsCurrentUser === true;
+  const launchMode = assigneeOwnsRender ? normalizeLaunchMode(autoRenderLaunchMode) : "";
   const scheduledMode = launchMode === "scheduled"
     ? normalizeScheduledMode(autoRenderScheduledMode)
     : "";
@@ -195,13 +293,26 @@ async function runTaskSubmit({
     && !!scheduledAt
   );
   const shouldCreateRenderNow = (
+    assigneeOwnsRender
+    && (
     (!isEditingTask && launchMode === "now")
     || (shouldCreateRenderAfterEdit && !wantsScheduledRender)
+    )
   );
   const shouldCreateRenderScheduled = (
+    assigneeOwnsRender
+    && (
     wantsScheduledRender
     && (!isEditingTask || shouldCreateRenderAfterEdit)
+    )
   );
+  const relaunchMeta = shouldRelaunchAfterEdit
+    ? buildRelaunchMeta({
+      editingTask,
+      taskPayload,
+      basePayload,
+    })
+    : null;
 
   if (shouldCreateRenderNow || shouldCreateRenderScheduled) {
     const createRenderInput = buildImmediateRenderRequest({
@@ -218,6 +329,7 @@ async function runTaskSubmit({
       scheduledAt: shouldCreateRenderScheduled ? scheduledAt : null,
       reservedRenderId,
       source: shouldRelaunchAfterEdit ? "task_auto_render_relaunch" : "",
+      relaunchMeta,
     });
     await Promise.resolve(onCreateRender?.(createRenderInput));
   }

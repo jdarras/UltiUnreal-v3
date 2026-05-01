@@ -60,10 +60,6 @@ function simplifySequenceName(raw = "") {
   return shortName || source;
 }
 
-export function isDetectedRender(render) {
-  return String(render?.origin || "").trim().toLowerCase() === "detected";
-}
-
 export function resolveRenderProjectMeta(render = null) {
   const payload = resolveRenderPayload(render);
   const projectName = firstNonEmptyString([
@@ -187,20 +183,6 @@ export function resolveRenderSequenceMeta(render = null) {
   };
 }
 
-export function buildProjectFilterOptions(renders = []) {
-  const map = new Map();
-  const list = Array.isArray(renders) ? renders : [];
-  for (const render of list) {
-    const meta = resolveRenderProjectMeta(render);
-    const key = String(meta?.key || "").trim();
-    if (!key) continue;
-    if (!map.has(key)) map.set(key, String(meta?.label || "").trim() || key);
-  }
-  return [...map.entries()]
-    .sort((a, b) => String(a[1] || "").localeCompare(String(b[1] || "")))
-    .map(([key, label]) => ({ key, label }));
-}
-
 export function renderFavoriteStorageKey(render) {
   const renderId = Number(render?.id || 0);
   if (Number.isFinite(renderId) && renderId > 0) return `render:${Math.trunc(renderId)}`;
@@ -243,16 +225,6 @@ export function buildRenderSearchHaystack(render) {
   ]
     .join(" ")
     .toLowerCase();
-}
-
-export function renderStationIpKey(render) {
-  return String(render?.stationIp || "").trim().toLowerCase();
-}
-
-export function renderIsLocal(render) {
-  if (render?.stationIsLocal === true) return true;
-  const ip = renderStationIpKey(render);
-  return ip === "127.0.0.1" || ip === "localhost";
 }
 
 export function renderStationLabel(render) {

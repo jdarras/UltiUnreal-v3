@@ -69,11 +69,8 @@ export function useFilteredRenders({
     const selectedRequesterSet = new Set(normalizeMultiFilterValues(requesterFilter));
     const selectedStatusSet = new Set(normalizeMultiFilterValues(statusFilter));
     const selectedSequenceSet = new Set(normalizeMultiFilterValues(sequenceFilter));
-    const list = Array.isArray(detectedRenders) ? [...detectedRenders] : [];
-    list.sort((a, b) => String(b?.updatedAt || "").localeCompare(String(a?.updatedAt || "")));
+    const list = Array.isArray(detectedRenders) ? detectedRenders : [];
     return list.filter((render) => {
-      const renderStatus = String(render?.status || "").trim().toLowerCase();
-      if (renderStatus !== "done") return false;
       if (isTechnicalProxyRenderRow(render)) return false;
       const reviewStatus = renderReviewStatusKey(render);
       if (selectedReviewSet.size > 0 && !selectedReviewSet.has(String(reviewStatus || "").trim().toLowerCase())) return false;

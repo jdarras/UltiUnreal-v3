@@ -29,7 +29,8 @@ function normalizeLaunchMode(value = "") {
 
 function normalizeScheduledMode(value = "") {
   const normalized = toTrimmedString(value).toLowerCase();
-  if (normalized === "datetime" || normalized === "any_station" || normalized === "specific_station") {
+  if (normalized === "specific_station") return "any_station";
+  if (normalized === "datetime" || normalized === "any_station") {
     return normalized;
   }
   return "";
@@ -86,7 +87,6 @@ function resolveQueueScheduleMeta(queueEntry = null) {
   const hasScheduledAt = scheduledAtMs > 0;
   const isStationWaitMode = (
     scheduledMode === "any_station"
-    || scheduledMode === "specific_station"
     || (launchMode === "scheduled" && !hasScheduledAt)
   );
   const isAutoLaunchDue = !hasScheduledAt || Date.now() >= scheduledAtMs;

@@ -72,7 +72,8 @@ function normalizeLaunchMode(value = "") {
 
 function normalizeScheduledMode(value = "") {
   const normalized = toTrimmedString(value).toLowerCase();
-  if (normalized === "datetime" || normalized === "any_station" || normalized === "specific_station") {
+  if (normalized === "specific_station") return "any_station";
+  if (normalized === "datetime" || normalized === "any_station") {
     return normalized;
   }
   return "";
@@ -259,7 +260,7 @@ export function buildHydratedAutoRenderState(task, normalizedRenderTemplateOptio
     || (scheduledAtMs > 0 ? "datetime" : (
       !workerKey || workerKey === "auto"
         ? "any_station"
-        : "specific_station"
+        : "any_station"
     ))
   );
   const launchMode = explicitLaunchMode || "scheduled";

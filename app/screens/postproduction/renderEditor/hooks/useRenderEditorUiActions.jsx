@@ -129,7 +129,7 @@ function useRenderEditorUiActions({
   }, [setAutoRenderLaunchMode, setAutoRenderScheduledMode, setAutoRenderScheduledAt]);
 
   const changeAutoRenderScheduledMode = useCallback((value) => {
-    const VALID = ["datetime", "any_station", "specific_station"];
+    const VALID = ["datetime", "any_station"];
     const next = VALID.includes(value) ? value : "";
     setAutoRenderScheduledMode?.(next);
     if (next !== "datetime") {

@@ -81,6 +81,7 @@ import {
   postprodDeleteTask,
   postprodTransitionTask,
   postprodListRenders,
+  postprodListUserAlerts,
   postprodListRemoteJobsByStation,
   postprodGetRenderJob,
   postprodListRenderTemplates,
@@ -1681,6 +1682,12 @@ function App() {
     error: '',
     detectedScan: null,
   });
+  const [postprodUserAlerts, setPostprodUserAlerts] = useState({
+    items: [],
+    summary: null,
+    loading: false,
+    error: '',
+  });
   const [postprodRenderHealth, setPostprodRenderHealth] = useState({
     data: null,
     loading: false,
@@ -1775,6 +1782,7 @@ function App() {
   const postprodWorkerCompletionReplayLastKickRef = useRef(0);
   const postprodAutoDispatchLastKickRef = useRef(0);
   const postprodBackgroundQueueLaunchRef = useRef({ taskId: 0, kickAt: 0 });
+  const postprodBackgroundQueueSnapshotRef = useRef({ at: 0, tasks: [], renders: [] });
   const postprodRendersRequestSeqRef = useRef(0);
   const postprodAgentBootRef = useRef({ started: false, port: '' });
   const postprodWrcCacheNoticeRef = useRef({});
@@ -2198,71 +2206,105 @@ function App() {
       { count }
     );
   }, [t]);
+  const resolveRendersErrorNotice = useCallback((countValue = 0) => {
+    const countRaw = Number(countValue || 0);
+    const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.trunc(countRaw) : 0;
+    if (count <= 0) return '';
+    if (count === 1) {
+      return t(
+        'postprod.renders.error.noticeSingular',
+        '1 rendu en erreur vous est assigné ou vous appartient.'
+      );
+    }
+    return t(
+      'postprod.renders.error.noticePlural',
+      '{count} rendus en erreur vous sont assignés ou vous appartiennent.',
+      { count }
+    );
+  }, [t]);
+  const resolveRendersAssignmentNotice = useCallback((countValue = 0) => {
+    const countRaw = Number(countValue || 0);
+    const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.trunc(countRaw) : 0;
+    if (count <= 0) return '';
+    if (count === 1) {
+      return t(
+        'postprod.renders.assignment.noticeSingular',
+        '1 nouveau rendu vous est assigné.'
+      );
+    }
+    return t(
+      'postprod.renders.assignment.noticePlural',
+      '{count} nouveaux rendus vous sont assignés.',
+      { count }
+    );
+  }, [t]);
   const rendersNavAlert = useMemo(() => {
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return null;
-    const currentUserIdRaw = Number(postprodAuth.user?.id || 0);
-    const currentUserId = Number.isFinite(currentUserIdRaw) && currentUserIdRaw > 0
-      ? Math.trunc(currentUserIdRaw)
+    const summary = postprodUserAlerts?.summary && typeof postprodUserAlerts.summary === 'object'
+      ? postprodUserAlerts.summary
+      : null;
+    const toModifyCountRaw = Number(summary?.toModifyOpen || 0);
+    const toModifyCount = Number.isFinite(toModifyCountRaw) && toModifyCountRaw > 0
+      ? Math.trunc(toModifyCountRaw)
       : 0;
-    if (currentUserId <= 0) return null;
-
-    const taskItems = Array.isArray(postprodTasks?.items) ? postprodTasks.items : [];
-    const renderItems = (Array.isArray(postprodRenders?.items) ? postprodRenders.items : [])
-      .filter((render) => render?.stationIsRemote !== true);
-    if (taskItems.length <= 0 || renderItems.length <= 0) return null;
-
-    const taskById = new Map();
-    for (const task of taskItems) {
-      const taskIdRaw = Number(task?.id || 0);
-      const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
-      if (taskId <= 0) continue;
-      taskById.set(taskId, task);
+    const renderErrorCountRaw = Number(summary?.renderErrorOpen || 0);
+    const renderErrorCount = Number.isFinite(renderErrorCountRaw) && renderErrorCountRaw > 0
+      ? Math.trunc(renderErrorCountRaw)
+      : 0;
+    const newAssignmentCountRaw = Number(summary?.newAssignmentOpen || 0);
+    const newAssignmentCount = Number.isFinite(newAssignmentCountRaw) && newAssignmentCountRaw > 0
+      ? Math.trunc(newAssignmentCountRaw)
+      : 0;
+    const totalCountRaw = Number(summary?.totalOpen || (toModifyCount + renderErrorCount + newAssignmentCount));
+    const totalCount = Number.isFinite(totalCountRaw) && totalCountRaw > 0
+      ? Math.trunc(totalCountRaw)
+      : (toModifyCount + renderErrorCount + newAssignmentCount);
+    if (totalCount <= 0) return null;
+    const tooltipLines = [];
+    if (toModifyCount > 0) tooltipLines.push(resolveRendersToModifyNotice(toModifyCount));
+    if (renderErrorCount > 0) tooltipLines.push(resolveRendersErrorNotice(renderErrorCount));
+    if (newAssignmentCount > 0) tooltipLines.push(resolveRendersAssignmentNotice(newAssignmentCount));
+    let level = 'warn';
+    let message = '';
+    if (toModifyCount > 0) {
+      level = 'warn';
+      message = resolveRendersToModifyNotice(toModifyCount);
+    } else if (renderErrorCount > 0) {
+      level = 'error';
+      message = resolveRendersErrorNotice(renderErrorCount);
+    } else if (newAssignmentCount > 0) {
+      level = 'warn';
+      message = resolveRendersAssignmentNotice(newAssignmentCount);
     }
-    const autoRenderStateByTaskId = buildTaskAutoRenderStateByTaskId(renderItems);
-    let toModifyCount = 0;
-    for (const [taskId, stateEntry] of autoRenderStateByTaskId.entries()) {
-      const entryTaskId = Number.isFinite(Number(taskId)) ? Math.trunc(Number(taskId)) : 0;
-      if (entryTaskId <= 0) continue;
-      const linkedRender = stateEntry?.render && typeof stateEntry.render === 'object'
-        ? stateEntry.render
-        : null;
-      const reviewStatus = String(linkedRender?.reviewStatus || '').trim().toLowerCase();
-      if (reviewStatus !== 'to_modify') continue;
-
-      const linkedTask = taskById.get(entryTaskId);
-      const assigneeUserIdRaw = Number(linkedTask?.assigneeUserId || 0);
-      const assigneeUserId = Number.isFinite(assigneeUserIdRaw) && assigneeUserIdRaw > 0
-        ? Math.trunc(assigneeUserIdRaw)
-        : 0;
-      const requestedByUserIdRaw = Number(linkedRender?.requestedByUserId || 0);
-      const requestedByUserId = Number.isFinite(requestedByUserIdRaw) && requestedByUserIdRaw > 0
-        ? Math.trunc(requestedByUserIdRaw)
-        : 0;
-      if (assigneeUserId !== currentUserId && requestedByUserId !== currentUserId) continue;
-
-      toModifyCount += 1;
-    }
-    if (toModifyCount <= 0) return null;
     return {
-      level: 'warn',
-      count: toModifyCount,
-      tooltip: resolveRendersToModifyNotice(toModifyCount),
+      level,
+      count: totalCount,
+      tooltip: tooltipLines.join('\n'),
+      message,
+      summary: {
+        toModifyCount,
+        renderErrorCount,
+        newAssignmentCount,
+        totalCount,
+      },
     };
   }, [
     appMode,
     postprodAuthenticated,
-    postprodAuth.user?.id,
-    postprodTasks?.items,
-    postprodRenders?.items,
+    postprodUserAlerts?.summary,
     resolveRendersToModifyNotice,
+    resolveRendersErrorNotice,
+    resolveRendersAssignmentNotice,
   ]);
   const rendersTopNoticeText = useMemo(() => {
     if (appMode !== APP_MODE_POSTPROD) return '';
-    const countRaw = Number(rendersNavAlert?.count || 0);
-    const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.trunc(countRaw) : 0;
-    if (count <= 0) return '';
-    return resolveRendersToModifyNotice(count);
-  }, [appMode, rendersNavAlert?.count, resolveRendersToModifyNotice]);
+    const text = String(rendersNavAlert?.message || '').trim();
+    if (text) return text;
+    const tooltip = String(rendersNavAlert?.tooltip || '').trim();
+    if (!tooltip) return '';
+    const [firstLine] = tooltip.split('\n');
+    return String(firstLine || '').trim();
+  }, [appMode, rendersNavAlert?.message, rendersNavAlert?.tooltip]);
 
   useEffect(() => {
     if (showWelcome || showLicense) return;
@@ -2913,6 +2955,7 @@ function App() {
     setPostprodResources({ items: [], loading: false, error: '', source: '', sync: null });
     setPostprodRenderProjectCatalog({ items: [], loading: false, error: '' });
     setPostprodRenders({ items: [], loading: false, error: '', detectedScan: null });
+    setPostprodUserAlerts({ items: [], summary: null, loading: false, error: '' });
     setPostprodRenderHealth({ data: null, loading: false, error: '' });
     setPostprodRenderWorkers({ items: [], loading: false, error: '' });
     setPostprodRenderTemplates({ items: [], loading: false, error: '' });
@@ -4021,6 +4064,7 @@ function App() {
       }
       return;
     }
+    let didSetLoading = false;
     if (silent) {
       if (isLatestRequest()) {
         setPostprodRenders((prev) => ({ ...prev, error: '' }));
@@ -4028,6 +4072,7 @@ function App() {
     } else {
       if (isLatestRequest()) {
         setPostprodRenders((prev) => ({ ...prev, loading: true, error: '' }));
+        didSetLoading = true;
       }
     }
     try {
@@ -4418,7 +4463,10 @@ function App() {
         .sort((a, b) => a.order - b.order)
         .map((entry) => entry.item);
 
-      if (!isLatestRequest()) return;
+      if (!isLatestRequest()) {
+        if (didSetLoading) setPostprodRenders((prev) => ({ ...prev, loading: false }));
+        return;
+      }
 
       setPostprodRenders({ items: dedupedItems, loading: false, error: '', detectedScan });
       if (showDetectedNotice && detectedScan) {
@@ -4435,7 +4483,10 @@ function App() {
         );
       }
     } catch (e) {
-      if (!isLatestRequest()) return;
+      if (!isLatestRequest()) {
+        if (didSetLoading) setPostprodRenders((prev) => ({ ...prev, loading: false }));
+        return;
+      }
       setPostprodRenders((prev) => ({
         ...prev,
         loading: false,
@@ -4443,6 +4494,39 @@ function App() {
       }));
     }
   }, [postprodAuth.token, current, hostsCfg, localIp, safeIdentity.agentPort, safeIdentity.localIp, showNotice, t]);
+
+  const loadPostprodUserAlerts = useCallback(async (options = {}) => {
+    const token = String(postprodAuth.token || '').trim();
+    const silent = options?.silent === true;
+    if (!token) {
+      setPostprodUserAlerts({ items: [], summary: null, loading: false, error: '' });
+      return;
+    }
+    if (silent) {
+      setPostprodUserAlerts((prev) => ({ ...prev, error: '' }));
+    } else {
+      setPostprodUserAlerts((prev) => ({ ...prev, loading: true, error: '' }));
+    }
+    try {
+      const res = await postprodListUserAlerts(token, { limit: 200, timeoutMs: 6000 });
+      const items = Array.isArray(res?.alerts) ? res.alerts : [];
+      const summary = res?.summary && typeof res.summary === 'object'
+        ? res.summary
+        : null;
+      setPostprodUserAlerts({
+        items,
+        summary,
+        loading: false,
+        error: '',
+      });
+    } catch (e) {
+      setPostprodUserAlerts((prev) => ({
+        ...prev,
+        loading: false,
+        error: String(e?.message || e || 'postprod_alerts_load_failed'),
+      }));
+    }
+  }, [postprodAuth.token]);
 
   const handlePostprodScanDetectedRenders = useCallback(async () => {
     await loadPostprodRenders({ forceScan: true, showDetectedNotice: true });
@@ -4803,18 +4887,6 @@ function App() {
     }
   }, [postprodAuth.token, renderWorkerKey, loadPostprodRenderWorkers]);
 
-  const handlePostprodPatchWorkerAptitude = useCallback(async (workerKey, apte) => {
-    const token = String(postprodAuth.token || '').trim();
-    const key = String(workerKey || '').trim();
-    if (!token || !key) return;
-    try {
-      await postprodPatchRenderWorkerAptitude(token, key, apte);
-      await loadPostprodRenderWorkers();
-    } catch {
-      // best-effort
-    }
-  }, [postprodAuth.token, loadPostprodRenderWorkers]);
-
   const handleAptitudeConfirm = useCallback(async () => {
     const pending = aptitudeCheckPending;
     setAptitudeCheckPending(null);
@@ -4920,6 +4992,7 @@ function App() {
         setHostsLoaded(true);
       }
       await ensureLocalRenderWorkerOnline();
+      await handlePatchLocalWorkerAptitude(true);
       const dispatchRes = await postprodDispatchRenders(token, {
         maxJobs: 1,
         renderIds: pending.renderId > 0 ? [pending.renderId] : undefined,
@@ -4943,6 +5016,7 @@ function App() {
     busyImmediateLaunchPending,
     postprodAuth.token,
     ensureLocalRenderWorkerOnline,
+    handlePatchLocalWorkerAptitude,
     loadPostprodRenders,
     loadPostprodRenderWorkers,
     loadPostprodRenderHealth,
@@ -4951,7 +5025,7 @@ function App() {
 
   const handleBusyImmediateLaunchCancel = useCallback(() => {
     setBusyImmediateLaunchPending(null);
-    showNotice("Rendu immédiat reporté: le rendu reste en attente.", "info");
+    showNotice("Rendu en attente: sera lancé automatiquement quand une station sera disponible.", "info");
   }, [showNotice]);
 
   const handlePostprodUpdateMe = useCallback(async (payload = {}) => {
@@ -5651,10 +5725,18 @@ function App() {
       }
       if (launchNowRequested && !remoteDispatchOk && queueRuntimeActive) {
         const localWorkerKey = String(renderWorkerKey || '').trim();
+        let freshWorkersList = postprodRenderWorkers.items || [];
+        try {
+          const freshWorkersRes = await postprodListRenderWorkers(token);
+          if (Array.isArray(freshWorkersRes?.workers)) {
+            freshWorkersList = freshWorkersRes.workers;
+            setPostprodRenderWorkers((prev) => ({ ...prev, items: freshWorkersList }));
+          }
+        } catch {
+          // fall back to cached state
+        }
         const localWorkerInList = localWorkerKey
-          ? (postprodRenderWorkers.items || []).find(
-              (w) => String(w?.workerKey || '').trim() === localWorkerKey
-            )
+          ? freshWorkersList.find((w) => String(w?.workerKey || '').trim() === localWorkerKey)
           : null;
         const localWorkerAvailability = String(
           localWorkerInList?.renderAvailability || localRenderAvailability || ''
@@ -5681,10 +5763,7 @@ function App() {
         } else {
           try {
             await ensureLocalRenderWorkerOnline();
-            if (autoDispatcherRequested) {
-              await handlePatchLocalWorkerAptitude(true);
-              await ensureLocalRenderWorkerOnline();
-            }
+            await handlePatchLocalWorkerAptitude(true);
             const dispatchRes = await postprodDispatchRenders(token, {
               maxJobs: 1,
               renderIds: createdRenderId > 0 ? [createdRenderId] : undefined,
@@ -5736,6 +5815,7 @@ function App() {
         loadPostprodRenders(),
         loadPostprodRenderWorkers(),
         loadPostprodRenderHealth(),
+        loadPostprodUserAlerts({ silent: true }),
       ]);
       showNotice(t('postprod.renders.msg.created'), 'ok');
       return createRes?.render || createRes?.renderJob || null;
@@ -5778,6 +5858,7 @@ function App() {
     loadPostprodRenders,
     loadPostprodRenderWorkers,
     loadPostprodRenderHealth,
+    loadPostprodUserAlerts,
     showNotice,
     ensureLocalRenderWorkerOnline,
     renderWorkerKey,
@@ -5828,6 +5909,7 @@ function App() {
         loadPostprodRenders(),
         loadPostprodTasks(),
         loadPostprodRenderHealth(),
+        loadPostprodUserAlerts({ silent: true }),
       ]);
       showNotice(t('postprod.renders.msg.deleted'), 'info');
       return true;
@@ -5844,6 +5926,7 @@ function App() {
     loadPostprodRenders,
     loadPostprodTasks,
     loadPostprodRenderHealth,
+    loadPostprodUserAlerts,
     showNotice,
     t,
   ]);
@@ -5868,6 +5951,7 @@ function App() {
       await Promise.all([
         loadPostprodRenders(),
         loadPostprodRenderHealth(),
+        loadPostprodUserAlerts({ silent: true }),
       ]);
       showNotice(t('postprod.renders.msg.transitionOk'), 'info');
     } catch (e) {
@@ -5877,7 +5961,7 @@ function App() {
         error: resolvePostprodRendersError(e, t),
       }));
     }
-  }, [postprodAuth.token, loadPostprodRenders, loadPostprodRenderHealth, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodRenders, loadPostprodRenderHealth, loadPostprodUserAlerts, showNotice, t]);
 
   const handlePostprodDispatchRenders = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -5904,6 +5988,7 @@ function App() {
         loadPostprodRenders(silent ? { silent: true } : undefined),
         loadPostprodRenderWorkers(silent ? { silent: true } : undefined),
         loadPostprodRenderHealth(silent ? { silent: true } : undefined),
+        loadPostprodUserAlerts({ silent: true }),
       ]);
       const count = Number(res?.count || 0);
       const compatibilityBlockedRaw = res?.compatibilityBlocked;
@@ -5936,7 +6021,31 @@ function App() {
       }
       return { count: 0, compatibilityBlocked: 0 };
     }
-  }, [postprodAuth.token, ensureLocalRenderWorkerOnline, loadPostprodRenders, loadPostprodRenderWorkers, loadPostprodRenderHealth, showNotice, t]);
+  }, [
+    postprodAuth.token,
+    ensureLocalRenderWorkerOnline,
+    loadPostprodRenders,
+    loadPostprodRenderWorkers,
+    loadPostprodRenderHealth,
+    loadPostprodUserAlerts,
+    showNotice,
+    t,
+  ]);
+
+  const handlePostprodPatchWorkerAptitude = useCallback(async (workerKey, apte) => {
+    const token = String(postprodAuth.token || '').trim();
+    const key = String(workerKey || '').trim();
+    if (!token || !key) return;
+    try {
+      await postprodPatchRenderWorkerAptitude(token, key, apte);
+      await loadPostprodRenderWorkers();
+      if ((apte === true || apte === 1) && isPostprodQueueRuntimeActive()) {
+        await Promise.resolve(handlePostprodDispatchRenders({ maxJobs: 1, silent: true })).catch(() => ({}));
+      }
+    } catch {
+      // best-effort
+    }
+  }, [postprodAuth.token, loadPostprodRenderWorkers, handlePostprodDispatchRenders]);
 
   const handlePostprodSaveDispatchPolicy = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -6115,6 +6224,7 @@ function App() {
     }
     if (current === 'Rendus') {
       loadPostprodRenderProjectCatalog();
+      loadPostprodRenderForms();
       loadPostprodRenders();
     }
   }, [
@@ -6160,6 +6270,15 @@ function App() {
     loadPostprodAudit,
   ]);
 
+  useEffect(() => {
+    if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
+    loadPostprodUserAlerts();
+  }, [
+    appMode,
+    postprodAuthenticated,
+    loadPostprodUserAlerts,
+  ]);
+
   const refreshPostprodCurrentTab = useCallback(async () => {
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
     if (current === POSTPROD_TAB_RENDERS_CREATE && postprodTaskFormOpen) return;
@@ -6170,6 +6289,7 @@ function App() {
     };
 
     queue(loadPostprodRenderHealth);
+    queue(() => loadPostprodUserAlerts({ silent: true }));
     if (current !== POSTPROD_TAB_RENDERS_CREATE && current !== 'Rendus') {
       queue(() => loadPostprodTasks({ silent: true }));
       queue(() => loadPostprodRenders({ silent: true }));
@@ -6213,6 +6333,7 @@ function App() {
       queue(() => loadPostprodRenderTemplates({ silent: true }));
       queue(() => loadPostprodRenderWorkers({ silent: true }));
       queue(() => loadPostprodRenders({ silent: true }));
+      queue(loadPostprodRenderForms);
     } else if (current === 'Datas') {
       if (postprodCanManageRenderTemplates) {
         queue(loadPostprodProjects);
@@ -6254,6 +6375,7 @@ function App() {
     loadPostprodRenders,
     loadPostprodAudit,
     loadPostprodRenderHealth,
+    loadPostprodUserAlerts,
     postprodUserEditorOpen,
   ]);
 
@@ -6345,8 +6467,43 @@ function App() {
 
       let dueScheduledQueueEntry = null;
       if (current !== 'Rendus') {
-        const taskItems = Array.isArray(postprodTasks?.items) ? postprodTasks.items : [];
-        const renderItems = Array.isArray(postprodRenders?.items) ? postprodRenders.items : [];
+        let taskItems = Array.isArray(postprodTasks?.items) ? postprodTasks.items : [];
+        let renderItems = Array.isArray(postprodRenders?.items) ? postprodRenders.items : [];
+
+        const SNAPSHOT_REFRESH_MS = 12_000;
+        const snapshotNowMs = Date.now();
+        const snapshot = (
+          postprodBackgroundQueueSnapshotRef.current
+          && typeof postprodBackgroundQueueSnapshotRef.current === 'object'
+        )
+          ? postprodBackgroundQueueSnapshotRef.current
+          : { at: 0, tasks: [], renders: [] };
+        const hasFreshSnapshot = (snapshotNowMs - Number(snapshot.at || 0)) < SNAPSHOT_REFRESH_MS;
+
+        if (hasFreshSnapshot) {
+          if (Array.isArray(snapshot.tasks)) taskItems = snapshot.tasks;
+          if (Array.isArray(snapshot.renders)) renderItems = snapshot.renders;
+        } else {
+          try {
+            const [tasksRes, rendersRes] = await Promise.all([
+              postprodListTasks(token),
+              postprodListRenders(token, 8000, { scan: false }),
+            ]);
+            const freshTasks = Array.isArray(tasksRes?.tasks) ? tasksRes.tasks : [];
+            const freshRenders = Array.isArray(rendersRes?.renders) ? rendersRes.renders : [];
+            postprodBackgroundQueueSnapshotRef.current = {
+              at: snapshotNowMs,
+              tasks: freshTasks,
+              renders: freshRenders,
+            };
+            taskItems = freshTasks;
+            renderItems = freshRenders;
+          } catch {
+            if (Array.isArray(snapshot.tasks) && snapshot.tasks.length > 0) taskItems = snapshot.tasks;
+            if (Array.isArray(snapshot.renders) && snapshot.renders.length > 0) renderItems = snapshot.renders;
+          }
+        }
+
         if (taskItems.length > 0) {
           const autoRenderStateByTaskId = buildTaskAutoRenderStateByTaskId(renderItems);
           const queueEntries = buildRenderQueueTasks({
@@ -6378,6 +6535,7 @@ function App() {
           if (!sameTaskCooldownActive) {
             postprodBackgroundQueueLaunchRef.current = { taskId, kickAt: nowMs };
             postprodAutoDispatchLastKickRef.current = nowMs;
+            await Promise.resolve(handlePatchLocalWorkerAptitude(true)).catch(() => {});
             await launchScheduledTaskRenderAction({
               task: dueScheduledQueueEntry?.task || null,
               queueEntry: dueScheduledQueueEntry,
@@ -6389,6 +6547,7 @@ function App() {
         }
 
         await ensureLocalRenderWorkerOnline();
+        await Promise.resolve(handlePatchLocalWorkerAptitude(true)).catch(() => {});
         postprodAutoDispatchLastKickRef.current = Date.now();
         await Promise.resolve(handlePostprodDispatchRenders({ maxJobs: 1, silent: true })).catch(() => ({}));
       } catch {
@@ -6415,7 +6574,12 @@ function App() {
     handlePostprodCreateRender,
     ensureLocalRenderWorkerOnline,
     handlePostprodDispatchRenders,
+    handlePatchLocalWorkerAptitude,
   ]);
+
+  useEffect(() => {
+    postprodBackgroundQueueSnapshotRef.current = { at: 0, tasks: [], renders: [] };
+  }, [postprodAuth.token]);
 
   useEffect(() => {
     if (current !== POSTPROD_TAB_RENDERS_CREATE) {
@@ -7298,7 +7462,7 @@ function App() {
         <header className="uu-topbar">
           <div className="uu-topbar-notice">
             {rendersTopNoticeText ? (
-              <span className="uu-top-notice warn" title={rendersTopNoticeText}>
+              <span className={`uu-top-notice ${String(rendersNavAlert?.level || 'warn').trim() || 'warn'}`} title={rendersTopNoticeText}>
                 {rendersTopNoticeText}
               </span>
             ) : null}

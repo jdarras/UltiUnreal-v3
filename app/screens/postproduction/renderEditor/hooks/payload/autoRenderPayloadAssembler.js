@@ -48,7 +48,8 @@ function normalizeLaunchMode(value = "") {
 
 function normalizeScheduledMode(value = "") {
   const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "datetime" || normalized === "any_station" || normalized === "specific_station") {
+  if (normalized === "specific_station") return "any_station";
+  if (normalized === "datetime" || normalized === "any_station") {
     return normalized;
   }
   return "";
