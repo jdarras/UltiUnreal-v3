@@ -1,8 +1,5 @@
 /* Extracted constants for postprod auth */
 
-const DEFAULT_BOOTSTRAP_USER = 'maintenance';
-const DEFAULT_BOOTSTRAP_PASSWORD = 'admin';
-const DEFAULT_BOOTSTRAP_ROLE = 'Maintenance';
 const DEFAULT_SESSION_TTL_SEC = 12 * 60 * 60; // 12h
 const DEFAULT_PBKDF2_ITERS = 150000;
 const PASSWORD_KEY_LEN = 32;
@@ -31,7 +28,6 @@ const MAX_RENDER_TEMPLATE_NAME_LEN = 220;
 const MAX_RENDER_PROJECT_NAME_LEN = 220;
 const MAX_RENDER_PRESET_NAME_LEN = 160;
 const MAX_RENDER_FORM_NAME_LEN = 220;
-const MAX_RENDER_FORM_PRESET_NAME_LEN = 220;
 const MAX_RENDER_FORM_LAYOUT_BYTES = 256 * 1024;
 const MAX_RENDER_MAP_NAME_LEN = 220;
 const MAX_RENDER_SEQUENCE_NAME_LEN = 220;
@@ -120,7 +116,6 @@ const MIN_POSTPROD_PROJECTS_RESYNC_TTL_MS = 250;
 const MAX_POSTPROD_PROJECTS_RESYNC_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_POSTPROD_PROJECTS_RESYNC_TTL_MS = 10 * 1000;
 
-const SYSTEM_MAINTENANCE_ROLE = 'Maintenance';
 const DEFAULT_FALLBACK_ROLE = 'Operateur';
 const TASK_STATUSES = Object.freeze([
   'Planifiee',
@@ -168,19 +163,6 @@ const DEFAULT_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
 const MIN_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS = 60 * 1000;
 const MAX_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
-const DEFAULT_ROLE_KEYS = [
-  'Maintenance',
-  'Responsable Fabrication',
-  'Integrateur',
-  'Operateur',
-  'Graphiste',
-  'Journaliste',
-];
-const RENDER_VALIDATION_ALLOWED_ROLES = new Set([
-  'Maintenance',
-  'Responsable Fabrication',
-  'Journaliste',
-]);
 const RENDER_TEMPLATE_FIELD_VALUE_TYPES = new Set([
   'string',
   'number',
@@ -225,147 +207,6 @@ const EMPLOYMENT_TYPE_LOOKUP = new Map([
   ['cdd', 'CDD'],
 ]);
 
-const DEFAULT_ROLE_POLICIES = [
-  {
-    key: 'Maintenance',
-    displayName: 'Maintenance',
-    canUseLiveMode: true,
-    canUsePostprodMode: true,
-    canValidate: true,
-    canSyncScenes: true,
-    canManageUsers: true,
-    canManageRoles: true,
-    canManageForms: true,
-    canManageMachines: true,
-    canBanUsers: true,
-    canManageProjectPermissions: true,
-    canLaunchProjects: true,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canAssignRenderRequests: true,
-    canEditProjects: true,
-    canManageLayouts: true,
-    manageableRoles: [...DEFAULT_ROLE_KEYS],
-    isSystem: true,
-  },
-  {
-    key: 'Responsable Fabrication',
-    displayName: 'Responsable Fabrication',
-    canUseLiveMode: true,
-    canUsePostprodMode: true,
-    canValidate: true,
-    canSyncScenes: true,
-    canManageUsers: true,
-    canManageRoles: false,
-    canManageForms: true,
-    canManageMachines: true,
-    canBanUsers: true,
-    canManageProjectPermissions: true,
-    canLaunchProjects: true,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canAssignRenderRequests: true,
-    canEditProjects: true,
-    canManageLayouts: true,
-    manageableRoles: ['Graphiste', 'Journaliste'],
-    isSystem: true,
-  },
-  {
-    key: 'Integrateur',
-    displayName: 'Integrateur',
-    canUseLiveMode: true,
-    canUsePostprodMode: true,
-    canValidate: true,
-    canSyncScenes: true,
-    canManageUsers: true,
-    canManageRoles: false,
-    canManageForms: true,
-    canManageMachines: true,
-    canBanUsers: true,
-    canManageProjectPermissions: true,
-    canLaunchProjects: true,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canAssignRenderRequests: true,
-    canEditProjects: true,
-    canManageLayouts: true,
-    manageableRoles: ['Operateur', 'Journaliste'],
-    isSystem: true,
-  },
-  {
-    key: 'Operateur',
-    displayName: 'Operateur',
-    canUseLiveMode: true,
-    canUsePostprodMode: true,
-    canValidate: false,
-    canSyncScenes: false,
-    canManageUsers: false,
-    canManageRoles: false,
-    canManageForms: false,
-    canManageMachines: false,
-    canBanUsers: false,
-    canManageProjectPermissions: false,
-    canLaunchProjects: true,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canAssignRenderRequests: false,
-    canEditProjects: true,
-    canManageLayouts: true,
-    manageableRoles: [],
-    isSystem: true,
-  },
-  {
-    key: 'Graphiste',
-    displayName: 'Graphiste',
-    canUseLiveMode: false,
-    canUsePostprodMode: true,
-    canValidate: false,
-    canSyncScenes: false,
-    canManageUsers: false,
-    canManageRoles: false,
-    canManageForms: false,
-    canManageMachines: false,
-    canBanUsers: false,
-    canManageProjectPermissions: false,
-    canLaunchProjects: false,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canAssignRenderRequests: false,
-    canEditProjects: false,
-    canManageLayouts: false,
-    manageableRoles: [],
-    isSystem: true,
-  },
-  {
-    key: 'Journaliste',
-    displayName: 'Journaliste',
-    canUseLiveMode: false,
-    canUsePostprodMode: true,
-    canValidate: false,
-    canSyncScenes: false,
-    canManageUsers: false,
-    canManageRoles: false,
-    canManageForms: false,
-    canManageMachines: false,
-    canBanUsers: false,
-    canManageProjectPermissions: false,
-    canLaunchProjects: false,
-    canLaunchRenders: true,
-    canViewResources: true,
-    canCreateTasks: true,
-    canAssignRenderRequests: false,
-    canEditProjects: false,
-    canManageLayouts: false,
-    manageableRoles: [],
-    isSystem: true,
-  },
-];
-
 const ROLE_ALIAS_MAP = new Map([
   ['maintenance', 'Maintenance'],
   ['responsable fabrication', 'Responsable Fabrication'],
@@ -382,9 +223,6 @@ const ROLE_ALIAS_MAP = new Map([
 
 
 module.exports = {
-  DEFAULT_BOOTSTRAP_USER,
-  DEFAULT_BOOTSTRAP_PASSWORD,
-  DEFAULT_BOOTSTRAP_ROLE,
   DEFAULT_SESSION_TTL_SEC,
   DEFAULT_PBKDF2_ITERS,
   PASSWORD_KEY_LEN,
@@ -413,7 +251,6 @@ module.exports = {
   MAX_RENDER_PROJECT_NAME_LEN,
   MAX_RENDER_PRESET_NAME_LEN,
   MAX_RENDER_FORM_NAME_LEN,
-  MAX_RENDER_FORM_PRESET_NAME_LEN,
   MAX_RENDER_FORM_LAYOUT_BYTES,
   MAX_RENDER_MAP_NAME_LEN,
   MAX_RENDER_SEQUENCE_NAME_LEN,
@@ -490,7 +327,6 @@ module.exports = {
   MIN_POSTPROD_PROJECTS_RESYNC_TTL_MS,
   MAX_POSTPROD_PROJECTS_RESYNC_TTL_MS,
   DEFAULT_POSTPROD_PROJECTS_RESYNC_TTL_MS,
-  SYSTEM_MAINTENANCE_ROLE,
   DEFAULT_FALLBACK_ROLE,
   TASK_STATUSES,
   TASK_EXPECTED_RENDER_MATCH_ACTIVE_STATUSES,
@@ -509,13 +345,10 @@ module.exports = {
   DEFAULT_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
   MIN_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
   MAX_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
-  DEFAULT_ROLE_KEYS,
-  RENDER_VALIDATION_ALLOWED_ROLES,
   RENDER_TEMPLATE_FIELD_VALUE_TYPES,
   RENDER_TEMPLATE_FIELD_INPUT_KINDS,
   RENDER_FORM_SOURCE_TYPES,
   RENDER_FORM_MODE_DEFAULTS,
   EMPLOYMENT_TYPE_LOOKUP,
-  DEFAULT_ROLE_POLICIES,
   ROLE_ALIAS_MAP,
 };

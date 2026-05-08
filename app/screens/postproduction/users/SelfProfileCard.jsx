@@ -1,0 +1,268 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { fromDateTimeLocalToIso, safeT } from "../shared/helpers";
+import { UserEditorPanel } from "./components/UserEditorPanel";
+import { useUserAvatarUpload } from "./hooks/useUserAvatarUpload";
+import { resolveUserProfileLabel } from "./roleHelpers";
+import {
+  activityMatchesSearchQuery,
+  activityMatchesSelectedType,
+  getActivityTypeSummary,
+  isUsableAvatarSrc,
+  mapActivityActionTypeToApi,
+  resolveAvatarInitials,
+} from "./userSharedHelpers";
+
+function SelfProfileCard({
+  t,
+  user = null,
+  roles = [],
+  saving = false,
+  onUpdateMe = null,
+  myActivity = [],
+  myActivitySummary = null,
+  myActivityLoading = false,
+  myActivityError = "",
+  onRefreshMyActivity = null,
+  projects = [],
+  projectsLoading = false,
+}) {
+  const [draft, setDraft] = useState({});
+  const [editorAvatarError, setEditorAvatarError] = useState("");
+  const [editorAvatarLoading, setEditorAvatarLoading] = useState(false);
+  const editorAvatarInputRef = useRef(null);
+  const activitySearchDebounceRef = useRef(null);
+
+  const [activityFromAtLocal, setActivityFromAtLocal] = useState("");
+  const [activityToAtLocal, setActivityToAtLocal] = useState("");
+  const [activityActionType, setActivityActionType] = useState("all");
+  const [activityProjectRef, setActivityProjectRef] = useState("");
+  const [activitySearchQuery, setActivitySearchQuery] = useState("");
+
+  const rolesByKey = useMemo(() => {
+    const map = new Map();
+    for (const row of Array.isArray(roles) ? roles : []) {
+      const key = String(row?.key || "").trim();
+      if (key) map.set(key, row);
+    }
+    return map;
+  }, [roles]);
+
+  const roleOptions = useMemo(() => {
+    const options = Array.from(rolesByKey.keys());
+    const currentRole = String(user?.role || "").trim();
+    if (currentRole && !options.includes(currentRole)) options.push(currentRole);
+    return options;
+  }, [rolesByKey, user?.role]);
+
+  const { onSelectEditorAvatar } = useUserAvatarUpload({
+    t,
+    setDraft,
+    setEditorAvatarError,
+    setEditorAvatarLoading,
+  });
+
+  const userId = Number(user?.id || 0);
+
+  const projectOptions = useMemo(() => {
+    return (Array.isArray(projects) ? projects : [])
+      .map((project) => {
+        const id = String(project?.id || "").trim();
+        const name = String(project?.name || "").trim();
+        const code = String(project?.code || "").trim();
+        const ref = id || name || code;
+        if (!ref) return null;
+        return {
+          ref,
+          label: [code, name, id ? `[${id}]` : ""].filter(Boolean).join(" ").trim() || ref,
+        };
+      })
+      .filter(Boolean);
+  }, [projects]);
+
+  const rawActivities = Array.isArray(myActivity) ? myActivity : [];
+
+  const typedActivities = useMemo(
+    () => rawActivities.filter((item) => activityMatchesSelectedType(item, "all")),
+    [rawActivities]
+  );
+
+  const filteredActivities = useMemo(
+    () => typedActivities
+      .filter((item) => activityMatchesSelectedType(item, activityActionType))
+      .filter((item) => activityMatchesSearchQuery(item, activitySearchQuery)),
+    [typedActivities, activityActionType, activitySearchQuery]
+  );
+
+  const editingSummary = useMemo(() => {
+    if (myActivitySummary && typeof myActivitySummary === "object") return myActivitySummary;
+    return {
+      total: typedActivities.length,
+      projects: Array.from(
+        typedActivities.reduce((acc, item) => {
+          for (const ref of (Array.isArray(item?.projectRefs) ? item.projectRefs : [])) {
+            const n = String(ref || "").trim();
+            if (n) acc.add(n);
+          }
+          return acc;
+        }, new Set())
+      ),
+    };
+  }, [myActivitySummary, typedActivities]);
+
+  const editingTypeSummary = useMemo(
+    () => getActivityTypeSummary(editingSummary, typedActivities),
+    [editingSummary, typedActivities]
+  );
+
+  function buildActivityFilters(overrides = {}) {
+    const fromAtLocal = String(overrides?.fromAtLocal ?? activityFromAtLocal ?? "").trim();
+    const toAtLocal = String(overrides?.toAtLocal ?? activityToAtLocal ?? "").trim();
+    const actionType = String(overrides?.actionType ?? activityActionType ?? "all").trim().toLowerCase();
+    const projectRef = String(overrides?.projectRef ?? activityProjectRef ?? "").trim();
+    const searchQuery = String(overrides?.searchQuery ?? activitySearchQuery ?? "").trim();
+    return {
+      fromAt: fromAtLocal ? fromDateTimeLocalToIso(fromAtLocal) : "",
+      toAt: toAtLocal ? fromDateTimeLocalToIso(toAtLocal) : "",
+      actionType: mapActivityActionTypeToApi(actionType || "all"),
+      projectRef: projectRef || "",
+      searchQuery,
+    };
+  }
+
+  function handleLoadActivity(_, filterOverrides = {}) {
+    onRefreshMyActivity?.(buildActivityFilters(filterOverrides));
+  }
+
+  useEffect(() => {
+    setDraft({
+      displayName: String(user?.displayName || ""),
+      firstName: String(user?.firstName || ""),
+      lastName: String(user?.lastName || ""),
+      email: String(user?.email || ""),
+      email2: String(user?.email2 || ""),
+      phone: String(user?.phone || ""),
+      phone2: String(user?.phone2 || ""),
+      role: String(user?.role || ""),
+      employmentType: String(user?.employmentType || ""),
+      language: String(user?.language || "fr"),
+      note: String(user?.note || ""),
+      avatarPath: String(user?.avatarPath || ""),
+      password: "",
+      mustChangePassword: user?.mustChangePassword === true,
+      isActive: user?.isActive !== false,
+    });
+    setEditorAvatarError("");
+    setEditorAvatarLoading(false);
+  }, [userId]);
+
+  useEffect(() => (
+    () => {
+      if (activitySearchDebounceRef.current) {
+        clearTimeout(activitySearchDebounceRef.current);
+        activitySearchDebounceRef.current = null;
+      }
+    }
+  ), []);
+
+  const avatarPath = String(draft?.avatarPath || "");
+  const editorAvatarSrc = isUsableAvatarSrc(avatarPath) ? avatarPath : "";
+  const editorAvatarInitials = resolveAvatarInitials(
+    String(draft?.displayName || ""),
+    String(user?.username || "")
+  );
+  const selectedProfile = resolveUserProfileLabel(user, t, rolesByKey);
+  const editingEntry = user && typeof user === "object" ? user : null;
+
+  function buildProfilePayload() {
+    return {
+      displayName: String(draft?.displayName || "").trim(),
+      firstName: String(draft?.firstName || ""),
+      lastName: String(draft?.lastName || ""),
+      email: String(draft?.email || ""),
+      email2: String(draft?.email2 || ""),
+      phone: String(draft?.phone || ""),
+      phone2: String(draft?.phone2 || ""),
+      employmentType: String(draft?.employmentType || ""),
+      language: String(draft?.language || "fr"),
+      note: String(draft?.note || ""),
+      avatarPath: String(draft?.avatarPath || ""),
+    };
+  }
+
+  async function handleSubmit() {
+    if (typeof onUpdateMe !== "function") return;
+    await onUpdateMe({ ...buildProfilePayload(), password: "" });
+  }
+
+  async function handleChangePassword(newPassword) {
+    if (typeof onUpdateMe !== "function") return;
+    await onUpdateMe({ ...buildProfilePayload(), password: newPassword });
+  }
+
+  return (
+    <section className="uu-section">
+      <UserEditorPanel
+        t={t}
+        usersLoading={saving}
+        requestAutosaveOnBlur={null}
+        closeEditor={null}
+        editorAvatarSrc={editorAvatarSrc}
+        editorAvatarInitials={editorAvatarInitials}
+        draft={draft}
+        selectedProfile={selectedProfile}
+        editorAvatarInputRef={editorAvatarInputRef}
+        editorAvatarLoading={editorAvatarLoading}
+        onSelectEditorAvatar={onSelectEditorAvatar}
+        onClearAvatar={() => setDraft((prev) => ({ ...(prev || {}), avatarPath: "" }))}
+        editorAvatarPath={avatarPath}
+        setDraft={setDraft}
+        setEditorAvatarError={setEditorAvatarError}
+        roleOptions={roleOptions}
+        rolesByKey={rolesByKey}
+        isCreate={false}
+        canBanUsers={false}
+        canDeleteUser={false}
+        readOnlyFields={true}
+        selfProfile={true}
+        editingEntry={editingEntry}
+        editingUserId={userId}
+        projectsLoading={projectsLoading}
+        projectOptions={projectOptions}
+        activityLoading={myActivityLoading}
+        activityError={myActivityError}
+        activityFromAtLocal={activityFromAtLocal}
+        setActivityFromAtLocal={setActivityFromAtLocal}
+        activityToAtLocal={activityToAtLocal}
+        setActivityToAtLocal={setActivityToAtLocal}
+        activityActionType={activityActionType}
+        setActivityActionType={setActivityActionType}
+        activityProjectRef={activityProjectRef}
+        setActivityProjectRef={setActivityProjectRef}
+        activitySearchQuery={activitySearchQuery}
+        setActivitySearchQuery={setActivitySearchQuery}
+        activitySearchDebounceRef={activitySearchDebounceRef}
+        loadUserActivity={handleLoadActivity}
+        editingSummary={editingSummary}
+        editingTypeSummary={editingTypeSummary}
+        editingActivities={typedActivities}
+        filteredEditingActivities={filteredActivities}
+        onPurgeUserActivity={null}
+        submitDisabled={saving}
+        onChangePassword={handleChangePassword}
+      />
+      <div className="uu-row mt-12" style={{ justifyContent: "flex-end" }}>
+        <button
+          className="uu-btn"
+          type="button"
+          disabled={saving}
+          onClick={handleSubmit}
+        >
+          {safeT(t, "postprod.profile.form.save", "Enregistrer mon profil")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export { SelfProfileCard };
+export default SelfProfileCard;

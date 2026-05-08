@@ -46,12 +46,11 @@ function createUsersSyncHelpers(deps = {}) {
     DEFAULT_USERS_SYNC_AGENT_PORT = 4000,
     nowIso = () => new Date().toISOString(),
     safeParseObjectJson = () => ({}),
-    hashPassword = () => '',
-    DEFAULT_BOOTSTRAP_PASSWORD = 'change_me',
-    pbkdf2Iters = 310000,
     refreshRolesCache = () => {},
     logLine = () => {},
-  } = deps;function collectLocalHostCandidates() {
+  } = deps;
+
+function collectLocalHostCandidates() {
   const out = new Set(['127.0.0.1', 'localhost', '::1']);
   try {
     const interfaces = os.networkInterfaces ? os.networkInterfaces() : {};
@@ -428,6 +427,7 @@ function buildRoleSyncPayload(roleRow) {
     canManageMachines: normalized.canManageMachines === true,
     canBanUsers: normalized.canBanUsers === true,
     canManageProjectPermissions: normalized.canManageProjectPermissions === true,
+    canLaunchLiveProjects: normalized.canLaunchLiveProjects === true,
     canLaunchProjects: normalized.canLaunchProjects === true,
     canLaunchRenders: normalized.canLaunchRenders === true,
     canViewResources: normalized.canViewResources === true,
@@ -888,40 +888,128 @@ function applyUsersSyncEvent(event, peer = {}) {
       return { ok: true, applied: false, reason: 'stale_user_upsert', version: rawVersion };
     }
 
+    const payloadObject = payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? payload
+      : {};
+    const hasPayloadField = (field) => Object.prototype.hasOwnProperty.call(payloadObject, field);
+    const pickPayloadValue = (field, fallbackValue) => (
+      hasPayloadField(field) ? payloadObject[field] : fallbackValue
+    );
+
     const seedValues = [
-      payload?.username,
-      payload?.displayName,
-      payload?.firstName,
-      payload?.lastName,
+      pickPayloadValue('username', ''),
+      pickPayloadValue('displayName', ''),
+      pickPayloadValue('firstName', ''),
+      pickPayloadValue('lastName', ''),
       current?.username,
     ];
-    const username = normalizeSyncUsername(payload?.username || current?.username || '', publicId, seedValues);
-    let passwordHash = String(payload?.passwordHash || current?.password_hash || '').trim();
+    const username = normalizeSyncUsername(
+      pickPayloadValue('username', current?.username || ''),
+      publicId,
+      seedValues
+    );
+    const passwordHash = String(
+      pickPayloadValue('passwordHash', current?.password_hash || '')
+    ).trim();
     if (!passwordHash) {
-      passwordHash = hashPassword(DEFAULT_BOOTSTRAP_PASSWORD, pbkdf2Iters);
+      logLine({
+        level: 'warn',
+        src: 'postprod',
+        action: 'users_sync_user_missing_password_hash',
+        message: `Sync user ignoree (passwordHash manquant): ${publicId}`,
+      });
+      return { ok: true, applied: false, reason: 'missing_password_hash', version: rawVersion };
     }
-    const role = normalizeRole(payload?.role || current?.role || DEFAULT_FALLBACK_ROLE, DEFAULT_FALLBACK_ROLE);
-    const isActive = normalizeSyncBool(payload?.isActive, current ? Number(current?.is_active) === 1 : true);
-    const displayName = sanitizeDisplayName(payload?.displayName, username);
-    const firstName = sanitizeFirstName(payload?.firstName);
-    const lastName = sanitizeLastName(payload?.lastName);
-    const email = sanitizeEmail(payload?.email);
-    const email2 = sanitizeEmail(payload?.email2);
-    const mobilePhone = sanitizePhone(payload?.mobilePhone || payload?.phone1 || '');
-    const officePhone = sanitizePhone(payload?.officePhone || payload?.phone2 || '');
-    const unifiedPhone = sanitizePhone(payload?.phone || mobilePhone || officePhone || '');
-    const employmentType = sanitizeEmploymentType(payload?.employmentType);
-    const note = sanitizeUserNote(payload?.note);
-    const avatarPath = sanitizeAvatarPath(payload?.avatarPath);
-    const mustChangePassword = normalizeSyncBool(payload?.mustChangePassword, false);
-    const failedLoginCount = normalizeSyncInteger(payload?.failedLoginCount, 0, 0, MAX_FAILED_LOGIN_COUNT);
-    const lockedUntil = parseIsoDateOrNull(payload?.lockedUntil) || null;
-    const createdAt = normalizeSyncTimestamp(payload?.createdAt, current?.created_at || occurredAt);
-    const updatedAt = normalizeSyncTimestamp(payload?.updatedAt, occurredAt);
-    const lastLoginAt = parseIsoDateOrNull(payload?.lastLoginAt) || null;
-    const timezone = sanitizeTimezone(payload?.timezone);
-    const language = sanitizeUserLanguage(payload?.language, DEFAULT_USER_LANGUAGE);
-    const notificationPrefsJson = normalizeNotificationPreferences(payload?.notificationPrefsJson);
+
+    const role = normalizeRole(
+      pickPayloadValue('role', current?.role || DEFAULT_FALLBACK_ROLE),
+      DEFAULT_FALLBACK_ROLE
+    );
+    const currentIsActive = current ? Number(current?.is_active) === 1 : true;
+    const isActive = normalizeSyncBool(pickPayloadValue('isActive', currentIsActive), currentIsActive);
+    const displayName = sanitizeDisplayName(
+      pickPayloadValue('displayName', current?.display_name),
+      username
+    );
+    const firstName = sanitizeFirstName(pickPayloadValue('firstName', current?.first_name));
+    const lastName = sanitizeLastName(pickPayloadValue('lastName', current?.last_name));
+    const email = sanitizeEmail(pickPayloadValue('email', current?.email));
+    const email2 = sanitizeEmail(
+      hasPayloadField('email2')
+        ? payloadObject.email2
+        : (hasPayloadField('emailSecondary') ? payloadObject.emailSecondary : current?.email_secondary)
+    );
+    const mobilePhoneRaw = hasPayloadField('mobilePhone')
+      ? payloadObject.mobilePhone
+      : (hasPayloadField('phone1') ? payloadObject.phone1 : current?.mobile_phone);
+    const officePhoneRaw = hasPayloadField('officePhone')
+      ? payloadObject.officePhone
+      : (hasPayloadField('phone2') ? payloadObject.phone2 : current?.office_phone);
+    const mobilePhone = sanitizePhone(mobilePhoneRaw);
+    const officePhone = sanitizePhone(officePhoneRaw);
+    const unifiedPhone = sanitizePhone(
+      hasPayloadField('phone')
+        ? payloadObject.phone
+        : (
+          mobilePhoneRaw
+          || officePhoneRaw
+          || current?.phone
+          || current?.mobile_phone
+          || current?.office_phone
+          || ''
+        )
+    );
+    const employmentType = sanitizeEmploymentType(
+      pickPayloadValue('employmentType', current?.employment_type)
+    );
+    const note = sanitizeUserNote(
+      hasPayloadField('note')
+        ? payloadObject.note
+        : (hasPayloadField('userNote') ? payloadObject.userNote : current?.user_note)
+    );
+    const avatarPath = sanitizeAvatarPath(pickPayloadValue('avatarPath', current?.avatar_path));
+    const currentMustChangePassword = current ? Number(current?.must_change_password) === 1 : false;
+    const mustChangePassword = normalizeSyncBool(
+      pickPayloadValue('mustChangePassword', currentMustChangePassword),
+      currentMustChangePassword
+    );
+    const currentFailedLoginCount = current
+      ? normalizeSyncInteger(current?.failed_login_count, 0, 0, MAX_FAILED_LOGIN_COUNT)
+      : 0;
+    const failedLoginCount = normalizeSyncInteger(
+      pickPayloadValue('failedLoginCount', currentFailedLoginCount),
+      currentFailedLoginCount,
+      0,
+      MAX_FAILED_LOGIN_COUNT
+    );
+    const currentLockedUntil = parseIsoDateOrNull(current?.locked_until) || null;
+    const lockedUntil = parseIsoDateOrNull(pickPayloadValue('lockedUntil', currentLockedUntil)) || null;
+    const createdAt = normalizeSyncTimestamp(
+      pickPayloadValue('createdAt', current?.created_at || occurredAt),
+      current?.created_at || occurredAt
+    );
+    const updatedAt = normalizeSyncTimestamp(pickPayloadValue('updatedAt', occurredAt), occurredAt);
+    const lastLoginAt = parseIsoDateOrNull(
+      pickPayloadValue('lastLoginAt', current?.last_login_at)
+    ) || null;
+    const timezone = sanitizeTimezone(pickPayloadValue('timezone', current?.timezone));
+    const currentLanguage = sanitizeUserLanguage(current?.language, DEFAULT_USER_LANGUAGE);
+    const language = sanitizeUserLanguage(
+      pickPayloadValue('language', currentLanguage),
+      DEFAULT_USER_LANGUAGE
+    );
+    const notificationPrefsRaw = hasPayloadField('notificationPrefsJson')
+      ? payloadObject.notificationPrefsJson
+      : (
+        hasPayloadField('notificationPreferencesJson')
+          ? payloadObject.notificationPreferencesJson
+          : (
+            hasPayloadField('notification_preferences_json')
+              ? payloadObject.notification_preferences_json
+              : current?.notification_preferences_json
+          )
+      );
+    const notificationPrefsJson = normalizeNotificationPreferences(notificationPrefsRaw);
 
     if (!current) {
       stmts.insertUserFromSync.run(
@@ -1027,6 +1115,7 @@ function applyUsersSyncEvent(event, peer = {}) {
       canManageMachines: payload?.canManageMachines,
       canBanUsers: payload?.canBanUsers,
       canManageProjectPermissions: payload?.canManageProjectPermissions,
+      canLaunchLiveProjects: payload?.canLaunchLiveProjects,
       canLaunchProjects: payload?.canLaunchProjects,
       canLaunchRenders: payload?.canLaunchRenders,
       canViewResources: payload?.canViewResources,
@@ -1078,6 +1167,7 @@ function applyUsersSyncEvent(event, peer = {}) {
           normalizedRole.canManageMachines ? 1 : 0,
           normalizedRole.canBanUsers ? 1 : 0,
           normalizedRole.canManageProjectPermissions ? 1 : 0,
+          normalizedRole.canLaunchLiveProjects ? 1 : 0,
           normalizedRole.canLaunchProjects ? 1 : 0,
           normalizedRole.canLaunchRenders ? 1 : 0,
           normalizedRole.canViewResources ? 1 : 0,
@@ -1108,6 +1198,7 @@ function applyUsersSyncEvent(event, peer = {}) {
       normalizedRole.canManageMachines ? 1 : 0,
       normalizedRole.canBanUsers ? 1 : 0,
       normalizedRole.canManageProjectPermissions ? 1 : 0,
+      normalizedRole.canLaunchLiveProjects ? 1 : 0,
       normalizedRole.canLaunchProjects ? 1 : 0,
       normalizedRole.canLaunchRenders ? 1 : 0,
       normalizedRole.canViewResources ? 1 : 0,

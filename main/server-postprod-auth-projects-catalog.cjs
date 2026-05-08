@@ -3,9 +3,7 @@ function createProjectsCatalogHelpers(deps = {}) {
     nowIso = () => new Date().toISOString(),
     normalizeProjectUsageMode = (value) => String(value || '').trim(),
     normalizeRoleLookupKey = (value) => String(value || '').trim().toLowerCase(),
-    normalizeRole = (value, fallback = '') => String(value || fallback || '').trim(),
     addTaskRefAlias = () => {},
-    DEFAULT_FALLBACK_ROLE = 'Operateur',
     AUTO_RENDER_PROJECT_USAGE_MODES = new Set(['auto_render', 'live_auto_render']),
     MIN_POSTPROD_PROJECTS_RESYNC_TTL_MS = 250,
     MAX_POSTPROD_PROJECTS_RESYNC_TTL_MS = 300000,
@@ -124,15 +122,15 @@ function isValidatedPostprodProjectStatus(value) {
     || lookup === 'approved';
 }
 
-function getPostprodProjectVisibilityPolicy(roleRaw) {
-  const role = normalizeRole(roleRaw, DEFAULT_FALLBACK_ROLE);
-  if (role === 'Graphiste') return 'postprod_only';
-  if (
-    role === 'Maintenance'
-    || role === 'Responsable Fabrication'
-    || role === 'Integrateur'
-  ) {
+function getPostprodProjectVisibilityPolicy(actorPermissions = null) {
+  const perms = actorPermissions && typeof actorPermissions === 'object'
+    ? actorPermissions
+    : {};
+  if (perms.canManageProjectPermissions === true || perms.canSyncScenes === true) {
     return 'all';
+  }
+  if (perms.canLaunchRenders === true || perms.canCreateTasks === true) {
+    return 'postprod_only';
   }
   return 'validated_only';
 }
@@ -350,14 +348,14 @@ function parseProjectUsageModeFilters(searchParams) {
   return out;
 }
 
-function listPostprodProjects(sharedStore, usageModeFilters = [], stmts = null, actorRole = '') {
+function listPostprodProjects(sharedStore, usageModeFilters = [], stmts = null, actorPermissions = null) {
   const usageFilterSet = new Set(
     (Array.isArray(usageModeFilters) ? usageModeFilters : [])
       .map((mode) => normalizeProjectUsageMode(mode))
       .filter(Boolean)
   );
 
-  const roleVisibilityPolicy = getPostprodProjectVisibilityPolicy(actorRole);
+  const roleVisibilityPolicy = getPostprodProjectVisibilityPolicy(actorPermissions);
   const projects = loadPostprodProjectsCatalog(sharedStore, stmts);
   const out = projects.filter((project) => {
     const usageMode = normalizeProjectUsageMode(project?.usageMode) || 'other';

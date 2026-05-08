@@ -26,10 +26,18 @@ export function useRenderQueueLaunch({
 
   const launchScheduledTaskRender = useCallback(async (task, queueEntry = null, launchOptions = null) => {
     if (!canLaunchRendersForUser) return false;
+    const normalizedLaunchOptions = (
+      launchOptions && typeof launchOptions === "object" && !Array.isArray(launchOptions)
+        ? launchOptions
+        : {}
+    );
     await launchScheduledTaskRenderAction({
       task,
       queueEntry,
-      launchOptions,
+      launchOptions: {
+        allowCreateFromTask: false,
+        ...normalizedLaunchOptions,
+      },
       onCreateRender,
       onDispatchRenders,
       setBusyScheduledTaskId,
@@ -106,7 +114,7 @@ export function useRenderQueueLaunch({
 
     autoDispatchBusyRef.current = true;
     autoDispatchKickAtRef.current = now;
-    Promise.resolve(launchScheduledTaskRender(firstAutoLaunchEntry?.task || null, firstAutoLaunchEntry))
+    Promise.resolve(launchScheduledTaskRender(firstAutoLaunchEntry?.task || null, firstAutoLaunchEntry, { silentDispatch: true }))
       .catch(() => ({}))
       .finally(() => {
         autoDispatchBusyRef.current = false;

@@ -1519,6 +1519,29 @@ export async function postprodListRenders(token = '', timeoutOrOptions = 8000, m
   return res.json || { ok: true, renders: [] };
 }
 
+export async function postprodListUserAlerts(token = '', options = {}, timeoutMs = 6000) {
+  const authToken = assertPostprodToken(token);
+  const opts = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
+  const resolvedTimeoutMs = Number.isFinite(Number(opts?.timeoutMs))
+    ? Number(opts.timeoutMs)
+    : timeoutMs;
+  const limitRaw = Number(opts?.limit || 100);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0
+    ? Math.max(1, Math.min(500, Math.trunc(limitRaw)))
+    : 100;
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  const res = await httpRequest(`/agent/postprod/alerts?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+    },
+    timeoutMs: resolvedTimeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true, alerts: [], summary: null };
+}
+
 function normalizeRemoteStationHost(value) {
   let hostRaw = String(value || '').trim();
   if (!hostRaw) return '';

@@ -11,19 +11,39 @@ function transitionLogLevel(entry = null) {
   return "info";
 }
 
+function humanizeRenderLogComment(comment = "") {
+  const raw = String(comment || "").trim();
+  if (!raw) return "";
+  const compact = raw.replace(/\s+/g, " ").trim();
+  const separatorIndex = compact.indexOf(":");
+  const marker = (separatorIndex > 0 ? compact.slice(0, separatorIndex) : compact).trim();
+  const detail = separatorIndex > 0 ? compact.slice(separatorIndex + 1).trim() : "";
+  const markerKey = marker.toLowerCase();
+  const markerMap = {
+    dispatch_auto_fifo: "Lancement automatique (FIFO)",
+    dispatch_auto_policy: "Lancement automatique (politique par projet)",
+    worker_completed: "Rendu Unreal termine",
+    worker_failed_retry: "Rendu Unreal en erreur - nouvelle tentative",
+    worker_failed_final: "Rendu Unreal en erreur - echec final",
+    render_validated: "Rendu valide",
+    render_marked_pending: "Rendu repasse a valider",
+    render_rejected: "Rendu rejete",
+    station_unreachable: "Station de rendu indisponible",
+  };
+  const base = String(markerMap[markerKey] || compact).trim();
+  if (detail && markerMap[markerKey]) {
+    return `${base}: ${detail}`;
+  }
+  if (base.length <= 260) return base;
+  return `${base.slice(0, 260).trimEnd()}...`;
+}
+
 function buildTransitionMessage(t, entry = null) {
   const fromStatus = String(entry?.fromStatus || "").trim();
   const toStatus = String(entry?.toStatus || "").trim();
-  const comment = String(entry?.comment || "").trim();
-  if (comment) {
-    const compactComment = comment.replace(/\s+/g, " ").trim();
-    const markerIndex = compactComment.indexOf(":");
-    if (markerIndex > 0 && markerIndex <= 64) {
-      const marker = compactComment.slice(0, markerIndex).trim();
-      if (marker) return marker;
-    }
-    if (compactComment.length <= 120) return compactComment;
-    return `${compactComment.slice(0, 120).trimEnd()}...`;
+  const commentLabel = humanizeRenderLogComment(entry?.comment);
+  if (commentLabel) {
+    return commentLabel;
   }
   if (fromStatus || toStatus) {
     const baseLabel = safeT(t, "postprod.renders.logs.transition", "Transition");

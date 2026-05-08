@@ -46,7 +46,7 @@ function RendersListTableView({
             </th>
             <th style={{ textAlign: "left" }}>
               <button type="button" className="uu-link" onClick={() => toggleListSort?.("linkedTask")}>
-                {safeT(t, "postprod.renders.table.linkedTask", "Tache")}
+                {safeT(t, "postprod.renders.table.linkedTask", "Rendu")}
                 {typeof listSortIndicator === "function" ? listSortIndicator("linkedTask") : ""}
               </button>
             </th>

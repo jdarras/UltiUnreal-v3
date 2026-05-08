@@ -14,6 +14,7 @@ function TaskEditorPanel({
   title = "",
   description = "",
   assigneeUserId = null,
+  assigneeIsCurrentUser = true,
   assigneeOptions = [],
   assigneeUserIdLocked = false,
   onTitleChange = null,
@@ -131,6 +132,7 @@ function TaskEditorPanel({
         <TaskEditorAutoConfigFields
           t={t}
           tasksLoading={tasksLoading}
+          showLaunchModeSection={assigneeIsCurrentUser}
           normalizedProjectOptions={normalizedProjectOptions}
           autoRenderProjectRef={autoRenderProjectRef}
           onChangeAutoRenderProject={onChangeAutoRenderProject}

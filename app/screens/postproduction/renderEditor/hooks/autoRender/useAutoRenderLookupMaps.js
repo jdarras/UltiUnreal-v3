@@ -4,6 +4,7 @@ import { resolveProjectRefFromForm } from "./utils";
 export function useAutoRenderLookupMaps({
   normalizedProjectOptions = [],
   renderForms = [],
+  renderFormsLoading = false,
   availableRenderWorkers = [],
   autoRenderProjectRef = "",
   setAutoRenderProjectRef = null,
@@ -127,6 +128,7 @@ export function useAutoRenderLookupMaps({
       setAutoRenderFormId((prev) => {
         const current = String(prev || "").trim();
         if (!current) return "";
+        if (renderFormsLoading === true) return current;
         if (allowed.has(current)) return current;
         const fallbackForm = (Array.isArray(renderForms) ? renderForms : []).find((entry) => {
           if (entry?.isActive === false) return false;
@@ -135,7 +137,7 @@ export function useAutoRenderLookupMaps({
         return fallbackForm ? current : "";
       });
     }
-  }, [filteredAutoRenderForms, renderForms, setAutoRenderFormId]);
+  }, [filteredAutoRenderForms, renderForms, renderFormsLoading, setAutoRenderFormId]);
 
 
   const selectedAutoRenderForm = useMemo(() => {

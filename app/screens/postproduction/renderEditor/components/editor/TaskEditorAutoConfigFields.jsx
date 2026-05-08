@@ -18,9 +18,8 @@ function resolveDatetimeBadge(scheduledAt) {
 function getMergedMode(launchMode, scheduledMode) {
   if (launchMode === "now") return "now";
   if (launchMode === "scheduled") {
-    if (scheduledMode === "any_station" || scheduledMode === "specific_station" || scheduledMode === "datetime") {
-      return scheduledMode;
-    }
+    if (scheduledMode === "datetime") return "datetime";
+    if (scheduledMode === "any_station") return "now";
   }
   return "";
 }
@@ -39,7 +38,6 @@ function LaunchModeSection({
   dedupedRemoteStations = [],
   renderWorkersLoading = false,
   renderWorkersError = "",
-  hasAvailableNowStation = true,
 }) {
   const [badge, setBadge] = useState(() => resolveDatetimeBadge(autoRenderScheduledAt));
   const intervalRef = useRef(null);
@@ -61,7 +59,7 @@ function LaunchModeSection({
     if (value === "now") {
       onChangeAutoRenderLaunchMode?.("now");
       onChangeAutoRenderScheduledMode?.("");
-    } else if (value === "any_station" || value === "specific_station" || value === "datetime") {
+    } else if (value === "datetime") {
       onChangeAutoRenderLaunchMode?.("scheduled");
       onChangeAutoRenderScheduledMode?.(value);
     } else {
@@ -72,8 +70,7 @@ function LaunchModeSection({
 
   const showDatetimePicker = mergedMode === "datetime";
   const showStation = mergedMode !== "";
-  const stationReadOnly = mergedMode === "any_station";
-  const showAutoOption = mergedMode === "now" || mergedMode === "datetime" || mergedMode === "any_station";
+  const showAutoOption = mergedMode === "now" || mergedMode === "datetime";
 
   const stationField = showStation ? (
     <div className="uu-grid-field">
@@ -84,8 +81,8 @@ function LaunchModeSection({
         <div style={{ flex: 1, minWidth: 0 }}>
           <select
             className="uu-input"
-            value={stationReadOnly ? "auto" : autoRenderWorkerKey}
-            disabled={tasksLoading || stationReadOnly}
+            value={autoRenderWorkerKey}
+            disabled={tasksLoading}
             onChange={(e) => onChangeAutoRenderWorker?.(String(e.target.value || "").trim())}
           >
             {showAutoOption ? (
@@ -141,15 +138,8 @@ function LaunchModeSection({
                 <option value="">
                   {safeT(t, "postprod.tasks.form.autoRenderLaunchMode.placeholder", "Sélectionner un mode de lancement")}
                 </option>
-                <option value="now" disabled={!hasAvailableNowStation}>
+                <option value="now">
                   {safeT(t, "postprod.tasks.form.autoRenderLaunchMode.now", "Créer et lancer maintenant")}
-                  {!hasAvailableNowStation ? ` (${safeT(t, "postprod.tasks.form.autoRenderLaunchMode.now.unavailable", "aucune station disponible")})` : ""}
-                </option>
-                <option value="any_station">
-                  {safeT(t, "postprod.tasks.form.autoRenderMode.any_station", "Programmer — quand une station est disponible")}
-                </option>
-                <option value="specific_station">
-                  {safeT(t, "postprod.tasks.form.autoRenderMode.specific_station", "Programmer — station spécifique")}
                 </option>
                 <option value="datetime">
                   {safeT(t, "postprod.tasks.form.autoRenderMode.datetime", "Programmer — à date et heure précise")}
@@ -205,6 +195,7 @@ function LaunchModeSection({
 function TaskEditorAutoConfigFields({
   t,
   tasksLoading = false,
+  showLaunchModeSection = true,
   normalizedProjectOptions = [],
   autoRenderProjectRef = "",
   onChangeAutoRenderProject = null,
@@ -260,9 +251,6 @@ function TaskEditorAutoConfigFields({
     seenStationKeys.add(entry.key);
     dedupedRemoteStations.push(entry);
   }
-
-  const hasAvailableNowStation = Array.isArray(availableRenderWorkers)
-    && availableRenderWorkers.some((w) => w?.availableNow !== false);
 
   return (
     <>
@@ -382,7 +370,7 @@ function TaskEditorAutoConfigFields({
               {safeT(
                 t,
                 "postprod.tasks.form.renderMode.empty",
-                "Aucun mode de rendu disponible pour ce projet. Cree un preset de rendu dans le projet."
+                "Aucun mode de rendu disponible pour ce projet. Cree un mode de rendu dans le projet."
               )}
             </div>
           ) : null}
@@ -437,22 +425,23 @@ function TaskEditorAutoConfigFields({
         </div>
         <div />
       </div>
-      <LaunchModeSection
-        t={t}
-        tasksLoading={tasksLoading}
-        autoRenderLaunchMode={autoRenderLaunchMode}
-        onChangeAutoRenderLaunchMode={onChangeAutoRenderLaunchMode}
-        autoRenderScheduledMode={autoRenderScheduledMode}
-        onChangeAutoRenderScheduledMode={onChangeAutoRenderScheduledMode}
-        autoRenderScheduledAt={autoRenderScheduledAt}
-        onChangeAutoRenderScheduledAt={onChangeAutoRenderScheduledAt}
-        autoRenderWorkerKey={autoRenderWorkerKey}
-        onChangeAutoRenderWorker={onChangeAutoRenderWorker}
-        dedupedRemoteStations={dedupedRemoteStations}
-        renderWorkersLoading={renderWorkersLoading}
-        renderWorkersError={renderWorkersError}
-        hasAvailableNowStation={hasAvailableNowStation}
-      />
+      {showLaunchModeSection ? (
+        <LaunchModeSection
+          t={t}
+          tasksLoading={tasksLoading}
+          autoRenderLaunchMode={autoRenderLaunchMode}
+          onChangeAutoRenderLaunchMode={onChangeAutoRenderLaunchMode}
+          autoRenderScheduledMode={autoRenderScheduledMode}
+          onChangeAutoRenderScheduledMode={onChangeAutoRenderScheduledMode}
+          autoRenderScheduledAt={autoRenderScheduledAt}
+          onChangeAutoRenderScheduledAt={onChangeAutoRenderScheduledAt}
+          autoRenderWorkerKey={autoRenderWorkerKey}
+          onChangeAutoRenderWorker={onChangeAutoRenderWorker}
+          dedupedRemoteStations={dedupedRemoteStations}
+          renderWorkersLoading={renderWorkersLoading}
+          renderWorkersError={renderWorkersError}
+        />
+      ) : null}
     </>
   );
 }

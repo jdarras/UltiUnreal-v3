@@ -156,6 +156,7 @@ export default function ProjectsScreen({
 }) {
   // canEditProjectFields defaults to canManageUnrealProjects when not explicitly set
   const canEditFields = canEditProjectFields !== null ? canEditProjectFields : canManageUnrealProjects;
+  const canOpenProjectDetails = canManageUnrealProjects || canEditFields;
   const id = React.useMemo(readIdentity, []);
   const role = String(id.role || '').trim() || 'server';
   const localIp = getLocalIp();
@@ -1035,7 +1036,7 @@ export default function ProjectsScreen({
   }, [snapshotOpen, snapshotBusy, setSnapshotOpen, setSnapshotMsg, setSnapshotMsgType]);
 
   async function saveDetails(metaOverride, pidOverride, pathOverride, wrcNamesOverride, pvOverride, keywordsOverride, source) {
-    if (!canManageUnrealProjects) return;
+    if (!canEditFields) return;
     if (detailIsNew) return;
     const pid = String(pidOverride || detailId || '').trim();
     if (!pid) return;
@@ -1251,7 +1252,7 @@ export default function ProjectsScreen({
   // autosave meta (debounced naive)
   const saveTimer = React.useRef(null);
   function scheduleSave(nextMeta, source, overrides = {}) {
-    if (!canManageUnrealProjects) return;
+    if (!canEditFields) return;
     if (detailIsNew) return;
     const pid = String(detailId || '').trim();
     if (!pid) return;
@@ -1280,7 +1281,7 @@ export default function ProjectsScreen({
   // Project Version (DefaultGame.ini) save (debounced)
   const projectVersionTimer = React.useRef(null);
   function scheduleProjectVersionSave(nextValue) {
-    if (!canManageUnrealProjects) return;
+    if (!canEditFields) return;
     if (detailIsNew) return;
     if (projectVersionTimer.current) clearTimeout(projectVersionTimer.current);
     const val = nextValue !== undefined ? nextValue : projectVersion;
@@ -1288,7 +1289,7 @@ export default function ProjectsScreen({
   }
 
   async function saveProjectVersion(value) {
-    if (!canManageUnrealProjects) return;
+    if (!canEditFields) return;
     if (detailIsNew) return;
     const pid = String(detailId || '').trim();
     if (!pid) return;
@@ -2730,7 +2731,7 @@ async function activateOne(projectKey) {
                               type="checkbox"
                               id={`wrc-preset-${key}`}
                               checked={isChecked}
-                              disabled={!canManageUnrealProjects}
+                              disabled={!canEditFields}
                               onChange={() => {
                                 const next = isChecked
                                   ? detailWrcNames.filter(n => n !== name)
@@ -3135,9 +3136,9 @@ async function activateOne(projectKey) {
                 {t('projects.detail.buttons.add')}
               </button>
             ) : null}
-            {detailIsNew || !canManageUnrealProjects ? null : (
+            {detailIsNew ? null : (
               <>
-                {showProjectActivation ? (
+                {canManageUnrealProjects && showProjectActivation ? (
                   <button
                     className={`uu-btn ${isActiveDetail ? 'prod-toggle-active' : ''}`}
                     onClick={() => { activateOne(detailId); }}
@@ -3146,7 +3147,7 @@ async function activateOne(projectKey) {
                     {isActiveDetail ? t('projects.server.card.active') : t('projects.server.card.setActive')}
                   </button>
                 ) : null}
-                {(showProjectActivation ? isActiveDetail : true) ? (
+                {canManageUnrealProjects && (showProjectActivation ? isActiveDetail : true) ? (
                   <button
                     className={showProjectActivation ? 'uu-btn prod-toggle-active' : 'uu-btn'}
                     onClick={() => { startIntegration(detailId); }}
@@ -3162,7 +3163,9 @@ async function activateOne(projectKey) {
                     {t('projects.actions.createTask', 'Rendu')}
                   </button>
                 ) : null}
-                <button className="uu-btn" onClick={() => { removeOne(detailId); setDetailId(''); }}>{t('projects.server.card.delete')}</button>
+                {canManageUnrealProjects ? (
+                  <button className="uu-btn" onClick={() => { removeOne(detailId); setDetailId(''); }}>{t('projects.server.card.delete')}</button>
+                ) : null}
               </>
             )}
           </div>
@@ -3251,7 +3254,7 @@ async function activateOne(projectKey) {
         <div className="uu-section">
           {role === 'server' ? (
             <div className="uu-kv">
-              {canManageUnrealProjects && activeId ? (
+              {canOpenProjectDetails && activeId ? (
                 <button className="uu-btn" onClick={() => openDetails(activeId)}>
                   {t('projects.actions.edit')}
                 </button>
@@ -3570,6 +3573,7 @@ async function activateOne(projectKey) {
                 integrationMsgType={integrationMsgType}
                 removeOne={removeOne}
                 canManageUnrealProjects={canManageUnrealProjects}
+                canEditProjectFields={canEditFields}
                 canCreateTasks={canCreateTaskFromProject}
                 isAutoRenderUsage={isAutoRenderUsage}
                 showActivationControls={showProjectActivation}
@@ -3594,6 +3598,7 @@ async function activateOne(projectKey) {
                 sortDir={sortDir}
                 onSort={handleSort}
                 canManageUnrealProjects={canManageUnrealProjects}
+                canEditProjectFields={canEditFields}
                 canCreateTasks={canCreateTaskFromProject}
                 isAutoRenderUsage={isAutoRenderUsage}
                 showActivationControls={showProjectActivation}
@@ -3615,6 +3620,7 @@ async function activateOne(projectKey) {
                 serverRunning={serverRunning}
                 integrationBusy={integrationBusy}
                 canManageUnrealProjects={canManageUnrealProjects}
+                canEditProjectFields={canEditFields}
                 canCreateTasks={canCreateTaskFromProject}
                 isAutoRenderUsage={isAutoRenderUsage}
                 showActivationControls={showProjectActivation}

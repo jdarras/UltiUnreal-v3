@@ -13,7 +13,6 @@ function createTaskRenderStateHelpers(options = {}) {
     TASK_STATUSES = [],
     normalizeRenderStatus,
     RENDER_STATUSES = [],
-    canRenderValidate,
     sanitizeRenderOutputPath,
     sanitizeRenderErrorMessage,
     inferRenderReviewStatus,
@@ -150,12 +149,12 @@ function createTaskRenderStateHelpers(options = {}) {
     };
   }
 
-  function computeRenderTransitionState(renderRow, toStatusRaw, body, now, actorPermissions, actorUserId, actorRoleRaw = '') {
+  function computeRenderTransitionState(renderRow, toStatusRaw, body, now, actorPermissions, actorUserId, _actorRoleRaw = '') {
     const action = String(body?.action || '').trim().toLowerCase();
     const fromStatus = normalizeRenderStatus(renderRow?.status, 'Queued');
     const requesterId = Number(renderRow?.requested_by_user_id || 0);
     const actorId = Number(actorUserId || 0);
-    const canReview = canRenderValidate(actorRoleRaw);
+    const canReview = actorPermissions?.canValidate === true;
     const isOwner = requesterId > 0 && requesterId === actorId;
 
     if (action === 'validate') {
@@ -180,7 +179,7 @@ function createTaskRenderStateHelpers(options = {}) {
         errorMessage: sanitizeRenderErrorMessage(renderRow?.error_message),
         startedAt: renderRow?.started_at || null,
         finishedAt: renderRow?.finished_at || now,
-        commentDefault: 'render_validated',
+        commentDefault: 'Rendu valide',
       };
     }
 
@@ -201,7 +200,7 @@ function createTaskRenderStateHelpers(options = {}) {
         errorMessage: sanitizeRenderErrorMessage(renderRow?.error_message),
         startedAt: renderRow?.started_at || null,
         finishedAt: renderRow?.finished_at || now,
-        commentDefault: 'render_marked_pending',
+        commentDefault: 'Rendu repasse a valider',
       };
     }
 
@@ -222,7 +221,7 @@ function createTaskRenderStateHelpers(options = {}) {
         errorMessage: sanitizeRenderErrorMessage(renderRow?.error_message),
         startedAt: renderRow?.started_at || null,
         finishedAt: renderRow?.finished_at || now,
-        commentDefault: 'render_rejected',
+        commentDefault: 'Rendu rejete',
       };
     }
 

@@ -11,6 +11,7 @@ const DIRECT_KEYS = [
   "title",
   "description",
   "assigneeUserId",
+  "assigneeIsCurrentUser",
   "assigneeOptions",
   "assigneeUserIdLocked",
   "normalizedProjectOptions",

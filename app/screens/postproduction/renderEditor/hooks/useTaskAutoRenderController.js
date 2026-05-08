@@ -21,6 +21,7 @@ export function useTaskAutoRenderController({
   normalizedProjectOptions = [],
   normalizedRenderTemplateOptions = [],
   renderForms = [],
+  renderFormsLoading = false,
   availableRenderWorkers = [],
   onLoadRenderFormFields = null,
   onLoadProjectUnrealCatalog = null,
@@ -76,6 +77,7 @@ export function useTaskAutoRenderController({
   } = useAutoRenderLookupMaps({
     normalizedProjectOptions,
     renderForms,
+    renderFormsLoading,
     availableRenderWorkers,
     autoRenderProjectRef,
     setAutoRenderProjectRef,

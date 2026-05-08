@@ -21,7 +21,9 @@ function canSubmitTaskForm({
   canCreateTasks = false,
   taskSaveHandler = null,
   isEditingTask = false,
+  editingTaskHasQueuedOrRunningRender = false,
   editingTaskVisualStatusKey = "planned",
+  assigneeIsCurrentUser = true,
   autoRenderLaunchMode = "",
   autoRenderScheduledMode = "",
   autoRenderScheduledAt = "",
@@ -33,46 +35,68 @@ function canSubmitTaskForm({
   renderOutputDir = "",
 } = {}) {
   const blockByLoading = isEditingTask ? false : tasksLoading;
-  const launchModeOk = isEditingTask || !!String(autoRenderLaunchMode || "").trim();
+  const assigneeOwnsRender = assigneeIsCurrentUser === true;
+  const requireCompleteRenderConfig = assigneeOwnsRender;
+  const launchModeOk = isEditingTask || !assigneeOwnsRender || !!String(autoRenderLaunchMode || "").trim();
   const statusKey = normalizeTaskVisualStatusKey(editingTaskVisualStatusKey);
+  const waitingWithoutQueuedOrRunningRender = statusKey === "waiting" && editingTaskHasQueuedOrRunningRender !== true;
   const createRenderAfterEdit = isEditingTask && (
     statusKey === "planned"
+    || waitingWithoutQueuedOrRunningRender
     || statusKey === "error"
     || statusKey === "rejected"
   );
   const scheduledModeOk = isEditingTask
+    || !assigneeOwnsRender
     || autoRenderLaunchMode !== "scheduled"
     || !!String(autoRenderScheduledMode || "").trim();
   const scheduledAtOk = isEditingTask
+    || !assigneeOwnsRender
     || !(autoRenderLaunchMode === "scheduled" && autoRenderScheduledMode === "datetime")
     || isValidFutureDate(autoRenderScheduledAt);
   return (
     !blockByLoading
     && canCreateTasks === true
     && !!taskSaveHandler
-    && !(!isEditingTask && autoRenderLaunchMode === "now" && !onCreateRender)
-    && !(createRenderAfterEdit && !onCreateRender)
+    && !(assigneeOwnsRender && !isEditingTask && autoRenderLaunchMode === "now" && !onCreateRender)
+    && !(assigneeOwnsRender && createRenderAfterEdit && !onCreateRender)
     && launchModeOk
     && scheduledModeOk
     && scheduledAtOk
     && !!String(title || "").trim()
-    && !!String(autoRenderProjectRef || "").trim()
-    && !(filteredAutoRenderForms.length > 0 && !String(autoRenderFormId || "").trim())
-    && !!String(renderOutputDir || "").trim()
+    && (
+      !requireCompleteRenderConfig
+      || (
+        !!String(autoRenderProjectRef || "").trim()
+        && !(filteredAutoRenderForms.length > 0 && !String(autoRenderFormId || "").trim())
+        && !!String(renderOutputDir || "").trim()
+      )
+    )
   );
 }
 
 function submitTaskFormLabel({
   t,
   isEditingTask = false,
+  editingTaskHasQueuedOrRunningRender = false,
+  assigneeIsCurrentUser = true,
   editingTaskVisualStatusKey = "planned",
 } = {}) {
   const statusKey = normalizeTaskVisualStatusKey(editingTaskVisualStatusKey);
+  if (!isEditingTask && assigneeIsCurrentUser !== true) {
+    return safeT(t, "postprod.tasks.form.submit.assignRender", "Assigner le rendu");
+  }
   if (!isEditingTask) {
     return safeT(t, "postprod.tasks.form.submit.createRender", "Créer le rendu");
   }
-  if (statusKey === "waiting" || statusKey === "running") {
+  if (statusKey === "running") {
     return safeT(t, "postprod.tasks.form.submit.renderRunning", "Rendu en cours");
+  }
+  if (statusKey === "waiting" && editingTaskHasQueuedOrRunningRender === true) {
+    return safeT(t, "postprod.tasks.form.submit.renderQueued", "Rendu en attente");
+  }
+  if (assigneeIsCurrentUser !== true) {
+    return safeT(t, "postprod.tasks.form.submit.assignRender", "Assigner le rendu");
   }
   if (statusKey === "error" || statusKey === "rejected") {
     return safeT(t, "postprod.tasks.form.submit.relaunchRender", "Relancer le rendu");
@@ -80,16 +104,22 @@ function submitTaskFormLabel({
   if (statusKey === "planned") {
     return safeT(t, "postprod.tasks.form.submit.createRender", "Créer le rendu");
   }
+  if (statusKey === "waiting") {
+    return safeT(t, "postprod.tasks.form.submit.createRender", "Créer le rendu");
+  }
   return safeT(t, "postprod.tasks.form.save", "Enregistrer tâche");
 }
 
 function submitTaskFormDisabled({
   isEditingTask = false,
+  editingTaskHasQueuedOrRunningRender = false,
   editingTaskVisualStatusKey = "planned",
 } = {}) {
   if (!isEditingTask) return false;
   const statusKey = normalizeTaskVisualStatusKey(editingTaskVisualStatusKey);
-  return statusKey === "waiting" || statusKey === "running";
+  if (statusKey === "running") return true;
+  if (statusKey === "waiting" && editingTaskHasQueuedOrRunningRender === true) return true;
+  return false;
 }
 
 function mergeAutoRenderFormValue(previousValues, fieldKey, nextValue) {

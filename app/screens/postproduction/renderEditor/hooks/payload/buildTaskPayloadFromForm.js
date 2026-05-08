@@ -32,8 +32,10 @@ export function buildTaskPayloadFromForm({
   autoRenderLaunchMode = "",
   autoRenderScheduledMode = "",
   autoRenderScheduledAt = "",
+  allowAssignmentDraft = false,
 } = {}) {
   const selectedForm = selectedAutoRenderForm;
+  const assignmentDraftMode = allowAssignmentDraft === true;
   const inputValidationError = validateTaskPayloadInputs({
     t,
     title,
@@ -41,6 +43,7 @@ export function buildTaskPayloadFromForm({
     filteredAutoRenderForms,
     autoRenderFormId,
     selectedForm,
+    requireCompleteAutoRenderConfig: assignmentDraftMode !== true,
   });
   if (inputValidationError) {
     return {
@@ -71,6 +74,7 @@ export function buildTaskPayloadFromForm({
     autoRenderLaunchMode,
     autoRenderScheduledMode,
     autoRenderScheduledAt,
+    allowAssignmentDraft: assignmentDraftMode,
   });
 
   if (!context.ok) {

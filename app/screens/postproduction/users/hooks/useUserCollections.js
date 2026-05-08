@@ -54,7 +54,9 @@ function useUserCollections({
     const buckets = new Map();
     for (const entry of filteredUsers) {
       const roleKey = String(entry?.role || "").trim();
-      const profileLabel = String(entry?.profile || "").trim() || roleLabel(t, roleKey, rolesByKey);
+      const profileLabel = roleKey
+        ? roleLabel(t, roleKey, rolesByKey)
+        : String(entry?.profile || "").trim();
       const normalizedProfile = String(profileLabel || "-").trim() || "-";
       const bucketKey = roleKey || normalizedProfile.toLowerCase();
       if (!buckets.has(bucketKey)) {

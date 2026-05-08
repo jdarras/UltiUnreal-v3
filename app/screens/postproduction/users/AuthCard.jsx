@@ -2,8 +2,8 @@
 import { safeT } from "../shared/helpers";
 
 export function AuthCard({ t, busy = false, error = "", onLogin }) {
-  const [username, setUsername] = useState("maintenance");
-  const [password, setPassword] = useState("admin");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     if (!error) return;

@@ -42,6 +42,7 @@ export function useRenderEditorController({
     resourceOptions,
     renderTemplates,
     renderForms,
+    renderFormsLoading,
     currentUser,
     users,
     canAssignRenderRequests,

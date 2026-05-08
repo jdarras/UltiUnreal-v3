@@ -15,8 +15,11 @@ export function useTaskEditorController({
   tasksLoading = false,
   canCreateTasks = false,
   editingTaskId = 0,
+  editingTask = null,
+  editingTaskHasQueuedOrRunningRender = false,
   editingTaskVisualStatusKey = "planned",
   title = "",
+  assigneeIsCurrentUser = true,
   autoRenderProjectRef = "",
   autoRenderLaunchMode = "",
   autoRenderScheduledMode = "",
@@ -75,7 +78,9 @@ export function useTaskEditorController({
       canCreateTasks,
       taskSaveHandler,
       isEditingTask,
+      editingTaskHasQueuedOrRunningRender,
       editingTaskVisualStatusKey,
+      assigneeIsCurrentUser,
       autoRenderLaunchMode,
       autoRenderScheduledMode,
       autoRenderScheduledAt,
@@ -91,7 +96,9 @@ export function useTaskEditorController({
     canCreateTasks,
     taskSaveHandler,
     isEditingTask,
+    editingTaskHasQueuedOrRunningRender,
     editingTaskVisualStatusKey,
+    assigneeIsCurrentUser,
     autoRenderLaunchMode,
     autoRenderScheduledMode,
     autoRenderScheduledAt,
@@ -107,17 +114,20 @@ export function useTaskEditorController({
     buildSubmitTaskFormLabel({
       t,
       isEditingTask,
+      editingTaskHasQueuedOrRunningRender,
+      assigneeIsCurrentUser,
       autoRenderLaunchMode,
       editingTaskVisualStatusKey,
     })
-  ), [isEditingTask, autoRenderLaunchMode, editingTaskVisualStatusKey, t]);
+  ), [isEditingTask, editingTaskHasQueuedOrRunningRender, assigneeIsCurrentUser, autoRenderLaunchMode, editingTaskVisualStatusKey, t]);
 
   const submitTaskFormDisabled = useMemo(() => (
     !canSubmitTaskForm || buildSubmitTaskFormDisabled({
       isEditingTask,
+      editingTaskHasQueuedOrRunningRender,
       editingTaskVisualStatusKey,
     })
-  ), [canSubmitTaskForm, isEditingTask, editingTaskVisualStatusKey]);
+  ), [canSubmitTaskForm, isEditingTask, editingTaskHasQueuedOrRunningRender, editingTaskVisualStatusKey]);
 
   const handleUpdateAutoRenderFormValue = useCallback((fieldKey, nextValue) => {
     if (typeof setAutoRenderFormValues !== "function") return;
@@ -151,8 +161,11 @@ export function useTaskEditorController({
     await runTaskSubmit({
       t,
       isEditingTask,
+      editingTaskHasQueuedOrRunningRender,
       editingTaskVisualStatusKey,
+      assigneeIsCurrentUser,
       editingTaskId,
+      editingTask,
       autoRenderLaunchMode,
       autoRenderScheduledMode,
       autoRenderScheduledAt,
@@ -171,8 +184,11 @@ export function useTaskEditorController({
   }, [
     t,
     isEditingTask,
+    editingTaskHasQueuedOrRunningRender,
     editingTaskVisualStatusKey,
+    assigneeIsCurrentUser,
     editingTaskId,
+    editingTask,
     autoRenderLaunchMode,
     autoRenderScheduledMode,
     autoRenderScheduledAt,

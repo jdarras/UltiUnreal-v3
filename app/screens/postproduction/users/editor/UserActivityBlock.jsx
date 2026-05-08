@@ -56,7 +56,7 @@ function UserActivityBlock({
             const actionType = activityActionTypeLabel(t, activityActionTypeFromAction(it?.action, it));
             const label = activityActionLabel(it);
             const status = String(it?.toStatus || "").trim();
-            return `[${formatDate(it?.createdAt)}] [${actionType}] [${String(it?.action || "")}] ${label}${status ? ` (${status})` : ""}`.trim();
+            return `[${formatDate(it?.createdAt)}] [${actionType}] ${label}${status ? ` (${status})` : ""}`.trim();
           }).join("\n")
         : JSON.stringify(filteredEditingActivities, null, 2);
       await window.electron.exportFile({

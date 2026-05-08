@@ -16,7 +16,6 @@ function UserActivitySummary({
   editingSummary = { projects: [], total: 0 },
   editingTypeSummary = { project: 0, form: 0, task: 0, validation: 0, other: 0 },
   editingActivities = [],
-  filteredEditingActivities = [],
   onChooseActionType,
   onChooseProject,
   page = 0,

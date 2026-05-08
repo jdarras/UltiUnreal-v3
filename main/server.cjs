@@ -85,7 +85,7 @@ const { handleLogs } = require('./server-logs.cjs');
 const { handleLibraryRoutes } = require('./server-library.cjs');
 const { handleLayoutRoutes } = require('./server-layout.cjs');
 const { handleProjectConfigRoutes, ensureHttpServerBindAddress } = require('./server-project-config.cjs');
-const { handleHostsOnlineRoutes, heartbeatLoop } = require('./server-hosts-online.cjs');
+const { handleHostsOnlineRoutes, heartbeatLoop, getOnlineState } = require('./server-hosts-online.cjs');
 const { resolveRenderAvailability, RENDER_AVAILABILITY_VALUES } = require('./server-normalize.cjs');
 const { createPostprodAuth, applyAuditStorageLimitsFromCommon } = require('./server-postprod-auth.cjs');
 const { handlePostprodRemoteJobRoutes } = require('./server-postprod-routes-remote-jobs.cjs');
@@ -1280,6 +1280,22 @@ const server = http.createServer(async (req, res) => {
             ...hostsObj,
             [localIp]: { ...(hostsObj[localIp] || {}), renderAvailability: next, renderReturnAt: nextRat },
           });
+        }
+        // Propage immédiatement dans ONLINE pour éviter le décalage heartbeat
+        const onlineState = getOnlineState();
+        for (const ip of localIps) {
+          if (onlineState[ip]) {
+            onlineState[ip] = { ...onlineState[ip], renderAvailability: next };
+          } else {
+            onlineState[ip] = {
+              online: false,
+              rtt: null,
+              unrealRunning: false,
+              renderAvailability: next,
+              renderReturnAt: nextRat,
+              ts: new Date().toISOString(),
+            };
+          }
         }
       } catch {}
       return sendJSON(res, 200, { ok: true, renderAvailability: RENDER_AVAILABILITY, renderReturnAt: RENDER_RETURN_AT });

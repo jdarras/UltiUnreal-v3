@@ -18,10 +18,15 @@ export default function ProjectsCardsView({
   integrationMsgType,
   removeOne,
   canManageUnrealProjects = true,
+  canEditProjectFields = null,
   canCreateTasks = false,
   isAutoRenderUsage = null,
   showActivationControls = true,
 }) {
+  const canEditFields = canEditProjectFields !== null
+    ? canEditProjectFields === true
+    : canManageUnrealProjects;
+  const canOpenProjectDetails = canManageUnrealProjects || canEditFields;
   const usageModeLabel = (value) => {
     const v = String(value || '').trim();
     if (v === 'live') return t('projects.detail.usageMode.live');
@@ -159,7 +164,7 @@ export default function ProjectsCardsView({
             </div>
 
             <div className="uu-row wrap mt-12 uu-gap-8">
-              {canManageUnrealProjects ? (
+              {canOpenProjectDetails ? (
                 <>
                   <button
                     type="button"
@@ -169,7 +174,7 @@ export default function ProjectsCardsView({
                     {t('projects.actions.edit')}
                   </button>
 
-                  {showActivationControls ? (
+                  {canManageUnrealProjects && showActivationControls ? (
                     <button
                       type="button"
                       className={`uu-btn ${isActive ? 'prod-toggle-active' : ''}`}

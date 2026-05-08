@@ -172,6 +172,7 @@ function buildImmediateRenderRequest({
 async function runTaskSubmit({
   t,
   isEditingTask = false,
+  editingTaskHasQueuedOrRunningRender = false,
   editingTaskVisualStatusKey = "planned",
   assigneeIsCurrentUser = true,
   editingTaskId = 0,
@@ -205,8 +206,13 @@ async function runTaskSubmit({
       : ""
   );
   const normalizedEditingStatus = normalizeTaskVisualStatusKey(editingTaskVisualStatusKey);
+  const waitingWithoutQueuedOrRunningRender = (
+    normalizedEditingStatus === "waiting"
+    && editingTaskHasQueuedOrRunningRender !== true
+  );
   const shouldCreateRenderAfterEdit = isEditingTask && (
     normalizedEditingStatus === "planned"
+    || waitingWithoutQueuedOrRunningRender
     || normalizedEditingStatus === "error"
     || normalizedEditingStatus === "rejected"
   );

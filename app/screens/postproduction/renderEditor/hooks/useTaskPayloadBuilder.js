@@ -27,6 +27,7 @@ export function useTaskPayloadBuilder({
   autoRenderLaunchMode = "",
   autoRenderScheduledMode = "",
   autoRenderScheduledAt = "",
+  allowAssignmentDraft = false,
 }) {
   const buildTaskPayloadFromCurrentForm = useCallback(() => (
     buildTaskPayloadFromForm({
@@ -55,6 +56,7 @@ export function useTaskPayloadBuilder({
       autoRenderLaunchMode,
       autoRenderScheduledMode,
       autoRenderScheduledAt,
+      allowAssignmentDraft,
     })
   ), [
     t,
@@ -82,6 +84,7 @@ export function useTaskPayloadBuilder({
     autoRenderLaunchMode,
     autoRenderScheduledMode,
     autoRenderScheduledAt,
+    allowAssignmentDraft,
   ]);
 
   return {

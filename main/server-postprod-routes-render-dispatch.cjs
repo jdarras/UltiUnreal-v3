@@ -268,7 +268,12 @@ async function handlePostprodRenderDispatchRoutes({
       MAX_RENDER_DISPATCH_WORKER_FETCH_LIMIT,
       Math.max(maxJobs, dispatchFetchLimit)
     );
-    const availableWorkers = stmts.listAvailableRenderWorkers.all(cutoff, workerFetchLimit);
+    const onlineState = getOnlineState();
+    const availableWorkers = stmts.listAvailableRenderWorkers.all(cutoff, workerFetchLimit).filter((w) => {
+      const entry = onlineState[String(w.worker_key || '').trim()];
+      if (!entry) return true;
+      return String(entry.renderAvailability || '').trim().toLowerCase() === 'capable';
+    });
     let dispatchableJobs = [];
     if (requestedRenderIds.length > 0) {
       for (const renderId of requestedRenderIds) {
@@ -325,7 +330,9 @@ async function handlePostprodRenderDispatchRoutes({
     }
 
     const actorUserId = Number(auth.session.user_id || 0);
-    const dispatchEventComment = selectedJobs.policyApplied ? 'dispatch_auto_policy' : 'dispatch_auto_fifo';
+    const dispatchEventComment = selectedJobs.policyApplied
+      ? 'Lancement automatique (politique par projet)'
+      : 'Lancement automatique (FIFO)';
     const dispatched = db.transaction(() => {
       const out = [];
       for (let i = 0; i < dispatchPairs.pairs.length; i += 1) {

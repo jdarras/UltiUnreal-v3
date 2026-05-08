@@ -66,6 +66,9 @@ function renderLinkedTaskValue(render) {
 
 function queueRenderStateShortLabel(t, state) {
   const normalized = String(state || "").trim().toLowerCase();
+  if (normalized === "not_started") {
+    return safeT(t, "postprod.renders.queue.state.short.notStarted", "Non lancé");
+  }
   if (normalized === "to_modify") {
     return safeT(t, "postprod.renders.queue.state.short.toModify", "A modifier");
   }

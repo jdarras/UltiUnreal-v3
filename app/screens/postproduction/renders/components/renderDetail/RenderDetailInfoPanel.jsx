@@ -245,6 +245,107 @@ function resolveFormMeta(render = null, linkedTask = null, renderForms = []) {
   };
 }
 
+function resolveLinkedTaskAutoConfig(linkedTask = null) {
+  if (!linkedTask || typeof linkedTask !== "object" || Array.isArray(linkedTask)) return {};
+  const config = linkedTask.autoRenderConfig;
+  if (!config || typeof config !== "object" || Array.isArray(config)) return {};
+  return config;
+}
+
+function resolveLinkedTaskAutoPayload(taskAutoConfig = {}) {
+  const payload = taskAutoConfig?.payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
+  return payload;
+}
+
+function resolveRenderFormData(render = null, linkedTask = null) {
+  const payload = resolveRenderPayload(render);
+  const taskAutoConfig = resolveLinkedTaskAutoConfig(linkedTask);
+  const taskAutoPayload = resolveLinkedTaskAutoPayload(taskAutoConfig);
+  const candidates = [
+    payload?.formData,
+    render?.formData,
+    taskAutoConfig?.formData,
+    taskAutoPayload?.formData,
+    linkedTask?.formData,
+  ];
+  for (const entry of candidates) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    return entry;
+  }
+  return {};
+}
+
+function normalizeRenderFormFields(fields = []) {
+  const list = Array.isArray(fields) ? fields : [];
+  return list
+    .filter((entry) => entry && typeof entry === "object" && !Array.isArray(entry))
+    .map((entry, index) => {
+      const fieldKey = String(entry?.fieldKey || "").trim();
+      const fieldLabel = String(entry?.fieldLabel || entry?.label || fieldKey || "").trim();
+      const sortOrderRaw = Number(entry?.sortOrder);
+      const sortOrder = Number.isFinite(sortOrderRaw) ? Math.trunc(sortOrderRaw) : index;
+      return {
+        fieldKey,
+        fieldLabel: fieldLabel || fieldKey || "-",
+        sortOrder,
+      };
+    })
+    .filter((entry) => !!entry.fieldKey)
+    .sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return String(a.fieldLabel || "").localeCompare(String(b.fieldLabel || ""));
+    });
+}
+
+function resolveRenderableFormRows(formData = {}, formFields = []) {
+  const values = formData && typeof formData === "object" && !Array.isArray(formData)
+    ? formData
+    : {};
+  const normalizedFields = normalizeRenderFormFields(formFields);
+  if (normalizedFields.length > 0) {
+    return normalizedFields.map((entry) => ({
+      key: entry.fieldKey,
+      label: entry.fieldLabel,
+      value: Object.prototype.hasOwnProperty.call(values, entry.fieldKey)
+        ? values[entry.fieldKey]
+        : "",
+    }));
+  }
+  const fallbackKeys = Object.keys(values).sort((a, b) => String(a || "").localeCompare(String(b || "")));
+  return fallbackKeys.map((key) => ({
+    key,
+    label: String(key || "").trim() || "-",
+    value: values[key],
+  }));
+}
+
+function formatFormFieldValue(value, t) {
+  if (value == null) return "—";
+  if (typeof value === "boolean") {
+    return value
+      ? safeT(t, "common.yes", "Oui")
+      : safeT(t, "common.no", "Non");
+  }
+  if (Array.isArray(value)) {
+    if (value.length <= 0) return "—";
+    return value
+      .map((entry) => String(entry ?? "").trim())
+      .filter(Boolean)
+      .join(", ") || "—";
+  }
+  if (typeof value === "object") {
+    try {
+      const serialized = JSON.stringify(value, null, 2);
+      return serialized && serialized.trim() ? serialized : "—";
+    } catch {
+      return String(value);
+    }
+  }
+  const text = String(value).trim();
+  return text || "—";
+}
+
 function resolveRenderPresetLabel(render = null, linkedTask = null) {
   const payload = resolveRenderPayload(render);
   const taskAutoConfig = linkedTask?.autoRenderConfig
@@ -447,6 +548,7 @@ function RenderDetailInfoPanel({
   onRequestOpenRenderEditor = null,
   tasks = [],
   renderForms = [],
+  onLoadRenderFormFields = null,
   renderExportDestinationOptions = [],
   onUpdateRenderExportDestinations = null,
 } = {}) {
@@ -454,6 +556,9 @@ function RenderDetailInfoPanel({
   const [scheduleValue, setScheduleValue] = useState("");
   const [destinationValues, setDestinationValues] = useState([]);
   const [savingDestinations, setSavingDestinations] = useState(false);
+  const [renderFormFields, setRenderFormFields] = useState([]);
+  const [renderFormFieldsLoading, setRenderFormFieldsLoading] = useState(false);
+  const [renderFormFieldsError, setRenderFormFieldsError] = useState("");
 
   const renderId = Number(render?.id || 0);
   const reviewItems = Array.isArray(reviewFlow) ? reviewFlow : [];
@@ -464,6 +569,7 @@ function RenderDetailInfoPanel({
   const taskMeta = resolveTaskMeta(render, linkedTaskValue);
   const linkedTask = resolveLinkedTaskEntry(taskMeta.taskId, tasks);
   const taskDescription = resolveTaskDescription(render, taskMeta.taskId, tasks);
+  const renderFormData = resolveRenderFormData(render, linkedTask);
   const resolvedDestinationValues = resolveRenderExportDestinationIds(render, linkedTask);
   const normalizedDestinationOptions = normalizeExportDestinationOptions(renderExportDestinationOptions);
   const resolvedDestinationKey = resolvedDestinationValues.join("|");
@@ -478,6 +584,16 @@ function RenderDetailInfoPanel({
   const taskIdTag = taskMeta.taskId > 0 ? formatIdTag(taskMeta.taskId, 4) : "";
   const formIdTag = formMeta.formId > 0 ? formatIdTag(formMeta.formId, 4) : "";
   const hasFormName = Boolean(String(formMeta.formName || "").trim());
+  const hasFormData = Object.keys(renderFormData).length > 0;
+  const formRows = resolveRenderableFormRows(renderFormData, renderFormFields);
+  const hasRenderableFormBlock = hasFormName || !!formIdTag || hasFormData || renderFormFieldsLoading || !!renderFormFieldsError;
+  const formBlockTitle = (() => {
+    const name = String(formMeta.formName || "").trim();
+    if (name && formIdTag) return `Formulaire ${name} ${formIdTag}`;
+    if (name) return `Formulaire ${name}`;
+    if (formIdTag) return `Formulaire ${formIdTag}`;
+    return "Formulaire";
+  })();
   const canEditExportDestinations = (
     typeof onUpdateRenderExportDestinations === "function"
     && !rendersLoading
@@ -489,6 +605,38 @@ function RenderDetailInfoPanel({
     setDestinationValues(resolvedDestinationValues);
     setSavingDestinations(false);
   }, [renderId, resolvedDestinationKey]);
+
+  useEffect(() => {
+    const formId = Number(formMeta.formId || 0);
+    if (!Number.isFinite(formId) || formId <= 0 || typeof onLoadRenderFormFields !== "function") {
+      setRenderFormFields([]);
+      setRenderFormFieldsLoading(false);
+      setRenderFormFieldsError("");
+      return;
+    }
+    let cancelled = false;
+    setRenderFormFieldsLoading(true);
+    setRenderFormFieldsError("");
+    (async () => {
+      try {
+        const loaded = await Promise.resolve(onLoadRenderFormFields(Math.trunc(formId)));
+        if (cancelled) return;
+        setRenderFormFields(Array.isArray(loaded) ? loaded : []);
+      } catch (error) {
+        if (cancelled) return;
+        setRenderFormFields([]);
+        setRenderFormFieldsError(String(
+          error?.message
+          || safeT(t, "postprod.renders.detail.formData.error", "Impossible de charger les champs du formulaire.")
+        ));
+      } finally {
+        if (!cancelled) setRenderFormFieldsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [formMeta.formId, onLoadRenderFormFields, t]);
 
   if (!render) return null;
 
@@ -565,11 +713,12 @@ function RenderDetailInfoPanel({
   };
 
   return (
-    <section className="uu-render-detail-info-block">
-      <h4 className="uu-h3 uu-block-title" style={{ margin: "0 0 8px 0" }}>
-        {safeT(t, "postprod.renders.detail.infoTitle", "Informations")}
-      </h4>
-      <div className="uu-render-detail-info-grid">
+    <>
+      <section className="uu-render-detail-info-block">
+        <h4 className="uu-h3 uu-block-title" style={{ margin: "0 0 8px 0" }}>
+          {safeT(t, "postprod.renders.detail.infoTitle", "Informations")}
+        </h4>
+        <div className="uu-render-detail-info-grid">
         <DetailInfoRow label={safeT(t, "postprod.renders.table.file", "Fichier")}>
           <span className="uu-render-detail-info-value-text" style={{ overflowWrap: "anywhere" }}>{renderOutputName}</span>
         </DetailInfoRow>
@@ -725,59 +874,90 @@ function RenderDetailInfoPanel({
           </div>
         </DetailInfoRow>
 
-        {isQueued ? (
-          <DetailInfoRow label={safeT(t, "postprod.renders.scheduledAt.label", "Date et heure de début")}>
-            <div className="uu-render-detail-info-value-block">
-              {editingSchedule ? (
-                <div className="uu-row" style={{ gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                  <input
-                    type="datetime-local"
-                    className="uu-input"
-                    style={{ height: "30px", fontSize: "0.9em" }}
-                    min={minDatetimeLocal}
-                    value={scheduleValue}
-                    autoFocus
-                    disabled={rendersLoading}
-                    onChange={(e) => setScheduleValue(e.target.value)}
-                    onKeyDown={handleScheduleKeyDown}
-                    onBlur={handleSaveSchedule}
-                  />
-                  <button
-                    className="uu-btn"
-                    type="button"
-                    style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
-                    onMouseDown={(e) => { e.preventDefault(); handleSaveSchedule(); }}
-                  >
-                    {safeT(t, "postprod.renders.queue.jobs.save", "Valider")}
-                  </button>
+          {isQueued ? (
+            <DetailInfoRow label={safeT(t, "postprod.renders.scheduledAt.label", "Date et heure de début")}>
+              <div className="uu-render-detail-info-value-block">
+                {editingSchedule ? (
+                  <div className="uu-row" style={{ gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                    <input
+                      type="datetime-local"
+                      className="uu-input"
+                      style={{ height: "30px", fontSize: "0.9em" }}
+                      min={minDatetimeLocal}
+                      value={scheduleValue}
+                      autoFocus
+                      disabled={rendersLoading}
+                      onChange={(e) => setScheduleValue(e.target.value)}
+                      onKeyDown={handleScheduleKeyDown}
+                      onBlur={handleSaveSchedule}
+                    />
+                    <button
+                      className="uu-btn"
+                      type="button"
+                      style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
+                      onMouseDown={(e) => { e.preventDefault(); handleSaveSchedule(); }}
+                    >
+                      {safeT(t, "postprod.renders.queue.jobs.save", "Valider")}
+                    </button>
+                    <button
+                      className="uu-btn-ghost"
+                      type="button"
+                      style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
+                      onMouseDown={(e) => { e.preventDefault(); handleCancelSchedule(); }}
+                    >
+                      {safeT(t, "postprod.renders.queue.jobs.cancel", "Annuler")}
+                    </button>
+                  </div>
+                ) : (
                   <button
                     className="uu-btn-ghost"
                     type="button"
-                    style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
-                    onMouseDown={(e) => { e.preventDefault(); handleCancelSchedule(); }}
+                    style={{ padding: "2px 6px", fontSize: "0.9em", textAlign: "left" }}
+                    disabled={!isQueued || typeof onScheduleRender !== "function"}
+                    onClick={handleStartEditSchedule}
                   >
-                    {safeT(t, "postprod.renders.queue.jobs.cancel", "Annuler")}
+                    {scheduledAt
+                      ? formatDate(scheduledAt)
+                      : <span className="uu-muted">{safeT(t, "postprod.renders.queue.immediate", "Immédiat")}</span>
+                    }
                   </button>
-                </div>
-              ) : (
-                <button
-                  className="uu-btn-ghost"
-                  type="button"
-                  style={{ padding: "2px 6px", fontSize: "0.9em", textAlign: "left" }}
-                  disabled={!isQueued || typeof onScheduleRender !== "function"}
-                  onClick={handleStartEditSchedule}
-                >
-                  {scheduledAt
-                    ? formatDate(scheduledAt)
-                    : <span className="uu-muted">{safeT(t, "postprod.renders.queue.immediate", "Immédiat")}</span>
-                  }
-                </button>
-              )}
+                )}
+              </div>
+            </DetailInfoRow>
+          ) : null}
+        </div>
+      </section>
+      {hasRenderableFormBlock ? (
+        <section className="uu-render-detail-formdata-panel">
+          <h4 className="uu-h3 uu-block-title" style={{ margin: "0 0 8px 0" }}>
+            {formBlockTitle}
+          </h4>
+          {renderFormFieldsLoading ? (
+            <div className="uu-muted">
+              {safeT(t, "postprod.renders.detail.formData.loading", "Chargement du formulaire...")}
             </div>
-          </DetailInfoRow>
-        ) : null}
-      </div>
-    </section>
+          ) : null}
+          {!renderFormFieldsLoading && renderFormFieldsError ? (
+            <div className="uu-msg warn">{renderFormFieldsError}</div>
+          ) : null}
+          {!renderFormFieldsLoading && !renderFormFieldsError && formRows.length <= 0 ? (
+            <div className="uu-muted">
+              {safeT(t, "postprod.renders.detail.formData.empty", "Aucune donnée de formulaire.")}
+            </div>
+          ) : null}
+          {!renderFormFieldsLoading && !renderFormFieldsError && formRows.length > 0 ? (
+            <div className="uu-render-detail-formdata-grid">
+              {formRows.map((entry) => (
+                <div key={`render-form-data-row-${entry.key}`} className="uu-render-detail-formdata-row">
+                  <div className="uu-render-detail-formdata-label">{entry.label}</div>
+                  <div className="uu-render-detail-formdata-value">{formatFormFieldValue(entry.value, t)}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+    </>
   );
 }
 

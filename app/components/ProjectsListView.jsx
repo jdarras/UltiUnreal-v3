@@ -18,10 +18,15 @@ export default function ProjectsListView({
   onSort,
   onToggleFavorite,
   canManageUnrealProjects = true,
+  canEditProjectFields = null,
   canCreateTasks = false,
   isAutoRenderUsage = null,
   showActivationControls = true,
 }) {
+  const canEditFields = canEditProjectFields !== null
+    ? canEditProjectFields === true
+    : canManageUnrealProjects;
+  const canOpenProjectDetails = canManageUnrealProjects || canEditFields;
   const usageModeLabel = (value) => {
     const v = String(value || '').trim();
     if (v === 'live') return t('projects.detail.usageMode.live');
@@ -51,12 +56,12 @@ export default function ProjectsListView({
 
     const actionButtons = (
       <div className="uu-row uu-gap-4">
-        {canManageUnrealProjects ? (
+        {canOpenProjectDetails ? (
           <>
             <button className="uu-btn" onClick={() => openDetails(p.id)}>
               {t('projects.actions.edit')}
             </button>
-            {showActivationControls ? (
+            {canManageUnrealProjects && showActivationControls ? (
               <button
                 className={`uu-btn ${isActive ? 'prod-toggle-active' : ''}`}
                 onClick={() => activateOne(p.id)}

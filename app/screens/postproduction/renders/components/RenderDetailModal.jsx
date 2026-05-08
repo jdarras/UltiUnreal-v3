@@ -100,6 +100,7 @@ function RenderDetailModal({
   onRequestOpenRenderEditor = null,
   tasks = [],
   renderForms = [],
+  onLoadRenderFormFields = null,
   renderExportDestinationOptions = [],
   onUpdateRenderExportDestinations = null,
   onGenerateProxy = null,
@@ -156,6 +157,7 @@ function RenderDetailModal({
           onRequestOpenRenderEditor={onRequestOpenRenderEditor}
           tasks={tasks}
           renderForms={renderForms}
+          onLoadRenderFormFields={onLoadRenderFormFields}
           renderExportDestinationOptions={renderExportDestinationOptions}
           onUpdateRenderExportDestinations={onUpdateRenderExportDestinations}
         />

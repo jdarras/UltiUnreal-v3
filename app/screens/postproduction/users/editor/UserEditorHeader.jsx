@@ -17,6 +17,7 @@ function UserEditorHeader({
   canDeleteUser = false,
   onRequestDeleteUser = null,
   deleteUserBusy = false,
+  selfProfile = false,
 }) {
   return (
     <div className="uu-card">
@@ -31,9 +32,11 @@ function UserEditorHeader({
             {safeT(t, "postprod.users.action.deleteUser", "Supprimer utilisateur")}
           </button>
         ) : null}
-        <button className="uu-btn-ghost" type="button" onClick={closeEditor} disabled={usersLoading}>
-          {safeT(t, "postprod.users.form.cancel", "Retour liste")}
-        </button>
+        {!selfProfile ? (
+          <button className="uu-btn-ghost" type="button" onClick={closeEditor} disabled={usersLoading}>
+            {safeT(t, "postprod.users.form.cancel", "Retour liste")}
+          </button>
+        ) : null}
       </div>
 
       <div className="uu-row mt-12" style={{ alignItems: "center", gap: "16px" }}>

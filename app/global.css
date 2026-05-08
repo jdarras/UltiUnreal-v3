@@ -1914,6 +1914,34 @@ button:not(.uu-reset-btn):not(.uu-btn-delete):not(.uu-rating-btn):not(.uu-fav-bt
   gap: 6px;
   min-width: 0;
 }
+.uu-render-detail-formdata-panel {
+  min-width: 0;
+  border: 1px solid var(--uu-color-border);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(8, 12, 18, 0.28);
+}
+.uu-render-detail-formdata-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.uu-render-detail-formdata-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.uu-render-detail-formdata-label {
+  color: var(--uu-color-text-muted);
+  overflow-wrap: anywhere;
+}
+.uu-render-detail-formdata-value {
+  color: var(--uu-color-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 .uu-render-detail-logs-list {
   margin-top: 8px;
   max-height: none;
@@ -2131,6 +2159,10 @@ button:not(.uu-reset-btn):not(.uu-btn-delete):not(.uu-rating-btn):not(.uu-fav-bt
   .uu-render-detail-info-label {
     flex-basis: 128px;
     max-width: 128px;
+  }
+  .uu-render-detail-formdata-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 }
 

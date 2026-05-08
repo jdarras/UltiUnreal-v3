@@ -47,6 +47,8 @@ function buildRendersCardDataPreferences(preferences = {}) {
     searchExpanded: preferences.searchExpanded,
     viewMode: preferences.viewMode,
     setViewMode: preferences.setViewMode,
+    showHistory: preferences.showHistory,
+    setShowHistory: preferences.setShowHistory,
     listSortKey: preferences.listSortKey,
     listSortDir: preferences.listSortDir,
     queueSortKey: preferences.queueSortKey,

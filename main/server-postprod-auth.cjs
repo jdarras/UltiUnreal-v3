@@ -18,6 +18,7 @@ const { handlePostprodUserActivityRoutes } = require('./server-postprod-routes-u
 const { handlePostprodUserUpdateRoutes } = require('./server-postprod-routes-user-update.cjs');
 const { handlePostprodTaskRoutes } = require('./server-postprod-routes-tasks.cjs');
 const { handlePostprodMeRoutes } = require('./server-postprod-routes-me.cjs');
+const { handlePostprodUserAlertsRoutes } = require('./server-postprod-routes-user-alerts.cjs');
 const { handlePostprodProjectRoutes } = require('./server-postprod-routes-projects.cjs');
 const { handlePostprodAuthAndHealthRoutes } = require('./server-postprod-routes-auth-health.cjs');
 const { handlePostprodAuditRoutes } = require('./server-postprod-routes-audit-export.cjs');
@@ -59,9 +60,6 @@ const MAX_USERS_SYNC_FETCH_LIMIT = 1000;
 const DEFAULT_USERS_SYNC_AGENT_PORT = 4000;
 
 const {
-  DEFAULT_BOOTSTRAP_USER: _DEFAULT_BOOTSTRAP_USER,
-  DEFAULT_BOOTSTRAP_PASSWORD,
-  DEFAULT_BOOTSTRAP_ROLE: _DEFAULT_BOOTSTRAP_ROLE,
   DEFAULT_SESSION_TTL_SEC,
   DEFAULT_PBKDF2_ITERS,
   PASSWORD_KEY_LEN,
@@ -90,7 +88,6 @@ const {
   MAX_RENDER_PROJECT_NAME_LEN,
   MAX_RENDER_PRESET_NAME_LEN,
   MAX_RENDER_FORM_NAME_LEN,
-  MAX_RENDER_FORM_PRESET_NAME_LEN,
   MAX_RENDER_FORM_LAYOUT_BYTES,
   MAX_RENDER_MAP_NAME_LEN,
   MAX_RENDER_SEQUENCE_NAME_LEN,
@@ -167,7 +164,6 @@ const {
   MIN_POSTPROD_PROJECTS_RESYNC_TTL_MS,
   MAX_POSTPROD_PROJECTS_RESYNC_TTL_MS,
   DEFAULT_POSTPROD_PROJECTS_RESYNC_TTL_MS,
-  SYSTEM_MAINTENANCE_ROLE,
   DEFAULT_FALLBACK_ROLE,
   TASK_STATUSES,
   TASK_EXPECTED_RENDER_MATCH_ACTIVE_STATUSES,
@@ -186,16 +182,14 @@ const {
   DEFAULT_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
   MIN_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
   MAX_RENDER_HEALTH_EVENT_CLEANUP_INTERVAL_MS,
-  DEFAULT_ROLE_KEYS: _DEFAULT_ROLE_KEYS,
-  RENDER_VALIDATION_ALLOWED_ROLES,
   RENDER_TEMPLATE_FIELD_VALUE_TYPES,
   RENDER_TEMPLATE_FIELD_INPUT_KINDS,
   RENDER_FORM_SOURCE_TYPES,
   RENDER_FORM_MODE_DEFAULTS,
   EMPLOYMENT_TYPE_LOOKUP: _EMPLOYMENT_TYPE_LOOKUP,
-  DEFAULT_ROLE_POLICIES,
   ROLE_ALIAS_MAP,
 } = require('./server-postprod-auth-constants.cjs');
+const DEFAULT_ROLE_POLICIES_TEMPLATE = require('./default-postprod-role-policies.json');
 
 const {
   coercePositiveInt,
@@ -573,12 +567,6 @@ function sanitizeRenderFormName(value, fallback = '') {
   const raw = String(value || '').replace(/\s+/g, ' ').trim();
   const safe = raw || String(fallback || '').replace(/\s+/g, ' ').trim();
   return safe.slice(0, MAX_RENDER_FORM_NAME_LEN);
-}
-
-function sanitizeRenderFormPresetName(value, fallback = '') {
-  const raw = String(value || '').replace(/\s+/g, ' ').trim();
-  const safe = raw || String(fallback || '').replace(/\s+/g, ' ').trim();
-  return safe.slice(0, MAX_RENDER_FORM_PRESET_NAME_LEN);
 }
 
 function normalizeRenderFormModeDefault(value, fallback = 'edit') {
@@ -2291,18 +2279,17 @@ async function fetchWrcPresetPayloadFromHosts({
 function resolveProjectPermissionCeilings(roleRaw, rolesCache) {
   const role = resolveRoleInput(roleRaw, rolesCache, DEFAULT_FALLBACK_ROLE) || DEFAULT_FALLBACK_ROLE;
   const perms = rolePermissions(role, rolesCache);
-  const canEditDataByRole = (
-    role === 'Maintenance' ||
-    role === 'Responsable Fabrication' ||
-    role === 'Operateur'
-  );
   return {
     role,
-    isReferent: perms.canSyncScenes === true || role === 'Maintenance',
-    canValidate: perms.canValidate === true || role === 'Maintenance',
-    canSync: perms.canSyncScenes === true || role === 'Maintenance',
-    canLaunchRender: perms.canLaunchRenders !== false || role === 'Maintenance',
-    canEditData: canEditDataByRole || role === 'Maintenance',
+    isReferent: perms.canSyncScenes === true || perms.canManageProjectPermissions === true,
+    canValidate: perms.canValidate === true,
+    canSync: perms.canSyncScenes === true,
+    canLaunchRender: perms.canLaunchRenders === true,
+    canEditData: (
+      perms.canManageProjectPermissions === true
+      || perms.canSyncScenes === true
+      || perms.canLaunchRenders === true
+    ),
   };
 }
 
@@ -2717,54 +2704,16 @@ function normalizeManageableRolesInput(value) {
   return out;
 }
 
-function defaultRoleRow(policy) {
-  const now = nowIso();
-  const canUseLiveMode = policy?.canUseLiveMode !== false;
-  const canUsePostprodMode = policy?.canUsePostprodMode !== false;
-  const canLaunchProjects = policy?.canLaunchProjects !== false;
-  const canLaunchRenders = policy?.canLaunchRenders !== false;
-  return {
-    key: sanitizeRoleKey(policy?.key, ''),
-    displayName: sanitizeDisplayName(policy?.displayName, policy?.key),
-    note: sanitizeRoleNote(policy?.note),
-    canUseLiveMode,
-    canUsePostprodMode,
-    canValidate: policy?.canValidate === true,
-    canSyncScenes: policy?.canSyncScenes === true,
-    canManageUsers: policy?.canManageUsers === true,
-    canManageRoles: policy?.canManageRoles === true,
-    canManageForms: policy?.canManageForms === true,
-    canManageMachines: policy?.canManageMachines === true,
-    canBanUsers: policy?.canBanUsers === true,
-    canManageProjectPermissions: policy?.canManageProjectPermissions === true,
-    canLaunchProjects,
-    canLaunchRenders,
-    canViewResources:
-      policy?.canViewResources === true
-      || (policy?.canViewResources == null && (canUseLiveMode || canUsePostprodMode)),
-    canCreateTasks:
-      policy?.canCreateTasks === true
-      || (policy?.canCreateTasks == null && canLaunchRenders),
-    canAssignRenderRequests: policy?.canAssignRenderRequests === true,
-    canEditProjects:
-      policy?.canEditProjects === true
-      || (policy?.canEditProjects == null && canLaunchProjects),
-    canManageLayouts:
-      policy?.canManageLayouts === true
-      || (policy?.canManageLayouts == null && canUseLiveMode),
-    manageableRoles: normalizeManageableRolesInput(policy?.manageableRoles),
-    isSystem: policy?.isSystem === true,
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
 function normalizeRoleRow(row = {}) {
   const key = sanitizeRoleKey(row?.key, '');
   if (!key) return null;
   const manageable = normalizeManageableRolesInput(
     parseManageableRolesJson(row?.manageable_roles_json ?? row?.manageableRoles)
   );
+  const launchLiveRaw = row?.can_launch_live_projects ?? row?.canLaunchLiveProjects;
+  const canLaunchLiveProjects = (launchLiveRaw === undefined || launchLiveRaw === null)
+    ? true
+    : (Number(launchLiveRaw) === 1 || launchLiveRaw === true);
   return {
     key,
     displayName: sanitizeDisplayName(row?.display_name ?? row?.displayName, key),
@@ -2787,6 +2736,7 @@ function normalizeRoleRow(row = {}) {
     canManageProjectPermissions:
       Number(row?.can_manage_project_permissions ?? row?.canManageProjectPermissions) === 1
       || row?.canManageProjectPermissions === true,
+    canLaunchLiveProjects,
     canLaunchProjects:
       Number(row?.can_launch_projects ?? row?.canLaunchProjects) === 1
       || row?.canLaunchProjects === true,
@@ -2825,12 +2775,6 @@ function buildRolesCache(roleRows = []) {
     baseByKey.set(normalized.key, normalized);
   }
 
-  for (const policy of DEFAULT_ROLE_POLICIES) {
-    const key = sanitizeRoleKey(policy?.key, '');
-    if (!key || baseByKey.has(key)) continue;
-    baseByKey.set(key, defaultRoleRow(policy));
-  }
-
   const lookupRoleKey = new Map();
   for (const key of baseByKey.keys()) {
     const lookup = normalizeRoleLookupKey(key);
@@ -2863,6 +2807,7 @@ function buildRolesCache(roleRows = []) {
       canManageMachines: row.canManageMachines === true,
       canBanUsers: row.canBanUsers === true,
       canManageProjectPermissions: row.canManageProjectPermissions === true,
+      canLaunchLiveProjects: row.canLaunchLiveProjects !== false,
       canLaunchProjects: row.canLaunchProjects !== false,
       canViewResources: row.canViewResources === true,
       canCreateTasks: row.canCreateTasks === true,
@@ -2877,24 +2822,6 @@ function buildRolesCache(roleRows = []) {
       note: sanitizeRoleNote(row.note),
       isSystem: row.isSystem === true,
     };
-
-    if (key === SYSTEM_MAINTENANCE_ROLE) {
-      next.canUseLiveMode = true;
-      next.canUsePostprodMode = true;
-      next.canManageUsers = true;
-      next.canManageRoles = true;
-      next.canManageForms = true;
-      next.canManageMachines = true;
-      next.canBanUsers = true;
-      next.canManageProjectPermissions = true;
-      next.canLaunchProjects = true;
-      next.canViewResources = true;
-      next.canCreateTasks = true;
-      next.canAssignRenderRequests = true;
-      next.canEditProjects = true;
-      next.canManageLayouts = true;
-      next.manageableRoles = Array.from(baseByKey.keys());
-    }
 
     if (!next.canManageUsers) {
       next.canBanUsers = false;
@@ -2965,7 +2892,7 @@ function rolePermissions(roleRaw, rolesCache) {
   const policy = cache.byKey.get(roleKey);
   if (!policy) {
     return {
-      canUseLiveMode: true,
+      canUseLiveMode: false,
       canUsePostprodMode: true,
       canValidate: false,
       canSyncScenes: false,
@@ -2975,13 +2902,14 @@ function rolePermissions(roleRaw, rolesCache) {
       canManageMachines: false,
       canBanUsers: false,
       canManageProjectPermissions: false,
-      canLaunchProjects: true,
-      canLaunchRenders: true,
-      canViewResources: true,
-      canCreateTasks: true,
+      canLaunchLiveProjects: false,
+      canLaunchProjects: false,
+      canLaunchRenders: false,
+      canViewResources: false,
+      canCreateTasks: false,
       canAssignRenderRequests: false,
-      canEditProjects: true,
-      canManageLayouts: true,
+      canEditProjects: false,
+      canManageLayouts: false,
       manageableRoles: [],
     };
   }
@@ -3001,11 +2929,12 @@ function rolePermissions(roleRaw, rolesCache) {
     canValidate: policy.canValidate === true,
     canSyncScenes: policy.canSyncScenes === true,
     canManageUsers,
-    canManageRoles: roleKey === SYSTEM_MAINTENANCE_ROLE && policy.canManageRoles === true,
+    canManageRoles: policy.canManageRoles === true,
     canManageForms: policy.canManageForms === true,
     canManageMachines: policy.canManageMachines === true,
     canBanUsers: canManageUsers && policy.canBanUsers === true,
     canManageProjectPermissions: canManageUsers && policy.canManageProjectPermissions === true,
+    canLaunchLiveProjects: policy.canLaunchLiveProjects !== false,
     canLaunchProjects: policy.canLaunchProjects !== false,
     canLaunchRenders: policy.canLaunchRenders !== false,
     canViewResources: policy.canViewResources === true,
@@ -3015,11 +2944,6 @@ function rolePermissions(roleRaw, rolesCache) {
     canManageLayouts: policy.canManageLayouts === true && policy.canUseLiveMode !== false,
     manageableRoles: manageable,
   };
-}
-
-function canRenderValidate(roleRaw) {
-  const roleKey = normalizeRole(roleRaw, '');
-  return RENDER_VALIDATION_ALLOWED_ROLES.has(roleKey);
 }
 
 function hashPassword(password, iterations = DEFAULT_PBKDF2_ITERS) {
@@ -3089,7 +3013,21 @@ function getAuthToken(req, fallback = '') {
   return String(fallback || '').trim();
 }
 
-function ensureDefaultRoles(db, logLine = () => {}) {
+function ensureDefaultRoles(db, bootstrapRolePolicies = [], logLine = () => {}) {
+  const existingRoleCount = Number(db.prepare('SELECT COUNT(*) AS n FROM roles').get()?.n || 0);
+  if (existingRoleCount > 0) {
+    return;
+  }
+  const policies = normalizeBootstrapRolePolicies(bootstrapRolePolicies);
+  if (policies.length <= 0) {
+    logLine({
+      level: 'warn',
+      src: 'postprod',
+      action: 'roles_seed_skipped',
+      message: 'Aucun profil bootstrap valide configure: seed ignore.',
+    });
+    return;
+  }
   const insertRole = db.prepare(`
     INSERT OR IGNORE INTO roles(
       key,
@@ -3105,6 +3043,7 @@ function ensureDefaultRoles(db, logLine = () => {}) {
       can_manage_machines,
       can_ban_users,
       can_manage_project_permissions,
+      can_launch_live_projects,
       can_launch_projects,
       can_launch_renders,
       can_view_resources,
@@ -3117,13 +3056,13 @@ function ensureDefaultRoles(db, logLine = () => {}) {
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const now = nowIso();
   let inserted = 0;
 
   const tx = db.transaction(() => {
-    for (const policy of DEFAULT_ROLE_POLICIES) {
+    for (const policy of policies) {
       const key = sanitizeRoleKey(policy?.key, '');
       if (!key) continue;
       const manageableRoles = normalizeManageableRolesInput(policy?.manageableRoles);
@@ -3141,6 +3080,7 @@ function ensureDefaultRoles(db, logLine = () => {}) {
         policy?.canManageMachines === true ? 1 : 0,
         policy?.canBanUsers === true ? 1 : 0,
         policy?.canManageProjectPermissions === true ? 1 : 0,
+        policy?.canLaunchLiveProjects !== false ? 1 : 0,
         policy?.canLaunchProjects !== false ? 1 : 0,
         policy?.canLaunchRenders !== false ? 1 : 0,
         policy?.canViewResources === true ? 1 : 0,
@@ -3163,12 +3103,217 @@ function ensureDefaultRoles(db, logLine = () => {}) {
       level: 'info',
       src: 'postprod',
       action: 'roles_seeded',
-      message: `${inserted} role(s) par defaut ajoutes`,
+      message: `${inserted} role(s) de bootstrap ajoutes`,
     });
   }
 }
 
-function ensureSchema(db, logLine = () => {}) {
+function normalizeBootstrapRolePolicyEntry(rawPolicy = {}) {
+  if (!rawPolicy || typeof rawPolicy !== 'object' || Array.isArray(rawPolicy)) return null;
+  const key = sanitizeRoleKey(rawPolicy?.key, '');
+  if (!key) return null;
+  return {
+    key,
+    displayName: sanitizeDisplayName(rawPolicy?.displayName, key),
+    note: sanitizeRoleNote(rawPolicy?.note),
+    canUseLiveMode: rawPolicy?.canUseLiveMode !== false,
+    canUsePostprodMode: rawPolicy?.canUsePostprodMode !== false,
+    canValidate: rawPolicy?.canValidate === true,
+    canSyncScenes: rawPolicy?.canSyncScenes === true,
+    canManageUsers: rawPolicy?.canManageUsers === true,
+    canManageRoles: rawPolicy?.canManageRoles === true,
+    canManageForms: rawPolicy?.canManageForms === true,
+    canManageMachines: rawPolicy?.canManageMachines === true,
+    canBanUsers: rawPolicy?.canBanUsers === true,
+    canManageProjectPermissions: rawPolicy?.canManageProjectPermissions === true,
+    canLaunchLiveProjects: rawPolicy?.canLaunchLiveProjects !== false,
+    canLaunchProjects: rawPolicy?.canLaunchProjects !== false,
+    canLaunchRenders: rawPolicy?.canLaunchRenders !== false,
+    canViewResources: rawPolicy?.canViewResources === true,
+    canCreateTasks: rawPolicy?.canCreateTasks === true,
+    canAssignRenderRequests: rawPolicy?.canAssignRenderRequests === true,
+    canEditProjects: rawPolicy?.canEditProjects === true,
+    canManageLayouts: rawPolicy?.canManageLayouts === true,
+    manageableRoles: normalizeManageableRolesInput(rawPolicy?.manageableRoles),
+    isSystem: rawPolicy?.isSystem !== false,
+  };
+}
+
+function normalizeBootstrapRolePolicies(rawPolicies = []) {
+  const list = Array.isArray(rawPolicies) ? rawPolicies : [];
+  const out = [];
+  const seen = new Set();
+  for (const policy of list) {
+    const normalized = normalizeBootstrapRolePolicyEntry(policy);
+    if (!normalized) continue;
+    const lookup = normalizeRoleLookupKey(normalized.key);
+    if (!lookup || seen.has(lookup)) continue;
+    seen.add(lookup);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function rebaselineSystemRolesFromBootstrapPolicies(db, bootstrapRolePolicies = []) {
+  const policies = normalizeBootstrapRolePolicies(bootstrapRolePolicies);
+  if (policies.length <= 0) return { matched: 0, updated: 0 };
+
+  const policyByLookup = new Map();
+  for (const policy of policies) {
+    const keyLookup = normalizeRoleLookupKey(policy?.key);
+    if (keyLookup && !policyByLookup.has(keyLookup)) {
+      policyByLookup.set(keyLookup, policy);
+    }
+    const displayLookup = normalizeRoleLookupKey(policy?.displayName);
+    if (displayLookup && !policyByLookup.has(displayLookup)) {
+      policyByLookup.set(displayLookup, policy);
+    }
+  }
+  if (policyByLookup.size <= 0) return { matched: 0, updated: 0 };
+
+  const systemRoles = db.prepare(`
+    SELECT key, display_name
+    FROM roles
+    WHERE is_system = 1
+  `).all();
+  if (!Array.isArray(systemRoles) || systemRoles.length <= 0) {
+    return { matched: 0, updated: 0 };
+  }
+
+  const updateRole = db.prepare(`
+    UPDATE roles
+    SET
+      can_use_live_mode = ?,
+      can_use_postprod_mode = ?,
+      can_validate = ?,
+      can_sync_scenes = ?,
+      can_manage_users = ?,
+      can_manage_roles = ?,
+      can_manage_forms = ?,
+      can_manage_machines = ?,
+      can_ban_users = ?,
+      can_manage_project_permissions = ?,
+      can_launch_live_projects = ?,
+      can_launch_projects = ?,
+      can_launch_renders = ?,
+      can_view_resources = ?,
+      can_create_tasks = ?,
+      can_assign_render_requests = ?,
+      can_edit_projects = ?,
+      can_manage_layouts = ?,
+      manageable_roles_json = ?,
+      updated_at = ?
+    WHERE key = ?
+      AND is_system = 1
+  `);
+
+  let matched = 0;
+  let updated = 0;
+  const now = nowIso();
+  const tx = db.transaction(() => {
+    for (const row of systemRoles) {
+      const roleKey = sanitizeRoleKey(row?.key, '');
+      if (!roleKey) continue;
+      const roleLookup = normalizeRoleLookupKey(roleKey);
+      const roleDisplay = sanitizeDisplayName(row?.display_name, roleKey);
+      const displayLookup = normalizeRoleLookupKey(roleDisplay);
+      const policy = (
+        (roleLookup ? policyByLookup.get(roleLookup) : null)
+        || (displayLookup ? policyByLookup.get(displayLookup) : null)
+      );
+      if (!policy) continue;
+
+      matched += 1;
+      const manageableRoles = normalizeManageableRolesInput(policy?.manageableRoles);
+      const res = updateRole.run(
+        policy?.canUseLiveMode !== false ? 1 : 0,
+        policy?.canUsePostprodMode !== false ? 1 : 0,
+        policy?.canValidate === true ? 1 : 0,
+        policy?.canSyncScenes === true ? 1 : 0,
+        policy?.canManageUsers === true ? 1 : 0,
+        policy?.canManageRoles === true ? 1 : 0,
+        policy?.canManageForms === true ? 1 : 0,
+        policy?.canManageMachines === true ? 1 : 0,
+        policy?.canBanUsers === true ? 1 : 0,
+        policy?.canManageProjectPermissions === true ? 1 : 0,
+        policy?.canLaunchLiveProjects !== false ? 1 : 0,
+        policy?.canLaunchProjects !== false ? 1 : 0,
+        policy?.canLaunchRenders !== false ? 1 : 0,
+        policy?.canViewResources === true ? 1 : 0,
+        policy?.canCreateTasks === true ? 1 : 0,
+        policy?.canAssignRenderRequests === true ? 1 : 0,
+        policy?.canEditProjects === true ? 1 : 0,
+        policy?.canManageLayouts === true ? 1 : 0,
+        JSON.stringify(manageableRoles),
+        now,
+        roleKey
+      );
+      updated += Number(res?.changes || 0);
+    }
+  });
+  tx();
+
+  return { matched, updated };
+}
+
+function loadBootstrapRolePoliciesFromFile({ configFile = '', logLine = () => {} } = {}) {
+  const normalizedFile = String(configFile || '').trim();
+  const templatePolicies = normalizeBootstrapRolePolicies(DEFAULT_ROLE_POLICIES_TEMPLATE);
+  if (templatePolicies.length <= 0) return [];
+  if (!normalizedFile) return templatePolicies;
+
+  const writeTemplateFile = () => {
+    try {
+      fs.mkdirSync(path.dirname(normalizedFile), { recursive: true });
+      fs.writeFileSync(normalizedFile, `${JSON.stringify(templatePolicies, null, 2)}\n`, 'utf8');
+      logLine({
+        level: 'info',
+        src: 'postprod',
+        action: 'roles_bootstrap_config_created',
+        message: `Fichier profils bootstrap cree: ${normalizedFile}`,
+      });
+    } catch (err) {
+      logLine({
+        level: 'warn',
+        src: 'postprod',
+        action: 'roles_bootstrap_config_write_failed',
+        message: `Impossible d'ecrire ${normalizedFile}: ${String(err?.message || err)}`,
+      });
+    }
+  };
+
+  if (!fs.existsSync(normalizedFile)) {
+    writeTemplateFile();
+    return templatePolicies;
+  }
+
+  try {
+    const raw = fs.readFileSync(normalizedFile, 'utf8');
+    const parsed = JSON.parse(raw || '[]');
+    const source = Array.isArray(parsed)
+      ? parsed
+      : (Array.isArray(parsed?.roles) ? parsed.roles : []);
+    const policies = normalizeBootstrapRolePolicies(source);
+    if (policies.length > 0) return policies;
+    logLine({
+      level: 'warn',
+      src: 'postprod',
+      action: 'roles_bootstrap_config_empty',
+      message: `Fichier profils bootstrap vide/invalide: ${normalizedFile}. Fallback template.`,
+    });
+    return templatePolicies;
+  } catch (err) {
+    logLine({
+      level: 'warn',
+      src: 'postprod',
+      action: 'roles_bootstrap_config_read_failed',
+      message: `Lecture impossible de ${normalizedFile}: ${String(err?.message || err)}. Fallback template.`,
+    });
+    return templatePolicies;
+  }
+}
+
+function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {}) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version INTEGER PRIMARY KEY,
@@ -3266,6 +3411,7 @@ function ensureSchema(db, logLine = () => {}) {
         can_manage_machines INTEGER NOT NULL DEFAULT 0,
         can_ban_users INTEGER NOT NULL DEFAULT 0,
         can_manage_project_permissions INTEGER NOT NULL DEFAULT 0,
+        can_launch_live_projects INTEGER NOT NULL DEFAULT 1,
         can_launch_projects INTEGER NOT NULL DEFAULT 1,
         can_launch_renders INTEGER NOT NULL DEFAULT 1,
         can_view_resources INTEGER NOT NULL DEFAULT 1,
@@ -5099,7 +5245,103 @@ function ensureSchema(db, logLine = () => {}) {
     });
   }
 
-  ensureDefaultRoles(db, logLine);
+  const hasV48 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 48 LIMIT 1')
+    .get();
+  if (!hasV48) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        alert_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        task_id INTEGER NOT NULL DEFAULT 0,
+        render_job_id INTEGER NOT NULL DEFAULT 0,
+        created_by_user_id INTEGER NOT NULL DEFAULT 0,
+        message TEXT NOT NULL DEFAULT '',
+        meta_json TEXT NOT NULL DEFAULT '{}',
+        resolved_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK(alert_type IN ('new_assignment', 'to_modify', 'render_error')),
+        CHECK(status IN ('open', 'resolved')),
+        CHECK(task_id >= 0),
+        CHECK(render_job_id >= 0),
+        CHECK(created_by_user_id >= 0),
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_alerts_user_status_created
+        ON user_alerts(user_id, status, created_at DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS idx_user_alerts_render_status
+        ON user_alerts(render_job_id, status, updated_at DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS idx_user_alerts_task_status
+        ON user_alerts(task_id, status, updated_at DESC, id DESC);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_user_alerts_open_unique
+        ON user_alerts(user_id, alert_type, task_id, render_job_id)
+        WHERE status = 'open';
+    `);
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(48, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v48',
+      message: 'Migration SQLite postprod v48 appliquee (table user_alerts pour notifications rendu)',
+    });
+  }
+
+  const hasV50 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 50 LIMIT 1')
+    .get();
+  if (!hasV50) {
+    const roleCols50 = db.prepare('PRAGMA table_info(roles)').all();
+    const roleColNames50 = new Set(roleCols50.map((c) => String(c?.name || '').trim()));
+    const hadCanLaunchLiveProjects = roleColNames50.has('can_launch_live_projects');
+    if (!hadCanLaunchLiveProjects) {
+      db.exec("ALTER TABLE roles ADD COLUMN can_launch_live_projects INTEGER NOT NULL DEFAULT 1");
+    }
+    if (!hadCanLaunchLiveProjects) {
+      db.exec(`
+        UPDATE roles
+        SET can_launch_live_projects = CASE
+          WHEN can_launch_projects = 1 THEN 1
+          ELSE 0
+        END;
+      `);
+    } else {
+      db.exec(`
+        UPDATE roles
+        SET can_launch_live_projects = CASE
+          WHEN can_launch_projects = 1 THEN 1
+          ELSE 0
+        END
+        WHERE can_launch_live_projects IS NULL;
+      `);
+    }
+    const res = rebaselineSystemRolesFromBootstrapPolicies(db, bootstrapRolePolicies);
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(50, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v50',
+      message: `Migration SQLite postprod v50 appliquee (permission can_launch_live_projects + rebase roles systeme: ${res.updated}/${res.matched})`,
+    });
+  }
+
+  const hasV49 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 49 LIMIT 1')
+    .get();
+  if (!hasV49) {
+    const res = rebaselineSystemRolesFromBootstrapPolicies(db, bootstrapRolePolicies);
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(49, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v49',
+      message: `Migration SQLite postprod v49 appliquee (roles systeme rebase sur policies bootstrap: ${res.updated}/${res.matched})`,
+    });
+  }
+
+  ensureDefaultRoles(db, bootstrapRolePolicies, logLine);
 }
 
 function createStatements(db) {
@@ -5514,12 +5756,13 @@ function createStatements(db) {
       DELETE FROM user_tombstones
       WHERE public_id = ?
     `),
-    countActiveMaintenanceExcluding: db.prepare(`
+    countActiveUsersWithManageRolesExcluding: db.prepare(`
       SELECT COUNT(*) AS n
-      FROM users
-      WHERE role = 'Maintenance'
-        AND is_active = 1
-        AND id <> ?
+      FROM users u
+      JOIN roles r ON r.key = u.role
+      WHERE u.is_active = 1
+        AND r.can_manage_roles = 1
+        AND u.id <> ?
     `),
     insertSession: db.prepare(`
       INSERT INTO sessions(token, user_id, created_at, expires_at, last_seen_at, ip, user_agent)
@@ -5653,6 +5896,113 @@ function createStatements(db) {
     `),
     deleteAuditByActorUserId: db.prepare(`
       DELETE FROM audit_log WHERE actor_user_id = ?
+    `),
+    insertOpenUserAlert: db.prepare(`
+      INSERT OR IGNORE INTO user_alerts(
+        user_id,
+        alert_type,
+        status,
+        task_id,
+        render_job_id,
+        created_by_user_id,
+        message,
+        meta_json,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)
+    `),
+    touchOpenUserAlertByScope: db.prepare(`
+      UPDATE user_alerts
+      SET
+        created_by_user_id = ?,
+        message = ?,
+        meta_json = ?,
+        updated_at = ?
+      WHERE user_id = ?
+        AND alert_type = ?
+        AND task_id = ?
+        AND render_job_id = ?
+        AND status = 'open'
+    `),
+    resolveOpenUserAlertsByRenderIdAndType: db.prepare(`
+      UPDATE user_alerts
+      SET
+        status = 'resolved',
+        resolved_at = ?,
+        updated_at = ?
+      WHERE status = 'open'
+        AND render_job_id = ?
+        AND alert_type = ?
+    `),
+    resolveOpenUserAlertsByTaskIdAndType: db.prepare(`
+      UPDATE user_alerts
+      SET
+        status = 'resolved',
+        resolved_at = ?,
+        updated_at = ?
+      WHERE status = 'open'
+        AND task_id = ?
+        AND alert_type = ?
+    `),
+    resolveOpenUserAlertsByRenderId: db.prepare(`
+      UPDATE user_alerts
+      SET
+        status = 'resolved',
+        resolved_at = ?,
+        updated_at = ?
+      WHERE status = 'open'
+        AND render_job_id = ?
+    `),
+    resolveOpenUserAlertsByTaskId: db.prepare(`
+      UPDATE user_alerts
+      SET
+        status = 'resolved',
+        resolved_at = ?,
+        updated_at = ?
+      WHERE status = 'open'
+        AND task_id = ?
+    `),
+    resolveOpenUserAlertsByUserTaskIdAndType: db.prepare(`
+      UPDATE user_alerts
+      SET
+        status = 'resolved',
+        resolved_at = ?,
+        updated_at = ?
+      WHERE status = 'open'
+        AND user_id = ?
+        AND task_id = ?
+        AND alert_type = ?
+    `),
+    listOpenUserAlertsByUserId: db.prepare(`
+      SELECT
+        id,
+        user_id,
+        alert_type,
+        status,
+        task_id,
+        render_job_id,
+        created_by_user_id,
+        message,
+        meta_json,
+        resolved_at,
+        created_at,
+        updated_at
+      FROM user_alerts
+      WHERE user_id = ?
+        AND status = 'open'
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `),
+    countOpenUserAlertsByUserId: db.prepare(`
+      SELECT
+        COUNT(*) AS total_open,
+        SUM(CASE WHEN alert_type = 'to_modify' THEN 1 ELSE 0 END) AS to_modify_open,
+        SUM(CASE WHEN alert_type = 'render_error' THEN 1 ELSE 0 END) AS render_error_open,
+        SUM(CASE WHEN alert_type = 'new_assignment' THEN 1 ELSE 0 END) AS new_assignment_open
+      FROM user_alerts
+      WHERE user_id = ?
+        AND status = 'open'
     `),
     countResourcesIndex: db.prepare(`
       SELECT COUNT(*) AS n
@@ -6470,20 +6820,26 @@ function createStatements(db) {
       ORDER BY ev.created_at ASC, ev.id ASC
     `),
     findRenderDetectionPreferredActor: db.prepare(`
-      SELECT id
-      FROM users
-      WHERE is_active = 1
+      SELECT u.id
+      FROM users u
+      LEFT JOIN roles r ON r.key = u.role
+      WHERE u.is_active = 1
+        AND COALESCE(r.can_launch_renders, 0) = 1
       ORDER BY
-        CASE WHEN role = 'Maintenance' THEN 0 ELSE 1 END ASC,
-        id ASC
+        COALESCE(r.can_manage_project_permissions, 0) DESC,
+        COALESCE(r.can_sync_scenes, 0) DESC,
+        u.id ASC
       LIMIT 1
     `),
     findRenderDetectionFallbackActor: db.prepare(`
-      SELECT id
-      FROM users
+      SELECT u.id
+      FROM users u
+      LEFT JOIN roles r ON r.key = u.role
+      WHERE u.is_active = 1
       ORDER BY
-        CASE WHEN role = 'Maintenance' THEN 0 ELSE 1 END ASC,
-        id ASC
+        COALESCE(r.can_launch_renders, 0) DESC,
+        COALESCE(r.can_create_tasks, 0) DESC,
+        u.id ASC
       LIMIT 1
     `),
     findRenderDetectedFileBySignature: db.prepare(`
@@ -7039,6 +7395,7 @@ function createStatements(db) {
         can_manage_machines,
         can_ban_users,
         can_manage_project_permissions,
+        can_launch_live_projects,
         can_launch_projects,
         can_launch_renders,
         can_view_resources,
@@ -7070,6 +7427,7 @@ function createStatements(db) {
         can_manage_machines,
         can_ban_users,
         can_manage_project_permissions,
+        can_launch_live_projects,
         can_launch_projects,
         can_launch_renders,
         can_view_resources,
@@ -7102,6 +7460,7 @@ function createStatements(db) {
         can_manage_machines,
         can_ban_users,
         can_manage_project_permissions,
+        can_launch_live_projects,
         can_launch_projects,
         can_launch_renders,
         can_view_resources,
@@ -7114,7 +7473,7 @@ function createStatements(db) {
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     updateRole: db.prepare(`
       UPDATE roles
@@ -7131,6 +7490,7 @@ function createStatements(db) {
         can_manage_machines = ?,
         can_ban_users = ?,
         can_manage_project_permissions = ?,
+        can_launch_live_projects = ?,
         can_launch_projects = ?,
         can_launch_renders = ?,
         can_view_resources = ?,
@@ -7155,8 +7515,13 @@ function createStatements(db) {
       WHERE can_manage_roles = 1
         AND key <> ?
     `),
+    updateUsersRoleByRoleKey: db.prepare(`
+      UPDATE users
+      SET role = ?, updated_at = ?
+      WHERE role = ?
+    `),
     deleteRoleByKey: db.prepare(`
-      DELETE FROM roles WHERE key = ? AND is_system = 0
+      DELETE FROM roles WHERE key = ?
     `),
   };
 }
@@ -7256,6 +7621,7 @@ function buildRolePayload(row) {
     canManageMachines: row?.canManageMachines === true,
     canBanUsers: row?.canBanUsers === true,
     canManageProjectPermissions: row?.canManageProjectPermissions === true,
+    canLaunchLiveProjects: row?.canLaunchLiveProjects !== false,
     canLaunchProjects: row?.canLaunchProjects !== false,
     canLaunchRenders: row?.canLaunchRenders !== false,
     canViewResources: row?.canViewResources === true,
@@ -7877,6 +8243,16 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     }
     return true;
   }
+
+  const bootstrapRolesConfigFile = resolveAbsPathSafe(
+    String(process.env.UU_POSTPROD_BOOTSTRAP_ROLES_FILE || '').trim()
+    || path.join(rootDataDir, 'postprod-default-roles.json')
+  );
+  const bootstrapRolePolicies = loadBootstrapRolePoliciesFromFile({
+    configFile: bootstrapRolesConfigFile,
+    logLine,
+  });
+
   const dbPath = path.join(rootDataDir, 'postprod.sqlite');
   let db;
   try {
@@ -7884,7 +8260,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     db = new BetterSqlite3(dbPath);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
-    ensureSchema(db, logLine);
+    ensureSchema(db, { logLine, bootstrapRolePolicies });
   } catch (err) {
     const reason = `Impossible d'initialiser SQLite (${dbPath}): ${String(err?.message || err)}`;
     logLine({
@@ -7901,35 +8277,20 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     };
   }
 
-  const stmts = createStatements(db);
+  let stmts;
+  try {
+    stmts = createStatements(db);
+  } catch (err) {
+    const reason = `Erreur preparation SQL (createStatements): ${String(err?.message || err)}`;
+    logLine({ level: 'error', src: 'postprod', action: 'db_init_failed', message: reason });
+    return {
+      available: false,
+      dbPath,
+      handleRoutes: buildUnavailableHandler(reason),
+      remoteBridge: null,
+    };
+  }
   let rolesCache = buildRolesCache(stmts.listRoles.all());
-  const replaceRenderFormFieldsTx = db.transaction((formId, normalizedFields, nowIsoValue) => {
-    stmts.deleteRenderFormFieldsByFormId.run(formId);
-    for (const field of normalizedFields) {
-      stmts.insertRenderFormField.run(
-        formId,
-        field.fieldKey,
-        field.fieldLabel,
-        field.sourcePath,
-        field.sourceType,
-        field.inputKind,
-        field.valueType,
-        field.groupName,
-        field.payloadKey,
-        field.placeholder,
-        field.helpText,
-        field.optionsJson,
-        field.validationJson,
-        field.defaultValueJson,
-        field.isRequired ? 1 : 0,
-        field.isVisible ? 1 : 0,
-        field.sortOrder,
-        String(field.wrcFile || ''),
-        nowIsoValue,
-        nowIsoValue
-      );
-    }
-  });
 
   // Merge WRC fields into existing SQLite fields, scoped to a single wrcFile.
   // - Match by source_path (stable WRC GUID identifier) within the wrcFile scope.
@@ -8117,9 +8478,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     DEFAULT_USERS_SYNC_AGENT_PORT,
     nowIso,
     safeParseObjectJson,
-    hashPassword,
-    DEFAULT_BOOTSTRAP_PASSWORD,
-    pbkdf2Iters,
     refreshRolesCache,
     logLine,
   });
@@ -8241,7 +8599,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     getRolesCache: () => rolesCache,
     resolveRoleInput,
     DEFAULT_FALLBACK_ROLE,
-    SYSTEM_MAINTENANCE_ROLE,
     sanitizeProjectRef,
     resolveProjectForApi,
     sharedStore,
@@ -8268,7 +8625,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     TASK_STATUSES,
     normalizeRenderStatus,
     RENDER_STATUSES,
-    canRenderValidate,
     sanitizeRenderOutputPath,
     sanitizeRenderErrorMessage,
     inferRenderReviewStatus,
@@ -8292,6 +8648,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     handlePostprodActivityAndAuditMaintenanceRoutes,
     handlePostprodAuditRoutes,
     handlePostprodMeRoutes,
+    handlePostprodUserAlertsRoutes,
     handlePostprodProjectRoutes,
     handlePostprodDataTablesRoutes,
     handlePostprodResourcesRoutes,
@@ -8404,7 +8761,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     pickReadableWrcIdentifier,
     rolePermissions,
     sanitizeProjectRef,
-    SYSTEM_MAINTENANCE_ROLE,
     sanitizeSyncSource,
     sanitizeSyncResult,
     normalizeSyncDetails,
@@ -8451,13 +8807,11 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     sanitizeRenderMapName,
     sanitizeRenderSequenceName,
     sanitizeRenderOutputProfile,
-    sanitizeRenderFormPresetName,
     normalizeRenderFormModeDefault,
     parseBooleanFlag,
     normalizeRenderFormLayout,
     buildRenderFormPayload,
     normalizeRenderFormFields,
-    replaceRenderFormFieldsTx,
     mergeRenderFormFieldsTx,
     removeWrcFileFieldsTx,
     buildRenderFormFieldPayload,
@@ -8504,7 +8858,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     sanitizeRenderErrorMessage,
     inferRenderReviewStatus,
     computeRenderTransitionState,
-    canRenderValidate,
     buildRenderJobEventPayload,
     requireManageUsers,
     normalizeManageableRolesInput,
@@ -8543,7 +8896,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     postprodRouteUsersRolesDeps,
     getRenderDetectedAutoScanBusy: isRenderDetectedAutoScanBusy,
     getRolesCache: () => rolesCache,
-    getAuditStorageStatus,
   });
   async function handleRoutes(req, res, url, { sendJSON, parseBody }) {
     const pathname = String(url?.pathname || '');

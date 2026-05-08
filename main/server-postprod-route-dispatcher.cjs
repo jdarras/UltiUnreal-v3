@@ -17,6 +17,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     handlePostprodActivityAndAuditMaintenanceRoutes,
     handlePostprodAuditRoutes,
     handlePostprodMeRoutes,
+    handlePostprodUserAlertsRoutes,
     handlePostprodProjectRoutes,
     handlePostprodDataTablesRoutes,
     handlePostprodResourcesRoutes,
@@ -133,7 +134,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     pickReadableWrcIdentifier,
     rolePermissions,
     sanitizeProjectRef,
-    SYSTEM_MAINTENANCE_ROLE,
     sanitizeSyncSource,
     sanitizeSyncResult,
     normalizeSyncDetails,
@@ -230,7 +230,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     sanitizeRenderErrorMessage,
     inferRenderReviewStatus,
     computeRenderTransitionState,
-    canRenderValidate,
     buildRenderJobEventPayload,
     requireManageUsers,
     normalizeManageableRolesInput,
@@ -379,6 +378,17 @@ async function dispatchPostprodRouteHandlers(options = {}) {
   });
   if (meRoutesHandled) return true;
 
+  const userAlertsRoutesHandled = await handlePostprodUserAlertsRoutes({
+    req,
+    res,
+    pathname,
+    url,
+    sendJSON,
+    requireSession,
+    stmts,
+  });
+  if (userAlertsRoutesHandled) return true;
+
   const projectRoutesHandled = await handlePostprodProjectRoutes({
     req,
     res,
@@ -425,7 +435,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     pickReadableWrcIdentifier,
     rolePermissions,
     sanitizeProjectRef,
-    SYSTEM_MAINTENANCE_ROLE,
     sanitizeSyncSource,
     sanitizeSyncResult,
     normalizeSyncDetails,
@@ -701,8 +710,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     computeRenderTransitionState,
     resolveRoleInput,
     DEFAULT_FALLBACK_ROLE,
-    SYSTEM_MAINTENANCE_ROLE,
-    canRenderValidate,
     buildRenderJobEventPayload,
     readCommonServerConfigFile,
     commonServerFile,
@@ -829,7 +836,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     isValidAvatarPath,
     parseIsoDateOrNull,
     DEFAULT_FALLBACK_ROLE,
-    SYSTEM_MAINTENANCE_ROLE,
     nowIso,
     db,
     hashPassword,
@@ -858,7 +864,6 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     sanitizeRoleNote,
     normalizeManageableRolesInput,
     resolveRoleInput,
-    SYSTEM_MAINTENANCE_ROLE,
     stmts,
     refreshRolesCache,
     audit,

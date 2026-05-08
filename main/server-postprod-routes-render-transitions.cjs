@@ -24,6 +24,89 @@ function parsePayloadJsonSafe(value) {
   }
 }
 
+function toPositiveInt(value) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
+}
+
+function encodeAlertMeta(meta = null) {
+  const source = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {};
+  try {
+    return JSON.stringify(source);
+  } catch {
+    return '{}';
+  }
+}
+
+function resolveAlertTargetUserIds({ renderPayload = null, taskRow = null } = {}) {
+  const out = new Set();
+  const payload = renderPayload && typeof renderPayload === 'object' ? renderPayload : {};
+  const requesterId = toPositiveInt(payload?.requestedByUserId);
+  const assigneeId = toPositiveInt(taskRow?.assignee_user_id);
+  if (requesterId > 0) out.add(requesterId);
+  if (assigneeId > 0) out.add(assigneeId);
+  return Array.from(out.values());
+}
+
+function upsertOpenUserAlert({
+  stmts = null,
+  userId = 0,
+  alertType = '',
+  taskId = 0,
+  renderId = 0,
+  createdByUserId = 0,
+  message = '',
+  meta = null,
+  now = '',
+} = {}) {
+  const normalizedUserId = toPositiveInt(userId);
+  const normalizedTaskId = toPositiveInt(taskId);
+  const normalizedRenderId = toPositiveInt(renderId);
+  const normalizedByUserId = toPositiveInt(createdByUserId);
+  const normalizedAlertType = String(alertType || '').trim().toLowerCase();
+  if (
+    normalizedUserId <= 0
+    || !['to_modify', 'render_error'].includes(normalizedAlertType)
+    || typeof stmts?.insertOpenUserAlert?.run !== 'function'
+  ) {
+    return 0;
+  }
+  const safeMessage = String(message || '').trim().slice(0, 500);
+  const metaJson = encodeAlertMeta(meta);
+  try {
+    const inserted = stmts.insertOpenUserAlert.run(
+      normalizedUserId,
+      normalizedAlertType,
+      normalizedTaskId,
+      normalizedRenderId,
+      normalizedByUserId,
+      safeMessage,
+      metaJson,
+      now,
+      now
+    );
+    const changes = Number(inserted?.changes || 0);
+    if (
+      changes <= 0
+      && typeof stmts?.touchOpenUserAlertByScope?.run === 'function'
+    ) {
+      stmts.touchOpenUserAlertByScope.run(
+        normalizedByUserId,
+        safeMessage,
+        metaJson,
+        now,
+        normalizedUserId,
+        normalizedAlertType,
+        normalizedTaskId,
+        normalizedRenderId
+      );
+    }
+    return changes;
+  } catch {
+    return 0;
+  }
+}
+
 function normalizeProxyResolution(value) {
   const parsed = Number(value);
   const normalized = Number.isFinite(parsed) ? Math.trunc(parsed) : 50;
@@ -228,10 +311,6 @@ async function handlePostprodRenderTransitionRoutes({
   audit,
   buildRenderJobPayload,
   computeRenderTransitionState,
-  resolveRoleInput,
-  DEFAULT_FALLBACK_ROLE,
-  SYSTEM_MAINTENANCE_ROLE,
-  canRenderValidate,
   buildRenderJobEventPayload,
   readCommonServerConfigFile,
   commonServerFile,
@@ -304,7 +383,11 @@ async function handlePostprodRenderTransitionRoutes({
       : Number(currentRender.validated_by_user_id);
     const reviewStatus = inferRenderReviewStatus(toStatus, validatedByUserId);
     const eventComment = sanitizeRenderComment(
-      body?.comment || (isSuccess ? 'worker_completed' : (canRetry ? 'worker_failed_retry' : 'worker_failed_final'))
+      body?.comment || (
+        isSuccess
+          ? 'Rendu Unreal termine'
+          : (canRetry ? 'Rendu Unreal en erreur - nouvelle tentative' : 'Rendu Unreal en erreur - echec final')
+      )
     );
 
     const tx = db.transaction(() => {
@@ -352,6 +435,44 @@ async function handlePostprodRenderTransitionRoutes({
       'render',
       String(renderId)
     );
+    if (toStatus === 'Failed') {
+      const linkedTaskId = toPositiveInt(updatedPayload?.linkedTaskId || updatedPayload?.payload?.taskId);
+      const linkedTask = linkedTaskId > 0 && typeof stmts?.findTaskById?.get === 'function'
+        ? (stmts.findTaskById.get(linkedTaskId) || null)
+        : null;
+      const targetUserIds = resolveAlertTargetUserIds({
+        renderPayload: updatedPayload,
+        taskRow: linkedTask,
+      });
+      const renderLabel = String(updatedPayload?.templateName || updatedPayload?.linkedTaskTitle || '').trim();
+      const actorUserId = toPositiveInt(auth?.session?.user_id);
+      for (const targetUserId of targetUserIds) {
+        upsertOpenUserAlert({
+          stmts,
+          userId: targetUserId,
+          alertType: 'render_error',
+          taskId: linkedTaskId,
+          renderId,
+          createdByUserId: actorUserId,
+          message: renderLabel
+            ? `Rendu en erreur: ${renderLabel}`
+            : `Rendu en erreur (#${String(renderId)})`,
+          meta: {
+            renderId,
+            taskId: linkedTaskId > 0 ? linkedTaskId : null,
+            taskTitle: String(updatedPayload?.linkedTaskTitle || '').trim(),
+            errorMessage: String(updatedPayload?.errorMessage || '').trim(),
+            source: 'worker_complete',
+          },
+          now,
+        });
+      }
+    } else if (typeof stmts?.resolveOpenUserAlertsByRenderIdAndType?.run === 'function') {
+      stmts.resolveOpenUserAlertsByRenderIdAndType.run(now, now, renderId, 'render_error');
+    }
+    if (toStatus !== 'Queued' && typeof stmts?.resolveOpenUserAlertsByRenderIdAndType?.run === 'function') {
+      stmts.resolveOpenUserAlertsByRenderIdAndType.run(now, now, renderId, 'new_assignment');
+    }
     if (toStatus === 'Done') {
       scheduleProxyGenerationForDoneRender({
         renderId,
@@ -394,8 +515,6 @@ async function handlePostprodRenderTransitionRoutes({
     if (!projectGuard) return true;
     const body = await parseBody(req);
     const actorPerms = rolePermissions(auth.session.role, rolesCache);
-    const actorRole =
-      resolveRoleInput(auth?.session?.role, rolesCache, DEFAULT_FALLBACK_ROLE) || DEFAULT_FALLBACK_ROLE;
     const now = nowIso();
     const next = computeRenderTransitionState(
       currentRender,
@@ -415,9 +534,8 @@ async function handlePostprodRenderTransitionRoutes({
       return true;
     }
     if (
-      actorRole !== SYSTEM_MAINTENANCE_ROLE &&
-      !canRenderValidate(actorRole) &&
-      (next.toStatus === 'Done' || next.toStatus === 'Failed')
+      actorPerms.canValidate !== true
+      && (next.toStatus === 'Done' || next.toStatus === 'Failed')
     ) {
       const canValidateProject = projectGuard?.projectPermissions?.canValidate === true;
       if (!canValidateProject) {
@@ -433,11 +551,17 @@ async function handlePostprodRenderTransitionRoutes({
       const explicitComment = String(body?.comment || '').trim();
       if (explicitComment) return explicitComment;
       if (transitionAction === 'reject') {
+        const rejectionBaseLabel = String(next.commentDefault || 'Rendu rejete').trim();
         return rejectionReason
-          ? `${String(next.commentDefault || 'render_rejected').trim()}: ${rejectionReason}`
-          : String(next.commentDefault || 'render_rejected');
+          ? `${rejectionBaseLabel}: ${rejectionReason}`
+          : rejectionBaseLabel;
       }
-      return String(next.commentDefault || '');
+      const fromStatus = String(next.fromStatus || '').trim();
+      const toStatus = String(next.toStatus || '').trim();
+      const fallbackTransitionLabel = fromStatus || toStatus
+        ? `Transition ${fromStatus || '-'} -> ${toStatus || '-'}`
+        : '';
+      return String(next.commentDefault || fallbackTransitionLabel || '');
     })();
     const eventComment = sanitizeRenderComment(eventCommentInput);
 
@@ -517,6 +641,83 @@ async function handlePostprodRenderTransitionRoutes({
       'render',
       String(renderId)
     );
+    const linkedTaskId = toPositiveInt(updatedPayload?.linkedTaskId || updatedPayload?.payload?.taskId);
+    const linkedTask = linkedTaskId > 0 && typeof stmts?.findTaskById?.get === 'function'
+      ? (stmts.findTaskById.get(linkedTaskId) || null)
+      : null;
+    const targetUserIds = resolveAlertTargetUserIds({
+      renderPayload: updatedPayload,
+      taskRow: linkedTask,
+    });
+    const actorUserId = toPositiveInt(auth?.session?.user_id);
+    const renderLabel = String(updatedPayload?.templateName || updatedPayload?.linkedTaskTitle || '').trim();
+    if (transitionAction === 'reject' || next.reviewStatus === 'to_modify') {
+      for (const targetUserId of targetUserIds) {
+        upsertOpenUserAlert({
+          stmts,
+          userId: targetUserId,
+          alertType: 'to_modify',
+          taskId: linkedTaskId,
+          renderId,
+          createdByUserId: actorUserId,
+          message: renderLabel
+            ? `Rendu a modifier: ${renderLabel}`
+            : `Rendu a modifier (#${String(renderId)})`,
+          meta: {
+            renderId,
+            taskId: linkedTaskId > 0 ? linkedTaskId : null,
+            taskTitle: String(updatedPayload?.linkedTaskTitle || '').trim(),
+            rejectionReason: rejectionReason || '',
+            source: transitionAction || 'transition',
+          },
+          now,
+        });
+      }
+    } else if (typeof stmts?.resolveOpenUserAlertsByRenderIdAndType?.run === 'function') {
+      stmts.resolveOpenUserAlertsByRenderIdAndType.run(now, now, renderId, 'to_modify');
+    }
+    if (next.toStatus === 'Failed') {
+      for (const targetUserId of targetUserIds) {
+        upsertOpenUserAlert({
+          stmts,
+          userId: targetUserId,
+          alertType: 'render_error',
+          taskId: linkedTaskId,
+          renderId,
+          createdByUserId: actorUserId,
+          message: renderLabel
+            ? `Rendu en erreur: ${renderLabel}`
+            : `Rendu en erreur (#${String(renderId)})`,
+          meta: {
+            renderId,
+            taskId: linkedTaskId > 0 ? linkedTaskId : null,
+            taskTitle: String(updatedPayload?.linkedTaskTitle || '').trim(),
+            errorMessage: String(updatedPayload?.errorMessage || '').trim(),
+            source: transitionAction || 'transition',
+          },
+          now,
+        });
+      }
+    } else if (typeof stmts?.resolveOpenUserAlertsByRenderIdAndType?.run === 'function') {
+      stmts.resolveOpenUserAlertsByRenderIdAndType.run(now, now, renderId, 'render_error');
+    }
+    if (typeof stmts?.resolveOpenUserAlertsByRenderIdAndType?.run === 'function' && next.toStatus !== 'Queued') {
+      stmts.resolveOpenUserAlertsByRenderIdAndType.run(now, now, renderId, 'new_assignment');
+    }
+    if (
+      actorUserId > 0
+      && linkedTaskId > 0
+      && typeof stmts?.resolveOpenUserAlertsByUserTaskIdAndType?.run === 'function'
+      && transitionAction !== 'reject'
+    ) {
+      stmts.resolveOpenUserAlertsByUserTaskIdAndType.run(
+        now,
+        now,
+        actorUserId,
+        linkedTaskId,
+        'new_assignment'
+      );
+    }
     if (next.toStatus === 'Done') {
       scheduleProxyGenerationForDoneRender({
         renderId,

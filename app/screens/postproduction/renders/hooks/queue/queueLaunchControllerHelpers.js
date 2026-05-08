@@ -21,6 +21,8 @@ async function launchScheduledTaskRenderAction({
   const canCreateRender = typeof onCreateRender === "function";
   if (!canDispatchRenders && !canCreateRender) return false;
   const forceLaunch = launchOptions?.forceLaunch === true;
+  const silentDispatch = launchOptions?.silentDispatch === true;
+  const allowCreateFromTask = launchOptions?.allowCreateFromTask === true;
 
   const createRenderInput = buildScheduledTaskCreateRenderInput(task);
   const taskId = Number(createRenderInput?.taskId || 0);
@@ -42,6 +44,7 @@ async function launchScheduledTaskRenderAction({
           maxJobs: 1,
           renderIds: [linkedRenderId],
           force: forceLaunch,
+          silent: silentDispatch,
         }));
       } finally {
         if (typeof setBusyScheduledTaskId === "function") setBusyScheduledTaskId(0);
@@ -50,6 +53,7 @@ async function launchScheduledTaskRenderAction({
     }
   }
 
+  if (!allowCreateFromTask) return false;
   if (!canCreateRender || !createRenderInput?.createRenderInput) return false;
 
   // Inject scheduledAt + launchMode from launchOptions

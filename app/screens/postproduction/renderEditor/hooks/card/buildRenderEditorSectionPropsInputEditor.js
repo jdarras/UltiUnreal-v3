@@ -7,6 +7,7 @@ const DATA_KEYS = [
   "title",
   "description",
   "assigneeUserId",
+  "assigneeIsCurrentUser",
   "assigneeOptions",
   "assigneeUserIdLocked",
   "setTitle",

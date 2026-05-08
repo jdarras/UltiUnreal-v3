@@ -1,4 +1,4 @@
-import { formatDate, safeT } from "../../../shared/helpers";
+import { activityActionLabel, formatDate, safeT } from "../../../shared/helpers";
 import {
   activityActionTypeFromAction,
   activityActionTypeLabel,
@@ -28,6 +28,14 @@ function AuditEntriesList({
     const match = detail.match(new RegExp(`${normalizedLabel}\\s*:\\s*([^|]+)`, "i"));
     return match ? String(match[1] || "").trim() : "";
   };
+
+  const compactDetail = (detailRaw) =>
+    String(detailRaw || "")
+      .replace(/\b(?:Scope|Contexte)\s*:\s*[^|]+/gi, "")
+      .split("|")
+      .map((part) => String(part || "").trim())
+      .filter(Boolean)
+      .join(" | ");
 
   const buildActivityDetailTarget = (entry, actionType) => {
     const scopeId = String(entry?.scopeId || "").trim();
@@ -76,6 +84,32 @@ function AuditEntriesList({
         target: { type: "validation", renderId: renderId > 0 ? renderId : "", taskId: taskId > 0 ? taskId : "" },
       };
     }
+    if (actionType === "render") {
+      const workerKey = extractDetailLabel(detail, "Worker rendu")
+        || extractDetailLabel(detail, "Worker")
+        || extractDetailLabel(detail, "workerKey");
+      const workerAptitude = extractDetailLabel(detail, "Disponibilite worker")
+        || extractDetailLabel(detail, "Aptitude worker")
+        || extractDetailLabel(detail, "Resultat");
+      const renderName = extractDetailLabel(detail, "Rendu") || "";
+      if (workerKey || workerAptitude) {
+        const workerLabel = workerKey || safeT(t, "postprod.audit.item.worker", "Machine");
+        const aptitudeNormalized = (() => {
+          const v = String(workerAptitude || "").trim().toLowerCase();
+          if (v === "activee") return "Activée";
+          if (v === "desactivee") return "Désactivée";
+          return workerAptitude;
+        })();
+        const statusLabel = aptitudeNormalized ? ` — ${aptitudeNormalized}` : "";
+        return { label: `${workerLabel}${statusLabel}`.trim(), target: null };
+      }
+      if (renderName) {
+        return {
+          label: `${safeT(t, "postprod.audit.item.render", "Rendu")}: ${renderName}`,
+          target: null,
+        };
+      }
+    }
     if (actionType === "user") {
       const username = extractDetailLabel(detail, "Utilisateur")
         || extractDetailLabel(detail, "User")
@@ -93,7 +127,7 @@ function AuditEntriesList({
       const roleRef = scopeId ? `[${scopeId}]` : "";
       return { label: `${roleName}${roleRef ? ` ${roleRef}` : ""}`, target: null };
     }
-    return { label: detail || entry?.action || "-", target: null };
+    return { label: compactDetail(detail) || activityActionLabel(entry) || "-", target: null };
   };
 
   const rows = (Array.isArray(entries) ? entries : [])
@@ -120,6 +154,7 @@ function AuditEntriesList({
         const rowId = Number(entry?.id || 0);
         const actionType = activityActionTypeFromAction(entry?.action, entry);
         const actionTypeText = activityActionTypeLabel(t, actionType);
+        const actionLabel = activityActionLabel(entry);
         const level = entryLevel(entry);
         const detailLink = buildActivityDetailTarget(entry, actionType);
         const canOpenDetail = detailLink?.target && typeof onOpenActivityTarget === "function";
@@ -131,7 +166,7 @@ function AuditEntriesList({
             <div className="log-meta">
               <span className="log-ts">{formatDate(entry?.createdAt)}</span>
               <span className={`log-src ${activityTypeChipLevel(actionType)}`}>{actionTypeText}</span>
-              {entry?.action ? <span className="log-action">{entry.action}</span> : null}
+              {actionLabel ? <span className="log-action">{actionLabel}</span> : null}
             </div>
             <div className="log-msg">
               {canOpenDetail ? (

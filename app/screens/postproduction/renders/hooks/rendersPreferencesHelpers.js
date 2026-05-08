@@ -1,8 +1,9 @@
 import { useDebouncedLocalStorage } from "../../shared/useDebouncedLocalStorage";
-import { readStorageString } from "../../shared/storage";
+import { readStorageBoolean, readStorageString } from "../../shared/storage";
 
 const STORAGE_KEYS = Object.freeze({
   view: "uu_postprod_renders_validation_view",
+  showHistory: "uu_postprod_renders_validation_show_history",
   listSortKey: "uu_postprod_renders_validation_list_sort_key",
   listSortDir: "uu_postprod_renders_validation_list_sort_dir",
   queueSortKey: "uu_postprod_renders_validation_queue_sort_key",
@@ -100,6 +101,10 @@ function getInitialViewMode() {
   return "thumbs";
 }
 
+function getInitialShowHistory() {
+  return readStorageBoolean(STORAGE_KEYS.showHistory, false);
+}
+
 function getInitialListSortKey() {
   return readEnumStorage(STORAGE_KEYS.listSortKey, LIST_SORT_KEY_SET, "updatedAt");
 }
@@ -123,6 +128,7 @@ function getInitialQueueRuntimeMode() {
 function usePersistRendersPreferences({
   searchQuery = "",
   viewMode = "thumbs",
+  showHistory = false,
   reviewFilter = [],
   projectFilter = [],
   stationFilter = [],
@@ -139,6 +145,7 @@ function usePersistRendersPreferences({
 } = {}) {
   useDebouncedLocalStorage(STORAGE_KEYS.searchQuery, String(searchQuery || ""), 280);
   useDebouncedLocalStorage(STORAGE_KEYS.view, String(viewMode || "thumbs"), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.showHistory, showHistory ? "true" : "false", 180);
   useDebouncedLocalStorage(STORAGE_KEYS.reviewFilter, JSON.stringify(normalizeMultiFilterValues(reviewFilter)), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.projectFilter, JSON.stringify(normalizeMultiFilterValues(projectFilter)), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.stationFilter, JSON.stringify(normalizeMultiFilterValues(stationFilter)), 180);
@@ -175,6 +182,7 @@ export {
   getInitialReviewFilter,
   getInitialSequenceFilter,
   getInitialSearchQuery,
+  getInitialShowHistory,
   getInitialViewMode,
   normalizeMultiFilterValues,
   STORAGE_KEYS,

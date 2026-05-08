@@ -155,11 +155,6 @@ const POSTPROD_TABS_BASE = [
   "Rendus",
   POSTPROD_TAB_RENDERS_CREATE,
 ];
-const LIVE_MODE_BLOCKED_FALLBACK_ROLES = new Set([
-  "Graphiste",
-  "Journaliste",
-]);
-
 function normalizeTaskCatalogOptions(entries = []) {
   const out = [];
   const seen = new Set();
@@ -268,7 +263,7 @@ function getPostprodTabsForUser(
   const canAccessResources = canViewResources && resourcesEnabled;
   const tabs = [];
   if (canManageRoles) tabs.push(POSTPROD_TAB_PROFILES);
-  if (canManageUsers) tabs.push(POSTPROD_TAB_USERS);
+  tabs.push(POSTPROD_TAB_USERS);
   tabs.push(
     ...POSTPROD_TABS_BASE.filter(
       (tab) => (
@@ -293,12 +288,11 @@ function getModeAccessForUser(user = null, authenticated = false) {
     };
   }
 
-  const roleName = String(user?.role || "").trim();
   const explicitCanUseLive = user?.permissions?.canUseLiveMode;
   const explicitCanUsePostprod = user?.permissions?.canUsePostprodMode;
   const canUseLive = typeof explicitCanUseLive === "boolean"
     ? explicitCanUseLive
-    : !LIVE_MODE_BLOCKED_FALLBACK_ROLES.has(roleName);
+    : true;
   const canUsePostprod = typeof explicitCanUsePostprod === "boolean"
     ? explicitCanUsePostprod
     : true;
@@ -526,7 +520,7 @@ function resolvePostprodUsersError(err, t) {
   if (code === 'no_changes') return t('postprod.users.error.noChanges');
   if (code === 'cannot_disable_self') return t('postprod.users.error.cannotDisableSelf');
   if (code === 'cannot_delete_self') return t('postprod.users.error.cannotDeleteSelf');
-  if (code === 'last_maintenance_forbidden') return t('postprod.users.error.lastMaintenanceForbidden');
+  if (code === 'last_manage_roles_user_forbidden') return t('postprod.users.error.lastManageRolesUserForbidden');
   if (code === 'user_has_linked_data') return t('postprod.users.error.userHasLinkedData');
   if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
   return t('postprod.users.error.generic');
@@ -574,7 +568,6 @@ function resolvePostprodTasksError(err, t) {
   if (code === 'forbidden_validation') return t('postprod.tasks.error.forbiddenValidation');
   if (code === 'invalid_due_at') return t('postprod.tasks.error.invalidDueAt');
   if (code === 'invalid_assignee') return t('postprod.tasks.error.invalidAssignee');
-  if (code === 'assignee_must_be_graphiste') return t('postprod.tasks.error.assigneeMustBeGraphiste');
   if (code === 'invalid_request_type') return t('postprod.tasks.error.invalidRequestType');
   if (code === 'assignee_required_for_in_progress') return t('postprod.tasks.error.assigneeRequiredForInProgress');
   if (code === 'auto_render_project_required') return t('postprod.tasks.error.autoRenderProjectRequired');
@@ -2029,9 +2022,7 @@ function App() {
   }, [openQuitDialog]);
 
   const postprodCanManageUsers = !!postprodAuth.user?.permissions?.canManageUsers;
-  const postprodCanManageRoles =
-    String(postprodAuth.user?.role || '').trim() === 'Maintenance' &&
-    !!postprodAuth.user?.permissions?.canManageRoles;
+  const postprodCanManageRoles = postprodAuth.user?.permissions?.canManageRoles === true;
   const postprodCanManageRenderTemplates = postprodAuth.user?.permissions?.canManageForms === true;
   const postprodCanManageMachines = postprodAuth.user?.permissions?.canManageMachines === true;
   const postprodCanBanUsers = postprodAuth.user?.permissions?.canBanUsers === true;
@@ -2048,14 +2039,14 @@ function App() {
   const postprodCanAccessResources = postprodCanViewResources && resourcesEnabled;
   const postprodCanCreateTasks = postprodAuth.user?.permissions?.canCreateTasks !== false;
   const postprodCanAssignRenderRequests = postprodAuth.user?.permissions?.canAssignRenderRequests === true;
-  const postprodCanBypassPadForTasks = (
-    postprodAuth.user?.role === 'Maintenance'
-    || postprodAuth.user?.role === 'Responsable Fabrication'
-    || postprodAuth.user?.role === 'Integrateur'
-  );
+  const postprodCanBypassPadForTasks = postprodAuth.user?.permissions?.canSyncScenes === true;
   const postprodCanEditProjects = postprodAuth.user?.permissions?.canEditProjects !== false;
   const postprodCanManageLayouts = postprodAuth.user?.permissions?.canManageLayouts !== false;
+  const postprodCanLaunchLiveProjects = postprodAuth.user?.permissions?.canLaunchLiveProjects !== false;
   const postprodCanLaunchProjects = postprodAuth.user?.permissions?.canLaunchProjects !== false;
+  const liveCanEditProjects = postprodAuthenticated ? postprodCanEditProjects : true;
+  const liveCanLaunchRuntimeProjects = postprodAuthenticated ? postprodCanLaunchLiveProjects : true;
+  const liveCanLaunchEditorProjects = postprodAuthenticated ? postprodCanLaunchProjects : true;
   const postprodCanLaunchRenders = !!postprodAuth.user?.permissions?.canLaunchRenders;
   const postprodRefreshSec = Math.max(2, Number(commonCfg?.refreshSec || 5) || 5);
   const postprodRefreshMs = postprodRefreshSec * 1000;
@@ -3048,32 +3039,18 @@ function App() {
       const nextTabs = getPostprodTabsForUser(user, true, {
         resourcesEnabled,
       });
-      setCurrent((prev) => {
-        if (normalizedMode === APP_MODE_POSTPROD) {
-          const allowed = getAllowedTabs({
-            role: "server",
-            appMode: normalizedMode,
-            clientSyncEnabled,
-            resourcesAvailable: resourcesTabAvailable,
-            postprodTabs: nextTabs,
-            postprodCanManageMachines,
-            liveAccountTabs,
-          });
-          if (allowed.includes(prev)) return prev;
-          return resolveDefaultTab(allowed, normalizedMode);
-        }
-        const allowed = getAllowedTabs({
-          role: String(nextIdentity.role || "server").trim() || "server",
-          appMode: normalizedMode,
-          clientSyncEnabled,
-          resourcesAvailable: resourcesTabAvailable,
-          postprodTabs: postprodVisibleTabs,
-          postprodCanManageMachines,
-          liveAccountTabs,
-        });
-        if (allowed.includes(prev)) return prev;
-        return resolveDefaultTab(allowed, normalizedMode);
+      const allowed = getAllowedTabs({
+        role: normalizedMode === APP_MODE_POSTPROD
+          ? "server"
+          : (String(nextIdentity.role || "server").trim() || "server"),
+        appMode: normalizedMode,
+        clientSyncEnabled,
+        resourcesAvailable: resourcesTabAvailable,
+        postprodTabs: normalizedMode === APP_MODE_POSTPROD ? nextTabs : postprodVisibleTabs,
+        postprodCanManageMachines,
+        liveAccountTabs,
       });
+      setCurrent(allowed.includes("Projets") ? "Projets" : resolveDefaultTab(allowed, normalizedMode));
       showNotice(t('app.auth.msg.loginOk'), 'ok');
     } catch (e) {
       const msg = resolvePostprodAuthError(e, t);
@@ -5282,15 +5259,8 @@ function App() {
   const handlePostprodDeleteRole = useCallback(async (roleKey) => {
     const token = String(postprodAuth.token || '').trim();
     if (!token) return false;
-    const affectedUsers = (postprodUsers.items || []).filter(
-      (u) => String(u?.role || '').trim().toLowerCase() === String(roleKey || '').trim().toLowerCase()
-    );
     setPostprodRoles((prev) => ({ ...prev, loading: true, error: '' }));
     try {
-      for (const u of affectedUsers) {
-        const uid = Number(u?.id || 0);
-        if (uid > 0) await postprodUpdateUser(token, uid, { role: 'journaliste' });
-      }
       await postprodDeleteRole(token, roleKey);
       await Promise.all([loadPostprodRoles(), loadPostprodUsers()]);
       showNotice(t('postprod.roles.msg.deleted'), 'ok');
@@ -5303,7 +5273,7 @@ function App() {
       }));
       return false;
     }
-  }, [postprodAuth.token, postprodUsers.items, loadPostprodRoles, loadPostprodUsers, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodRoles, loadPostprodUsers, showNotice, t]);
 
   const handlePostprodCreateTask = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -6382,6 +6352,7 @@ function App() {
   useEffect(() => {
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
     if (current === 'Datas' || current === 'Logs' || current === 'Rendus' || current === POSTPROD_TAB_RENDERS_CREATE) return;
+    if (current === POSTPROD_TAB_USERS && !postprodCanManageUsers) return;
 
     let stopped = false;
     let timer = null;
@@ -6404,6 +6375,7 @@ function App() {
     postprodAuthenticated,
     current,
     postprodRefreshMs,
+    postprodCanManageUsers,
     refreshPostprodCurrentTab,
   ]);
 
@@ -7453,7 +7425,9 @@ function App() {
           postprodUser={postprodAuthenticated ? postprodAuth.user : null}
           onUserClick={() => {
             handleNavClick('Utilisateurs');
-            setPostprodEditUserRequest({ userId: postprodAuth.user?.id, reqKey: Date.now() });
+            if (postprodCanManageUsers) {
+              setPostprodEditUserRequest({ userId: postprodAuth.user?.id, reqKey: Date.now() });
+            }
           }}
         />
 
@@ -7517,12 +7491,18 @@ function App() {
                 appMode={appMode}
                 canViewResources={postprodCanViewResources}
                 canManageProjects={postprodCanEditProjects}
+                canLaunchUnrealEditor={liveCanLaunchEditorProjects}
               />
             </Suspense>
           )}
           {role === "server" && appMode === APP_MODE_LIVE && current === "Projets" && (
             <Suspense fallback={ScreenFallback}>
-              <ProjectsScreen showProjectActivation={true} appMode={appMode} />
+              <ProjectsScreen
+                canManageUnrealProjects={liveCanLaunchEditorProjects}
+                canEditProjectFields={liveCanEditProjects}
+                showProjectActivation={true}
+                appMode={appMode}
+              />
             </Suspense>
           )}
           {role === "server" && appMode === APP_MODE_LIVE && resourcesTabAvailable && current === "Ressources" && (
@@ -7541,7 +7521,12 @@ function App() {
               aria-hidden={current !== "Launch Control"}
             >
               <Suspense fallback={ScreenFallback}>
-                <LaunchControlScreen isVisible={current === "Launch Control"} />
+                <LaunchControlScreen
+                  isVisible={current === "Launch Control"}
+                  canLaunchLiveProjects={liveCanLaunchRuntimeProjects}
+                  canLaunchEditorProjects={liveCanLaunchEditorProjects}
+                  canEditProjectFields={liveCanEditProjects}
+                />
               </Suspense>
             </div>
           )}
@@ -7586,7 +7571,7 @@ function App() {
               <SynchronisationScreen />
             </Suspense>
           )}
-          {role === "server" && appMode === APP_MODE_POSTPROD && (postprodVisibleTabs.includes(current) || current === "Logs") && current !== "Projets" && current !== "Ressources" && current !== "Synchronisation" && (
+          {role === "server" && appMode === APP_MODE_POSTPROD && (postprodVisibleTabs.includes(current) || current === "Logs" || current === POSTPROD_TAB_USERS) && current !== "Projets" && current !== "Ressources" && current !== "Synchronisation" && (
             <Suspense fallback={ScreenFallback}>
               <PostProductionScreen
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}
@@ -7959,7 +7944,7 @@ function App() {
               <SynchronisationScreen />
             </Suspense>
           )}
-          {role === "client" && appMode === APP_MODE_POSTPROD && (postprodVisibleTabs.includes(current) || current === "Logs") && current !== "Synchronisation" && (
+          {role === "client" && appMode === APP_MODE_POSTPROD && (postprodVisibleTabs.includes(current) || current === "Logs" || current === POSTPROD_TAB_USERS) && current !== "Synchronisation" && (
             <Suspense fallback={ScreenFallback}>
               <PostProductionScreen
                 tabKey={appMode === APP_MODE_POSTPROD && current === "Logs" ? "Historique" : current}

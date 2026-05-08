@@ -69,6 +69,7 @@ function normalizeTaskVisualStatusKey(statusRaw = "") {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
   if (normalized === "planned" || normalized === "planifiee") return "planned";
+  if (normalized === "not_started" || normalized === "not started" || normalized === "notstarted") return "waiting";
   if (normalized === "waiting" || normalized === "queued" || normalized === "a_faire" || normalized === "a faire") return "waiting";
   if (normalized === "running" || normalized === "en_cours" || normalized === "en cours") return "running";
   if (normalized === "error" || normalized === "failed" || normalized === "en_erreur" || normalized === "en erreur") return "error";

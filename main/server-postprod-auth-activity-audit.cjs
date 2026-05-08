@@ -78,6 +78,23 @@ function normalizeActivityDetailValue(value, maxLen = 180) {
   return '';
 }
 
+function humanizeActivityScopeType(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'auth') return 'authentification';
+  if (normalized === 'user') return 'utilisateur';
+  if (normalized === 'role') return 'profil';
+  if (normalized === 'project') return 'projet';
+  if (normalized === 'task') return 'tache';
+  if (normalized === 'render') return 'rendu';
+  if (normalized === 'form') return 'formulaire';
+  if (normalized === 'resource') return 'ressource';
+  if (normalized === 'sync') return 'synchronisation';
+  if (normalized === 'data') return 'donnees';
+  if (normalized === 'validation') return 'validation';
+  return normalizeActivityDetailValue(value, 80);
+}
+
 function buildUserActivityDetail({
   payload = {},
   scopeType = '',
@@ -117,11 +134,15 @@ function buildUserActivityDetail({
   pushLabeled('Formulaire', payload?.formName);
   pushLabeled('Preset', payload?.presetName || payload?.templateName || payload?.outputProfile);
   pushLabeled('Projet', payload?.projectName || payload?.projectId || payload?.projectRef);
+  pushLabeled('Worker rendu', payload?.workerKey || payload?.workerName || payload?.workerId);
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'apte')) {
+    pushLabeled('Disponibilite worker', payload?.apte === true ? 'activee' : 'desactivee');
+  }
 
-  const scopeTypeText = normalizeActivityDetailValue(scopeType, 80);
+  const scopeTypeText = humanizeActivityScopeType(scopeType);
   const scopeIdText = normalizeActivityDetailValue(scopeId, 80);
-  if (scopeTypeText || scopeIdText) {
-    pushPart(`Scope: ${scopeTypeText}${scopeIdText ? `#${scopeIdText}` : ''}`);
+  if (scopeIdText || (parts.length === 0 && scopeTypeText)) {
+    pushPart(`Contexte: ${scopeTypeText}${scopeIdText ? `#${scopeIdText}` : ''}`);
   }
   if (Array.isArray(projectRefs) && projectRefs.length > 0) {
     pushPart(`Projets: ${projectRefs.join(', ')}`);

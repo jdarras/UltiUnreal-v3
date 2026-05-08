@@ -12,6 +12,7 @@ function useUserSubmitController({
 }) {
   const buildUserPayloadFromDraft = useCallback((userDraft = {}, options = {}) => {
     const includeIsActive = options?.includeIsActive === true;
+    const includePassword = options?.includePassword === true;
     const payload = {
       displayName: String(userDraft?.displayName || ""),
       firstName: String(userDraft?.firstName || ""),
@@ -30,8 +31,10 @@ function useUserSubmitController({
       mustChangePassword: userDraft?.mustChangePassword === true,
       role: String(userDraft?.role || ""),
     };
-    const password = String(userDraft?.password || "");
-    if (password.trim()) payload.password = password;
+    if (includePassword) {
+      const password = String(userDraft?.password || "");
+      if (password.trim()) payload.password = password;
+    }
     if (includeIsActive && canBanUsers) {
       payload.isActive = userDraft?.isActive !== false;
     }
@@ -39,9 +42,11 @@ function useUserSubmitController({
   }, [canBanUsers]);
 
   const submitEditor = useCallback(async () => {
-    const payload = buildUserPayloadFromDraft(draft, { includeIsActive: false });
-
     if (editorMode === "create") {
+      const payload = buildUserPayloadFromDraft(draft, {
+        includeIsActive: false,
+        includePassword: true,
+      });
       const ok = await onCreateUser?.({
         ...payload,
         isActive: true,
@@ -51,7 +56,10 @@ function useUserSubmitController({
     }
 
     if (editorMode === "edit" && editingUserId > 0) {
-      const nextPayload = buildUserPayloadFromDraft(draft, { includeIsActive: true });
+      const nextPayload = buildUserPayloadFromDraft(draft, {
+        includeIsActive: true,
+        includePassword: false,
+      });
       const ok = await onUpdateUser?.(editingUserId, nextPayload);
       if (ok !== false) closeEditor?.();
     }

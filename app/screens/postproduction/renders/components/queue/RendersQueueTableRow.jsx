@@ -37,7 +37,11 @@ function RendersQueueTableRow({
       scheduledAt: "",
       isStationWaitMode: false,
     };
+  const renderState = queueLaunchMeta.renderState;
   const queueLaunchLabel = (() => {
+    if (renderState === "not_started") {
+      return safeT(t, "postprod.renders.queue.launch.toCreate", "A créer");
+    }
     const scheduledAt = String(queueLaunchMeta?.scheduledAt || "").trim();
     if (scheduledAt) {
       const formatted = String(formatDate(scheduledAt) || "").trim();
@@ -48,7 +52,6 @@ function RendersQueueTableRow({
     }
     return "-";
   })();
-  const renderState = queueLaunchMeta.renderState;
   const canLaunchFromQueue = queueLaunchMeta.canLaunchFromQueue;
   const canEditQueueTask = (
     typeof onEditQueueTask === "function"

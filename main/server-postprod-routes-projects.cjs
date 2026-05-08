@@ -47,7 +47,6 @@ async function handlePostprodProjectRoutes(options = {}) {
     pickReadableWrcIdentifier,
     rolePermissions,
     sanitizeProjectRef,
-    SYSTEM_MAINTENANCE_ROLE,
     sanitizeSyncSource,
     sanitizeSyncResult,
     normalizeSyncDetails,
@@ -183,14 +182,15 @@ async function handlePostprodProjectRoutes(options = {}) {
       return true;
     }
     const actorRole = resolveRoleInput(auth?.session?.role, rolesCache, DEFAULT_FALLBACK_ROLE) || DEFAULT_FALLBACK_ROLE;
+    const actorPerms = rolePermissions(actorRole, rolesCache);
     const usageModeFilters = parseProjectUsageModeFilters(url?.searchParams);
-    const projects = listPostprodProjects(sharedStore, usageModeFilters, stmts, actorRole);
+    const projects = listPostprodProjects(sharedStore, usageModeFilters, stmts, actorPerms);
     sendJSON(res, 200, {
       ok: true,
       projects,
       filters: {
         usageMode: usageModeFilters,
-        visibilityPolicy: getPostprodProjectVisibilityPolicy(actorRole),
+        visibilityPolicy: getPostprodProjectVisibilityPolicy(actorPerms),
       },
     });
     return true;
@@ -854,11 +854,11 @@ async function handlePostprodProjectRoutes(options = {}) {
       return true;
     }
 
-    if (actorRole !== SYSTEM_MAINTENANCE_ROLE) {
-      if (actorPerms.canSyncScenes !== true) {
-        sendJSON(res, 403, { ok: false, error: 'forbidden_sync' });
-        return true;
-      }
+    if (actorPerms.canSyncScenes !== true) {
+      sendJSON(res, 403, { ok: false, error: 'forbidden_sync' });
+      return true;
+    }
+    if (actorPerms.canManageProjectPermissions !== true) {
       const projectRole = stmts.findProjectUserRole.get(actorUserId, projectRef);
       const canSyncProject = Number(projectRole?.is_referent) === 1 && Number(projectRole?.can_sync) === 1;
       if (!canSyncProject) {

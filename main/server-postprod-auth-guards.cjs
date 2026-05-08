@@ -9,7 +9,6 @@ function createPostprodAuthGuards(options = {}) {
     getRolesCache = () => ({}),
     resolveRoleInput,
     DEFAULT_FALLBACK_ROLE,
-    SYSTEM_MAINTENANCE_ROLE,
     sanitizeProjectRef,
     resolveProjectForApi,
     sharedStore,
@@ -94,10 +93,7 @@ function createPostprodAuthGuards(options = {}) {
     const perms = requireRenderTemplateManage(sessionWrap, res, sendJSON);
     if (!perms) return null;
 
-    const rolesCache = getRolesCache();
-    const roleKey =
-      resolveRoleInput(sessionWrap?.session?.role, rolesCache, DEFAULT_FALLBACK_ROLE) || DEFAULT_FALLBACK_ROLE;
-    if (roleKey === SYSTEM_MAINTENANCE_ROLE) {
+    if (perms.canManageProjectPermissions === true) {
       return {
         perms,
         projectRef: sanitizeProjectRef(rawProjectRef),
@@ -165,7 +161,7 @@ function createPostprodAuthGuards(options = {}) {
       sendJSON(res, 403, { ok: false, error: 'forbidden' });
       return null;
     }
-    if (roleKey === SYSTEM_MAINTENANCE_ROLE) {
+    if (perms.canManageProjectPermissions === true) {
       return {
         perms,
         projectRef: projectRefInput,

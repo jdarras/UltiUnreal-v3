@@ -25,6 +25,8 @@ function buildPreferencesOutput({
     searchExpanded: preferences.searchExpanded,
     viewMode: preferences.viewMode,
     setViewMode: preferences.setViewMode,
+    showHistory: preferences.showHistory,
+    setShowHistory: preferences.setShowHistory,
     listSortKey: preferences.listSortKey,
     listSortDir: preferences.listSortDir,
     setListSortFromSelect: list.setListSortFromSelect,

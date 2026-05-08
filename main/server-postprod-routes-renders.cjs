@@ -219,6 +219,180 @@ function cleanupRenderArtifacts({
   };
 }
 
+function parsePayloadObjectSafe(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  const raw = String(value || '').trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function toPositiveInt(value) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
+}
+
+function normalizeRelaunchMeta(value) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const changedFields = Array.isArray(source?.changedFields)
+    ? source.changedFields
+      .map((entry) => String(entry || '').trim())
+      .filter(Boolean)
+      .slice(0, 24)
+    : [];
+  const changedFieldCountRaw = Number(source?.changedFieldCount || changedFields.length || 0);
+  const changedFieldCount = Number.isFinite(changedFieldCountRaw)
+    ? Math.max(0, Math.trunc(changedFieldCountRaw))
+    : changedFields.length;
+  return {
+    changedFieldCount,
+    changedFields,
+    hasMoreChangedFields: source?.hasMoreChangedFields === true || changedFieldCount > changedFields.length,
+    noChanges: source?.noChanges === true || changedFieldCount <= 0,
+  };
+}
+
+function resolveRenderVersionForTaskId({
+  linkedTaskId = 0,
+  stmts = null,
+} = {}) {
+  const taskId = toPositiveInt(linkedTaskId);
+  if (taskId <= 0 || typeof stmts?.listRenderJobs?.all !== 'function') return 1;
+  let rows = [];
+  try {
+    rows = stmts.listRenderJobs.all();
+  } catch {
+    rows = [];
+  }
+  let count = 0;
+  let maxKnownVersion = 0;
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const payload = parsePayloadObjectSafe(row?.payload_json);
+    const rowTaskId = toPositiveInt(payload?.taskId);
+    if (rowTaskId !== taskId) continue;
+    count += 1;
+    const rowVersion = toPositiveInt(payload?.renderVersion || payload?.render_version || payload?.version);
+    if (rowVersion > maxKnownVersion) maxKnownVersion = rowVersion;
+  }
+  return Math.max(maxKnownVersion, count) + 1;
+}
+
+function buildRenderCreationEventComment({
+  rawComment = '',
+  sourceTag = '',
+  renderVersion = 0,
+  relaunchMeta = null,
+  scheduledAt = null,
+} = {}) {
+  const explicitComment = String(rawComment || '').trim();
+  if (explicitComment) return explicitComment;
+  const versionLabel = Number.isFinite(Number(renderVersion)) && Number(renderVersion) > 0
+    ? `V${Math.trunc(Number(renderVersion))}`
+    : 'V?';
+  const normalizedSource = String(sourceTag || '').trim().toLowerCase();
+  const hasScheduledAt = !!String(scheduledAt || '').trim();
+  if (normalizedSource === 'task_auto_render_relaunch') {
+    const meta = normalizeRelaunchMeta(relaunchMeta);
+    if (meta.noChanges) {
+      return `Rendu relance (${versionLabel}) - aucune modification du formulaire`;
+    }
+    if (meta.changedFieldCount > 0) {
+      const changedFieldsLabel = meta.changedFields.length > 0
+        ? `: ${meta.changedFields.join(', ')}${meta.hasMoreChangedFields ? ', ...' : ''}`
+        : '';
+      return `Rendu relance (${versionLabel}) - ${meta.changedFieldCount} champ(s) modifie(s)${changedFieldsLabel}`;
+    }
+    return `Rendu relance (${versionLabel})`;
+  }
+  if (normalizedSource === 'task_auto_render_scheduled' || hasScheduledAt) {
+    return `Rendu cree (${versionLabel}) - lancement programme`;
+  }
+  if (normalizedSource === 'task_auto_render_now') {
+    return `Rendu cree (${versionLabel}) - lancement immediat`;
+  }
+  return `Rendu cree (${versionLabel})`;
+}
+
+function buildRenderScheduleEventComment(scheduledAt = null) {
+  const scheduledText = String(scheduledAt || '').trim();
+  if (scheduledText) {
+    return `Lancement programme: ${scheduledText}`;
+  }
+  return 'Lancement immediat (sans programmation)';
+}
+
+function encodeAlertMeta(meta = null) {
+  const source = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {};
+  try {
+    return JSON.stringify(source);
+  } catch {
+    return '{}';
+  }
+}
+
+function upsertOpenUserAlert({
+  stmts = null,
+  userId = 0,
+  alertType = '',
+  taskId = 0,
+  renderId = 0,
+  createdByUserId = 0,
+  message = '',
+  meta = null,
+  now = '',
+} = {}) {
+  const normalizedUserId = toPositiveInt(userId);
+  const normalizedTaskId = toPositiveInt(taskId);
+  const normalizedRenderId = toPositiveInt(renderId);
+  const normalizedByUserId = toPositiveInt(createdByUserId);
+  const normalizedAlertType = String(alertType || '').trim().toLowerCase();
+  if (
+    normalizedUserId <= 0
+    || normalizedAlertType !== 'new_assignment'
+    || typeof stmts?.insertOpenUserAlert?.run !== 'function'
+  ) {
+    return 0;
+  }
+  const safeMessage = String(message || '').trim().slice(0, 500);
+  const metaJson = encodeAlertMeta(meta);
+  try {
+    const inserted = stmts.insertOpenUserAlert.run(
+      normalizedUserId,
+      normalizedAlertType,
+      normalizedTaskId,
+      normalizedRenderId,
+      normalizedByUserId,
+      safeMessage,
+      metaJson,
+      now,
+      now
+    );
+    const changes = Number(inserted?.changes || 0);
+    if (
+      changes <= 0
+      && typeof stmts?.touchOpenUserAlertByScope?.run === 'function'
+    ) {
+      stmts.touchOpenUserAlertByScope.run(
+        normalizedByUserId,
+        safeMessage,
+        metaJson,
+        now,
+        normalizedUserId,
+        normalizedAlertType,
+        normalizedTaskId,
+        normalizedRenderId
+      );
+    }
+    return changes;
+  } catch {
+    return 0;
+  }
+}
+
 async function handlePostprodRendersRoutes({
   req,
   res,
@@ -413,6 +587,14 @@ async function handlePostprodRendersRoutes({
       if (!String(payloadObject?.taskStatus || '').trim()) {
         payloadObject.taskStatus = String(linkedTask?.status || 'A faire').trim();
       }
+      const renderVersion = resolveRenderVersionForTaskId({
+        linkedTaskId,
+        stmts,
+      });
+      payloadObject.renderVersion = renderVersion;
+      if (!payloadObject.version) payloadObject.version = renderVersion;
+      const sourceTag = String(payloadObject?.source || '').trim().toLowerCase();
+      const relaunchMeta = normalizeRelaunchMeta(payloadObject?.relaunchMeta);
       let payloadJsonForInsert = '{}';
       try {
         payloadJsonForInsert = JSON.stringify(payloadObject);
@@ -490,7 +672,58 @@ async function handlePostprodRendersRoutes({
         sendJSON(res, 500, { ok: false, error: 'render_create_failed' });
         return true;
       }
-      const comment = sanitizeRenderComment(body?.comment);
+      const actorUserId = toPositiveInt(auth?.session?.user_id);
+      const taskTitleForAlert = String(linkedTask?.title || '').trim();
+      const assigneeUserId = toPositiveInt(linkedTask?.assignee_user_id);
+      if (assigneeUserId > 0 && assigneeUserId !== actorUserId) {
+        upsertOpenUserAlert({
+          stmts,
+          userId: assigneeUserId,
+          alertType: 'new_assignment',
+          taskId: linkedTaskId,
+          renderId,
+          createdByUserId: actorUserId,
+          message: taskTitleForAlert
+            ? `Nouveau rendu assigne: ${taskTitleForAlert}`
+            : `Nouveau rendu assigne (tache #${String(linkedTaskId)})`,
+          meta: {
+            taskId: linkedTaskId,
+            renderId,
+            taskTitle: taskTitleForAlert,
+            renderVersion,
+            source: sourceTag || '',
+          },
+          now,
+        });
+      }
+      if (
+        actorUserId > 0
+        && linkedTaskId > 0
+        && typeof stmts?.resolveOpenUserAlertsByUserTaskIdAndType?.run === 'function'
+      ) {
+        stmts.resolveOpenUserAlertsByUserTaskIdAndType.run(
+          now,
+          now,
+          actorUserId,
+          linkedTaskId,
+          'new_assignment'
+        );
+      }
+      if (
+        sourceTag === 'task_auto_render_relaunch'
+        && linkedTaskId > 0
+        && typeof stmts?.resolveOpenUserAlertsByTaskIdAndType?.run === 'function'
+      ) {
+        stmts.resolveOpenUserAlertsByTaskIdAndType.run(now, now, linkedTaskId, 'to_modify');
+        stmts.resolveOpenUserAlertsByTaskIdAndType.run(now, now, linkedTaskId, 'render_error');
+      }
+      const comment = sanitizeRenderComment(buildRenderCreationEventComment({
+        rawComment: body?.comment,
+        sourceTag,
+        renderVersion,
+        relaunchMeta,
+        scheduledAt,
+      }));
       stmts.insertRenderJobEvent.run(
         renderId,
         'Created',
@@ -611,7 +844,7 @@ async function handlePostprodRendersRoutes({
             'Queued',
             'Queued',
             Number(auth.session.user_id),
-            'station_unreachable',
+            'Station de rendu indisponible',
             now
           );
         }
@@ -634,11 +867,14 @@ async function handlePostprodRendersRoutes({
         'render_created',
         {
           renderId,
+          renderVersion,
           projectName,
           projectUsageMode: String(projectEligibility.usageMode || ''),
           templateName,
           status: initialStatus,
           requiresValidation,
+          source: sourceTag || '',
+          relaunchMeta,
           renderStation: finalRenderStation,
           renderStationName: finalRenderStationName,
           stationStatus: finalStationStatus,
@@ -810,6 +1046,21 @@ async function handlePostprodRendersRoutes({
         acc.errorCount += Number(cleanup?.errorCount || 0);
         return acc;
       }, { deletedCount: 0, skippedCount: 0, errorCount: 0 });
+      const deletionNow = nowIso();
+      if (typeof stmts?.resolveOpenUserAlertsByRenderId?.run === 'function') {
+        for (const deletedRenderId of Array.isArray(deletionResult?.deletedRenderIds) ? deletionResult.deletedRenderIds : []) {
+          const normalizedRenderId = toPositiveInt(deletedRenderId);
+          if (normalizedRenderId <= 0) continue;
+          stmts.resolveOpenUserAlertsByRenderId.run(deletionNow, deletionNow, normalizedRenderId);
+        }
+      }
+      if (
+        Number(deletionResult?.deletedTaskChanges || 0) > 0
+        && linkedTaskId > 0
+        && typeof stmts?.resolveOpenUserAlertsByTaskId?.run === 'function'
+      ) {
+        stmts.resolveOpenUserAlertsByTaskId.run(deletionNow, deletionNow, linkedTaskId);
+      }
       audit(
         auth.session.user_id,
         'render_deleted',
@@ -899,6 +1150,14 @@ async function handlePostprodRendersRoutes({
     }
     const now = nowIso();
     stmts.updateRenderJobSchedule.run(scheduledAt, now, renderId);
+    stmts.insertRenderJobEvent.run(
+      renderId,
+      'Queued',
+      'Queued',
+      Number(auth.session.user_id),
+      buildRenderScheduleEventComment(scheduledAt),
+      now
+    );
     const updated = stmts.findRenderJobById.get(renderId);
     const payload = buildRenderJobPayload(updated);
     sendJSON(res, 200, { ok: true, render: payload, renderJob: payload });
@@ -963,6 +1222,14 @@ async function handlePostprodRendersRoutes({
       JSON.stringify(updatedPayloadObject),
       now,
       renderId
+    );
+    stmts.insertRenderJobEvent.run(
+      renderId,
+      String(currentRender?.status || 'Queued'),
+      String(currentRender?.status || 'Queued'),
+      Number(auth.session.user_id),
+      `Destinations de sortie mises a jour (${exportDestinationIds.length})`,
+      now
     );
     const updated = stmts.findRenderJobById.get(renderId);
     const payload = buildRenderJobPayload(updated);

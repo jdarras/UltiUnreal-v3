@@ -98,7 +98,15 @@ function buildProjectsSignature(payload) {
   return `${activeId}|${activeName}|${projectsSig}|${activeByHostSig}`;
 }
 
-export default function LaunchControlScreen({ isVisible = true }) {
+export default function LaunchControlScreen({
+  isVisible = true,
+  canLaunchLiveProjects = true,
+  canLaunchEditorProjects = true,
+  canEditProjectFields = true,
+}) {
+  const canUseLiveLaunch = canLaunchLiveProjects === true;
+  const canUseEditorLaunch = canLaunchEditorProjects === true;
+  const canOpenProjectDetail = canUseEditorLaunch || canEditProjectFields === true;
   const [hosts, setHosts] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
@@ -129,12 +137,13 @@ export default function LaunchControlScreen({ isVisible = true }) {
     return [...list].sort((a, b) => parseFloat(a) - parseFloat(b));
   }, []);
   const editActiveProject = React.useCallback(() => {
+    if (!canOpenProjectDetail) return;
     const pid = String(projectsData?.activeId || '').trim();
     if (!pid) return;
     if (window.goToProjectDetail) {
       window.goToProjectDetail(pid);
     }
-  }, [projectsData]);
+  }, [canOpenProjectDetail, projectsData]);
   const id = React.useMemo(readIdentity, []);
   const localIp = String(id?.localIp || '').trim();
   const lang = String(id.lang || 'fr').trim();
@@ -740,7 +749,7 @@ export default function LaunchControlScreen({ isVisible = true }) {
         });
         const r = Number(c?.refreshSec || 0);
           if (r && r > 0) setRefreshSec(r);
-          setShowUeLaunch(!!c?.show_start_new_ue);
+          setShowUeLaunch(canUseEditorLaunch && !!c?.show_start_new_ue);
           setAllowStartDesynced(!!c?.allowStartDesynced);
         const versInit =
           Array.isArray(c?.unrealVersions) && c.unrealVersions.length
@@ -750,7 +759,7 @@ export default function LaunchControlScreen({ isVisible = true }) {
 
           // --- Mode de lancement (Production / Intégration) ---
           const mode = String(c?.launchMode || '').toLowerCase();
-          if (mode === 'integration') {
+          if (mode === 'integration' && canUseEditorLaunch) {
             setLaunchMode('integration');
           } else {
             setLaunchMode('production');
@@ -769,7 +778,7 @@ export default function LaunchControlScreen({ isVisible = true }) {
       }
     })
     ();
-  }, []);
+  }, [canUseEditorLaunch, sortLocale, sortVersions]);
 
   // Heartbeat connexion (online/offline) + refresh hosts (allégé) + projets si changement
   React.useEffect(() => {
@@ -883,7 +892,7 @@ export default function LaunchControlScreen({ isVisible = true }) {
         // common settings (refreshSec / rcHttpPort / launchMode / preset name)
         if (c && typeof c === 'object') {
           commonCfgRef.current = c;
-          setShowUeLaunch(!!c?.show_start_new_ue);
+          setShowUeLaunch(canUseEditorLaunch && !!c?.show_start_new_ue);
           setAllowStartDesynced(!!c?.allowStartDesynced);
           const vers =
             Array.isArray(c?.unrealVersions) && c.unrealVersions.length
@@ -908,9 +917,11 @@ export default function LaunchControlScreen({ isVisible = true }) {
           }
 
           const mode = String(c.launchMode || '').toLowerCase();
-          if (mode === 'integration') {
+          if (mode === 'integration' && canUseEditorLaunch) {
             setLaunchMode('integration');
           } else if (mode === 'production') {
+            setLaunchMode('production');
+          } else if (!canUseEditorLaunch) {
             setLaunchMode('production');
           }
 
@@ -1005,7 +1016,13 @@ export default function LaunchControlScreen({ isVisible = true }) {
         quickRefreshTimerRef.current = null;
       }
     };
-  }, [localIp, sortLocale]);
+  }, [localIp, sortLocale, canUseEditorLaunch]);
+
+  React.useEffect(() => {
+    if (!canUseEditorLaunch && launchMode !== 'production') {
+      setLaunchMode('production');
+    }
+  }, [canUseEditorLaunch, launchMode]);
 
 
     // ---- Résolution du .uproject (prend en compte le mode synchro + serveur local) ----
@@ -1147,6 +1164,7 @@ export default function LaunchControlScreen({ isVisible = true }) {
 
   const onLaunchEditor = React.useCallback(
     async (version) => {
+      if (!canUseEditorLaunch) return;
       if (!serverHost) return;
       const ip = String(serverHost.ip || '').trim();
       if (!ip) return;
@@ -1173,7 +1191,7 @@ export default function LaunchControlScreen({ isVisible = true }) {
         setTimeout(() => setError(''), 2500);
       }
     },
-    [serverHost, t, maybeNotifyLocalFallback]
+    [serverHost, t, maybeNotifyLocalFallback, canUseEditorLaunch]
   );
 
   // ---- Helpers: état d'association machine (EXE + .uproject spécifique IP) ----
@@ -1228,6 +1246,10 @@ export default function LaunchControlScreen({ isVisible = true }) {
   // ---- Changement de mode (Production / Intégration) ----
   async function onChangeLaunchMode(e) {
     const value = e.target.value; // 'production' ou 'integration'
+    if (value === 'integration' && !canUseEditorLaunch) {
+      setLaunchMode('production');
+      return;
+    }
     setLaunchMode(value);
     try {
       await postCommon({ launchMode: value });
@@ -1292,6 +1314,8 @@ export default function LaunchControlScreen({ isVisible = true }) {
   async function onStart(ip) {
     const targetIp = String(ip || '').trim();
     if (!targetIp) return;
+    if (launchMode === 'production' && !canUseLiveLaunch) return;
+    if (launchMode === 'integration' && !canUseEditorLaunch) return;
 
     if (launchMode === 'production') {
       startRequestedRef.current = true;
@@ -1360,6 +1384,8 @@ export default function LaunchControlScreen({ isVisible = true }) {
     }
 
   async function onStop(ip) {
+    if (launchMode === 'production' && !canUseLiveLaunch) return;
+    if (launchMode === 'integration' && !canUseEditorLaunch) return;
     setBusy(b => ({ ...b, [ip]: true }));
     try {
       const stopMode = launchMode === 'integration' ? 'integration' : 'production';
@@ -1382,6 +1408,8 @@ export default function LaunchControlScreen({ isVisible = true }) {
 
   // ---- Actions groupées ----
   async function onStartAll() {
+    if (launchMode === 'production' && !canUseLiveLaunch) return;
+    if (launchMode === 'integration' && !canUseEditorLaunch) return;
     if (launchMode !== 'production') return;
     startRequestedRef.current = true;
     wrcReadyRef.current = false;
@@ -1439,6 +1467,8 @@ export default function LaunchControlScreen({ isVisible = true }) {
   }
 
   async function onStopAll() {
+    if (launchMode === 'production' && !canUseLiveLaunch) return;
+    if (launchMode === 'integration' && !canUseEditorLaunch) return;
     const ips = hosts
       .filter((h) => onlineMap[h.ip]?.online && onlineMap[h.ip]?.unrealRunning)
       .map((h) => h.ip);
@@ -1482,8 +1512,8 @@ export default function LaunchControlScreen({ isVisible = true }) {
       const running = !!(entry && entry.unrealRunning);
       const isServerHost = localIp && ip === localIp;
       const allowed =
-        launchMode === 'production' ||
-        (launchMode === 'integration' && isServerHost);
+        (launchMode === 'production' && canUseLiveLaunch) ||
+        (launchMode === 'integration' && canUseEditorLaunch && isServerHost);
       return allowed && isReadyHost(h) && online && !running && !busy[h.ip];
     });
 
@@ -1494,8 +1524,8 @@ export default function LaunchControlScreen({ isVisible = true }) {
       const running = !!(entry && entry.unrealRunning);
       const isServerHost = localIp && ip === localIp;
       const allowed =
-        launchMode === 'production' ||
-        (launchMode === 'integration' && isServerHost);
+        (launchMode === 'production' && canUseLiveLaunch) ||
+        (launchMode === 'integration' && canUseEditorLaunch && isServerHost);
       return allowed && running && !busy[h.ip];
     });
 
@@ -1508,7 +1538,7 @@ export default function LaunchControlScreen({ isVisible = true }) {
         <div className="uu-section">
         <div className="uu-toolbar">
           <div className="uu-kv">
-            {projectsData?.activeId ? (
+            {canOpenProjectDetail && projectsData?.activeId ? (
               <button className="uu-btn" onClick={editActiveProject}>
                 {t('projects.actions.edit')}
               </button>
@@ -1538,7 +1568,9 @@ export default function LaunchControlScreen({ isVisible = true }) {
               onChange={onChangeLaunchMode}
             >
               <option value="production">{t('launch.mode.production')}</option>
-              <option value="integration">{t('launch.mode.integration')}</option>
+              {canUseEditorLaunch ? (
+                <option value="integration">{t('launch.mode.integration')}</option>
+              ) : null}
             </select>
             <button
               className={`uu-btn ${
@@ -1580,14 +1612,20 @@ export default function LaunchControlScreen({ isVisible = true }) {
             const entry = onlineMap && onlineMap[ip];
             const online = !!(entry && entry.online);
             const running = !!(entry && entry.unrealRunning);
+            const isServerHost = localIp && ip === localIp;
+            const modeAllowsHost =
+              (launchMode === 'production' && canUseLiveLaunch) ||
+              (launchMode === 'integration' && canUseEditorLaunch && isServerHost);
 
             const canStart =
+              modeAllowsHost &&
               isReadyHost(h) &&
               online &&
               !running &&
               !busy[h.ip];
 
             const canStop =
+              modeAllowsHost &&
               !busy[h.ip] &&
               running;
 

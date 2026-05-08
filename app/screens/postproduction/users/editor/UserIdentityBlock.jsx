@@ -7,7 +7,14 @@ function UserIdentityBlock({
   setDraft,
   roleOptions = [],
   rolesByKey = new Map(),
+  readOnlyFields = false,
 }) {
+  const currentRole = String(draft?.role || "").trim();
+  const effectiveRoleOptions = Array.isArray(roleOptions) ? [...roleOptions] : [];
+  if (currentRole && !effectiveRoleOptions.includes(currentRole)) {
+    effectiveRoleOptions.push(currentRole);
+  }
+
   return (
     <div className="uu-card mt-12">
       <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
@@ -33,11 +40,11 @@ function UserIdentityBlock({
           <select
             className="uu-input"
             style={{ flex: 1 }}
-            value={String(draft?.role || "")}
+            value={currentRole}
             onChange={(e) => setDraft((prev) => ({ ...(prev || {}), role: e.target.value }))}
-            disabled={roleOptions.length === 0}
+            disabled={effectiveRoleOptions.length === 0 || readOnlyFields}
           >
-            {roleOptions.map((roleName) => (
+            {effectiveRoleOptions.map((roleName) => (
               <option key={roleName} value={roleName}>
                 {roleLabel(t, roleName, rolesByKey)}
               </option>
@@ -133,6 +140,7 @@ function UserIdentityBlock({
             style={{ flex: 1 }}
             value={String(draft?.employmentType || "")}
             onChange={(e) => setDraft((prev) => ({ ...(prev || {}), employmentType: e.target.value }))}
+            disabled={readOnlyFields}
           >
             <option value="">{safeT(t, "postprod.users.form.employmentType.empty", "Non renseigne")}</option>
             <option value="Interne">{safeT(t, "postprod.users.form.employmentType.interne", "Interne")}</option>

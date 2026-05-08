@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { safeT } from "../../../shared/helpers";
 import { useConfirmDialogState } from "../../../catalogs/hooks/useConfirmDialogState";
 import { useUserAutosave } from "../useUserAutosave";
 import { useUserEditorActions } from "../useUserEditorActions";
@@ -170,6 +171,32 @@ export function useUserManagementActions({
     }
   }, [deleteUserBusy, onDeleteUser, editingUserId, deleteDialog, closeEditor]);
 
+  const onChangePassword = useCallback(async (newPassword) => {
+    const targetUserId = Number(editingUserId || 0);
+    if (editorMode !== "edit" || !Number.isFinite(targetUserId) || targetUserId <= 0) {
+      throw new Error(
+        safeT(t, "postprod.users.error.userNotFound", "Utilisateur introuvable.")
+      );
+    }
+    if (typeof onUpdateUser !== "function") {
+      throw new Error(
+        safeT(t, "postprod.profile.form.passwordChangeFailed", "Échec du changement de mot de passe.")
+      );
+    }
+    const password = String(newPassword || "");
+    if (password.length < 4) {
+      throw new Error(
+        safeT(t, "postprod.users.error.invalidPassword", "Mot de passe invalide (minimum 4 caractères).")
+      );
+    }
+    const ok = await onUpdateUser(targetUserId, { password });
+    if (ok === false) {
+      throw new Error(
+        safeT(t, "postprod.profile.form.passwordChangeFailed", "Échec du changement de mot de passe.")
+      );
+    }
+  }, [editingUserId, editorMode, onUpdateUser, t]);
+
   return {
     openCreate,
     openEdit,
@@ -195,6 +222,7 @@ export function useUserManagementActions({
     deleteDialogOpen: deleteDialog.open,
     deleteDialogConfirmRef: deleteDialog.confirmRef,
     deleteUserBusy,
+    onChangePassword,
   };
 }
 

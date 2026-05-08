@@ -2,7 +2,6 @@ import {
   resolveTitle,
   safeT,
   AuthCard,
-  ProfileCard,
   UserManagementCard,
   RoleManagementCard,
   RenderEditorCard,
@@ -12,6 +11,7 @@ import {
   RendersValidationCard,
   AuditHistoryCard,
 } from "./postproduction/cards";
+import { SelfProfileCard } from "./postproduction/users/SelfProfileCard.jsx";
 
 export default function PostProductionScreen({
   tabKey = "Utilisateurs",
@@ -202,21 +202,19 @@ export default function PostProductionScreen({
       ) : null}
 
       {tabKey === "Utilisateurs" && !canManageUsers ? (
-        <ProfileCard
+        <SelfProfileCard
           t={t}
           user={user}
-          appLang={appLang}
-          onChangeAppLanguage={onChangeAppLanguage}
+          roles={roles}
           saving={profileSaving}
-          error={profileError}
-          projects={projects}
-          projectsLoading={projectsLoading}
+          onUpdateMe={onUpdateMe}
           myActivity={myActivity}
           myActivitySummary={myActivitySummary}
-          activityLoading={myActivityLoading}
-          activityError={myActivityError}
-          onRefreshActivity={onRefreshMyActivity}
-          onUpdateMe={onUpdateMe}
+          myActivityLoading={myActivityLoading}
+          myActivityError={myActivityError}
+          onRefreshMyActivity={onRefreshMyActivity}
+          projects={projects}
+          projectsLoading={projectsLoading}
         />
       ) : null}
 
@@ -385,6 +383,7 @@ export default function PostProductionScreen({
           onCreateRender={onCreateRender}
           onTransitionRender={onTransitionRender}
           onLoadRenderTransitions={onLoadRenderTransitions}
+          onLoadRenderFormFields={onLoadRenderFormFields}
           onScanDetectedRenders={onScanDetectedRenders}
           onDispatchRenders={onDispatchRenders}
           onSaveDispatchPolicy={onSaveDispatchPolicy}

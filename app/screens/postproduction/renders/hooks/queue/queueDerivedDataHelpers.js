@@ -121,14 +121,28 @@ function getQueueEntryLaunchMeta(queueEntry = null) {
   const linkedRenderId = Number.isFinite(linkedRenderIdRaw) && linkedRenderIdRaw > 0
     ? Math.trunc(linkedRenderIdRaw)
     : 0;
-  const canLaunchFromQueue = renderState !== "running" && renderState !== "to_modify";
+  const hasLinkedRender = linkedRenderId > 0;
+  const effectiveRenderState = (!hasLinkedRender && renderState === "waiting")
+    ? "not_started"
+    : renderState;
+  // A queue entry without linked render means "task prepared but render not created yet":
+  // this must go through the render editor submit flow, never queue launch.
+  const canLaunchFromQueue = (
+    hasLinkedRender
+    && effectiveRenderState !== "running"
+    && effectiveRenderState !== "to_modify"
+  );
   return {
     ...scheduleMeta,
-    renderState,
+    renderState: effectiveRenderState,
     linkedRenderId,
     canLaunchFromQueue,
-    isWaitingLaunchable: canLaunchFromQueue && renderState === "waiting" && scheduleMeta.isAutoLaunchDue,
-    isErrorLaunchable: canLaunchFromQueue && renderState === "error",
+    isWaitingLaunchable: (
+      canLaunchFromQueue
+      && effectiveRenderState === "waiting"
+      && scheduleMeta.isAutoLaunchDue
+    ),
+    isErrorLaunchable: canLaunchFromQueue && effectiveRenderState === "error",
   };
 }
 

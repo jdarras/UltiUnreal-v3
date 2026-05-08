@@ -93,6 +93,7 @@ export function buildUserEditorPanelProps({ t, data = {} } = {}) {
     deleteDialogOpen: data.deleteDialogOpen,
     deleteDialogConfirmRef: data.deleteDialogConfirmRef,
     deleteUserBusy: data.deleteUserBusy,
+    onChangePassword: data.onChangePassword,
   };
 }
 

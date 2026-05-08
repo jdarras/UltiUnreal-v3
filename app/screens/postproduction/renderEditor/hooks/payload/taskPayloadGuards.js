@@ -7,10 +7,14 @@ function validateTaskPayloadInputs({
   filteredAutoRenderForms = [],
   autoRenderFormId = "",
   selectedForm = null,
+  requireCompleteAutoRenderConfig = true,
 } = {}) {
   const normalizedTitle = String(title || "").trim();
   if (!normalizedTitle) {
     return safeT(t, "postprod.tasks.error.missingTitle", "Le titre de la tache est obligatoire.");
+  }
+  if (requireCompleteAutoRenderConfig !== true) {
+    return "";
   }
   if (!String(renderOutputDir || "").trim()) {
     return safeT(
@@ -44,7 +48,11 @@ function validateResolvedAutoRenderContext({
   effectiveMapName = "",
   effectiveSequenceName = "",
   effectiveOutputProfile = "",
+  requireCompleteAutoRenderConfig = true,
 } = {}) {
+  if (requireCompleteAutoRenderConfig !== true) {
+    return "";
+  }
   if (!formProjectRef) {
     return safeT(
       t,
@@ -84,7 +92,7 @@ function validateResolvedAutoRenderContext({
     return safeT(
       t,
       "postprod.tasks.form.autoRenderOutputProfile.required",
-      "Le formulaire de rendu doit definir un preset de rendu."
+      "Le formulaire de rendu doit definir un mode de rendu."
     );
   }
   return "";

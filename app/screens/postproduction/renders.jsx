@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { safeT } from "./shared/helpers";
 import { useRendersCardController } from "./renders/hooks/useRendersCardController";
 import { RenderDetailModal } from "./renders/components/RenderDetailModal";
@@ -57,6 +57,7 @@ function RendersValidationCard({
   onScanDetectedRenders = null,
   onTransitionRender = null,
   onLoadRenderTransitions = null,
+  onLoadRenderFormFields = null,
   onCreateRender = null,
   onDispatchRenders = null,
   onScheduleRender = null,
@@ -85,6 +86,8 @@ function RendersValidationCard({
     closeRejectDialog,
     confirmRejectDialog,
     busyReviewRenderId,
+    showHistory,
+    setShowHistory,
   } = useRendersCardController({
     t,
     user,
@@ -104,7 +107,6 @@ function RendersValidationCard({
 
   const projectLabelByRef = useMemo(() => buildProjectLabelByRef(projects), [projects]);
   const hasRenderDetailPage = Boolean(detailModalProps?.render);
-  const [showHistory, setShowHistory] = useState(false);
   const renderReviewKeyResolver = typeof listPanelProps?.renderReviewStatusKey === "function"
     ? listPanelProps.renderReviewStatusKey
     : (() => "to_validate");
@@ -240,6 +242,7 @@ function RendersValidationCard({
         onRequestOpenRenderEditor={requestOpenRenderEditor}
         tasks={tasks}
         renderForms={renderForms}
+        onLoadRenderFormFields={onLoadRenderFormFields}
         renderExportDestinationOptions={renderExportDestinationOptions}
         onUpdateRenderExportDestinations={onUpdateRenderExportDestinations}
         embedded={hasRenderDetailPage}

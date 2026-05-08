@@ -15,7 +15,6 @@ async function handlePostprodRoleRoutes({
   sanitizeRoleNote,
   normalizeManageableRolesInput,
   resolveRoleInput,
-  SYSTEM_MAINTENANCE_ROLE,
   stmts,
   refreshRolesCache,
   audit,
@@ -65,18 +64,19 @@ async function handlePostprodRoleRoutes({
       const canValidate = body?.canValidate === true;
       const canSyncScenes = body?.canSyncScenes === true;
       const canManageUsers = body?.canManageUsers === true;
-      const canManageRoles = roleKey === SYSTEM_MAINTENANCE_ROLE;
-      const canManageForms = roleKey === SYSTEM_MAINTENANCE_ROLE || body?.canManageForms === true;
-      const canManageMachines = roleKey === SYSTEM_MAINTENANCE_ROLE || body?.canManageMachines === true;
+      const canManageRoles = body?.canManageRoles === true;
+      const canManageForms = body?.canManageForms === true;
+      const canManageMachines = body?.canManageMachines === true;
       const canBanUsers = body?.canBanUsers === true;
       const canManageProjectPermissions = body?.canManageProjectPermissions === true;
+      const canLaunchLiveProjects = body?.canLaunchLiveProjects !== false;
       const canLaunchProjects = body?.canLaunchProjects !== false;
       const canLaunchRenders = body?.canLaunchRenders !== false;
       const canViewResources = body?.canViewResources === true
         || (!Object.prototype.hasOwnProperty.call(body || {}, 'canViewResources') && (canUseLiveMode || canUsePostprodMode));
       const canCreateTasks = body?.canCreateTasks === true
         || (!Object.prototype.hasOwnProperty.call(body || {}, 'canCreateTasks') && canLaunchRenders);
-      const canAssignRenderRequests = roleKey === SYSTEM_MAINTENANCE_ROLE || body?.canAssignRenderRequests === true;
+      const canAssignRenderRequests = body?.canAssignRenderRequests === true;
       const canEditProjects = body?.canEditProjects === true
         || (!Object.prototype.hasOwnProperty.call(body || {}, 'canEditProjects') && canLaunchProjects);
       const canManageLayouts = body?.canManageLayouts === true
@@ -115,6 +115,7 @@ async function handlePostprodRoleRoutes({
           canManageMachines ? 1 : 0,
           safeCanBanUsers ? 1 : 0,
           safeCanManageProjectPermissions ? 1 : 0,
+          canLaunchLiveProjects ? 1 : 0,
           canLaunchProjects ? 1 : 0,
           canLaunchRenders ? 1 : 0,
           canViewResources ? 1 : 0,
@@ -155,6 +156,7 @@ async function handlePostprodRoleRoutes({
           canManageMachines,
           canBanUsers: safeCanBanUsers,
           canManageProjectPermissions: safeCanManageProjectPermissions,
+          canLaunchLiveProjects,
           canLaunchProjects,
           canLaunchRenders,
           canViewResources,
@@ -204,9 +206,26 @@ async function handlePostprodRoleRoutes({
       return true;
     }
     const current = rolesCache.byKey.get(roleKey);
-    if (current?.isSystem || roleKey === SYSTEM_MAINTENANCE_ROLE) {
-      sendJSON(res, 403, { ok: false, error: 'forbidden' });
+    if (!current) {
+      sendJSON(res, 404, { ok: false, error: 'role_not_found' });
       return true;
+    }
+    if (current.canManageRoles === true) {
+      const remaining = Number(stmts.countRolesManageRolesExcluding.get(current.key)?.n || 0);
+      if (remaining <= 0) {
+        sendJSON(res, 400, { ok: false, error: 'last_manage_roles_forbidden' });
+        return true;
+      }
+    }
+    const fallbackRole = rolesCache.rows.find((entry) => String(entry?.key || '') !== roleKey);
+    if (!fallbackRole || !String(fallbackRole.key || '').trim()) {
+      sendJSON(res, 400, { ok: false, error: 'last_manage_roles_forbidden' });
+      return true;
+    }
+    const fallbackRoleKey = String(fallbackRole.key || '').trim();
+    const now = nowIso();
+    if (typeof stmts.updateUsersRoleByRoleKey?.run === 'function') {
+      stmts.updateUsersRoleByRoleKey.run(fallbackRoleKey, now, roleKey);
     }
     const result = stmts.deleteRoleByKey.run(roleKey);
     if (!result || result.changes === 0) {
@@ -217,7 +236,7 @@ async function handlePostprodRoleRoutes({
     audit(
       auth.session.user_id,
       'role_deleted',
-      { key: roleKey },
+      { key: roleKey, reassignedTo: fallbackRoleKey },
       'role',
       roleKey
     );
@@ -261,6 +280,7 @@ async function handlePostprodRoleRoutes({
   const hasCanManageMachines = Object.prototype.hasOwnProperty.call(body || {}, 'canManageMachines');
   const hasCanBanUsers = Object.prototype.hasOwnProperty.call(body || {}, 'canBanUsers');
   const hasCanManageProjectPermissions = Object.prototype.hasOwnProperty.call(body || {}, 'canManageProjectPermissions');
+  const hasCanLaunchLiveProjects = Object.prototype.hasOwnProperty.call(body || {}, 'canLaunchLiveProjects');
   const hasCanLaunchProjects = Object.prototype.hasOwnProperty.call(body || {}, 'canLaunchProjects');
   const hasCanLaunchRenders = Object.prototype.hasOwnProperty.call(body || {}, 'canLaunchRenders');
   const hasCanViewResources = Object.prototype.hasOwnProperty.call(body || {}, 'canViewResources');
@@ -290,6 +310,7 @@ async function handlePostprodRoleRoutes({
   if (hasCanManageMachines) next.canManageMachines = body?.canManageMachines === true;
   if (hasCanBanUsers) next.canBanUsers = body?.canBanUsers === true;
   if (hasCanManageProjectPermissions) next.canManageProjectPermissions = body?.canManageProjectPermissions === true;
+  if (hasCanLaunchLiveProjects) next.canLaunchLiveProjects = body?.canLaunchLiveProjects === true;
   if (hasCanLaunchProjects) next.canLaunchProjects = body?.canLaunchProjects === true;
   if (hasCanLaunchRenders) next.canLaunchRenders = body?.canLaunchRenders === true;
   if (hasCanViewResources) next.canViewResources = body?.canViewResources === true;
@@ -321,25 +342,6 @@ async function handlePostprodRoleRoutes({
     next.canManageProjectPermissions = false;
   }
 
-  if (next.key === SYSTEM_MAINTENANCE_ROLE) {
-    next.canUseLiveMode = true;
-    next.canUsePostprodMode = true;
-    next.canManageUsers = true;
-    next.canManageRoles = true;
-    next.canManageForms = true;
-    next.canManageMachines = true;
-    next.canBanUsers = true;
-    next.canManageProjectPermissions = true;
-    next.canLaunchProjects = true;
-    next.canViewResources = true;
-    next.canCreateTasks = true;
-    next.canAssignRenderRequests = true;
-    next.canEditProjects = true;
-    next.canManageLayouts = true;
-    next.manageableRoles = Array.from(rolesCache.byKey.keys());
-  } else {
-    next.canManageRoles = false;
-  }
   if (!next.canUseLiveMode) {
     next.canManageLayouts = false;
   }
@@ -374,6 +376,7 @@ async function handlePostprodRoleRoutes({
     !hasCanManageMachines &&
     !hasCanBanUsers &&
     !hasCanManageProjectPermissions &&
+    !hasCanLaunchLiveProjects &&
     !hasCanLaunchProjects &&
     !hasCanLaunchRenders &&
     !hasCanViewResources &&
@@ -400,6 +403,7 @@ async function handlePostprodRoleRoutes({
     current.canManageMachines === next.canManageMachines &&
     current.canBanUsers === next.canBanUsers &&
     current.canManageProjectPermissions === next.canManageProjectPermissions &&
+    current.canLaunchLiveProjects === next.canLaunchLiveProjects &&
     current.canLaunchProjects === next.canLaunchProjects &&
     current.canLaunchRenders === next.canLaunchRenders &&
     current.canViewResources === next.canViewResources &&
@@ -427,6 +431,7 @@ async function handlePostprodRoleRoutes({
     next.canManageMachines ? 1 : 0,
     next.canBanUsers ? 1 : 0,
     next.canManageProjectPermissions ? 1 : 0,
+    next.canLaunchLiveProjects ? 1 : 0,
     next.canLaunchProjects ? 1 : 0,
     next.canLaunchRenders ? 1 : 0,
     next.canViewResources ? 1 : 0,
@@ -459,6 +464,7 @@ async function handlePostprodRoleRoutes({
         canManageMachines: current.canManageMachines !== updated.canManageMachines,
         canBanUsers: current.canBanUsers !== updated.canBanUsers,
         canManageProjectPermissions: current.canManageProjectPermissions !== updated.canManageProjectPermissions,
+        canLaunchLiveProjects: current.canLaunchLiveProjects !== updated.canLaunchLiveProjects,
         canLaunchProjects: current.canLaunchProjects !== updated.canLaunchProjects,
         canLaunchRenders: current.canLaunchRenders !== updated.canLaunchRenders,
         canViewResources: current.canViewResources !== updated.canViewResources,

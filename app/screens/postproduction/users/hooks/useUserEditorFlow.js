@@ -43,7 +43,7 @@ function useUserEditorFlow({
   useEffect(() => {
     setDraft((prev) => {
       const currentRole = String(prev?.role || "").trim();
-      if (currentRole && roleOptions.includes(currentRole)) return prev;
+      if (currentRole) return prev;
       return {
         ...(prev || {}),
         role: roleOptions[0] || "",

@@ -30,6 +30,14 @@ function toRenderSortStamp(render = null) {
   return 0;
 }
 
+function normalizeIdentityToken(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 export function useRenderEditorDataController({
   t,
   tasks = [],
@@ -38,6 +46,7 @@ export function useRenderEditorDataController({
   resourceOptions = [],
   renderTemplates = [],
   renderForms = [],
+  renderFormsLoading = false,
   currentUser = null,
   users = [],
   canAssignRenderRequests = false,
@@ -50,12 +59,19 @@ export function useRenderEditorDataController({
   onLoadProjectUnrealCatalog = null,
   onFormModeChange = null,
 } = {}) {
+  const taskList = useMemo(() => (Array.isArray(tasks) ? tasks : []), [tasks]);
+
   const currentUserId = useMemo(() => {
     const value = Number(currentUser?.id || 0);
     return Number.isFinite(value) && value > 0 ? Math.trunc(value) : null;
   }, [currentUser?.id]);
   const defaultAssigneeUserId = currentUserId;
   const assigneeOptions = useMemo(() => {
+    const resolveFullName = (entry = null) => {
+      const firstName = String(entry?.firstName || entry?.first_name || "").trim();
+      const lastName = String(entry?.lastName || entry?.last_name || "").trim();
+      return `${firstName} ${lastName}`.trim();
+    };
     const source = Array.isArray(users) ? users : [];
     const byId = new Map();
     for (const user of source) {
@@ -63,24 +79,30 @@ export function useRenderEditorDataController({
       const id = Number.isFinite(idValue) && idValue > 0 ? Math.trunc(idValue) : 0;
       if (id <= 0) continue;
       if (user?.isActive === false) continue;
+      const fullName = resolveFullName(user);
       const displayName = String(user?.displayName || "").trim();
       const username = String(user?.username || "").trim();
-      const label = displayName || username || String(id);
+      const label = fullName || displayName || username || String(id);
       if (!label) continue;
       byId.set(id, {
         id,
         displayName,
+        firstName: String(user?.firstName || user?.first_name || "").trim(),
+        lastName: String(user?.lastName || user?.last_name || "").trim(),
         username,
         label,
       });
     }
     if (defaultAssigneeUserId != null && !byId.has(defaultAssigneeUserId)) {
+      const fallbackFullName = resolveFullName(currentUser);
       const fallbackDisplayName = String(currentUser?.displayName || "").trim();
       const fallbackUsername = String(currentUser?.username || "").trim();
-      const fallbackLabel = fallbackDisplayName || fallbackUsername || String(defaultAssigneeUserId);
+      const fallbackLabel = fallbackFullName || fallbackDisplayName || fallbackUsername || String(defaultAssigneeUserId);
       byId.set(defaultAssigneeUserId, {
         id: defaultAssigneeUserId,
         displayName: fallbackDisplayName,
+        firstName: String(currentUser?.firstName || currentUser?.first_name || "").trim(),
+        lastName: String(currentUser?.lastName || currentUser?.last_name || "").trim(),
         username: fallbackUsername,
         label: fallbackLabel,
       });
@@ -91,6 +113,8 @@ export function useRenderEditorDataController({
   }, [
     users,
     defaultAssigneeUserId,
+    currentUser?.firstName,
+    currentUser?.lastName,
     currentUser?.displayName,
     currentUser?.username,
   ]);
@@ -123,13 +147,66 @@ export function useRenderEditorDataController({
     listData?.setAssigneeUserId,
   ]);
 
+  const assigneeIsCurrentUser = useMemo(() => {
+    const currentUserIdNum = Number(defaultAssigneeUserId || 0);
+    const currentUserId = Number.isFinite(currentUserIdNum) && currentUserIdNum > 0
+      ? Math.trunc(currentUserIdNum)
+      : 0;
+    if (currentUserId <= 0) return true;
+    const assigneeIdNum = Number(listData?.assigneeUserId || 0);
+    const assigneeId = Number.isFinite(assigneeIdNum) && assigneeIdNum > 0
+      ? Math.trunc(assigneeIdNum)
+      : 0;
+    if (assigneeId > 0 && assigneeId === currentUserId) return true;
+    if (assigneeId <= 0) return false;
+
+    const currentUsername = normalizeIdentityToken(currentUser?.username);
+    const currentFullName = String(
+      `${currentUser?.firstName || currentUser?.first_name || ""} ${currentUser?.lastName || currentUser?.last_name || ""}`
+    ).trim();
+    const currentDisplayName = normalizeIdentityToken(currentFullName || currentUser?.displayName);
+    const assigneeEntry = assigneeOptions.find((entry) => {
+      const entryIdNum = Number(entry?.id || 0);
+      const entryId = Number.isFinite(entryIdNum) && entryIdNum > 0
+        ? Math.trunc(entryIdNum)
+        : 0;
+      return entryId === assigneeId;
+    }) || null;
+    if (!assigneeEntry) return false;
+
+    const assigneeUsername = normalizeIdentityToken(assigneeEntry?.username);
+    const assigneeFullName = String(
+      `${assigneeEntry?.firstName || ""} ${assigneeEntry?.lastName || ""}`
+    ).trim();
+    const assigneeDisplayName = normalizeIdentityToken(
+      assigneeFullName
+      || assigneeEntry?.displayName
+      || assigneeEntry?.label
+    );
+    if (currentUsername && assigneeUsername && currentUsername === assigneeUsername) return true;
+    if (currentDisplayName && assigneeDisplayName && currentDisplayName === assigneeDisplayName) return true;
+    return false;
+  }, [
+    defaultAssigneeUserId,
+    listData?.assigneeUserId,
+    currentUser?.username,
+    currentUser?.displayName,
+    currentUser?.firstName,
+    currentUser?.lastName,
+    currentUser?.first_name,
+    currentUser?.last_name,
+    assigneeOptions,
+  ]);
+
   const autoRenderData = useRenderEditorCardAutoRenderData({
     t,
     title: listData.title,
     description: listData.description,
     assigneeUserId: listData.assigneeUserId,
+    assigneeIsCurrentUser,
     renderOutputDir,
     renderForms,
+    renderFormsLoading,
     normalizedProjectOptions: listData.normalizedProjectOptions,
     normalizedRenderTemplateOptions: listData.normalizedRenderTemplateOptions,
     availableRenderWorkers: listData.availableRenderWorkers,
@@ -143,7 +220,7 @@ export function useRenderEditorDataController({
     const taskIdRaw = Number(listData?.editingTaskId || 0);
     const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
     if (taskId <= 0) return "planned";
-    const task = (Array.isArray(tasks) ? tasks : []).find((entry) => {
+    const task = taskList.find((entry) => {
       const entryIdRaw = Number(entry?.id || 0);
       const entryId = Number.isFinite(entryIdRaw) && entryIdRaw > 0 ? Math.trunc(entryIdRaw) : 0;
       return entryId === taskId;
@@ -157,7 +234,35 @@ export function useRenderEditorDataController({
     listData?.isEditingTask,
     listData?.editingTaskId,
     listData?.resolveTaskVisualStatusKey,
-    tasks,
+    taskList,
+  ]);
+
+  const editingTask = useMemo(() => {
+    if (listData?.isEditingTask !== true) return null;
+    const taskId = toPositiveTaskId(listData?.editingTaskId);
+    if (taskId <= 0) return null;
+    return taskList.find((entry) => toPositiveTaskId(entry?.id) === taskId) || null;
+  }, [
+    listData?.editingTaskId,
+    listData?.isEditingTask,
+    taskList,
+  ]);
+
+  const editingTaskHasQueuedOrRunningRender = useMemo(() => {
+    if (listData?.isEditingTask !== true) return false;
+    const editingTaskId = toPositiveTaskId(listData?.editingTaskId);
+    if (editingTaskId <= 0) return false;
+    const renderList = Array.isArray(renders) ? renders : [];
+    for (const render of renderList) {
+      if (resolveRenderLinkedTaskId(render) !== editingTaskId) continue;
+      const status = String(render?.status || "").trim().toLowerCase();
+      if (status === "queued" || status === "running") return true;
+    }
+    return false;
+  }, [
+    listData?.editingTaskId,
+    listData?.isEditingTask,
+    renders,
   ]);
 
   const editingTaskRejectionInfo = useMemo(() => {
@@ -253,6 +358,9 @@ export function useRenderEditorDataController({
   return {
     ...listData,
     ...autoRenderData,
+    assigneeIsCurrentUser,
+    editingTask,
+    editingTaskHasQueuedOrRunningRender,
     editingTaskVisualStatusKey,
     editingTaskRejectionInfo,
     canAssignRenderRequests: canAssignRenderRequests === true,

@@ -48,7 +48,7 @@ function RoleDeleteDialog({
             ? safeT(
                 t,
                 "postprod.roles.confirm.deleteWithUsers",
-                "Supprimer le profil \"{name}\" ? Les {count} utilisateur(s) associé(s) seront réassignés au profil \"Journaliste\".",
+                "Supprimer le profil \"{name}\" ? Les {count} utilisateur(s) associé(s) seront réassignés automatiquement.",
                 { name: roleLabel(t, roleKey), count: userCount }
               )
             : safeT(

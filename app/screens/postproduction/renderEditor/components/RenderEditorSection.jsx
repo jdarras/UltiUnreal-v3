@@ -11,6 +11,7 @@ function RenderEditorSection({
   title = "",
   description = "",
   assigneeUserId = null,
+  assigneeIsCurrentUser = true,
   assigneeOptions = [],
   assigneeUserIdLocked = false,
   onTitleChange = null,
@@ -78,6 +79,7 @@ function RenderEditorSection({
       title={title}
       description={description}
       assigneeUserId={assigneeUserId}
+      assigneeIsCurrentUser={assigneeIsCurrentUser}
       assigneeOptions={assigneeOptions}
       assigneeUserIdLocked={assigneeUserIdLocked}
       onTitleChange={onTitleChange}

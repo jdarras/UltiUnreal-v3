@@ -181,7 +181,7 @@ function parseTaskAutoRenderConfig(value) {
   const raw = safeParseObjectJson(value, {});
   const projectName = sanitizeRenderProjectName(raw?.projectName);
   const templateName = sanitizeRenderTemplateName(raw?.templateName, '');
-  if (!projectName || !templateName) return null;
+  const assignmentDraft = raw?.assignmentDraft === true;
   const formId = asOptionalPositiveInt(raw?.formId);
   const formDataRaw = raw?.formData;
   const formData = (
@@ -211,15 +211,33 @@ function parseTaskAutoRenderConfig(value) {
       execution = parseRenderExecutionJson(normalizedExecution.executionJson);
     }
   }
+  const hasPayload = payload && typeof payload === 'object' && !Array.isArray(payload) && Object.keys(payload).length > 0;
+  const hasConfigSignal = (
+    !!projectName
+    || !!templateName
+    || formId != null
+    || !!targetWorkerKey
+    || !!mapName
+    || !!sequenceName
+    || !!outputProfile
+    || !!outputDir
+    || !!textValue
+    || (formData && Object.keys(formData).length > 0)
+    || hasPayload
+    || (execution && typeof execution === 'object' && !Array.isArray(execution))
+    || assignmentDraft
+  );
+  if (!hasConfigSignal) return null;
   const config = {
-    projectName,
-    templateName,
+    projectName: projectName || '',
+    templateName: templateName || '',
     templateId,
     requiresValidation: raw?.requiresValidation === true,
     payload: payload && typeof payload === 'object' && !Array.isArray(payload)
       ? payload
       : {},
   };
+  if (assignmentDraft) config.assignmentDraft = true;
   if (formId != null) config.formId = formId;
   if (formData && Object.keys(formData).length > 0) config.formData = formData;
   if (targetWorkerKey) config.targetWorkerKey = targetWorkerKey;
@@ -236,11 +254,11 @@ function parseTaskAutoRenderConfig(value) {
 
 function normalizeTaskAutoRenderConfig(
   value,
-  { requestType = DEFAULT_TASK_REQUEST_TYPE, projectRefs = [], stmts = null } = {}
+  { requestType = DEFAULT_TASK_REQUEST_TYPE, projectRefs = [], stmts = null, allowAssignmentDraft = false } = {}
 ) {
   const normalizedRequestType = normalizeTaskRequestType(requestType, DEFAULT_TASK_REQUEST_TYPE);
   if (normalizedRequestType !== 'auto_render') {
-    return { ok: true, config: null, configJson: '{}', projectRefs: [] };
+    return { ok: true, config: null, configJson: '{}', projectRefs: [], isDraft: false };
   }
 
   let raw = value;
@@ -258,40 +276,20 @@ function normalizeTaskAutoRenderConfig(
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     raw = {};
   }
-
-  const formId = asOptionalPositiveInt(raw?.formId ?? raw?.renderFormId);
-  if (formId == null || formId <= 0) {
-    return { ok: false, error: 'missing_task_auto_render_form' };
-  }
-  if (!stmts || typeof stmts.findRenderFormById?.get !== 'function') {
-    return { ok: false, error: 'invalid_task_auto_render_form' };
-  }
-  const linkedForm = stmts.findRenderFormById.get(formId);
-  if (!linkedForm) {
-    return { ok: false, error: 'invalid_task_auto_render_form' };
-  }
-  if (Number(linkedForm?.is_active) !== 1) {
-    return { ok: false, error: 'inactive_task_auto_render_form' };
-  }
-  const formProjectName = sanitizeRenderProjectName(linkedForm?.project_name || '');
-  if (!formProjectName) {
-    return { ok: false, error: 'auto_render_project_required' };
-  }
   const refs = normalizeTaskRefsInput(projectRefs);
-  if (refs.length > 0 && !refs.includes(formProjectName)) {
-    return { ok: false, error: 'task_form_project_mismatch' };
-  }
-  const templateNameFromForm = sanitizeRenderTemplateName(linkedForm?.template_name || '', '');
-  const outputProfileFromForm = sanitizeRenderOutputProfile(linkedForm?.output_profile || '', '');
-  const mapNameFromForm = sanitizeRenderMapName(linkedForm?.map_name || '', '');
-  let templateName = templateNameFromForm;
-  if (!templateName && outputProfileFromForm) {
-    const tail = outputProfileFromForm.split('/').filter(Boolean).pop() || outputProfileFromForm;
-    templateName = sanitizeRenderTemplateName(tail.replace(/\.[^/.]+$/g, ''), '');
-  }
-  if (!templateName) {
-    templateName = `Form-${Math.trunc(formId)}`;
-  }
+  const draftAllowed = allowAssignmentDraft === true;
+  const serializeConfig = (configValue) => {
+    let configJson = '{}';
+    try {
+      configJson = JSON.stringify(configValue);
+    } catch {
+      return { ok: false, error: 'invalid_task_auto_render_config' };
+    }
+    if (Buffer.byteLength(configJson, 'utf8') > MAX_TASK_AUTO_RENDER_CONFIG_BYTES) {
+      return { ok: false, error: 'task_auto_render_config_too_large' };
+    }
+    return { ok: true, configJson };
+  };
 
   const normalizedPayload = normalizeRenderPayload(raw?.payload);
   if (!normalizedPayload.ok) {
@@ -321,6 +319,77 @@ function normalizeTaskAutoRenderConfig(
       ? formDataRaw
       : null
   );
+
+  const formId = asOptionalPositiveInt(raw?.formId ?? raw?.renderFormId);
+  if (formId == null || formId <= 0) {
+    if (!draftAllowed) {
+      return { ok: false, error: 'missing_task_auto_render_form' };
+    }
+    const draftProjectName = sanitizeRenderProjectName(raw?.projectName || refs[0] || '');
+    const draftTemplateName = sanitizeRenderTemplateName(raw?.templateName ?? raw?.renderModeName ?? '', '');
+    const config = {
+      projectName: draftProjectName || '',
+      templateName: draftTemplateName || '',
+      templateId,
+      assignmentDraft: true,
+      requiresValidation: raw?.requiresValidation === true,
+      payload: payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? payload
+        : {},
+    };
+    if (formData && Object.keys(formData).length > 0) {
+      config.formData = formData;
+    }
+    if (targetWorkerKey) config.targetWorkerKey = targetWorkerKey;
+    if (mapName) config.mapName = mapName;
+    if (sequenceName) config.sequenceName = sequenceName;
+    if (outputProfile) config.outputProfile = outputProfile;
+    if (outputDir) config.outputDir = outputDir;
+    if (textValue) config.textValue = textValue;
+    if (execution && typeof execution === 'object' && !Array.isArray(execution)) {
+      config.execution = execution;
+    }
+    const serialized = serializeConfig(config);
+    if (!serialized.ok) {
+      return { ok: false, error: serialized.error || 'invalid_task_auto_render_config' };
+    }
+    return {
+      ok: true,
+      config,
+      configJson: serialized.configJson,
+      projectRefs: draftProjectName ? [draftProjectName] : refs,
+      isDraft: true,
+    };
+  }
+  if (!stmts || typeof stmts.findRenderFormById?.get !== 'function') {
+    return { ok: false, error: 'invalid_task_auto_render_form' };
+  }
+  const linkedForm = stmts.findRenderFormById.get(formId);
+  if (!linkedForm) {
+    return { ok: false, error: 'invalid_task_auto_render_form' };
+  }
+  if (Number(linkedForm?.is_active) !== 1) {
+    return { ok: false, error: 'inactive_task_auto_render_form' };
+  }
+  const formProjectName = sanitizeRenderProjectName(linkedForm?.project_name || '');
+  if (!formProjectName) {
+    return { ok: false, error: 'auto_render_project_required' };
+  }
+  if (refs.length > 0 && !refs.includes(formProjectName)) {
+    return { ok: false, error: 'task_form_project_mismatch' };
+  }
+  const templateNameFromForm = sanitizeRenderTemplateName(linkedForm?.template_name || '', '');
+  const outputProfileFromForm = sanitizeRenderOutputProfile(linkedForm?.output_profile || '', '');
+  const mapNameFromForm = sanitizeRenderMapName(linkedForm?.map_name || '', '');
+  let templateName = templateNameFromForm;
+  if (!templateName && outputProfileFromForm) {
+    const tail = outputProfileFromForm.split('/').filter(Boolean).pop() || outputProfileFromForm;
+    templateName = sanitizeRenderTemplateName(tail.replace(/\.[^/.]+$/g, ''), '');
+  }
+  if (!templateName) {
+    templateName = `Form-${Math.trunc(formId)}`;
+  }
+
   const config = {
     projectName: formProjectName,
     templateName,
@@ -343,16 +412,11 @@ function normalizeTaskAutoRenderConfig(
   if (execution && typeof execution === 'object' && !Array.isArray(execution)) {
     config.execution = execution;
   }
-  let configJson = '{}';
-  try {
-    configJson = JSON.stringify(config);
-  } catch {
-    return { ok: false, error: 'invalid_task_auto_render_config' };
+  const serialized = serializeConfig(config);
+  if (!serialized.ok) {
+    return { ok: false, error: serialized.error || 'invalid_task_auto_render_config' };
   }
-  if (Buffer.byteLength(configJson, 'utf8') > MAX_TASK_AUTO_RENDER_CONFIG_BYTES) {
-    return { ok: false, error: 'task_auto_render_config_too_large' };
-  }
-  return { ok: true, config, configJson, projectRefs: [formProjectName] };
+  return { ok: true, config, configJson: serialized.configJson, projectRefs: [formProjectName], isDraft: false };
 }
 
 function normalizeExpectedRenderLookupKey(value, stripExtension = true) {

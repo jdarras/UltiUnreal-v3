@@ -14,6 +14,7 @@ import {
   getInitialReviewFilter,
   getInitialSequenceFilter,
   getInitialSearchQuery,
+  getInitialShowHistory,
   getInitialViewMode,
   usePersistRendersPreferences,
 } from "./rendersPreferencesHelpers";
@@ -30,6 +31,7 @@ export function useRendersPreferences() {
   const [sequenceFilter, setSequenceFilter] = useState(getInitialSequenceFilter);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [viewMode, setViewMode] = useState(getInitialViewMode);
+  const [showHistory, setShowHistory] = useState(getInitialShowHistory);
   const [listSortKey, setListSortKey] = useState(getInitialListSortKey);
   const [listSortDir, setListSortDir] = useState(getInitialListSortDir);
   const [queueSortKey, setQueueSortKey] = useState(getInitialQueueSortKey);
@@ -39,6 +41,7 @@ export function useRendersPreferences() {
   usePersistRendersPreferences({
     searchQuery,
     viewMode,
+    showHistory,
     reviewFilter,
     projectFilter,
     stationFilter,
@@ -77,6 +80,8 @@ export function useRendersPreferences() {
     setSearchExpanded,
     viewMode,
     setViewMode,
+    showHistory,
+    setShowHistory,
     listSortKey,
     setListSortKey,
     listSortDir,

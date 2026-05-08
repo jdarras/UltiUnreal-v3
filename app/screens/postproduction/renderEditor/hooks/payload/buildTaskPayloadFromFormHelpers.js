@@ -22,6 +22,28 @@ function buildMissingRenderModeError(t) {
   );
 }
 
+function normalizeLaunchMode(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "now" || normalized === "scheduled") return normalized;
+  return "";
+}
+
+function normalizeScheduledMode(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "specific_station") return "any_station";
+  if (normalized === "datetime" || normalized === "any_station") {
+    return normalized;
+  }
+  return "";
+}
+
+function normalizeScheduledAt(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? raw : "";
+}
+
 function resolveTaskPayloadBuildContext({
   t,
   title = "",
@@ -44,12 +66,14 @@ function resolveTaskPayloadBuildContext({
   autoRenderLaunchMode = "",
   autoRenderScheduledMode = "",
   autoRenderScheduledAt = "",
+  allowAssignmentDraft = false,
 } = {}) {
   const expectedRenderCount = normalizeTaskExpectedRenderCountInput(expectedRenderCountInput);
   const expectedRenderNames = buildTaskExpectedRenderNamesPreview(title, expectedRenderCount);
   const selectedTemplatePayload = {};
+  const assignmentDraftMode = allowAssignmentDraft === true;
 
-  if (renderTemplatesForSelectedAutoForm.length > 0 && !selectedAutoRenderTemplate) {
+  if (!assignmentDraftMode && renderTemplatesForSelectedAutoForm.length > 0 && !selectedAutoRenderTemplate) {
     return {
       ok: false,
       error: buildMissingRenderModeError(t),
@@ -93,7 +117,7 @@ function resolveTaskPayloadBuildContext({
       error: buildInvalidFormFieldError(t, invalidFormField),
     };
   }
-  if (missingRequiredField) {
+  if (!assignmentDraftMode && missingRequiredField) {
     return {
       ok: false,
       error: buildMissingRequiredFieldError(t, missingRequiredField),
@@ -108,6 +132,7 @@ function resolveTaskPayloadBuildContext({
     effectiveMapName: context.effectiveMapName,
     effectiveSequenceName: context.effectiveSequenceName,
     effectiveOutputProfile: context.effectiveOutputProfile,
+    requireCompleteAutoRenderConfig: assignmentDraftMode !== true,
   });
   if (resolvedContextError) {
     return {
@@ -115,6 +140,22 @@ function resolveTaskPayloadBuildContext({
       error: resolvedContextError,
     };
   }
+
+  const launchMode = assignmentDraftMode ? "" : normalizeLaunchMode(autoRenderLaunchMode);
+  const scheduledMode = (
+    assignmentDraftMode || launchMode !== "scheduled"
+      ? ""
+      : normalizeScheduledMode(autoRenderScheduledMode)
+  );
+  const scheduledAt = (
+    assignmentDraftMode
+      ? ""
+      : (
+        launchMode === "scheduled" && scheduledMode === "datetime"
+          ? normalizeScheduledAt(autoRenderScheduledAt)
+          : ""
+      )
+  );
 
   const { basePayload, autoRenderConfig } = buildAutoRenderPayloads({
     selectedTemplatePayload,
@@ -135,10 +176,14 @@ function resolveTaskPayloadBuildContext({
     selectedFormIdNum: context.selectedFormIdNum,
     autoRenderOffscreen: autoRenderOffscreen === true,
     autoRenderExportDestinationIds,
-    autoRenderLaunchMode,
-    autoRenderScheduledMode,
-    autoRenderScheduledAt,
+    autoRenderLaunchMode: launchMode,
+    autoRenderScheduledMode: scheduledMode,
+    autoRenderScheduledAt: scheduledAt,
   });
+
+  if (assignmentDraftMode) {
+    autoRenderConfig.assignmentDraft = true;
+  }
 
   return {
     ok: true,
@@ -163,6 +208,7 @@ function buildTaskPayloadFromResolvedContext({
   autoRenderConfig = null,
   selectedResourceRefs = [],
 } = {}) {
+  const normalizedProjectRef = String(projectRef || "").trim();
   const taskPayload = {
     title,
     description,
@@ -171,7 +217,7 @@ function buildTaskPayloadFromResolvedContext({
     requestType: "auto_render",
     expectedRenderCount,
     expectedRenderNames,
-    projectRefs: [projectRef],
+    projectRefs: normalizedProjectRef ? [normalizedProjectRef] : [],
     autoRenderConfig,
     assigneeUserId: (() => {
       if (assigneeUserId == null || assigneeUserId === "") return null;

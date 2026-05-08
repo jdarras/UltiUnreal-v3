@@ -1,4 +1,5 @@
 import {
+  activityActionLabel,
   formatDate,
   safeT,
 } from "../../../shared/helpers";
@@ -28,6 +29,14 @@ function UserActivityList({
     const match = detail.match(new RegExp(`${normalizedLabel}\\s*:\\s*([^|]+)`, "i"));
     return match ? String(match[1] || "").trim() : "";
   };
+
+  const compactDetail = (detailRaw) =>
+    String(detailRaw || "")
+      .replace(/\b(?:Scope|Contexte)\s*:\s*[^|]+/gi, "")
+      .split("|")
+      .map((part) => String(part || "").trim())
+      .filter(Boolean)
+      .join(" | ");
 
   const buildActivityDetailTarget = (activity, actionType) => {
     const scopeId = String(activity?.scopeId || "").trim();
@@ -90,8 +99,36 @@ function UserActivityList({
       };
     }
 
+    if (actionType === "render") {
+      const workerKey = extractDetailLabel(detail, "Worker rendu")
+        || extractDetailLabel(detail, "Worker")
+        || extractDetailLabel(detail, "workerKey");
+      const workerAptitude = extractDetailLabel(detail, "Disponibilite worker")
+        || extractDetailLabel(detail, "Aptitude worker")
+        || extractDetailLabel(detail, "Resultat");
+      const renderName = extractDetailLabel(detail, "Rendu") || "";
+      if (workerKey || workerAptitude) {
+        const workerLabel = workerKey
+          ? `${safeT(t, "postprod.users.activity.item.worker", "Worker")} [${workerKey}]`
+          : safeT(t, "postprod.users.activity.item.worker", "Worker");
+        const statusLabel = workerAptitude
+          ? ` — ${workerAptitude}`
+          : "";
+        return {
+          label: `${workerLabel}${statusLabel}`.trim(),
+          target: null,
+        };
+      }
+      if (renderName) {
+        return {
+          label: `${safeT(t, "postprod.users.activity.item.render", "Rendu")}: ${renderName}`,
+          target: null,
+        };
+      }
+    }
+
     return {
-      label: detail || "-",
+      label: compactDetail(detail) || "-",
       target: null,
     };
   };
@@ -105,16 +142,16 @@ function UserActivityList({
         const level = activityTypeChipLevel(actionType).replace("lvl-", "");
         const detailLink = buildActivityDetailTarget(activity, actionType);
         const canOpenDetail = detailLink?.target && typeof onOpenActivityTarget === "function";
-        const rawAction = String(activity?.action || "").trim();
+        const actionLabel = activityActionLabel(activity);
         return (
           <div
-            key={`activity-${rowId > 0 ? rowId : `${String(activity?.createdAt || "")}-${rawAction}`}`}
+            key={`activity-${rowId > 0 ? rowId : `${String(activity?.createdAt || "")}-${String(activity?.action || "")}`}`}
             className={`log-row lvl-${level}`}
           >
             <div className="log-meta">
               <span className="log-ts">{formatDate(activity?.createdAt)}</span>
               <span className="log-action">{actionTypeLabel}</span>
-              {rawAction ? <span className="log-action">{rawAction}</span> : null}
+              {actionLabel ? <span className="log-action">{actionLabel}</span> : null}
             </div>
             <div className="log-msg">
               {canOpenDetail ? (

@@ -15,10 +15,15 @@ export default function ProjectsThumbsView({
   serverRunning,
   integrationBusy,
   canManageUnrealProjects = true,
+  canEditProjectFields = null,
   canCreateTasks = false,
   isAutoRenderUsage = null,
   showActivationControls = true,
 }) {
+  const canEditFields = canEditProjectFields !== null
+    ? canEditProjectFields === true
+    : canManageUnrealProjects;
+  const canOpenProjectDetails = canManageUnrealProjects || canEditFields;
   const THRESHOLD = 120;
   const COLS = 4;
   const ROW_HEIGHT = 308; // base card height (virtualized rows add bottom spacing)
@@ -98,7 +103,7 @@ export default function ProjectsThumbsView({
           </div>
           <div className="uu-project-thumb-actions" style={{ marginTop: '4px', paddingTop: '0px' }}>
             <div className="uu-project-thumb-actions-main">
-              {canManageUnrealProjects ? (
+              {canOpenProjectDetails ? (
                 <>
                   <button
                     type="button"
@@ -107,7 +112,7 @@ export default function ProjectsThumbsView({
                   >
                     {t('projects.actions.edit')}
                   </button>
-                  {showActivationControls ? (
+                  {canManageUnrealProjects && showActivationControls ? (
                     <button
                       type="button"
                       className={`uu-btn ${isActive ? 'prod-toggle-active' : ''}`}

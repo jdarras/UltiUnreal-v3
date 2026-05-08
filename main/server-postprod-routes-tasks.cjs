@@ -1,5 +1,74 @@
 'use strict';
 
+function toPositiveInt(value) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
+}
+
+function encodeAlertMeta(meta = null) {
+  const source = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {};
+  try {
+    return JSON.stringify(source);
+  } catch {
+    return '{}';
+  }
+}
+
+function upsertTaskAssignmentAlert({
+  stmts = null,
+  userId = 0,
+  taskId = 0,
+  createdByUserId = 0,
+  message = '',
+  meta = null,
+  now = '',
+} = {}) {
+  const normalizedUserId = toPositiveInt(userId);
+  const normalizedTaskId = toPositiveInt(taskId);
+  const normalizedByUserId = toPositiveInt(createdByUserId);
+  if (
+    normalizedUserId <= 0
+    || normalizedTaskId <= 0
+    || typeof stmts?.insertOpenUserAlert?.run !== 'function'
+  ) {
+    return 0;
+  }
+  const safeMessage = String(message || '').trim().slice(0, 500);
+  const metaJson = encodeAlertMeta(meta);
+  try {
+    const inserted = stmts.insertOpenUserAlert.run(
+      normalizedUserId,
+      'new_assignment',
+      normalizedTaskId,
+      0,
+      normalizedByUserId,
+      safeMessage,
+      metaJson,
+      now,
+      now
+    );
+    const changes = Number(inserted?.changes || 0);
+    if (
+      changes <= 0
+      && typeof stmts?.touchOpenUserAlertByScope?.run === 'function'
+    ) {
+      stmts.touchOpenUserAlertByScope.run(
+        normalizedByUserId,
+        safeMessage,
+        metaJson,
+        now,
+        normalizedUserId,
+        'new_assignment',
+        normalizedTaskId,
+        0
+      );
+    }
+    return changes;
+  } catch {
+    return 0;
+  }
+}
+
 async function handlePostprodTaskRoutes(options = {}) {
   const {
     req,
@@ -84,6 +153,9 @@ async function handlePostprodTaskRoutes(options = {}) {
         ? Math.trunc(actorUserIdRaw)
         : null;
       const canAssignRenderRequests = actorPerms.canAssignRenderRequests === true;
+      const effectiveAssigneeUserId = canAssignRenderRequests
+        ? assigneeUserId
+        : actorUserId;
       const hasDueAtInput =
         Object.prototype.hasOwnProperty.call(body || {}, 'dueAt')
         && String(body?.dueAt || '').trim() !== '';
@@ -96,6 +168,12 @@ async function handlePostprodTaskRoutes(options = {}) {
         return true;
       }
       const requestType = normalizeTaskRequestType(requestTypeRaw, DEFAULT_TASK_REQUEST_TYPE);
+      const allowAssignmentDraft = (
+        requestType === 'auto_render'
+        && toPositiveInt(effectiveAssigneeUserId) > 0
+        && toPositiveInt(actorUserId) > 0
+        && toPositiveInt(effectiveAssigneeUserId) !== toPositiveInt(actorUserId)
+      );
       const expectedRenderCount = normalizeTaskExpectedRenderCount(
         body?.expectedRenderCount,
         requestType,
@@ -110,7 +188,7 @@ async function handlePostprodTaskRoutes(options = {}) {
       const expectedRenderNamesJson = JSON.stringify(expectedRenderNames);
       const normalizedAutoRenderConfig = normalizeTaskAutoRenderConfig(
         body?.autoRenderConfig,
-        { requestType, projectRefs, stmts }
+        { requestType, projectRefs, stmts, allowAssignmentDraft }
       );
       if (!normalizedAutoRenderConfig.ok) {
         sendJSON(res, 400, { ok: false, error: normalizedAutoRenderConfig.error || 'invalid_task_auto_render_config' });
@@ -150,27 +228,26 @@ async function handlePostprodTaskRoutes(options = {}) {
         return true;
       }
       if (requestType === 'auto_render') {
-        if (effectiveProjectRefs.length !== 1) {
-          sendJSON(res, 409, {
-            ok: false,
-            error: 'auto_render_project_required',
-          });
-          return true;
-        }
-        const projectEligibility = ensureProjectCanAutoRender(sharedStore, effectiveProjectRefs[0], stmts);
-        if (!projectEligibility.ok) {
-          sendJSON(res, 400, {
-            ok: false,
-            error: projectEligibility.error || 'project_not_render_enabled',
-            project: projectEligibility.project || null,
-            usageMode: String(projectEligibility.usageMode || ''),
-          });
-          return true;
+        if (normalizedAutoRenderConfig.isDraft !== true) {
+          if (effectiveProjectRefs.length !== 1) {
+            sendJSON(res, 409, {
+              ok: false,
+              error: 'auto_render_project_required',
+            });
+            return true;
+          }
+          const projectEligibility = ensureProjectCanAutoRender(sharedStore, effectiveProjectRefs[0], stmts);
+          if (!projectEligibility.ok) {
+            sendJSON(res, 400, {
+              ok: false,
+              error: projectEligibility.error || 'project_not_render_enabled',
+              project: projectEligibility.project || null,
+              usageMode: String(projectEligibility.usageMode || ''),
+            });
+            return true;
+          }
         }
       }
-      const effectiveAssigneeUserId = canAssignRenderRequests
-        ? assigneeUserId
-        : actorUserId;
       if (!canAssignRenderRequests && effectiveAssigneeUserId == null) {
         sendJSON(res, 400, { ok: false, error: 'invalid_assignee' });
         return true;
@@ -231,6 +308,26 @@ async function handlePostprodTaskRoutes(options = {}) {
       );
       const taskId = Number(result?.lastInsertRowid || 0);
       replaceTaskRefsRelations(taskId, effectiveProjectRefs, resourceRefs, now);
+      const normalizedAssigneeUserId = toPositiveInt(effectiveAssigneeUserId);
+      const normalizedActorUserId = toPositiveInt(actorUserId);
+      if (normalizedAssigneeUserId > 0 && normalizedAssigneeUserId !== normalizedActorUserId) {
+        const taskTitleForAlert = String(title || '').trim();
+        upsertTaskAssignmentAlert({
+          stmts,
+          userId: normalizedAssigneeUserId,
+          taskId,
+          createdByUserId: normalizedActorUserId,
+          message: taskTitleForAlert
+            ? `Nouveau rendu assigne: ${taskTitleForAlert}`
+            : `Nouveau rendu assigne (tache #${String(taskId)})`,
+          meta: {
+            taskId,
+            taskTitle: taskTitleForAlert,
+            source: 'task_assignment_create',
+          },
+          now,
+        });
+      }
       const created = stmts.findTaskById.get(taskId);
       const fromStatus = 'Planifiee';
       stmts.insertTaskTransition.run(
@@ -299,6 +396,10 @@ async function handlePostprodTaskRoutes(options = {}) {
       if (Number(deleted?.changes || 0) <= 0) {
         sendJSON(res, 404, { ok: false, error: 'task_not_found' });
         return true;
+      }
+      const deletedAt = nowIso();
+      if (typeof stmts?.resolveOpenUserAlertsByTaskId?.run === 'function') {
+        stmts.resolveOpenUserAlertsByTaskId.run(deletedAt, deletedAt, taskId);
       }
       audit(
         auth.session.user_id,
@@ -395,10 +496,22 @@ async function handlePostprodTaskRoutes(options = {}) {
       if (!Number.isFinite(parsed) || parsed <= 0) return NaN;
       return Math.trunc(parsed);
     })();
+    const previousAssigneeUserId = toPositiveInt(currentPayload?.assigneeUserId);
     if (Number.isNaN(assigneeUserId)) {
       sendJSON(res, 400, { ok: false, error: 'invalid_assignee' });
       return true;
     }
+    const effectiveAssigneeUserId = (() => {
+      if (canAssignRenderRequests) return assigneeUserId;
+      if (hasField('assigneeUserId')) return actorUserId;
+      return assigneeUserId;
+    })();
+    const allowAssignmentDraft = (
+      requestType === 'auto_render'
+      && toPositiveInt(effectiveAssigneeUserId) > 0
+      && toPositiveInt(actorUserId) > 0
+      && toPositiveInt(effectiveAssigneeUserId) !== toPositiveInt(actorUserId)
+    );
 
     const hasDueAtInput =
       hasField('dueAt') &&
@@ -422,7 +535,7 @@ async function handlePostprodTaskRoutes(options = {}) {
 
     const normalizedAutoRenderConfig = normalizeTaskAutoRenderConfig(
       hasField('autoRenderConfig') ? body?.autoRenderConfig : currentPayload?.autoRenderConfig,
-      { requestType, projectRefs, stmts }
+      { requestType, projectRefs, stmts, allowAssignmentDraft }
     );
     if (!normalizedAutoRenderConfig.ok) {
       sendJSON(res, 400, { ok: false, error: normalizedAutoRenderConfig.error || 'invalid_task_auto_render_config' });
@@ -458,29 +571,26 @@ async function handlePostprodTaskRoutes(options = {}) {
       return true;
     }
     if (requestType === 'auto_render') {
-      if (effectiveProjectRefs.length !== 1) {
-        sendJSON(res, 409, {
-          ok: false,
-          error: 'auto_render_project_required',
-        });
-        return true;
-      }
-      const projectEligibility = ensureProjectCanAutoRender(sharedStore, effectiveProjectRefs[0], stmts);
-      if (!projectEligibility.ok) {
-        sendJSON(res, 400, {
-          ok: false,
-          error: projectEligibility.error || 'project_not_render_enabled',
-          project: projectEligibility.project || null,
-          usageMode: String(projectEligibility.usageMode || ''),
-        });
-        return true;
+      if (normalizedAutoRenderConfig.isDraft !== true) {
+        if (effectiveProjectRefs.length !== 1) {
+          sendJSON(res, 409, {
+            ok: false,
+            error: 'auto_render_project_required',
+          });
+          return true;
+        }
+        const projectEligibility = ensureProjectCanAutoRender(sharedStore, effectiveProjectRefs[0], stmts);
+        if (!projectEligibility.ok) {
+          sendJSON(res, 400, {
+            ok: false,
+            error: projectEligibility.error || 'project_not_render_enabled',
+            project: projectEligibility.project || null,
+            usageMode: String(projectEligibility.usageMode || ''),
+          });
+          return true;
+        }
       }
     }
-    const effectiveAssigneeUserId = (() => {
-      if (canAssignRenderRequests) return assigneeUserId;
-      if (hasField('assigneeUserId')) return actorUserId;
-      return assigneeUserId;
-    })();
     if (!canAssignRenderRequests && hasField('assigneeUserId') && effectiveAssigneeUserId == null) {
       sendJSON(res, 400, { ok: false, error: 'invalid_assignee' });
       return true;
@@ -517,6 +627,54 @@ async function handlePostprodTaskRoutes(options = {}) {
       taskId
     );
     replaceTaskRefsRelations(taskId, effectiveProjectRefs, resourceRefs, now);
+    const taskActorUserIdRaw = Number(auth.session.user_id || 0);
+    const taskActorUserId = Number.isFinite(taskActorUserIdRaw) && taskActorUserIdRaw > 0
+      ? Math.trunc(taskActorUserIdRaw)
+      : 0;
+    const normalizedAssigneeUserId = toPositiveInt(effectiveAssigneeUserId);
+    if (normalizedAssigneeUserId > 0 && normalizedAssigneeUserId !== taskActorUserId) {
+      const taskTitleForAlert = String(title || '').trim();
+      upsertTaskAssignmentAlert({
+        stmts,
+        userId: normalizedAssigneeUserId,
+        taskId,
+        createdByUserId: taskActorUserId,
+        message: taskTitleForAlert
+          ? `Nouveau rendu assigne: ${taskTitleForAlert}`
+          : `Nouveau rendu assigne (tache #${String(taskId)})`,
+        meta: {
+          taskId,
+          taskTitle: taskTitleForAlert,
+          source: 'task_assignment_update',
+        },
+        now,
+      });
+    }
+    if (
+      previousAssigneeUserId > 0
+      && previousAssigneeUserId !== normalizedAssigneeUserId
+      && typeof stmts?.resolveOpenUserAlertsByUserTaskIdAndType?.run === 'function'
+    ) {
+      stmts.resolveOpenUserAlertsByUserTaskIdAndType.run(
+        now,
+        now,
+        previousAssigneeUserId,
+        taskId,
+        'new_assignment'
+      );
+    }
+    if (
+      taskActorUserId > 0
+      && typeof stmts?.resolveOpenUserAlertsByUserTaskIdAndType?.run === 'function'
+    ) {
+      stmts.resolveOpenUserAlertsByUserTaskIdAndType.run(
+        now,
+        now,
+        taskActorUserId,
+        taskId,
+        'new_assignment'
+      );
+    }
     const updated = stmts.findTaskById.get(taskId);
     audit(
       auth.session.user_id,

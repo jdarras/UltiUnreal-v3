@@ -23,13 +23,13 @@ function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "", 
     if (!isDone) {
       steps.push({
         toStatus: "Done",
-        comment: "validation_ready",
+        comment: "Preparation a la validation",
       });
     }
     steps.push({
       action: "validate",
       toStatus: "Done",
-      comment: "render_validated",
+      comment: "Rendu valide",
     });
     return steps;
   }
@@ -39,15 +39,12 @@ function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "", 
     if (!isDone) {
       steps.push({
         toStatus: "Done",
-        comment: "validation_ready",
+        comment: "Preparation au rejet",
       });
     }
     steps.push({
       action: "reject",
       toStatus: "Done",
-      comment: rejectionReason
-        ? `render_rejected: ${rejectionReason}`
-        : "render_rejected",
       rejectionReason,
     });
     return steps;
@@ -56,7 +53,7 @@ function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "", 
   if (nextReviewStatus === "canceled") {
     return [{
       toStatus: "Canceled",
-      comment: "validation_canceled",
+      comment: "Validation annulee",
     }];
   }
 
@@ -66,14 +63,14 @@ function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "", 
       return [{
         action: "mark_pending",
         toStatus: "Done",
-        comment: "render_marked_pending",
+        comment: "Rendu repasse a valider",
       }];
     }
   }
 
   return [{
     toStatus: "Done",
-    comment: "validation_pending",
+    comment: "Passage en rendu termine",
   }];
 }
 

@@ -4,6 +4,7 @@ function buildTaskAutoRenderControllerInput({
   normalizedProjectOptions = [],
   normalizedRenderTemplateOptions = [],
   renderForms = [],
+  renderFormsLoading = false,
   availableRenderWorkers = [],
   onLoadRenderFormFields = null,
   onLoadProjectUnrealCatalog = null,
@@ -14,6 +15,7 @@ function buildTaskAutoRenderControllerInput({
     normalizedProjectOptions,
     normalizedRenderTemplateOptions,
     renderForms,
+    renderFormsLoading,
     availableRenderWorkers,
     onLoadRenderFormFields,
     onLoadProjectUnrealCatalog,
@@ -25,6 +27,7 @@ function buildTaskPayloadBuilderInput({
   title = "",
   description = "",
   assigneeUserId = null,
+  assigneeIsCurrentUser = true,
   renderOutputDir = "",
   selectedResourceRefs = [],
   autoRender = {},
@@ -55,6 +58,7 @@ function buildTaskPayloadBuilderInput({
     autoRenderLaunchMode: autoRender.autoRenderLaunchMode,
     autoRenderScheduledMode: autoRender.autoRenderScheduledMode,
     autoRenderScheduledAt: autoRender.autoRenderScheduledAt,
+    allowAssignmentDraft: assigneeIsCurrentUser !== true,
   };
 }
 

@@ -52,10 +52,9 @@ function UserEditorPanel({
   onOpenActivityTarget = null,
   submitDisabled = false,
   submitEditor = null,
-  userAutosaveBusy = false,
-  userAutosaveError = "",
-  userAutosaveInfo = "",
   canDeleteUser = false,
+  selfProfile = false,
+  readOnlyFields = false,
   deleteUserTargetName = "",
   requestDeleteUser = null,
   cancelDeleteUser = null,
@@ -63,6 +62,7 @@ function UserEditorPanel({
   deleteDialogOpen = false,
   deleteDialogConfirmRef = null,
   deleteUserBusy = false,
+  onChangePassword = null,
 }) {
   return (
     <div
@@ -120,6 +120,7 @@ function UserEditorPanel({
         canDeleteUser={canDeleteUser}
         onRequestDeleteUser={requestDeleteUser}
         deleteUserBusy={deleteUserBusy}
+        selfProfile={selfProfile}
       />
 
       <UserIdentityBlock
@@ -128,6 +129,7 @@ function UserEditorPanel({
         setDraft={setDraft}
         roleOptions={roleOptions}
         rolesByKey={rolesByKey}
+        readOnlyFields={readOnlyFields}
       />
 
       <UserSecurityBlock
@@ -136,6 +138,8 @@ function UserEditorPanel({
         setDraft={setDraft}
         isCreate={isCreate}
         canBanUsers={canBanUsers}
+        selfProfile={selfProfile}
+        onChangePassword={onChangePassword}
       />
 
       {!isCreate && editingEntry ? (

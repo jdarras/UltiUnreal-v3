@@ -29,7 +29,6 @@ async function handlePostprodUserUpdateRoutes({
   isValidAvatarPath,
   parseIsoDateOrNull,
   DEFAULT_FALLBACK_ROLE,
-  SYSTEM_MAINTENANCE_ROLE,
   nowIso,
   db,
   hashPassword,
@@ -74,6 +73,12 @@ async function handlePostprodUserUpdateRoutes({
     sendJSON(res, 403, { ok: false, error: 'forbidden' });
     return true;
   }
+  const roleGrantsManageRoles = (roleKeyInput) => {
+    const roleKey = resolveRoleInput(roleKeyInput, rolesCache, '');
+    if (!roleKey) return false;
+    const roleRow = rolesCache?.byKey instanceof Map ? rolesCache.byKey.get(roleKey) : null;
+    return roleRow?.canManageRoles === true;
+  };
 
   if (req.method === 'DELETE') {
     if (actorId === Number(userId)) {
@@ -82,11 +87,14 @@ async function handlePostprodUserUpdateRoutes({
     }
 
     const currentRole = resolveRoleInput(currentUser?.role, rolesCache, DEFAULT_FALLBACK_ROLE);
-    const deletingMaintenance = currentRole === SYSTEM_MAINTENANCE_ROLE;
-    if (deletingMaintenance) {
-      const remaining = Number(stmts.countActiveMaintenanceExcluding.get(userId)?.n || 0);
+    const deletingManageRolesUser = (
+      Number(currentUser?.is_active) === 1
+      && roleGrantsManageRoles(currentRole)
+    );
+    if (deletingManageRolesUser) {
+      const remaining = Number(stmts.countActiveUsersWithManageRolesExcluding.get(userId)?.n || 0);
       if (remaining <= 0) {
-        sendJSON(res, 400, { ok: false, error: 'last_maintenance_forbidden' });
+        sendJSON(res, 400, { ok: false, error: 'last_manage_roles_user_forbidden' });
         return true;
       }
     }
@@ -328,13 +336,17 @@ async function handlePostprodUserUpdateRoutes({
   }
 
   const currentRole = resolveRoleInput(currentUser.role, rolesCache, DEFAULT_FALLBACK_ROLE);
-  const dropsMaintenancePrivilege = currentRole === SYSTEM_MAINTENANCE_ROLE && (
-    nextRole !== SYSTEM_MAINTENANCE_ROLE || nextIsActive === false
+  const currentRoleCanManageRoles = roleGrantsManageRoles(currentRole);
+  const nextRoleCanManageRoles = roleGrantsManageRoles(nextRole);
+  const dropsManageRolesPrivilege = (
+    Number(currentUser?.is_active) === 1
+    && currentRoleCanManageRoles
+    && (nextRoleCanManageRoles !== true || nextIsActive === false)
   );
-  if (dropsMaintenancePrivilege) {
-    const remaining = Number(stmts.countActiveMaintenanceExcluding.get(userId)?.n || 0);
+  if (dropsManageRolesPrivilege) {
+    const remaining = Number(stmts.countActiveUsersWithManageRolesExcluding.get(userId)?.n || 0);
     if (remaining <= 0) {
-      sendJSON(res, 400, { ok: false, error: 'last_maintenance_forbidden' });
+      sendJSON(res, 400, { ok: false, error: 'last_manage_roles_user_forbidden' });
       return true;
     }
   }

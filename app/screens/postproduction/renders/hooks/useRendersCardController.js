@@ -68,6 +68,8 @@ export function useRendersCardController({
     setRejectDialogReason: data.setRejectDialogReason,
     closeRejectDialog: data.closeRejectDialog,
     confirmRejectDialog: data.confirmRejectDialog,
+    showHistory: data.showHistory,
+    setShowHistory: data.setShowHistory,
     rendersError,
     toolbarProps,
     queuePanelProps,

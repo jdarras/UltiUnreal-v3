@@ -13,8 +13,8 @@ export default function AuthGateScreen({
   error = "",
   onLogin = null,
 }) {
-  const [username, setUsername] = useState("maintenance");
-  const [password, setPassword] = useState("admin");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     if (!error) return;

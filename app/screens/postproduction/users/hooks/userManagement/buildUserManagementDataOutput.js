@@ -91,6 +91,7 @@ export function buildUserManagementDataOutput({
     deleteDialogOpen: actions.deleteDialogOpen,
     deleteDialogConfirmRef: actions.deleteDialogConfirmRef,
     deleteUserBusy: actions.deleteUserBusy,
+    onChangePassword: actions.onChangePassword,
     sortedUsersForList: state.sortedUsersForList,
     handleListSort: actions.handleListSort,
     listSortArrowFor: actions.listSortArrowFor,

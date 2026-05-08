@@ -264,6 +264,7 @@ function RendersThumbCard({
     : "";
   const formNameLabel = String(formName || "").trim();
   const formIdText = formId > 0 ? `#${String(formId)}` : "";
+  const renderIdText = renderId > 0 ? `#${String(renderId)}` : "";
   const canOpenProjectLink = typeof onNavigateToProject === "function" && !!projectRef;
   const canOpenFormLink = typeof onNavigateToRenderForm === "function" && formId > 0;
 
@@ -297,7 +298,15 @@ function RendersThumbCard({
       style={{ cursor: "pointer" }}
       onClick={() => onOpenRenderDetail?.(render)}
     >
-      <div className="uu-render-thumb-frame">
+      <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
+        <div style={{ fontWeight: 600, overflowWrap: "anywhere", minWidth: 0 }}>
+          {typeof renderOutputFilename === "function" ? renderOutputFilename(render) : "-"}
+        </div>
+        {renderIdText ? (
+          <span style={{ opacity: 0.4, fontSize: "0.85em", whiteSpace: "nowrap", flexShrink: 0 }}>{renderIdText}</span>
+        ) : null}
+      </div>
+      <div className="uu-render-thumb-frame mt-8">
         {hasThumb ? (
           <img
             src={thumbSrc}
@@ -317,11 +326,6 @@ function RendersThumbCard({
           <div className="uu-render-thumb placeholder">{safeT(t, "postprod.renders.preview.none", "Aucun apercu")}</div>
         )}
       </div>
-      <div className="uu-row mt-8" style={{ justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontWeight: 600 }}>
-          {typeof renderOutputFilename === "function" ? renderOutputFilename(render) : "-"}
-        </div>
-      </div>
       <div className="uu-render-thumb-meta-row mt-8" onClick={(e) => e.stopPropagation()}>
         <span className="uu-muted">{safeT(t, "postprod.renders.table.project", "Projet")}: </span>
         <span
@@ -335,7 +339,7 @@ function RendersThumbCard({
         ) : null}
       </div>
       <div className="uu-render-thumb-meta-row mt-8" onClick={(e) => e.stopPropagation()}>
-        <span className="uu-muted">{safeT(t, "postprod.renders.table.linkedTask", "Tache")}: </span>
+        <span className="uu-muted">{safeT(t, "postprod.renders.table.linkedTask", "Rendu")}: </span>
         {linkedTaskId > 0 ? (
           <>
             {linkedTaskTitle ? <span>{linkedTaskTitle}</span> : null}

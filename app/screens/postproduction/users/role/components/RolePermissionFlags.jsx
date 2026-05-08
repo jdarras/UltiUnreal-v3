@@ -144,6 +144,16 @@ function RolePermissionFlags({
             <PermissionToggleRow
               label={safeT(
                 t,
+                "postprod.roles.form.canLaunchLiveProjects",
+                "Peut lancer les projets Unreal (mode Game)"
+              )}
+              checked={draft?.canLaunchLiveProjects !== false}
+              disabled={rolesLoading}
+              onChange={(e) => setDraft?.((prev) => ({ ...(prev || {}), canLaunchLiveProjects: e.target.checked }))}
+            />
+            <PermissionToggleRow
+              label={safeT(
+                t,
                 "postprod.roles.form.canLaunchProjectsLiveEditor",
                 "Peut lancer/modifier/supprimer un projet Unreal (mode éditeur)"
               )}
@@ -200,7 +210,7 @@ function RolePermissionFlags({
               onChange={(e) => setDraft?.((prev) => ({ ...(prev || {}), canManageForms: e.target.checked }))}
             />
             <PermissionToggleRow
-              label={safeT(t, "postprod.roles.form.canCreateTasks", "Peut créer des tâches")}
+              label={safeT(t, "postprod.roles.form.canCreateTasks", "Peut créer des rendus")}
               checked={draft?.canCreateTasks === true}
               disabled={rolesLoading || !canUseRenderMode}
               onChange={(e) => setDraft?.((prev) => ({ ...(prev || {}), canCreateTasks: e.target.checked }))}

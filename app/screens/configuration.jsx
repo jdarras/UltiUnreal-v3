@@ -147,7 +147,9 @@ export default function ConfigurationScreen({
   appMode = '',
   canViewResources = true,
   canManageProjects = true,
+  canLaunchUnrealEditor = true,
 }) {
+  const canUseEditorLaunch = canLaunchUnrealEditor === true;
   // identité + langue courante
   const identity = React.useMemo(readIdentity, []);
   const localIp = String(identity?.localIp || '').trim();
@@ -575,6 +577,7 @@ export default function ConfigurationScreen({
   }
 
   const handleLaunchUnrealVersion = React.useCallback(async (versionName = '') => {
+    if (!canUseEditorLaunch) return;
     const version = String(versionName || '').trim();
     if (!version) {
       setInfoMsg({
@@ -622,7 +625,7 @@ export default function ConfigurationScreen({
       });
     }
     setTimeout(() => setInfoMsg({ text: '', type: '', section: '' }), 3000);
-  }, [localIp, t]);
+  }, [localIp, t, canUseEditorLaunch]);
 
   async function handleSave(section = 'common', forceShowFlag = null) {
     if (!loaded) return;
@@ -1586,14 +1589,16 @@ export default function ConfigurationScreen({
           <h3 className="uu-h3 uu-block-title">{t('config.unreal.sectionTitle')}</h3>
         </div>
 
-        <label className="uu-check mt-8">
-          <input
-            type="checkbox"
-            checked={!!cfg.showUnrealLaunchButtons}
-            onChange={(e) => updateField('showUnrealLaunchButtons', !!e.target.checked)}
-          />
-          {t('config.unreal.showLaunchButtons')}
-        </label>
+        {canUseEditorLaunch ? (
+          <label className="uu-check mt-8">
+            <input
+              type="checkbox"
+              checked={!!cfg.showUnrealLaunchButtons}
+              onChange={(e) => updateField('showUnrealLaunchButtons', !!e.target.checked)}
+            />
+            {t('config.unreal.showLaunchButtons')}
+          </label>
+        ) : null}
 
         <div className="uu-row mt-8">
           <button
@@ -1677,13 +1682,15 @@ export default function ConfigurationScreen({
             </div>
             </div>
             <div className="uu-row uu-gap-8" style={{ gridColumn: '1 / -1', flexWrap: 'nowrap' }}>
-              <button
-                type="button"
-                className="uu-btn"
-                onClick={() => handleLaunchUnrealVersion(v?.name)}
-              >
-                {t('config.unreal.launchVersion', 'Lancer')}
-              </button>
+              {canUseEditorLaunch ? (
+                <button
+                  type="button"
+                  className="uu-btn"
+                  onClick={() => handleLaunchUnrealVersion(v?.name)}
+                >
+                  {t('config.unreal.launchVersion', 'Lancer')}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="uu-btn"
