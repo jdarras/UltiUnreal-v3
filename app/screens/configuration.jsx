@@ -1,6 +1,6 @@
 // app/screens/configuration.jsx
 import React from 'react';
-import { readIdentity, writeIdentity } from '../utils/identity';
+import { readIdentity } from '../utils/identity';
 import {
   getCommon,
   getLibraryMeta,
@@ -142,23 +142,20 @@ export default function ConfigurationScreen({
   onCommonUpdated,
   onNavigate,
   onLibraryImported,
-  onIdentityUpdated,
   onScanDetectedRenders = null,
+  onUpdateMe = null,
   appMode = '',
   canViewResources = true,
   canManageProjects = true,
+  canManageConfiguration = true,
   canLaunchUnrealEditor = true,
+  notificationPrefs = null,
 }) {
   const canUseEditorLaunch = canLaunchUnrealEditor === true;
   // identité + langue courante
   const identity = React.useMemo(readIdentity, []);
   const localIp = String(identity?.localIp || '').trim();
-  const [lang, setLang] = React.useState(() => {
-    if (identity && typeof identity === 'object' && identity.lang) {
-      return String(identity.lang).trim();
-    }
-    return 'fr';
-  });
+  const lang = String(identity?.lang || '').trim().toLowerCase() === 'en' ? 'en' : 'fr';
 
   const t = React.useMemo(() => createT(lang), [lang]);
   const isPostprodMode = String(appMode || '').trim().toLowerCase() === APP_MODE_POSTPROD;
@@ -214,8 +211,14 @@ export default function ConfigurationScreen({
     projectsCount: 0,
     projectsLastImport: '',
   });
+  const [showFabResourcesForUser, setShowFabResourcesForUser] = React.useState(
+    () => resolveShowFabResourcesPreference(notificationPrefs)
+  );
+  const [userPrefsSaving, setUserPrefsSaving] = React.useState(false);
+  const [userPrefsMsg, setUserPrefsMsg] = React.useState({ text: '', type: '' });
   const [loaded, setLoaded] = React.useState(false);
   const saveTimer = React.useRef(null);
+  const userPrefsMsgTimer = React.useRef(null);
 
   React.useEffect(() => {
     if (!noticeApi) return;
@@ -226,6 +229,10 @@ export default function ConfigurationScreen({
     }
     if (infoMsg?.text) {
       noticeApi.showNotice?.(infoMsg.text, infoMsg.type || '');
+      return;
+    }
+    if (userPrefsMsg?.text) {
+      noticeApi.showNotice?.(userPrefsMsg.text, userPrefsMsg.type || '');
       return;
     }
     if (fabAuthMsg) {
@@ -239,6 +246,7 @@ export default function ConfigurationScreen({
     projectScanMsg,
     projectScanMsgType,
     infoMsg,
+    userPrefsMsg,
     fabAuthMsg,
     fabAuthMsgType,
     fabRemoteImportMsg,
@@ -366,8 +374,13 @@ export default function ConfigurationScreen({
   React.useEffect(() => {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (userPrefsMsgTimer.current) clearTimeout(userPrefsMsgTimer.current);
     };
   }, []);
+
+  React.useEffect(() => {
+    setShowFabResourcesForUser(resolveShowFabResourcesPreference(notificationPrefs));
+  }, [notificationPrefs]);
 
   const refreshCatalogStats = React.useCallback(async () => {
     const [libraryMetaRes, projectsRes] = await Promise.all([
@@ -486,6 +499,24 @@ export default function ConfigurationScreen({
     return file.replace(/\.uproject$/i, '');
   }
 
+  function parseNotificationPrefsObject(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return value;
+    }
+    const raw = String(value || '').trim();
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch {}
+    return {};
+  }
+
+  function resolveShowFabResourcesPreference(value) {
+    const parsed = parseNotificationPrefsObject(value);
+    return parsed?.showFabResources !== false;
+  }
+
   function updateField(field, value, sectionOverride = null) {
     const section =
       sectionOverride ||
@@ -508,6 +539,46 @@ export default function ConfigurationScreen({
       handleSave(section); // sauvegarde immédiate du choix utilisateur
     } else {
       scheduleSave(section);
+    }
+  }
+
+  function showUserPrefsFeedback(text = '', type = '') {
+    setUserPrefsMsg({ text: String(text || ''), type: String(type || '') });
+    if (userPrefsMsgTimer.current) clearTimeout(userPrefsMsgTimer.current);
+    userPrefsMsgTimer.current = setTimeout(() => {
+      setUserPrefsMsg({ text: '', type: '' });
+    }, 2500);
+  }
+
+  async function handleToggleFabResourcesForUser(nextValue) {
+    const checked = !!nextValue;
+    setShowFabResourcesForUser(checked);
+    if (typeof onUpdateMe !== 'function') {
+      showUserPrefsFeedback(t('config.userPreferences.authRequired'), 'warn');
+      return;
+    }
+    setUserPrefsSaving(true);
+    const currentPrefs = parseNotificationPrefsObject(notificationPrefs);
+    const nextPrefs = {
+      ...currentPrefs,
+      showFabResources: checked,
+    };
+    let ok = false;
+    try {
+      const result = await Promise.resolve(onUpdateMe({
+        notificationPrefsJson: JSON.stringify(nextPrefs),
+      }));
+      ok = result !== false;
+    } catch {
+      ok = false;
+    } finally {
+      setUserPrefsSaving(false);
+    }
+    if (ok) {
+      showUserPrefsFeedback(t('config.userPreferences.saved'), 'ok');
+    } else {
+      setShowFabResourcesForUser(resolveShowFabResourcesPreference(notificationPrefs));
+      showUserPrefsFeedback(t('config.userPreferences.saveError'), 'error');
     }
   }
 
@@ -1123,34 +1194,6 @@ export default function ConfigurationScreen({
     }
   }
 
-  function persistIdentityPatch(patch = {}) {
-    try {
-      const latest = readIdentity();
-      const safeIdentity =
-        latest && typeof latest === 'object'
-          ? latest
-          : (identity && typeof identity === 'object' ? identity : {});
-      const nextId = { ...safeIdentity, ...(patch && typeof patch === 'object' ? patch : {}) };
-      writeIdentity(nextId);
-      if (typeof onIdentityUpdated === 'function') {
-        onIdentityUpdated(nextId);
-      }
-      return nextId;
-    } catch {
-      return null;
-    }
-  }
-
-  function handleLangChange(e) {
-    const value = String(e.target.value || '').trim();
-    const newLang = value === 'en' ? 'en' : 'fr';
-
-    setLang(newLang);
-    // pas de save côté agent pour la langue (stock local)
-
-    persistIdentityPatch({ lang: newLang });
-  }
-
   const cleanedProjectRoots = normalizeProjectRoots(projectRoots);
   const selectableScanCount = projectScanResults.filter((it) => !it.exists).length;
   const allSelectableSelected =
@@ -1200,6 +1243,7 @@ export default function ConfigurationScreen({
   const fabPreviewUpdatedItems = React.useMemo(() => (
     fabPreviewItems.filter((item) => normalizeFabPreviewStatus(item) === 'modified')
   ), [fabPreviewItems]);
+  const showAdminConfiguration = canManageConfiguration === true;
 
   const renderFabPreviewList = (list) => (
     <div className="uu-list mt-8">
@@ -1235,6 +1279,41 @@ export default function ConfigurationScreen({
   return (
     <div className="uu-page">
       <div className="uu-section">
+        <div className="uu-config-stack">
+          <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
+            <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
+              {t('config.userPreferences.title')}
+            </h3>
+          </div>
+          <div className="uu-muted">
+            {t('config.userPreferences.hint')}
+          </div>
+          <label className="uu-check">
+            <input
+              type="checkbox"
+              checked={!!showFabResourcesForUser}
+              disabled={userPrefsSaving}
+              onChange={(e) => {
+                void handleToggleFabResourcesForUser(e.target.checked);
+              }}
+            />
+            {t('config.userPreferences.showFabResources')}
+          </label>
+        </div>
+      </div>
+      {showAdminConfiguration ? (
+      <>
+      <div className="uu-section mt-16">
+        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
+          <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
+            {t('config.scope.system.title')}
+          </h3>
+        </div>
+        <div className="uu-muted">
+          {t('config.scope.system.hint')}
+        </div>
+      </div>
+      <div className="uu-section">
         <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
           <h3 className="uu-h3 uu-block-title">
             {t('config.commonTitle')}
@@ -1243,23 +1322,8 @@ export default function ConfigurationScreen({
 
         <div className="uu-row" style={{ alignItems: 'flex-start', gap: '32px', flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 340px', minWidth: '300px' }}>
-            {/* Langue de l'interface */}
-            <div className="uu-grid-field uu-maxw-420">
-              <label className="uu-label">
-                {t('config.lang.label')}
-              </label>
-              <select
-                className="uu-select"
-                value={lang}
-                onChange={handleLangChange}
-              >
-                <option value="fr">{t('common.lang.fr')}</option>
-                <option value="en">{t('common.lang.en')}</option>
-              </select>
-            </div>
-
             {/* Rafraîchissement */}
-            <div className="uu-grid-field uu-maxw-420 mt-12">
+            <div className="uu-grid-field uu-maxw-420">
               <label className="uu-label">
                 {t('setup.server.refreshSec')}
               </label>
@@ -1388,6 +1452,17 @@ export default function ConfigurationScreen({
           </div>
         </div>
 
+      </div>
+
+      <div className="uu-section mt-16">
+        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
+          <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
+            {t('config.scope.station.title')}
+          </h3>
+        </div>
+        <div className="uu-muted">
+          {t('config.scope.station.hint')}
+        </div>
       </div>
 
       <div className="uu-section mt-16">
@@ -2048,7 +2123,8 @@ export default function ConfigurationScreen({
         </div>
       </div>
       ) : null}
-
+      </>
+      ) : null}
     </div>
   );
 }

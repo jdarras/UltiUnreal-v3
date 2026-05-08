@@ -4,6 +4,8 @@ import {
   hasActiveTaskListFilters,
 } from "./filterTaskListHelpers";
 
+const EMPTY_MAP = new Map();
+
 export function useFilteredTaskList({
   orderedTasks = [],
   favoriteOnly = false,
@@ -14,10 +16,10 @@ export function useFilteredTaskList({
   listProjectFilter = [],
   listFormFilter = [],
   listRenderModeFilter = [],
-  taskRenderStateByTaskId = new Map(),
-  projectLabelsByRef = new Map(),
-  resourceLabelsByRef = new Map(),
-  renderFormLabelById = new Map(),
+  taskRenderStateByTaskId = EMPTY_MAP,
+  projectLabelsByRef = EMPTY_MAP,
+  resourceLabelsByRef = EMPTY_MAP,
+  renderFormLabelById = EMPTY_MAP,
 } = {}) {
   const filteredTasks = useMemo(() => {
     return filterTasksList({

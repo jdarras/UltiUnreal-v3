@@ -1,6 +1,8 @@
 import { useCallback } from "react";
 import { buildTaskPayloadFromForm } from "./payload/buildTaskPayloadFromForm";
 
+const EMPTY_MAP = new Map();
+
 export function useTaskPayloadBuilder({
   t,
   title = "",
@@ -18,8 +20,8 @@ export function useTaskPayloadBuilder({
   selectedResourceRefs = [],
   selectedAutoRenderForm = null,
   selectedAutoRenderProjectRef = "",
-  projectOptionByRef = new Map(),
-  projectLookupByAny = new Map(),
+  projectOptionByRef = EMPTY_MAP,
+  projectLookupByAny = EMPTY_MAP,
   availableRenderWorkers = [],
   taskSequenceName = "",
   autoRenderOffscreen = false,

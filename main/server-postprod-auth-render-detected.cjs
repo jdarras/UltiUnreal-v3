@@ -36,12 +36,14 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       if (!Number.isFinite(n) || n <= 0) return fallback;
       return Math.trunc(n);
     },
+    scheduleProxyGenerationForDoneRender = null,
   } = deps;
 
   const renderDetectedScanState = {
     lastRunMs: 0,
     lastSummary: null,
     lastWarnFingerprint: '',
+    lastExceptionFingerprint: '',
   };
   let renderDetectedAutoScanTimer = null;
   let renderDetectedAutoScanBusy = false;
@@ -56,6 +58,21 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
     } catch {
       return {};
     }
+  }
+
+  function toPositiveInt(value) {
+    const parsed = Number(value || 0);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
+  }
+
+  function normalizeExpectedNameKey(value = '') {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\.[^/.]+$/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
   }
 
   function normalizeDetectedOutputPathKey(value = '') {
@@ -88,6 +105,83 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       const payloadKey = normalizeDetectedOutputPathKey(payloadOutputPath);
       if (directKey) out.add(directKey);
       if (payloadKey) out.add(payloadKey);
+    }
+    return out;
+  }
+
+  function buildActiveRenderCandidateFromRow(row = null) {
+    const status = String(row?.status || '').trim();
+    if (status !== 'Queued' && status !== 'Running') return null;
+    const payload = parsePayloadJsonSafe(row?.payload_json || row?.payloadJson || row?.payload);
+    const renderId = toPositiveInt(row?.id);
+    if (renderId <= 0) return null;
+    return {
+      renderId,
+      status,
+      reviewStatus: String(row?.review_status || '').trim() || 'to_validate',
+      validatedByUserId: toPositiveInt(row?.validated_by_user_id) || null,
+      startedAt: String(row?.started_at || '').trim() || null,
+      expectedName: String(payload?.matchedExpectedRenderName || '').trim(),
+      payload,
+    };
+  }
+
+  function buildActiveTaskRenderCandidatesByTaskId() {
+    const out = new Map();
+    const rows = Array.isArray(stmts?.listRenderJobs?.all?.())
+      ? stmts.listRenderJobs.all()
+      : [];
+    for (const row of rows) {
+      const candidate = buildActiveRenderCandidateFromRow(row);
+      if (!candidate) continue;
+      const payload = candidate.payload;
+      const taskId = toPositiveInt(payload?.taskId);
+      if (taskId <= 0) continue;
+      const list = out.get(taskId) || [];
+      list.push(candidate);
+      out.set(taskId, list);
+    }
+    for (const [taskId, list] of out.entries()) {
+      list.sort((a, b) => b.renderId - a.renderId);
+      out.set(taskId, list);
+    }
+    return out;
+  }
+
+  function buildActiveRenderCandidatesByOutputPathKey() {
+    const out = new Map();
+    const rows = Array.isArray(stmts?.listRenderJobs?.all?.())
+      ? stmts.listRenderJobs.all()
+      : [];
+    for (const row of rows) {
+      const candidate = buildActiveRenderCandidateFromRow(row);
+      if (!candidate) continue;
+      const payload = candidate.payload;
+      const directPath = sanitizeRenderOutputPath(
+        row?.output_path
+        || row?.outputPath
+        || ''
+      );
+      const payloadPath = sanitizeRenderOutputPath(
+        payload?.outputPath
+        || payload?.output_path
+        || payload?.filePath
+        || ''
+      );
+      const candidateKeys = [
+        normalizeDetectedOutputPathKey(directPath),
+        normalizeDetectedOutputPathKey(payloadPath),
+      ].filter(Boolean);
+      if (candidateKeys.length <= 0) continue;
+      for (const key of candidateKeys) {
+        const list = out.get(key) || [];
+        list.push(candidate);
+        out.set(key, list);
+      }
+    }
+    for (const [key, list] of out.entries()) {
+      list.sort((a, b) => b.renderId - a.renderId);
+      out.set(key, list);
     }
     return out;
   }
@@ -266,12 +360,77 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
     const candidates = listRenderDetectedFileCandidates(detectedRoots);
     const knownOutputPathKeys = buildKnownRenderOutputPathKeySet();
     const taskMatchCatalog = buildExpectedRenderTaskMatchCatalog(stmts);
+    const activeTaskRenderCandidatesByTaskId = buildActiveTaskRenderCandidatesByTaskId();
+    const activeRenderCandidatesByOutputPathKey = buildActiveRenderCandidatesByOutputPathKey();
     const taskDetectedProgressById = new Map();
+    const proxyScheduledRenderIds = new Set();
     const tx = db.transaction((payload) => {
       const signature = String(payload.signature || '').trim();
       const exists = stmts.findRenderDetectedFileBySignature.get(signature);
       if (exists) return { duplicate: true, renderId: Number(exists?.render_job_id || 0) };
       const createdAt = String(payload.createdAt || nowIso()).trim() || nowIso();
+
+      if (toPositiveInt(payload.existingRenderId) > 0) {
+        const existingRenderId = toPositiveInt(payload.existingRenderId);
+        const existingStatus = String(payload.existingRenderStatus || '').trim() || 'Running';
+        const existingReviewStatus = String(payload.existingRenderReviewStatus || '').trim() || 'to_validate';
+        const existingValidatedByUserId = toPositiveInt(payload.existingValidatedByUserId) || null;
+        const existingStartedAt = String(payload.existingStartedAt || '').trim() || null;
+        const finishedAt = String(payload.finishedAt || createdAt).trim() || createdAt;
+
+        if (existingStatus !== 'Done' && typeof stmts.updateRenderJobTransition?.run === 'function') {
+          stmts.updateRenderJobTransition.run(
+            'Done',
+            existingReviewStatus,
+            existingValidatedByUserId,
+            payload.outputPath,
+            '',
+            existingStartedAt,
+            finishedAt,
+            createdAt,
+            existingRenderId
+          );
+          if (typeof stmts.clearRenderWorkerCurrentJobByRenderId?.run === 'function') {
+            stmts.clearRenderWorkerCurrentJobByRenderId.run(createdAt, existingRenderId);
+          }
+          if (typeof stmts.insertRenderJobEvent?.run === 'function') {
+            stmts.insertRenderJobEvent.run(
+              existingRenderId,
+              existingStatus,
+              'Done',
+              payload.actorUserId,
+              'detected_output_complete',
+              createdAt
+            );
+          }
+        } else if (typeof stmts.updateRenderJobOutputPath?.run === 'function') {
+          stmts.updateRenderJobOutputPath.run(payload.outputPath, createdAt, existingRenderId);
+        }
+
+        if (typeof stmts.updateRenderJobPayload?.run === 'function') {
+          stmts.updateRenderJobPayload.run(payload.renderPayloadJson, createdAt, existingRenderId);
+        }
+
+        stmts.insertRenderDetectedFile.run(
+          signature,
+          payload.sourceDir,
+          payload.filePath,
+          payload.projectName,
+          payload.templateName,
+          payload.fileName,
+          payload.fileExt,
+          payload.fileSize,
+          payload.fileMtimeAt,
+          existingRenderId,
+          payload.matchedTaskId,
+          payload.matchedExpectedRenderName,
+          'imported',
+          '',
+          createdAt,
+          createdAt
+        );
+        return { duplicate: false, renderId: existingRenderId, linkedExisting: true };
+      }
       const insertRes = stmts.insertRenderJob.run(
         payload.projectName,
         payload.templateName,
@@ -337,10 +496,6 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       const filePath = sanitizeRenderOutputPath(candidate.filePath);
       const sourceDir = sanitizeRenderOutputPath(candidate.sourceDir);
       const outputPathKey = normalizeDetectedOutputPathKey(filePath);
-      if (outputPathKey && knownOutputPathKeys.has(outputPathKey)) {
-        duplicates += 1;
-        continue;
-      }
       const fileName = String(candidate.fileName || '').trim().slice(0, 260);
       const fileExt = String(candidate.fileExt || '').trim().slice(0, 32).toLowerCase();
       const fileSize = Math.max(0, Math.trunc(Number(candidate.fileSize) || 0));
@@ -386,6 +541,44 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
         payloadObj.taskExpectedRenderCount = matchedTaskExpectedRenderCount;
         payloadObj.taskDetectedRenderCount = matchedTaskDetectedBefore + 1;
       }
+      let existingRenderCandidate = null;
+      if (hasMatchedTask) {
+        const candidatesForTask = Array.isArray(activeTaskRenderCandidatesByTaskId.get(matchedTaskId))
+          ? activeTaskRenderCandidatesByTaskId.get(matchedTaskId)
+          : [];
+        if (candidatesForTask.length > 0) {
+          const expectedNameKey = normalizeExpectedNameKey(matchedExpectedRenderName);
+          if (expectedNameKey) {
+            existingRenderCandidate = candidatesForTask.find(
+              (entry) => normalizeExpectedNameKey(entry?.expectedName) === expectedNameKey
+            ) || null;
+          }
+          if (!existingRenderCandidate) {
+            existingRenderCandidate = candidatesForTask[0];
+          }
+          if (existingRenderCandidate?.payload && typeof existingRenderCandidate.payload === 'object') {
+            payloadObj.source = String(existingRenderCandidate.payload.source || payloadObj.source || '').trim() || payloadObj.source;
+            if (!String(payloadObj.taskTitle || '').trim()) {
+              payloadObj.taskTitle = String(existingRenderCandidate.payload.taskTitle || taskMatch?.taskTitle || '').trim();
+            }
+            if (!String(payloadObj.taskStatus || '').trim()) {
+              payloadObj.taskStatus = String(existingRenderCandidate.payload.taskStatus || taskMatch?.taskStatus || '').trim();
+            }
+          }
+        }
+      }
+      if (!existingRenderCandidate && outputPathKey) {
+        const candidatesForPath = Array.isArray(activeRenderCandidatesByOutputPathKey.get(outputPathKey))
+          ? activeRenderCandidatesByOutputPathKey.get(outputPathKey)
+          : [];
+        if (candidatesForPath.length > 0) {
+          existingRenderCandidate = candidatesForPath[0];
+        }
+      }
+      if (outputPathKey && knownOutputPathKeys.has(outputPathKey) && toPositiveInt(existingRenderCandidate?.renderId) <= 0) {
+        duplicates += 1;
+        continue;
+      }
       let renderPayloadJson = '{}';
       try {
         renderPayloadJson = JSON.stringify(payloadObj);
@@ -408,6 +601,11 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
           actorUserId: effectiveActorUserId,
           createdAt: nowIso(),
           renderPayloadJson,
+          existingRenderId: existingRenderCandidate?.renderId || 0,
+          existingRenderStatus: existingRenderCandidate?.status || '',
+          existingRenderReviewStatus: existingRenderCandidate?.reviewStatus || '',
+          existingValidatedByUserId: existingRenderCandidate?.validatedByUserId || null,
+          existingStartedAt: existingRenderCandidate?.startedAt || null,
           matchedTaskId: hasMatchedTask ? matchedTaskId : null,
           matchedExpectedRenderName,
         });
@@ -423,6 +621,17 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
             taskDetectedProgressById.set(matchedTaskId, matchedTaskDetectedBefore + 1);
           } else {
             unmatched += 1;
+          }
+          const importedRenderId = toPositiveInt(result?.renderId);
+          if (
+            importedRenderId > 0
+            && typeof scheduleProxyGenerationForDoneRender === 'function'
+            && !proxyScheduledRenderIds.has(importedRenderId)
+          ) {
+            proxyScheduledRenderIds.add(importedRenderId);
+            try {
+              scheduleProxyGenerationForDoneRender(importedRenderId);
+            } catch {}
           }
         }
       } catch (err) {
@@ -482,6 +691,10 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       const importedCount = Number(summary?.imported || 0);
       const errorCount = Number(summary?.errors || 0);
       const firstErrorMessage = String(summary?.firstErrorMessage || '').trim();
+      if (renderDetectedScanState.lastExceptionFingerprint !== '') {
+        renderDetectedScanState.lastExceptionFingerprint = '';
+        logLine({ level: 'info', src: 'postprod', action: 'render_detected_auto_scan_recovered', message: 'Scan auto rendus detectes: rétabli' });
+      }
       if (errorCount > 0) {
         const warnFingerprint = `${errorCount}|${firstErrorMessage}`;
         const shouldLogWarn = renderDetectedScanState.lastWarnFingerprint !== warnFingerprint;
@@ -498,6 +711,10 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
         });
         return;
       }
+      if (renderDetectedScanState.lastWarnFingerprint !== '') {
+        renderDetectedScanState.lastWarnFingerprint = '';
+        logLine({ level: 'info', src: 'postprod', action: 'render_detected_auto_scan', message: 'Scan auto rendus detectes: plus d\'erreurs' });
+      }
       if (importedCount > 0) {
         logLine({
           level: 'info',
@@ -508,12 +725,16 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
         });
       }
     } catch (err) {
-      logLine({
-        level: 'warn',
-        src: 'postprod',
-        action: 'render_detected_auto_scan_failed',
-        message: `Scan auto rendus detectes impossible: ${String(err?.message || err)}`,
-      });
+      const fingerprint = String(err?.message || err || '').trim().slice(0, 200);
+      if (renderDetectedScanState.lastExceptionFingerprint !== fingerprint) {
+        renderDetectedScanState.lastExceptionFingerprint = fingerprint;
+        logLine({
+          level: 'warn',
+          src: 'postprod',
+          action: 'render_detected_auto_scan_failed',
+          message: `Scan auto rendus detectes impossible: ${fingerprint}`,
+        });
+      }
     } finally {
       renderDetectedAutoScanBusy = false;
     }

@@ -26,6 +26,7 @@ function RenderEditorSection({
   onChangeAutoRenderForm = null,
   renderFormsLoading = false,
   renderFormsError = "",
+  canCreateTasks = false,
   canManageRenderTemplates = false,
   renderTemplatesForSelectedAutoForm = [],
   autoRenderTemplateId = "",
@@ -65,6 +66,7 @@ function RenderEditorSection({
   submitDisabled = false,
   submitLabel = "",
   onSubmit = null,
+  onRequestDeleteTask = null,
   onCancel = null,
 }) {
   if (!showCreateForm) return null;
@@ -94,6 +96,7 @@ function RenderEditorSection({
       onChangeAutoRenderForm={onChangeAutoRenderForm}
       renderFormsLoading={renderFormsLoading}
       renderFormsError={renderFormsError}
+      canCreateTasks={canCreateTasks}
       canManageRenderTemplates={canManageRenderTemplates}
       renderTemplatesForSelectedAutoForm={renderTemplatesForSelectedAutoForm}
       autoRenderTemplateId={autoRenderTemplateId}
@@ -133,6 +136,7 @@ function RenderEditorSection({
       submitDisabled={submitDisabled}
       submitLabel={submitLabel}
       onSubmit={onSubmit}
+      onRequestDeleteTask={onRequestDeleteTask}
       onCancel={onCancel}
     />
   );

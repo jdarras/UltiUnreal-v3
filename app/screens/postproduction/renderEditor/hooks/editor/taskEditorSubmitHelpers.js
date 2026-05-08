@@ -29,6 +29,18 @@ function resolveSavedTaskId(savedTask) {
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
 }
 
+function resolveCreatedRenderId(createdRender = null) {
+  const render = createdRender && typeof createdRender === "object" ? createdRender : {};
+  const value = Number(
+    render?.id
+    || render?.renderId
+    || render?.renderJobId
+    || render?.render_job_id
+    || 0
+  );
+  return Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
+}
+
 function asRecord(value = null) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value;
@@ -337,7 +349,41 @@ async function runTaskSubmit({
       source: shouldRelaunchAfterEdit ? "task_auto_render_relaunch" : "",
       relaunchMeta,
     });
-    await Promise.resolve(onCreateRender?.(createRenderInput));
+    let createdRender = null;
+    try {
+      createdRender = await Promise.resolve(onCreateRender?.(createRenderInput));
+    } catch (error) {
+      if (typeof setFormError === "function") {
+        const message = String(error?.message || "").trim();
+        setFormError(
+          message || safeT(
+            t,
+            "postprod.tasks.error.renderCreateFailed",
+            "Le job de rendu n'a pas pu être créé. Vérifie la configuration et réessaie."
+          )
+        );
+      }
+      return;
+    }
+    if (resolveCreatedRenderId(createdRender) <= 0) {
+      if (typeof setFormError === "function") {
+        const detailedMessage = String(
+          createdRender?.error
+          || createdRender?.message
+          || createdRender?.detail
+          || ""
+        ).trim();
+        setFormError(
+          detailedMessage
+            || safeT(
+              t,
+              "postprod.tasks.error.renderCreateFailed",
+              "Le job de rendu n'a pas pu être créé. Vérifie la configuration et réessaie."
+            )
+        );
+      }
+      return;
+    }
   }
 
   if (typeof resetCreateForm === "function") resetCreateForm();

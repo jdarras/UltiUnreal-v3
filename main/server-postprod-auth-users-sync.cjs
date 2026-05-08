@@ -139,6 +139,8 @@ const usersSyncRuntimeState = {
   pollTimer: null,
   polling: false,
   peerHealth: new Map(),
+  loopFailedFingerprint: '',
+  missingPasswordHashSeen: new Set(),
 };
 
 function resolveUsersSyncPeerKey(peer, fallback = '') {
@@ -425,6 +427,7 @@ function buildRoleSyncPayload(roleRow) {
     canManageRoles: normalized.canManageRoles === true,
     canManageForms: normalized.canManageForms === true,
     canManageMachines: normalized.canManageMachines === true,
+    canManageConfiguration: normalized.canManageConfiguration === true,
     canBanUsers: normalized.canBanUsers === true,
     canManageProjectPermissions: normalized.canManageProjectPermissions === true,
     canLaunchLiveProjects: normalized.canLaunchLiveProjects === true,
@@ -912,12 +915,15 @@ function applyUsersSyncEvent(event, peer = {}) {
       pickPayloadValue('passwordHash', current?.password_hash || '')
     ).trim();
     if (!passwordHash) {
-      logLine({
-        level: 'warn',
-        src: 'postprod',
-        action: 'users_sync_user_missing_password_hash',
-        message: `Sync user ignoree (passwordHash manquant): ${publicId}`,
-      });
+      if (!usersSyncRuntimeState.missingPasswordHashSeen.has(publicId)) {
+        usersSyncRuntimeState.missingPasswordHashSeen.add(publicId);
+        logLine({
+          level: 'warn',
+          src: 'postprod',
+          action: 'users_sync_user_missing_password_hash',
+          message: `Sync user ignoree (passwordHash manquant): ${publicId}`,
+        });
+      }
       return { ok: true, applied: false, reason: 'missing_password_hash', version: rawVersion };
     }
 
@@ -1113,6 +1119,7 @@ function applyUsersSyncEvent(event, peer = {}) {
       canManageRoles: payload?.canManageRoles,
       canManageForms: payload?.canManageForms,
       canManageMachines: payload?.canManageMachines,
+      canManageConfiguration: payload?.canManageConfiguration,
       canBanUsers: payload?.canBanUsers,
       canManageProjectPermissions: payload?.canManageProjectPermissions,
       canLaunchLiveProjects: payload?.canLaunchLiveProjects,
@@ -1165,6 +1172,7 @@ function applyUsersSyncEvent(event, peer = {}) {
           normalizedRole.canManageRoles ? 1 : 0,
           normalizedRole.canManageForms ? 1 : 0,
           normalizedRole.canManageMachines ? 1 : 0,
+          normalizedRole.canManageConfiguration ? 1 : 0,
           normalizedRole.canBanUsers ? 1 : 0,
           normalizedRole.canManageProjectPermissions ? 1 : 0,
           normalizedRole.canLaunchLiveProjects ? 1 : 0,
@@ -1196,6 +1204,7 @@ function applyUsersSyncEvent(event, peer = {}) {
       normalizedRole.canManageRoles ? 1 : 0,
       normalizedRole.canManageForms ? 1 : 0,
       normalizedRole.canManageMachines ? 1 : 0,
+      normalizedRole.canManageConfiguration ? 1 : 0,
       normalizedRole.canBanUsers ? 1 : 0,
       normalizedRole.canManageProjectPermissions ? 1 : 0,
       normalizedRole.canLaunchLiveProjects ? 1 : 0,
@@ -1331,13 +1340,21 @@ function startUsersSyncPollLoop() {
     usersSyncRuntimeState.pollTimer = setTimeout(async () => {
       try {
         await runUsersSyncPoll();
+        if (usersSyncRuntimeState.loopFailedFingerprint !== '') {
+          usersSyncRuntimeState.loopFailedFingerprint = '';
+          logLine({ level: 'info', src: 'postprod', action: 'users_sync_loop_recovered', message: 'Sync users/profils: rétablie' });
+        }
       } catch (err) {
-        logLine({
-          level: 'warn',
-          src: 'postprod',
-          action: 'users_sync_loop_failed',
-          message: `Sync users/profils impossible: ${String(err?.message || err || 'failed')}`,
-        });
+        const fingerprint = String(err?.message || err || 'failed').trim().slice(0, 200);
+        if (usersSyncRuntimeState.loopFailedFingerprint !== fingerprint) {
+          usersSyncRuntimeState.loopFailedFingerprint = fingerprint;
+          logLine({
+            level: 'warn',
+            src: 'postprod',
+            action: 'users_sync_loop_failed',
+            message: `Sync users/profils impossible: ${fingerprint}`,
+          });
+        }
       } finally {
         schedule(intervalMs);
       }

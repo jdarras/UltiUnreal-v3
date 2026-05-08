@@ -76,6 +76,7 @@ export default function LogsScreen() {
   const [busy, setBusy] = React.useState(false);
   const [exportBusy, setExportBusy] = React.useState(false);
   const [expanded, setExpanded] = React.useState({}); // idx -> bool
+  const [confirmPurge, setConfirmPurge] = React.useState(false);
   const aliveRef = React.useRef(true);
 
   React.useEffect(() => {
@@ -89,7 +90,7 @@ export default function LogsScreen() {
     try {
       const stored = localStorage.getItem(ACTION_FILTER_STORAGE_KEY);
       const baseIds = new Set(BASE_ACTION_FILTERS.map(a => a.id));
-      if (stored && (baseIds.has(stored) || stored)) {
+      if (stored && baseIds.has(stored)) {
         setActionFilter(stored);
       }
     } catch {}
@@ -195,6 +196,15 @@ export default function LogsScreen() {
     };
   }, [auto, quietMode, refreshSec, fetchLogs]);
 
+  // pré-calcul du haystack de recherche : ne tourne que quand les items changent
+  const itemsWithHaystack = React.useMemo(() =>
+    items.map(it => ({
+      ...it,
+      _haystack: [it.level, it.src, it.host, it.action, it.message, JSON.stringify(it.data || {})].join(' ').toLowerCase(),
+    })),
+    [items]
+  );
+
   // filtrage texte + niveaux + type d'action + dates
   const filtered = React.useMemo(() => {
     const q  = text.trim().toLowerCase();
@@ -203,14 +213,13 @@ export default function LogsScreen() {
     const fromMs = fromAtLocal ? new Date(fromAtLocal).getTime() : null;
     const toMs   = toAtLocal   ? new Date(toAtLocal).getTime()   : null;
 
-    return items.filter(it => {
+    return itemsWithHaystack.filter(it => {
       if (!lv.has(String(it.level || 'info'))) return false;
       if (fromMs !== null && (it._tsMs ?? 0) < fromMs) return false;
       if (toMs   !== null && (it._tsMs ?? 0) > toMs)   return false;
 
       const act = String(it.action || '');
 
-      // Filtre par type d'action
       if (af === 'widget_press' && act !== 'widget_press') return false;
       if (af === 'sync'         && !act.startsWith('sync_')) return false;
       if (af === 'wrc'          && !act.startsWith('wrc_'))  return false;
@@ -219,15 +228,9 @@ export default function LogsScreen() {
       }
 
       if (!q) return true;
-
-      const hay = [
-        it.level, it.src, it.host, it.action, it.message,
-        JSON.stringify(it.data || {})
-      ].join(' ').toLowerCase();
-
-      return hay.includes(q);
+      return it._haystack.includes(q);
     });
-  }, [items, levelFilter, text, actionFilter, fromAtLocal, toAtLocal]);
+  }, [itemsWithHaystack, levelFilter, text, actionFilter, fromAtLocal, toAtLocal]);
 
   // Pagination pour limiter le rendu DOM si beaucoup de logs
   const [page, setPage] = React.useState(0);
@@ -257,8 +260,9 @@ export default function LogsScreen() {
   }
 
   async function handlePurge() {
+    setConfirmPurge(false);
     await purgeLogs({ allHosts: role === 'server' });
-    await fetchLogs(); // toujours rafraîchir l'affichage après une demande de purge
+    await fetchLogs();
   }
 
   async function handleExport(as = 'json') {
@@ -342,6 +346,7 @@ export default function LogsScreen() {
   }, [items, actionFilter, t]);
 
   return (
+    <>
     <div className="uu-page">
 
       {/* Barre de filtres dates + recherche */}
@@ -456,7 +461,7 @@ export default function LogsScreen() {
       <div className="uu-toolbar-sub">
         <button
           className="uu-btn"
-          onClick={handlePurge}
+          onClick={() => setConfirmPurge(true)}
           title={t('logs.toolbar.purgeTooltip')}
         >
           {t('logs.toolbar.purgeButton')}
@@ -564,5 +569,36 @@ export default function LogsScreen() {
         )})}
       </div>
     </div>
+
+    {confirmPurge && (
+      <div
+        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}
+        onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmPurge(false); }}
+      >
+        <div
+          className="uu-card"
+          role="dialog"
+          aria-modal="true"
+          style={{ width: "min(420px, calc(100vw - 32px))", padding: "16px" }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div style={{ fontWeight: 600, marginBottom: "10px" }}>
+            {t('logs.toolbar.purgeButton')}
+          </div>
+          <div style={{ marginBottom: "14px", lineHeight: 1.35 }}>
+            {t('logs.confirm.purge')}
+          </div>
+          <div className="uu-row" style={{ justifyContent: "flex-end", gap: "8px" }}>
+            <button type="button" className="uu-btn" onClick={() => setConfirmPurge(false)}>
+              {t('production.confirm.cancel')}
+            </button>
+            <button type="button" className="uu-btn prod-toggle-active" onClick={handlePurge}>
+              {t('logs.toolbar.purgeButton')}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 function asRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -321,106 +321,12 @@ function useRenderFocusRequestController({
     return { id, type, ref, action, task };
   }, [rawFocusRequest]);
 
-  useEffect(() => {
-    if (!normalizedRenderFocusRequest) return;
-    const isCreateFromProject = (
-      normalizedRenderFocusRequest.type === "project_create"
-      || (
-        normalizedRenderFocusRequest.type === "project"
-        && normalizedRenderFocusRequest.action === "create"
-      )
-    );
-
-    if (isCreateFromProject) {
-      setEditingTaskId?.(0);
-      setShowCreateForm?.(true);
-      setAutoRenderProjectRef?.(normalizedRenderFocusRequest.ref);
-      setAutoRenderFormId?.("");
-      setAutoRenderTemplateId?.("");
-      setAutoRenderFormValues?.({});
-      setAssigneeUserId?.(defaultAssigneeUserId);
-      setListProjectFilter?.([]);
-      setListResourceFilter?.("all");
-    } else if (normalizedRenderFocusRequest.type === "project") {
-      setListProjectFilter?.([String(normalizedRenderFocusRequest.ref || "").trim().toLowerCase()]);
-      setListResourceFilter?.("all");
-    } else if (normalizedRenderFocusRequest.type === "resource") {
-      setListResourceFilter?.(normalizedRenderFocusRequest.ref);
-      setListProjectFilter?.([]);
-    } else if (normalizedRenderFocusRequest.type === "task") {
-      const isCreateTaskRequest = normalizedRenderFocusRequest.action === "create";
-      if (isCreateTaskRequest) {
-        setEditingTaskId?.(0);
-        setShowCreateForm?.(true);
-        setTitle?.("");
-        setDescription?.("");
-        setAssigneeUserId?.(defaultAssigneeUserId);
-        setSelectedResourceRefs?.([]);
-        if (typeof resetAutoRenderState === "function") {
-          resetAutoRenderState();
-        } else {
-          setAutoRenderProjectRef?.("");
-          setAutoRenderFormId?.("");
-          setAutoRenderTemplateId?.("");
-          setAutoRenderFormValues?.({});
-        }
-        setListProjectFilter?.([]);
-        setListResourceFilter?.("all");
-      } else {
-        const taskId = Number(normalizedRenderFocusRequest.ref || 0);
-        if (Number.isFinite(taskId) && taskId > 0) {
-          const taskFromPayload = normalizedRenderFocusRequest.task;
-          const taskFromList = (Array.isArray(tasks) ? tasks : []).find((entry) => {
-            const entryId = Number(entry?.id || 0);
-            return Number.isFinite(entryId) && Math.trunc(entryId) === Math.trunc(taskId);
-          }) || null;
-          const taskToEdit = taskFromList && typeof taskFromList === "object"
-            ? taskFromList
-            : (
-              taskFromPayload && typeof taskFromPayload === "object"
-                ? taskFromPayload
-                : null
-            );
-
-          setEditingTaskId?.(Math.trunc(taskId));
-          setShowCreateForm?.(true);
-          if (taskToEdit && typeof taskToEdit === "object") {
-            setTitle?.(String(taskToEdit?.title || ""));
-            setDescription?.(String(taskToEdit?.description || ""));
-            setAssigneeUserId?.(() => {
-              const parsed = Number(taskToEdit?.assigneeUserId || 0);
-              if (Number.isFinite(parsed) && parsed > 0) return Math.trunc(parsed);
-              return defaultAssigneeUserId;
-            });
-            setSelectedResourceRefs?.(
-              (Array.isArray(taskToEdit?.resourceRefs) ? taskToEdit.resourceRefs : [])
-                .map((value) => String(value || "").trim())
-                .filter(Boolean)
-            );
-            const hydrationTask = buildHydrationTaskSnapshot(taskToEdit, Math.trunc(taskId), renders) || taskToEdit;
-            hydrateAutoRenderFromTask?.(hydrationTask);
-          }
-        } else {
-          setEditingTaskId?.(0);
-          setShowCreateForm?.(false);
-        }
-        setListProjectFilter?.([]);
-        setListResourceFilter?.("all");
-      }
-    }
-    setListStatusFilter?.([]);
-    if (normalizedRenderFocusRequest.type !== "task" && !isCreateFromProject) {
-      setEditingTaskId?.(0);
-      setShowCreateForm?.(false);
-    }
-    setViewMode?.("list");
-    setFormError?.("");
-    if (typeof handleFocusHandled === "function") {
-      handleFocusHandled(normalizedRenderFocusRequest.id);
-    }
-  }, [
-    normalizedRenderFocusRequest,
+  const ctxRef = useRef({});
+  ctxRef.current = {
     handleFocusHandled,
+    tasks,
+    renders,
+    defaultAssigneeUserId,
     setListProjectFilter,
     setListResourceFilter,
     setListStatusFilter,
@@ -434,14 +340,111 @@ function useRenderFocusRequestController({
     setTitle,
     setDescription,
     setAssigneeUserId,
-    defaultAssigneeUserId,
     setSelectedResourceRefs,
     hydrateAutoRenderFromTask,
-    tasks,
-    renders,
     setViewMode,
     setFormError,
-  ]);
+  };
+
+  useEffect(() => {
+    if (!normalizedRenderFocusRequest) return;
+    const ctx = ctxRef.current;
+    const isCreateFromProject = (
+      normalizedRenderFocusRequest.type === "project_create"
+      || (
+        normalizedRenderFocusRequest.type === "project"
+        && normalizedRenderFocusRequest.action === "create"
+      )
+    );
+
+    if (isCreateFromProject) {
+      ctx.setEditingTaskId?.(0);
+      ctx.setShowCreateForm?.(true);
+      ctx.setAutoRenderProjectRef?.(normalizedRenderFocusRequest.ref);
+      ctx.setAutoRenderFormId?.("");
+      ctx.setAutoRenderTemplateId?.("");
+      ctx.setAutoRenderFormValues?.({});
+      ctx.setAssigneeUserId?.(ctx.defaultAssigneeUserId);
+      ctx.setListProjectFilter?.([]);
+      ctx.setListResourceFilter?.("all");
+    } else if (normalizedRenderFocusRequest.type === "project") {
+      ctx.setListProjectFilter?.([String(normalizedRenderFocusRequest.ref || "").trim().toLowerCase()]);
+      ctx.setListResourceFilter?.("all");
+    } else if (normalizedRenderFocusRequest.type === "resource") {
+      ctx.setListResourceFilter?.(normalizedRenderFocusRequest.ref);
+      ctx.setListProjectFilter?.([]);
+    } else if (normalizedRenderFocusRequest.type === "task") {
+      const isCreateTaskRequest = normalizedRenderFocusRequest.action === "create";
+      if (isCreateTaskRequest) {
+        ctx.setEditingTaskId?.(0);
+        ctx.setShowCreateForm?.(true);
+        ctx.setTitle?.("");
+        ctx.setDescription?.("");
+        ctx.setAssigneeUserId?.(ctx.defaultAssigneeUserId);
+        ctx.setSelectedResourceRefs?.([]);
+        if (typeof ctx.resetAutoRenderState === "function") {
+          ctx.resetAutoRenderState();
+        } else {
+          ctx.setAutoRenderProjectRef?.("");
+          ctx.setAutoRenderFormId?.("");
+          ctx.setAutoRenderTemplateId?.("");
+          ctx.setAutoRenderFormValues?.({});
+        }
+        ctx.setListProjectFilter?.([]);
+        ctx.setListResourceFilter?.("all");
+      } else {
+        const taskId = Number(normalizedRenderFocusRequest.ref || 0);
+        if (Number.isFinite(taskId) && taskId > 0) {
+          const taskFromPayload = normalizedRenderFocusRequest.task;
+          const taskFromList = (Array.isArray(ctx.tasks) ? ctx.tasks : []).find((entry) => {
+            const entryId = Number(entry?.id || 0);
+            return Number.isFinite(entryId) && Math.trunc(entryId) === Math.trunc(taskId);
+          }) || null;
+          const taskToEdit = taskFromList && typeof taskFromList === "object"
+            ? taskFromList
+            : (
+              taskFromPayload && typeof taskFromPayload === "object"
+                ? taskFromPayload
+                : null
+            );
+
+          ctx.setEditingTaskId?.(Math.trunc(taskId));
+          ctx.setShowCreateForm?.(true);
+          if (taskToEdit && typeof taskToEdit === "object") {
+            ctx.setTitle?.(String(taskToEdit?.title || ""));
+            ctx.setDescription?.(String(taskToEdit?.description || ""));
+            ctx.setAssigneeUserId?.(() => {
+              const parsed = Number(taskToEdit?.assigneeUserId || 0);
+              if (Number.isFinite(parsed) && parsed > 0) return Math.trunc(parsed);
+              return ctx.defaultAssigneeUserId;
+            });
+            ctx.setSelectedResourceRefs?.(
+              (Array.isArray(taskToEdit?.resourceRefs) ? taskToEdit.resourceRefs : [])
+                .map((value) => String(value || "").trim())
+                .filter(Boolean)
+            );
+            const hydrationTask = buildHydrationTaskSnapshot(taskToEdit, Math.trunc(taskId), ctx.renders) || taskToEdit;
+            ctx.hydrateAutoRenderFromTask?.(hydrationTask);
+          }
+        } else {
+          ctx.setEditingTaskId?.(0);
+          ctx.setShowCreateForm?.(false);
+        }
+        ctx.setListProjectFilter?.([]);
+        ctx.setListResourceFilter?.("all");
+      }
+    }
+    ctx.setListStatusFilter?.([]);
+    if (normalizedRenderFocusRequest.type !== "task" && !isCreateFromProject) {
+      ctx.setEditingTaskId?.(0);
+      ctx.setShowCreateForm?.(false);
+    }
+    ctx.setViewMode?.("list");
+    ctx.setFormError?.("");
+    if (typeof ctx.handleFocusHandled === "function") {
+      ctx.handleFocusHandled(normalizedRenderFocusRequest.id);
+    }
+  }, [normalizedRenderFocusRequest]);
 
   return {
     normalizedRenderFocusRequest,

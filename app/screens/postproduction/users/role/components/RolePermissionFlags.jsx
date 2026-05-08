@@ -76,6 +76,12 @@ function RolePermissionFlags({
             })}
           />
           <PermissionToggleRow
+            label={safeT(t, "postprod.roles.form.canManageConfiguration", "Peut gérer la configuration")}
+            checked={draft?.canManageConfiguration === true}
+            disabled={rolesLoading}
+            onChange={(e) => setDraft?.((prev) => ({ ...(prev || {}), canManageConfiguration: e.target.checked }))}
+          />
+          <PermissionToggleRow
             label={safeT(t, "postprod.roles.form.canBanUsers", "Peut bannir un utilisateur")}
             checked={draft?.canBanUsers === true}
             disabled={rolesLoading || draft?.canManageUsers !== true}

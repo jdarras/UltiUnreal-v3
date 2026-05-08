@@ -9,7 +9,10 @@ const { handlePostprodActivityAndAuditMaintenanceRoutes } = require('./server-po
 const { handlePostprodRenderFormsRoutes } = require('./server-postprod-routes-render-forms.cjs');
 const { handlePostprodRenderTemplatesRoutes } = require('./server-postprod-routes-render-templates.cjs');
 const { handlePostprodRenderDispatchRoutes } = require('./server-postprod-routes-render-dispatch.cjs');
-const { handlePostprodRenderTransitionRoutes } = require('./server-postprod-routes-render-transitions.cjs');
+const {
+  handlePostprodRenderTransitionRoutes,
+  scheduleProxyGenerationForDoneRender: scheduleProxyGenerationForDoneRenderShared,
+} = require('./server-postprod-routes-render-transitions.cjs');
 const { handlePostprodRenderHealthRoutes } = require('./server-postprod-routes-render-health.cjs');
 const { handlePostprodRendersRoutes } = require('./server-postprod-routes-renders.cjs');
 const { handlePostprodUsersRoutes } = require('./server-postprod-routes-users.cjs');
@@ -2732,6 +2735,9 @@ function normalizeRoleRow(row = {}) {
     canManageMachines:
       Number(row?.can_manage_machines ?? row?.canManageMachines) === 1
       || row?.canManageMachines === true,
+    canManageConfiguration:
+      Number(row?.can_manage_configuration ?? row?.canManageConfiguration) === 1
+      || row?.canManageConfiguration === true,
     canBanUsers: Number(row?.can_ban_users ?? row?.canBanUsers) === 1 || row?.canBanUsers === true,
     canManageProjectPermissions:
       Number(row?.can_manage_project_permissions ?? row?.canManageProjectPermissions) === 1
@@ -2805,6 +2811,7 @@ function buildRolesCache(roleRows = []) {
       canManageRoles: row.canManageRoles === true,
       canManageForms: row.canManageForms === true,
       canManageMachines: row.canManageMachines === true,
+      canManageConfiguration: row.canManageConfiguration === true,
       canBanUsers: row.canBanUsers === true,
       canManageProjectPermissions: row.canManageProjectPermissions === true,
       canLaunchLiveProjects: row.canLaunchLiveProjects !== false,
@@ -2900,6 +2907,7 @@ function rolePermissions(roleRaw, rolesCache) {
       canManageRoles: false,
       canManageForms: false,
       canManageMachines: false,
+      canManageConfiguration: false,
       canBanUsers: false,
       canManageProjectPermissions: false,
       canLaunchLiveProjects: false,
@@ -2932,6 +2940,7 @@ function rolePermissions(roleRaw, rolesCache) {
     canManageRoles: policy.canManageRoles === true,
     canManageForms: policy.canManageForms === true,
     canManageMachines: policy.canManageMachines === true,
+    canManageConfiguration: policy.canManageConfiguration === true,
     canBanUsers: canManageUsers && policy.canBanUsers === true,
     canManageProjectPermissions: canManageUsers && policy.canManageProjectPermissions === true,
     canLaunchLiveProjects: policy.canLaunchLiveProjects !== false,
@@ -3041,6 +3050,7 @@ function ensureDefaultRoles(db, bootstrapRolePolicies = [], logLine = () => {}) 
       can_manage_roles,
       can_manage_forms,
       can_manage_machines,
+      can_manage_configuration,
       can_ban_users,
       can_manage_project_permissions,
       can_launch_live_projects,
@@ -3056,7 +3066,7 @@ function ensureDefaultRoles(db, bootstrapRolePolicies = [], logLine = () => {}) 
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const now = nowIso();
   let inserted = 0;
@@ -3078,6 +3088,7 @@ function ensureDefaultRoles(db, bootstrapRolePolicies = [], logLine = () => {}) 
         policy?.canManageRoles === true ? 1 : 0,
         policy?.canManageForms === true ? 1 : 0,
         policy?.canManageMachines === true ? 1 : 0,
+        policy?.canManageConfiguration === true ? 1 : 0,
         policy?.canBanUsers === true ? 1 : 0,
         policy?.canManageProjectPermissions === true ? 1 : 0,
         policy?.canLaunchLiveProjects !== false ? 1 : 0,
@@ -3124,6 +3135,7 @@ function normalizeBootstrapRolePolicyEntry(rawPolicy = {}) {
     canManageRoles: rawPolicy?.canManageRoles === true,
     canManageForms: rawPolicy?.canManageForms === true,
     canManageMachines: rawPolicy?.canManageMachines === true,
+    canManageConfiguration: rawPolicy?.canManageConfiguration === true,
     canBanUsers: rawPolicy?.canBanUsers === true,
     canManageProjectPermissions: rawPolicy?.canManageProjectPermissions === true,
     canLaunchLiveProjects: rawPolicy?.canLaunchLiveProjects !== false,
@@ -3191,6 +3203,7 @@ function rebaselineSystemRolesFromBootstrapPolicies(db, bootstrapRolePolicies = 
       can_manage_roles = ?,
       can_manage_forms = ?,
       can_manage_machines = ?,
+      can_manage_configuration = ?,
       can_ban_users = ?,
       can_manage_project_permissions = ?,
       can_launch_live_projects = ?,
@@ -3234,6 +3247,7 @@ function rebaselineSystemRolesFromBootstrapPolicies(db, bootstrapRolePolicies = 
         policy?.canManageRoles === true ? 1 : 0,
         policy?.canManageForms === true ? 1 : 0,
         policy?.canManageMachines === true ? 1 : 0,
+        policy?.canManageConfiguration === true ? 1 : 0,
         policy?.canBanUsers === true ? 1 : 0,
         policy?.canManageProjectPermissions === true ? 1 : 0,
         policy?.canLaunchLiveProjects !== false ? 1 : 0,
@@ -3409,6 +3423,7 @@ function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {
         can_manage_roles INTEGER NOT NULL DEFAULT 0,
         can_manage_forms INTEGER NOT NULL DEFAULT 0,
         can_manage_machines INTEGER NOT NULL DEFAULT 0,
+        can_manage_configuration INTEGER NOT NULL DEFAULT 0,
         can_ban_users INTEGER NOT NULL DEFAULT 0,
         can_manage_project_permissions INTEGER NOT NULL DEFAULT 0,
         can_launch_live_projects INTEGER NOT NULL DEFAULT 1,
@@ -5338,6 +5353,32 @@ function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {
       src: 'postprod',
       action: 'db_migration_v49',
       message: `Migration SQLite postprod v49 appliquee (roles systeme rebase sur policies bootstrap: ${res.updated}/${res.matched})`,
+    });
+  }
+
+  const hasV51 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 51 LIMIT 1')
+    .get();
+  if (!hasV51) {
+    const roleCols51 = db.prepare('PRAGMA table_info(roles)').all();
+    const roleColNames51 = new Set(roleCols51.map((c) => String(c?.name || '').trim()));
+    if (!roleColNames51.has('can_manage_configuration')) {
+      db.exec("ALTER TABLE roles ADD COLUMN can_manage_configuration INTEGER NOT NULL DEFAULT 0");
+    }
+    db.exec(`
+      UPDATE roles
+      SET can_manage_configuration = CASE
+        WHEN key = 'Maintenance' THEN 1
+        ELSE 0
+      END
+      WHERE is_system = 1;
+    `);
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(51, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v51',
+      message: 'Migration SQLite postprod v51 appliquee (permission can_manage_configuration)',
     });
   }
 
@@ -7393,6 +7434,7 @@ function createStatements(db) {
         can_manage_roles,
         can_manage_forms,
         can_manage_machines,
+        can_manage_configuration,
         can_ban_users,
         can_manage_project_permissions,
         can_launch_live_projects,
@@ -7425,6 +7467,7 @@ function createStatements(db) {
         can_manage_roles,
         can_manage_forms,
         can_manage_machines,
+        can_manage_configuration,
         can_ban_users,
         can_manage_project_permissions,
         can_launch_live_projects,
@@ -7458,6 +7501,7 @@ function createStatements(db) {
         can_manage_roles,
         can_manage_forms,
         can_manage_machines,
+        can_manage_configuration,
         can_ban_users,
         can_manage_project_permissions,
         can_launch_live_projects,
@@ -7473,7 +7517,7 @@ function createStatements(db) {
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     updateRole: db.prepare(`
       UPDATE roles
@@ -7488,6 +7532,7 @@ function createStatements(db) {
         can_manage_roles = ?,
         can_manage_forms = ?,
         can_manage_machines = ?,
+        can_manage_configuration = ?,
         can_ban_users = ?,
         can_manage_project_permissions = ?,
         can_launch_live_projects = ?,
@@ -7619,6 +7664,7 @@ function buildRolePayload(row) {
     canManageRoles: row?.canManageRoles === true,
     canManageForms: row?.canManageForms === true,
     canManageMachines: row?.canManageMachines === true,
+    canManageConfiguration: row?.canManageConfiguration === true,
     canBanUsers: row?.canBanUsers === true,
     canManageProjectPermissions: row?.canManageProjectPermissions === true,
     canLaunchLiveProjects: row?.canLaunchLiveProjects !== false,
@@ -8543,6 +8589,18 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     sanitizeRenderOutputPath,
     sanitizeTaskExpectedRenderName,
     normalizeTaskExpectedRenderCount,
+    scheduleProxyGenerationForDoneRender: (renderId) => {
+      const normalizedRenderId = Number(renderId || 0);
+      if (!Number.isFinite(normalizedRenderId) || normalizedRenderId <= 0) return;
+      scheduleProxyGenerationForDoneRenderShared({
+        renderId: Math.trunc(normalizedRenderId),
+        stmts,
+        readCommonServerConfigFile,
+        commonServerFile,
+        nowIso,
+        logLine,
+      });
+    },
   });
   const {
     resourcesIndexSyncState,

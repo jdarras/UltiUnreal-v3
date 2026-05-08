@@ -65,16 +65,24 @@ async function launchScheduledTaskRenderAction({
   if (typeof setBusyScheduledTaskId === "function") setBusyScheduledTaskId(taskId);
   try {
     const createdRender = await Promise.resolve(onCreateRender(finalInput));
+    const createdRenderIdRaw = Number(
+      createdRender?.id
+      || createdRender?.render?.id
+      || createdRender?.renderJob?.id
+      || 0
+    );
+    const createdRenderId = Number.isFinite(createdRenderIdRaw) && createdRenderIdRaw > 0
+      ? Math.trunc(createdRenderIdRaw)
+      : 0;
+    if (createdRenderId <= 0) {
+      const detailedMessage = String(
+        createdRender?.error
+        || createdRender?.message
+        || "render_create_failed"
+      ).trim();
+      throw new Error(detailedMessage || "render_create_failed");
+    }
     if (forceLaunch && canDispatchRenders) {
-      const createdRenderIdRaw = Number(
-        createdRender?.id
-        || createdRender?.render?.id
-        || createdRender?.renderJob?.id
-        || 0
-      );
-      const createdRenderId = Number.isFinite(createdRenderIdRaw) && createdRenderIdRaw > 0
-        ? Math.trunc(createdRenderIdRaw)
-        : 0;
       if (createdRenderId > 0) {
         await Promise.resolve(onDispatchRenders({
           maxJobs: 1,

@@ -9,6 +9,7 @@ function toPayloadSignature(payload) {
 async function runTaskEditAutosaveCycle({
   showCreateForm = false,
   isEditingTask = false,
+  allowAutosave = true,
   onUpdateTask = null,
   tasksLoading = false,
   buildTaskPayloadFromCurrentForm = null,
@@ -18,6 +19,7 @@ async function runTaskEditAutosaveCycle({
   rerun = null,
 } = {}) {
   if (!showCreateForm || !isEditingTask || typeof onUpdateTask !== "function") return;
+  if (allowAutosave !== true) return;
   if (tasksLoading || typeof buildTaskPayloadFromCurrentForm !== "function") return;
   const built = buildTaskPayloadFromCurrentForm();
   if (!built?.ok) return;

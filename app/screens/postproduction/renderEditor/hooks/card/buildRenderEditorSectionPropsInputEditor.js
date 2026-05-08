@@ -4,6 +4,7 @@ const DATA_KEYS = [
   "isEditingTask",
   "editingTaskVisualStatusKey",
   "editingTaskRejectionInfo",
+  "editingTaskId",
   "title",
   "description",
   "assigneeUserId",
@@ -68,17 +69,23 @@ const UI_KEYS = [
   "changeAutoRenderExportDestinationIds",
 ];
 
+const DIALOG_KEYS = [
+  "openDeleteTaskDialog",
+];
+
 export function buildRenderEditorSectionPropsInputEditor({
   data = {},
   lifecycle = {},
   editor = {},
   ui = {},
+  dialog = {},
 } = {}) {
   return {
     ...pickKeys(data, DATA_KEYS),
     ...pickKeys(lifecycle, LIFECYCLE_KEYS),
     ...pickKeys(editor, EDITOR_KEYS),
     ...pickKeys(ui, UI_KEYS),
+    ...pickKeys(dialog, DIALOG_KEYS),
   };
 }
 

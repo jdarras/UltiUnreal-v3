@@ -380,6 +380,10 @@ async function handlePostprodTaskRoutes(options = {}) {
       sendJSON(res, 403, { ok: false, error: 'forbidden_task_edit' });
       return true;
     }
+    if (req.method === 'DELETE' && actorPerms.canAssignRenderRequests !== true) {
+      sendJSON(res, 403, { ok: false, error: 'forbidden_task_edit' });
+      return true;
+    }
     const taskId = Number(taskUpdateMatch[1] || 0);
     if (!Number.isFinite(taskId) || taskId <= 0) {
       sendJSON(res, 400, { ok: false, error: 'invalid_task_id' });

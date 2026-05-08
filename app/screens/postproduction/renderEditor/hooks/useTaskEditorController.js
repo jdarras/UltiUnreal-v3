@@ -8,6 +8,17 @@ import {
   submitTaskFormLabel as buildSubmitTaskFormLabel,
 } from "./editor/taskEditorHelpers";
 
+function isAssignmentDraftTask(task = null) {
+  const autoRenderConfig = task?.autoRenderConfig
+    && typeof task.autoRenderConfig === "object"
+    && !Array.isArray(task.autoRenderConfig)
+    ? task.autoRenderConfig
+    : {};
+  const raw = autoRenderConfig?.assignmentDraft;
+  if (raw === true) return true;
+  return String(raw || "").trim().toLowerCase() === "true";
+}
+
 export function useTaskEditorController({
   t,
   showCreateForm = false,
@@ -42,6 +53,7 @@ export function useTaskEditorController({
   const [reservedRenderId, setReservedRenderId] = useState(0);
   const reservationInFlightRef = useRef(false);
   const taskSaveHandler = isEditingTask ? onUpdateTask : onCreateTask;
+  const allowEditAutosave = !(isEditingTask && isAssignmentDraftTask(editingTask));
 
   useEffect(() => {
     if (!showCreateForm || isEditingTask) {
@@ -138,6 +150,7 @@ export function useTaskEditorController({
     await runTaskEditAutosaveCycle({
       showCreateForm,
       isEditingTask,
+      allowAutosave: allowEditAutosave,
       onUpdateTask,
       tasksLoading,
       buildTaskPayloadFromCurrentForm,
@@ -149,6 +162,7 @@ export function useTaskEditorController({
   }, [
     showCreateForm,
     isEditingTask,
+    allowEditAutosave,
     onUpdateTask,
     tasksLoading,
     buildTaskPayloadFromCurrentForm,

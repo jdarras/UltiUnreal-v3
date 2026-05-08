@@ -8,18 +8,10 @@ import {
   activityActionTypeLabel,
   activityTypeChipLevel,
 } from "../../users/shared/activityHelpers";
+import { entryLevel } from "./audit/auditUiHelpers";
 
 const LEVELS = ["success", "info", "warn", "error", "debug"];
 const ALL_LEVELS = new Set(LEVELS);
-
-function entryLevel(entry) {
-  const chipLevel = activityTypeChipLevel(activityActionTypeFromAction(entry?.action, entry));
-  if (chipLevel === "lvl-success") return "success";
-  if (chipLevel === "lvl-warn") return "warn";
-  if (chipLevel === "lvl-error") return "error";
-  if (chipLevel === "lvl-debug") return "debug";
-  return "info";
-}
 
 function AuditHistoryCard({
   t,

@@ -1,6 +1,16 @@
 import { safeT } from "../../../shared/helpers";
+import { activityActionTypeFromAction, activityTypeChipLevel } from "../../../users/shared/activityHelpers";
 
 const HUB_HEALTH_AUDIT_ACTION = "render_health_event";
+
+function entryLevel(entry) {
+  const chipLevel = activityTypeChipLevel(activityActionTypeFromAction(entry?.action, entry));
+  if (chipLevel === "lvl-success") return "success";
+  if (chipLevel === "lvl-warn") return "warn";
+  if (chipLevel === "lvl-error") return "error";
+  if (chipLevel === "lvl-debug") return "debug";
+  return "info";
+}
 
 function hubEventStateLabel(t, value) {
   const key = String(value || "").trim().toLowerCase();
@@ -34,4 +44,4 @@ function formatRetentionDurationMs(value) {
   return `${days} j`;
 }
 
-export { HUB_HEALTH_AUDIT_ACTION, hubEventKindLabel, hubEventStateLabel, formatRetentionDurationMs };
+export { HUB_HEALTH_AUDIT_ACTION, hubEventKindLabel, hubEventStateLabel, formatRetentionDurationMs, entryLevel };

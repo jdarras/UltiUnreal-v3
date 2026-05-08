@@ -67,6 +67,7 @@ async function handlePostprodRoleRoutes({
       const canManageRoles = body?.canManageRoles === true;
       const canManageForms = body?.canManageForms === true;
       const canManageMachines = body?.canManageMachines === true;
+      const canManageConfiguration = body?.canManageConfiguration === true;
       const canBanUsers = body?.canBanUsers === true;
       const canManageProjectPermissions = body?.canManageProjectPermissions === true;
       const canLaunchLiveProjects = body?.canLaunchLiveProjects !== false;
@@ -113,6 +114,7 @@ async function handlePostprodRoleRoutes({
           canManageRoles ? 1 : 0,
           canManageForms ? 1 : 0,
           canManageMachines ? 1 : 0,
+          canManageConfiguration ? 1 : 0,
           safeCanBanUsers ? 1 : 0,
           safeCanManageProjectPermissions ? 1 : 0,
           canLaunchLiveProjects ? 1 : 0,
@@ -154,6 +156,7 @@ async function handlePostprodRoleRoutes({
           canManageRoles,
           canManageForms,
           canManageMachines,
+          canManageConfiguration,
           canBanUsers: safeCanBanUsers,
           canManageProjectPermissions: safeCanManageProjectPermissions,
           canLaunchLiveProjects,
@@ -278,6 +281,7 @@ async function handlePostprodRoleRoutes({
   const hasCanManageRoles = Object.prototype.hasOwnProperty.call(body || {}, 'canManageRoles');
   const hasCanManageForms = Object.prototype.hasOwnProperty.call(body || {}, 'canManageForms');
   const hasCanManageMachines = Object.prototype.hasOwnProperty.call(body || {}, 'canManageMachines');
+  const hasCanManageConfiguration = Object.prototype.hasOwnProperty.call(body || {}, 'canManageConfiguration');
   const hasCanBanUsers = Object.prototype.hasOwnProperty.call(body || {}, 'canBanUsers');
   const hasCanManageProjectPermissions = Object.prototype.hasOwnProperty.call(body || {}, 'canManageProjectPermissions');
   const hasCanLaunchLiveProjects = Object.prototype.hasOwnProperty.call(body || {}, 'canLaunchLiveProjects');
@@ -308,6 +312,7 @@ async function handlePostprodRoleRoutes({
   if (hasCanManageRoles) next.canManageRoles = body?.canManageRoles === true;
   if (hasCanManageForms) next.canManageForms = body?.canManageForms === true;
   if (hasCanManageMachines) next.canManageMachines = body?.canManageMachines === true;
+  if (hasCanManageConfiguration) next.canManageConfiguration = body?.canManageConfiguration === true;
   if (hasCanBanUsers) next.canBanUsers = body?.canBanUsers === true;
   if (hasCanManageProjectPermissions) next.canManageProjectPermissions = body?.canManageProjectPermissions === true;
   if (hasCanLaunchLiveProjects) next.canLaunchLiveProjects = body?.canLaunchLiveProjects === true;
@@ -374,6 +379,7 @@ async function handlePostprodRoleRoutes({
     !hasCanManageRoles &&
     !hasCanManageForms &&
     !hasCanManageMachines &&
+    !hasCanManageConfiguration &&
     !hasCanBanUsers &&
     !hasCanManageProjectPermissions &&
     !hasCanLaunchLiveProjects &&
@@ -401,6 +407,7 @@ async function handlePostprodRoleRoutes({
     current.canManageRoles === next.canManageRoles &&
     current.canManageForms === next.canManageForms &&
     current.canManageMachines === next.canManageMachines &&
+    current.canManageConfiguration === next.canManageConfiguration &&
     current.canBanUsers === next.canBanUsers &&
     current.canManageProjectPermissions === next.canManageProjectPermissions &&
     current.canLaunchLiveProjects === next.canLaunchLiveProjects &&
@@ -429,6 +436,7 @@ async function handlePostprodRoleRoutes({
     next.canManageRoles ? 1 : 0,
     next.canManageForms ? 1 : 0,
     next.canManageMachines ? 1 : 0,
+    next.canManageConfiguration ? 1 : 0,
     next.canBanUsers ? 1 : 0,
     next.canManageProjectPermissions ? 1 : 0,
     next.canLaunchLiveProjects ? 1 : 0,
@@ -462,6 +470,7 @@ async function handlePostprodRoleRoutes({
         canManageRoles: current.canManageRoles !== updated.canManageRoles,
         canManageForms: current.canManageForms !== updated.canManageForms,
         canManageMachines: current.canManageMachines !== updated.canManageMachines,
+        canManageConfiguration: current.canManageConfiguration !== updated.canManageConfiguration,
         canBanUsers: current.canBanUsers !== updated.canBanUsers,
         canManageProjectPermissions: current.canManageProjectPermissions !== updated.canManageProjectPermissions,
         canLaunchLiveProjects: current.canLaunchLiveProjects !== updated.canLaunchLiveProjects,

@@ -4,15 +4,7 @@ import {
   activityActionTypeLabel,
   activityTypeChipLevel,
 } from "../../../users/shared/activityHelpers";
-
-function entryLevel(entry) {
-  const chipLevel = activityTypeChipLevel(activityActionTypeFromAction(entry?.action, entry));
-  if (chipLevel === "lvl-success") return "success";
-  if (chipLevel === "lvl-warn") return "warn";
-  if (chipLevel === "lvl-error") return "error";
-  if (chipLevel === "lvl-debug") return "debug";
-  return "info";
-}
+import { entryLevel } from "./auditUiHelpers";
 
 function AuditEntriesList({
   t,
@@ -21,11 +13,16 @@ function AuditEntriesList({
   entries = [],
   onOpenActivityTarget = null,
 }) {
+  const regexCache = {};
   const extractDetailLabel = (detailRaw, label) => {
     const detail = String(detailRaw || "").trim();
     const normalizedLabel = String(label || "").trim();
     if (!detail || !normalizedLabel) return "";
-    const match = detail.match(new RegExp(`${normalizedLabel}\\s*:\\s*([^|]+)`, "i"));
+    if (!regexCache[normalizedLabel]) {
+      const escaped = normalizedLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      regexCache[normalizedLabel] = new RegExp(`${escaped}\\s*:\\s*([^|]+)`, "i");
+    }
+    const match = detail.match(regexCache[normalizedLabel]);
     return match ? String(match[1] || "").trim() : "";
   };
 

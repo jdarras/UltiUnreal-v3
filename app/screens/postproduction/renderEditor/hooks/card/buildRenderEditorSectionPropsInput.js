@@ -43,6 +43,7 @@ export function buildRenderEditorSectionPropsInput({
       lifecycle,
       editor,
       ui,
+      dialog,
     }),
     ...buildRenderEditorSectionPropsInputDialog({
       dialog,

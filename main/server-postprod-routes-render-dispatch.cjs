@@ -144,13 +144,16 @@ async function handlePostprodRenderDispatchRoutes({
     const now = nowIso();
     stmts.updateRenderWorkerAptitude.run(apte ? 1 : 0, now, workerKey);
     const updated = stmts.findRenderWorkerByKey.get(workerKey);
-    audit(
-      auth.session.user_id,
-      'render_worker_aptitude_updated',
-      { workerKey, apte },
-      'render',
-      ''
-    );
+    const apteChanged = (Number(existing.apte) === 1) !== apte;
+    if (apteChanged) {
+      audit(
+        auth.session.user_id,
+        'render_worker_aptitude_updated',
+        { workerKey, apte },
+        'render',
+        ''
+      );
+    }
     sendJSON(res, 200, { ok: true, worker: buildRenderWorkerPayload(updated) });
     return true;
   }
@@ -390,25 +393,27 @@ async function handlePostprodRenderDispatchRoutes({
       }
     }
 
-    audit(
-      auth.session.user_id,
-      'renders_dispatched',
-      {
-        count: dispatched.length,
-        maxJobs,
-        requestedRenderIds,
-        compatibilityBlocked: compatibilityBlockedCount,
-        dispatchPolicy: {
-          ...dispatchPolicyPayload,
-          applied: selectedJobs.policyApplied,
+    if (dispatched.length > 0) {
+      audit(
+        auth.session.user_id,
+        'renders_dispatched',
+        {
+          count: dispatched.length,
+          maxJobs,
+          requestedRenderIds,
+          compatibilityBlocked: compatibilityBlockedCount,
+          dispatchPolicy: {
+            ...dispatchPolicyPayload,
+            applied: selectedJobs.policyApplied,
+          },
+          byProject: selectedJobs.byProject,
+          activeByProject: selectedJobs.activeByProject,
+          totalByProject: selectedJobs.totalByProject,
         },
-        byProject: selectedJobs.byProject,
-        activeByProject: selectedJobs.activeByProject,
-        totalByProject: selectedJobs.totalByProject,
-      },
-      'render',
-      ''
-    );
+        'render',
+        ''
+      );
+    }
     sendJSON(res, 200, {
       ok: true,
       dispatched,

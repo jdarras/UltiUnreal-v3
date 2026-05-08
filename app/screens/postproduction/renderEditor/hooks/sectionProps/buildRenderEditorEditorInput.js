@@ -23,6 +23,7 @@ export function buildRenderEditorEditorInput({
   changeAutoRenderForm = null,
   renderFormsLoading = false,
   renderFormsError = "",
+  canCreateTasks = false,
   canManageRenderTemplates = false,
   renderTemplatesForSelectedAutoForm = [],
   autoRenderTemplateId = 0,
@@ -65,6 +66,7 @@ export function buildRenderEditorEditorInput({
   reservedRenderId = 0,
   handleSubmitTaskForm = null,
   closeTaskForm = null,
+  openDeleteTaskDialog = null,
 } = {}) {
   return {
     t,
@@ -91,6 +93,7 @@ export function buildRenderEditorEditorInput({
     changeAutoRenderForm,
     renderFormsLoading,
     renderFormsError,
+    canCreateTasks,
     canManageRenderTemplates,
     renderTemplatesForSelectedAutoForm,
     autoRenderTemplateId,
@@ -133,6 +136,7 @@ export function buildRenderEditorEditorInput({
     reservedRenderId,
     handleSubmitTaskForm,
     closeTaskForm,
+    openDeleteTaskDialog,
   };
 }
 

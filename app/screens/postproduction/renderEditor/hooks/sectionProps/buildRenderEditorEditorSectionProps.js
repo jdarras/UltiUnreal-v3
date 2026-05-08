@@ -20,6 +20,7 @@ const DIRECT_KEYS = [
   "autoRenderFormId",
   "renderFormsLoading",
   "renderFormsError",
+  "canCreateTasks",
   "canManageRenderTemplates",
   "renderTemplatesForSelectedAutoForm",
   "autoRenderTemplateId",
@@ -69,6 +70,7 @@ const ALIASES = {
   submitLabel: "submitTaskFormLabel",
   onSubmit: "handleSubmitTaskForm",
   onCancel: "closeTaskForm",
+  onRequestDeleteTask: "openDeleteTaskDialog",
 };
 
 function buildRenderEditorSectionProps(input = {}) {

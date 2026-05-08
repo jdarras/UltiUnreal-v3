@@ -36,6 +36,10 @@ function normalizeExportDestinationValues(values = []) {
 
 function TaskEditorFooter({
   t,
+  isEditingTask = false,
+  editingTaskId = 0,
+  taskTitle = "",
+  canDeleteTasks = false,
   renderOutputDir = "",
   autoRenderProjectRef = "",
   reservedRenderId = 0,
@@ -49,6 +53,7 @@ function TaskEditorFooter({
   selectedExportDestinationIds = [],
   onChangeExportDestinationIds = null,
   onSubmit = null,
+  onRequestDeleteTask = null,
   onCancel = null,
 }) {
   const baseDir = String(renderOutputDir || "").trim();
@@ -59,6 +64,13 @@ function TaskEditorFooter({
   const normalizedDestinationValues = normalizeExportDestinationValues(selectedExportDestinationIds);
   const effectiveSubmitLabel = String(submitLabel || "").trim()
     || safeT(t, "postprod.tasks.form.submit.createRender", "Créer le rendu");
+  const canDeleteTask = (
+    isEditingTask
+    && canDeleteTasks === true
+    && typeof onRequestDeleteTask === "function"
+    && Number.isFinite(Number(editingTaskId || 0))
+    && Number(editingTaskId || 0) > 0
+  );
 
   let outputTypeLabel = null;
   if (autoOutputType === "clip") {
@@ -165,6 +177,24 @@ function TaskEditorFooter({
         >
           {effectiveSubmitLabel}
         </button>
+        {canDeleteTask ? (
+          <button
+            className="uu-btn-ghost"
+            type="button"
+            disabled={tasksLoading}
+            onClick={() => {
+              const taskIdRaw = Number(editingTaskId || 0);
+              const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
+              if (taskId <= 0) return;
+              onRequestDeleteTask?.({
+                id: taskId,
+                title: String(taskTitle || "").trim(),
+              });
+            }}
+          >
+            {safeT(t, "postprod.tasks.action.delete", "Supprimer")}
+          </button>
+        ) : null}
         <button
           className="uu-btn-ghost"
           type="button"

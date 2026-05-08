@@ -120,6 +120,47 @@ import {
   getOnlineMap,
 } from "./utils/agent";
 
+import {
+  resolvePostprodAuthError,
+  resolvePostprodUsersError,
+  resolvePostprodActivityError,
+  resolvePostprodAuditError,
+  resolvePostprodRolesError,
+  resolvePostprodTasksError,
+  resolvePostprodRendersError,
+  resolvePostprodResourcesError,
+  resolvePostprodProjectsError,
+  resolvePostprodDataError,
+} from "./utils/postprodErrorHelpers";
+import {
+  normalizePostprodOfflineOutbox,
+  readPostprodOfflineOutbox,
+  writePostprodOfflineOutbox,
+  normalizePostprodWorkerCompletionOutbox,
+  readPostprodWorkerCompletionOutbox,
+  writePostprodWorkerCompletionOutbox,
+  isPostprodRecoverableOfflineError,
+} from "./utils/postprodOutboxHelpers";
+import {
+  mapTaskProjectOptions,
+  mapTaskResourceOptions,
+  mapRenderExportDestinationOptions,
+} from "./utils/postprodCatalogHelpers";
+import {
+  waitMs,
+  summarizeProcessFailure,
+  buildWorkerProcessEventComment,
+  replaceProcessTemplateVars,
+  hasProcessTemplateToken,
+  isLikelyRenderOutputMedia,
+  buildRenderOutputPathCandidates,
+  normalizeBooleanFlag,
+  buildRenderProcessTemplateContext,
+  buildDefaultUnrealProcessExecution,
+  canReplayWorkerCompletion,
+  buildWorkerCompletionReplayPayload,
+} from "./utils/renderProcessHelpers";
+
 import { AptitudeCheckModal } from "./screens/postproduction/renders/components/AptitudeCheckModal";
 import "./global.css";
 import { readIdentity, writeIdentity } from "./utils/identity";
@@ -133,11 +174,7 @@ import { launchScheduledTaskRenderAction } from "./screens/postproduction/render
 const APP_VERSION = "2026.3"; // à mettre à jour quand tu changes de version
 const LS_SYNC_KEY = 'uu_client_syncEnabled';
 const LS_POSTPROD_AUTH_KEY = 'uu_postprod_auth';
-const LS_POSTPROD_OFFLINE_OUTBOX_KEY = 'uu_postprod_offline_outbox_v1';
-const LS_POSTPROD_WORKER_COMPLETION_OUTBOX_KEY = 'uu_postprod_worker_completion_outbox_v1';
 const LS_POSTPROD_RENDERS_QUEUE_RUNTIME_MODE_KEY = 'uu_postprod_renders_validation_queue_runtime_mode';
-const MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS = 100;
-const MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS = 200;
 const POSTPROD_OFFLINE_REPLAY_MIN_INTERVAL_MS = 15000;
 const POSTPROD_WORKER_COMPLETION_REPLAY_MIN_INTERVAL_MS = 5000;
 const ScreenFallback = <div className="uu-loading" style={{ padding: '24px' }}>…</div>;
@@ -155,95 +192,27 @@ const POSTPROD_TABS_BASE = [
   "Rendus",
   POSTPROD_TAB_RENDERS_CREATE,
 ];
-function normalizeTaskCatalogOptions(entries = []) {
-  const out = [];
-  const seen = new Set();
-  const list = Array.isArray(entries) ? entries : [];
-  for (const entry of list) {
-    const ref = String(entry?.ref || "").trim();
-    if (!ref || seen.has(ref)) continue;
-    seen.add(ref);
-    const id = String(entry?.id || "").trim();
-    const name = String(entry?.name || "").trim();
-    const usageMode = String(entry?.usageMode || "").trim();
-    const uprojectPath = String(entry?.uprojectPath || "").trim();
-    const metaStatus = String(entry?.metaStatus || "").trim();
-    out.push({
-      ref,
-      label: String(entry?.label || ref).trim() || ref,
-      id,
-      name,
-      usageMode,
-      uprojectPath,
-      metaStatus,
-    });
+function parseUserNotificationPreferencesValue(value = null) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value;
   }
-  out.sort((a, b) => a.label.localeCompare(b.label));
-  return out;
+  const raw = String(value || "").trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+  } catch {}
+  return {};
 }
 
-function mapTaskProjectOptions(payload = {}) {
-  const projects = Array.isArray(payload?.projects) ? payload.projects : [];
-  return normalizeTaskCatalogOptions(
-    projects.map((project) => {
-      const id = String(project?.id || "").trim();
-      const name = String(project?.name || "").trim();
-      const usageMode = String(project?.metaUsageMode || project?.usageMode || "").trim();
-      const uprojectPath = String(project?.uprojectPath || project?.uproject || '').trim();
-      const metaStatus = String(project?.metaStatus || project?.status || "").trim();
-      return {
-        ref: id || name,
-        label: name || id,
-        id: id || '',
-        name: name || '',
-        uprojectPath,
-        usageMode: usageMode || '',
-        metaStatus: metaStatus || '',
-      };
-    })
+function resolveUserShowFabResourcesPreference(user = null) {
+  if (!user || typeof user !== "object") return true;
+  const prefs = parseUserNotificationPreferencesValue(
+    user?.notificationPreferences && typeof user.notificationPreferences === "object"
+      ? user.notificationPreferences
+      : user?.notificationPrefsJson
   );
-}
-
-function mapTaskResourceOptions(payload = {}) {
-  const items = Array.isArray(payload?.items) ? payload.items : [];
-  return normalizeTaskCatalogOptions(
-    items.map((item) => {
-      const uid = String(item?.uid || item?.listingUid || "").trim();
-      const title = String(item?.title || item?.name || item?.displayName || "").trim();
-      return {
-        ref: uid || title,
-        label: title && uid ? `${title} [${uid}]` : (title || uid),
-      };
-    })
-  );
-}
-
-function mapRenderExportDestinationOptions(commonCfg = {}, unnamedLabel = "") {
-  const entries = Array.isArray(commonCfg?.renderExportDestinations)
-    ? commonCfg.renderExportDestinations
-    : (
-      Array.isArray(commonCfg?.render_export_destinations)
-        ? commonCfg.render_export_destinations
-        : []
-    );
-  const out = [];
-  const seen = new Set();
-  for (const entry of entries) {
-    if (!entry || typeof entry !== "object") continue;
-    if (entry.isActive === false) continue;
-    const id = String(entry?.id || "").trim().toLowerCase();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    const rawLabel = String(entry?.name || entry?.label || "").trim();
-    const looksTechnicalId = /^dest-\d+$/i.test(rawLabel || id);
-    const fallbackLabel = String(unnamedLabel || "").trim();
-    const label = rawLabel && !looksTechnicalId
-      ? rawLabel
-      : (fallbackLabel || id);
-    out.push({ value: id, label });
-  }
-  out.sort((a, b) => String(a.label || "").localeCompare(String(b.label || "")));
-  return out;
+  return prefs?.showFabResources !== false;
 }
 
 function getPostprodTabsForUser(
@@ -254,7 +223,6 @@ function getPostprodTabsForUser(
   } = {}
 ) {
   if (!authenticated || !user || typeof user !== 'object') return [POSTPROD_TAB_USERS];
-  const canManageUsers = user?.permissions?.canManageUsers === true;
   const canManageRoles = user?.permissions?.canManageRoles === true;
   const canManageForms = user?.permissions?.canManageForms === true;
   const canCreateTasks = user?.permissions?.canCreateTasks !== false;
@@ -348,951 +316,10 @@ function writePostprodAuth(next = null) {
   } catch {}
 }
 
-function normalizePostprodOfflineOutbox(entries = []) {
-  const list = Array.isArray(entries) ? entries : [];
-  const normalized = [];
-  for (const raw of list) {
-    if (!raw || typeof raw !== 'object') continue;
-    const id = String(raw?.id || '').trim();
-    const kind = String(raw?.kind || '').trim().toLowerCase();
-    if (!id || kind !== 'create_render') continue;
-    const payload = raw?.payload && typeof raw.payload === 'object' ? raw.payload : {};
-    const userIdRaw = Number(raw?.userId || 0);
-    const userId = Number.isFinite(userIdRaw) && userIdRaw > 0 ? Math.trunc(userIdRaw) : null;
-    const attemptsRaw = Number(raw?.attempts || 0);
-    normalized.push({
-      id,
-      kind: 'create_render',
-      userId,
-      payload,
-      createdAt: String(raw?.createdAt || '').trim(),
-      attempts: Number.isFinite(attemptsRaw) && attemptsRaw > 0 ? Math.trunc(attemptsRaw) : 0,
-      lastAttemptAt: String(raw?.lastAttemptAt || '').trim(),
-      lastError: String(raw?.lastError || '').trim(),
-    });
-  }
-  if (normalized.length <= MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS) return normalized;
-  return normalized.slice(normalized.length - MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS);
-}
-
-function readPostprodOfflineOutbox() {
-  try {
-    const raw = localStorage.getItem(LS_POSTPROD_OFFLINE_OUTBOX_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return normalizePostprodOfflineOutbox(parsed);
-  } catch {
-    return [];
-  }
-}
-
-function writePostprodOfflineOutbox(entries = []) {
-  try {
-    const normalized = normalizePostprodOfflineOutbox(entries);
-    if (normalized.length <= 0) {
-      localStorage.removeItem(LS_POSTPROD_OFFLINE_OUTBOX_KEY);
-      return;
-    }
-    localStorage.setItem(
-      LS_POSTPROD_OFFLINE_OUTBOX_KEY,
-      JSON.stringify(normalized, null, 2)
-    );
-  } catch {}
-}
-
-function normalizePostprodWorkerCompletionOutbox(entries = []) {
-  const list = Array.isArray(entries) ? entries : [];
-  const normalized = [];
-  for (const raw of list) {
-    if (!raw || typeof raw !== 'object') continue;
-    const id = String(raw?.id || '').trim();
-    const kind = String(raw?.kind || '').trim().toLowerCase();
-    const workerKey = String(raw?.workerKey || '').trim();
-    const renderIdRaw = Number(raw?.renderId || 0);
-    const renderId = Number.isFinite(renderIdRaw) && renderIdRaw > 0 ? Math.trunc(renderIdRaw) : 0;
-    if (!id || kind !== 'worker_complete' || !workerKey || renderId <= 0) continue;
-    const payload = raw?.payload && typeof raw.payload === 'object' ? raw.payload : {};
-    const userIdRaw = Number(raw?.userId || 0);
-    const userId = Number.isFinite(userIdRaw) && userIdRaw > 0 ? Math.trunc(userIdRaw) : null;
-    const attemptsRaw = Number(raw?.attempts || 0);
-    normalized.push({
-      id,
-      kind: 'worker_complete',
-      workerKey,
-      renderId,
-      userId,
-      payload,
-      createdAt: String(raw?.createdAt || '').trim(),
-      attempts: Number.isFinite(attemptsRaw) && attemptsRaw > 0 ? Math.trunc(attemptsRaw) : 0,
-      lastAttemptAt: String(raw?.lastAttemptAt || '').trim(),
-      lastError: String(raw?.lastError || '').trim(),
-    });
-  }
-  if (normalized.length <= MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS) return normalized;
-  return normalized.slice(normalized.length - MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS);
-}
-
-function readPostprodWorkerCompletionOutbox() {
-  try {
-    const raw = localStorage.getItem(LS_POSTPROD_WORKER_COMPLETION_OUTBOX_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return normalizePostprodWorkerCompletionOutbox(parsed);
-  } catch {
-    return [];
-  }
-}
-
-function writePostprodWorkerCompletionOutbox(entries = []) {
-  try {
-    const normalized = normalizePostprodWorkerCompletionOutbox(entries);
-    if (normalized.length <= 0) {
-      localStorage.removeItem(LS_POSTPROD_WORKER_COMPLETION_OUTBOX_KEY);
-      return;
-    }
-    localStorage.setItem(
-      LS_POSTPROD_WORKER_COMPLETION_OUTBOX_KEY,
-      JSON.stringify(normalized, null, 2)
-    );
-  } catch {}
-}
-
-function isPostprodRecoverableOfflineError(err) {
-  const status = Number(err?.status || 0);
-  if (!Number.isFinite(status) || status === 0) return true;
-  if (status >= 500 && status <= 599) return true;
-  const code = String(err?.code || '').trim().toLowerCase();
-  if (!code && status <= 0) return true;
-  if (code === 'postprod_unavailable') return true;
-  const message = String(err?.message || '').trim().toLowerCase();
-  return (
-    message.includes('failed to fetch') ||
-    message.includes('network') ||
-    message.includes('timeout') ||
-    message.includes('abort')
-  );
-}
-
-function resolvePostprodAuthError(err, t) {
-  const code = String(err?.code || '').trim().toLowerCase();
-  const status = Number(err?.status || 0);
-  const rawMessage = String(err?.message || '').trim().toLowerCase();
-  if (code === 'missing_credentials') return t('postprod.auth.error.missingCredentials');
-  if (code === 'invalid_credentials') return t('postprod.auth.error.invalidCredentials');
-  if (code === 'account_locked') return t('postprod.auth.error.accountLocked');
-  if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
-  if (code === 'postprod_unavailable' || code === 'not_found' || code === 'method_not_allowed') {
-    return t('postprod.auth.error.unavailable');
-  }
-  if (
-    status === 0
-    || rawMessage.includes('failed to fetch')
-    || rawMessage.includes('network')
-    || rawMessage.includes('econnrefused')
-    || rawMessage.includes('connect')
-    || rawMessage.includes('timeout')
-  ) {
-    return t('postprod.auth.error.unavailable');
-  }
-  return t('postprod.auth.error.generic');
-}
-
-function resolvePostprodUsersError(err, t) {
-  const code = String(err?.code || '').trim().toLowerCase();
-  if (code === 'forbidden') return t('postprod.users.error.forbidden');
-  if (code === 'forbidden_ban_users') return t('postprod.users.error.forbiddenBanUsers');
-  if (code === 'forbidden_project_permissions_manage') return t('postprod.users.error.forbiddenProjectPermissionsManage');
-  if (code === 'invalid_user_id') return t('postprod.users.error.invalidUser');
-  if (code === 'user_not_found') return t('postprod.users.error.userNotFound');
-  if (code === 'forbidden_role_assignment') return t('postprod.users.error.forbiddenRoleAssignment');
-  if (code === 'username_exists') return t('postprod.users.error.usernameExists');
-  if (code === 'display_name_exists') return t('postprod.users.error.displayNameExists');
-  if (code === 'username_read_only') return t('postprod.users.error.usernameReadOnly');
-  if (code === 'missing_display_name') return t('postprod.users.error.missingDisplayName');
-  if (code === 'missing_username' || code === 'invalid_username') return t('postprod.users.error.invalidUsername');
-  if (code === 'invalid_password') return t('postprod.users.error.invalidPassword');
-  if (code === 'invalid_email') return t('postprod.users.error.invalidEmail');
-  if (code === 'invalid_employment_type') return t('postprod.users.error.invalidEmploymentType');
-  if (code === 'invalid_avatar_path') return t('postprod.users.error.invalidAvatarPath');
-  if (code === 'invalid_failed_login_count') return t('postprod.users.error.invalidFailedLoginCount');
-  if (code === 'invalid_locked_until') return t('postprod.users.error.invalidLockedUntil');
-  if (code === 'invalid_role') return t('postprod.users.error.invalidRole');
-  if (code === 'no_changes') return t('postprod.users.error.noChanges');
-  if (code === 'cannot_disable_self') return t('postprod.users.error.cannotDisableSelf');
-  if (code === 'cannot_delete_self') return t('postprod.users.error.cannotDeleteSelf');
-  if (code === 'last_manage_roles_user_forbidden') return t('postprod.users.error.lastManageRolesUserForbidden');
-  if (code === 'user_has_linked_data') return t('postprod.users.error.userHasLinkedData');
-  if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
-  return t('postprod.users.error.generic');
-}
-
-function resolvePostprodActivityError(err, t) {
-  const code = String(err?.code || '').trim().toLowerCase();
-  if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
-  if (code === 'invalid_from_at') return t('postprod.activity.error.invalidFromAt');
-  if (code === 'invalid_to_at') return t('postprod.activity.error.invalidToAt');
-  if (code === 'invalid_activity_range') return t('postprod.activity.error.invalidRange');
-  if (code === 'invalid_activity_action_type') return t('postprod.activity.error.invalidActionType');
-  return t('postprod.profile.activity.error.generic');
-}
-
-function resolvePostprodAuditError(err, t) {
-  const code = String(err?.code || '').trim().toLowerCase();
-  if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
-  return t('postprod.audit.error.generic');
-}
-
-function resolvePostprodRolesError(err, t) {
-  const code = String(err?.code || '').trim().toLowerCase();
-  if (code === 'forbidden') return t('postprod.roles.error.forbidden');
-  if (code === 'role_exists') return t('postprod.roles.error.roleExists');
-  if (code === 'invalid_role_key') return t('postprod.roles.error.invalidRoleKey');
-  if (code === 'invalid_manageable_roles') return t('postprod.roles.error.invalidManageableRoles');
-  if (code === 'invalid_mode_access') return t('postprod.roles.error.invalidModeAccess');
-  if (code === 'last_manage_roles_forbidden') return t('postprod.roles.error.lastManageRolesForbidden');
-  if (code === 'role_not_found') return t('postprod.roles.error.roleNotFound');
-  if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
-  return t('postprod.roles.error.generic');
-}
-
-function resolvePostprodTasksError(err, t) {
-  const code = String(err?.code || '').trim().toLowerCase();
-  const status = Number(err?.status || 0);
-  if (code === 'method_not_allowed' || status === 405) return t('postprod.tasks.error.methodNotAllowed');
-  if (code === 'forbidden' || status === 403) return t('postprod.tasks.error.forbidden');
-  if (code === 'missing_task_title') return t('postprod.tasks.error.missingTitle');
-  if (code === 'invalid_task_id') return t('postprod.tasks.error.invalidTask');
-  if (code === 'task_not_found') return t('postprod.tasks.error.taskNotFound');
-  if (code === 'no_changes') return t('postprod.tasks.error.noChanges');
-  if (code === 'invalid_status') return t('postprod.tasks.error.invalidStatus');
-  if (code === 'forbidden_validation') return t('postprod.tasks.error.forbiddenValidation');
-  if (code === 'invalid_due_at') return t('postprod.tasks.error.invalidDueAt');
-  if (code === 'invalid_assignee') return t('postprod.tasks.error.invalidAssignee');
-  if (code === 'invalid_request_type') return t('postprod.tasks.error.invalidRequestType');
-  if (code === 'assignee_required_for_in_progress') return t('postprod.tasks.error.assigneeRequiredForInProgress');
-  if (code === 'auto_render_project_required') return t('postprod.tasks.error.autoRenderProjectRequired');
-  if (code === 'project_not_render_enabled') return t('postprod.tasks.error.projectNotAutoRenderable');
-  if (code === 'missing_task_auto_render_template') return t('postprod.tasks.error.missingAutoRenderTemplate');
-  if (code === 'invalid_task_auto_render_config') return t('postprod.tasks.error.invalidAutoRenderConfig');
-  if (code === 'invalid_task_auto_render_payload') return t('postprod.tasks.error.invalidAutoRenderPayload');
-  if (code === 'task_auto_render_config_too_large') return t('postprod.tasks.error.autoRenderConfigTooLarge');
-  if (code === 'invalid_project_refs') return t('postprod.tasks.error.invalidProjectRefs');
-  if (code === 'invalid_resource_refs') return t('postprod.tasks.error.invalidResourceRefs');
-  if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
-  return t('postprod.tasks.error.generic');
-}
-
-function resolvePostprodRendersError(err, t) {
-  const code = String(err?.code || '').trim().toLowerCase();
-  if (code === 'missing_render_template_name') return t('postprod.renders.error.missingTemplateName');
-  if (code === 'missing_render_template_preset_name') return t('postprod.renders.error.missingPresetName');
-  if (code === 'render_template_name_exists') return t('postprod.renders.error.presetNameExists');
-  if (code === 'invalid_render_template_id') return t('postprod.renders.error.invalidRender');
-  if (code === 'render_template_not_found') return t('postprod.renders.error.renderNotFound');
-  if (code === 'unknown_project') return t('postprod.renders.error.unknownProject');
-  if (code === 'project_not_render_enabled') return t('postprod.renders.error.projectNotAutoRenderable');
-  if (code === 'invalid_render_id') return t('postprod.renders.error.invalidRender');
-  if (code === 'missing_linked_task' || code === 'task_not_found') return t('postprod.tasks.error.taskNotFound');
-  if (code === 'invalid_worker_key') return t('postprod.renders.error.invalidWorker');
-  if (code === 'invalid_worker_capabilities') return t('postprod.renders.error.invalidPayload');
-  if (code === 'worker_capabilities_too_large') return t('postprod.renders.error.payloadTooLarge');
-  if (code === 'invalid_render_template_execution') return t('postprod.renders.error.invalidExecution');
-  if (code === 'render_template_payload_too_large') return t('postprod.renders.error.payloadTooLarge');
-  if (code === 'render_not_found') return t('postprod.renders.error.renderNotFound');
-  if (code === 'render_not_running') return t('postprod.renders.error.invalidStatus');
-  if (code === 'render_running_cannot_delete') return t('postprod.renders.error.invalidStatus');
-  if (code === 'invalid_render_status') return t('postprod.renders.error.invalidStatus');
-  if (code === 'forbidden_worker_assignment') return t('postprod.renders.error.forbiddenTransition');
-  if (code === 'forbidden_dispatch') return t('postprod.renders.error.forbiddenDispatch');
-  if (code === 'forbidden_template_manage') return t('postprod.renders.error.forbiddenTemplateManage');
-  if (code === 'forbidden_template_manage_project') return t('postprod.renders.error.forbiddenTemplateManage');
-  if (code === 'forbidden_project_render_launch') return t('postprod.renders.error.forbiddenTransition');
-  if (code === 'forbidden_project_render_transition') return t('postprod.renders.error.forbiddenTransition');
-  if (code === 'forbidden_project_render_worker_complete') return t('postprod.renders.error.forbiddenTransition');
-  if (code === 'forbidden_render_review_role') return t('postprod.renders.error.forbiddenReviewRole');
-  if (code === 'forbidden_render_transition' || code === 'forbidden') return t('postprod.renders.error.forbiddenTransition');
-  if (code === 'render_validation_not_required') return t('postprod.renders.error.validationNotRequired');
-  if (code === 'render_already_validated') return t('postprod.renders.error.alreadyValidated');
-  if (code === 'render_validation_requires_done') return t('postprod.renders.error.validationRequiresDone');
-  if (code === 'invalid_render_payload') return t('postprod.renders.error.invalidPayload');
-  if (code === 'render_payload_too_large') return t('postprod.renders.error.payloadTooLarge');
-  if (code === 'no_changes') return t('postprod.renders.error.noChanges');
-  if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
-  return t('postprod.renders.error.generic');
-}
-
-function resolvePostprodResourcesError(err, t) {
-  const code = String(err?.code || '').trim().toLowerCase();
-  if (code === 'invalid_resource_id') return t('postprod.resources.error.invalidResource');
-  if (code === 'resource_not_found') return t('postprod.resources.error.notFound');
-  if (code === 'forbidden_dispatch') return t('postprod.resources.error.forbiddenReindex');
-  if (code === 'resources_reindex_failed' || code === 'library_unavailable') return t('postprod.resources.error.reindexFailed');
-  if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
-  return t('postprod.resources.error.generic');
-}
-
-function resolvePostprodProjectsError(err, t) {
-  const code = String(err?.code || '').trim().toLowerCase();
-  if (code === 'invalid_project_id') return 'Projet invalide.';
-  if (code === 'unknown_project') return 'Projet introuvable.';
-  if (code === 'missing_project_uproject_path') return 'Chemin .uproject manquant pour ce projet.';
-  if (code === 'missing_wrc_file') return 'Fichier WRC manquant.';
-  if (code === 'missing_preset_name') return 'Preset WRC manquant.';
-  if (code === 'wrc_preset_unreachable_no_snapshot') return t('production.error.wrcUnreachableNoSnapshot');
-  if (code === 'wrc_preset_unreachable') return 'Preset WRC inaccessible (verifie Unreal ouvert + Web Remote Control actif).';
-  if (code === 'wrc_fetch_failed') return 'Preset WRC inaccessible (connexion refusee). Verifie Unreal ouvert + Web Remote Control actif.';
-  if (code === 'wrc_timeout') return 'Preset WRC inaccessible (timeout). Verifie le port RC HTTP et l’accessibilite de la station.';
-  if (code === 'invalid_wrc_payload') return 'Reponse WRC invalide.';
-  if (code.startsWith('wrc_http_')) {
-    const httpCode = code.slice('wrc_http_'.length) || 'erreur';
-    return `Preset WRC inaccessible (HTTP ${httpCode}).`;
-  }
-  if (code === 'forbidden_sync' || code === 'forbidden_project_sync_not_referent') {
-    return 'Synchronisation projet non autorisee.';
-  }
-  if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
-  const message = String(err?.message || '').toLowerCase();
-  if (message.includes('fetch failed')) {
-    return 'Preset WRC inaccessible (connexion refusee). Verifie Unreal ouvert + Web Remote Control actif.';
-  }
-  return t('postprod.projects.error');
-}
-
-function resolvePostprodDataError(err, t) {
-  const code = String(err?.code || '').trim().toLowerCase();
-  if (code === 'invalid_project_id') return 'Projet invalide.';
-  if (code === 'invalid_data_table_id') return 'Table de donnees invalide.';
-  if (code === 'data_table_not_found') return 'Table de donnees introuvable.';
-  if (code === 'missing_data_table_schema') return 'Schema de table manquant.';
-  if (code === 'invalid_data_table_schema') return 'Schema de table invalide.';
-  if (code === 'data_table_schema_too_large') return 'Schema de table trop volumineux.';
-  if (code === 'invalid_data_row_key') return 'Cle de ligne invalide.';
-  if (code === 'invalid_data_row_payload') return 'Payload de ligne invalide.';
-  if (code === 'missing_token' || code === 'invalid_session') return t('postprod.auth.error.invalidSession');
-  return 'Erreur datas post-production.';
-}
-
 function normalizeAppMode(mode) {
   return String(mode || '').trim().toLowerCase() === APP_MODE_POSTPROD
     ? APP_MODE_POSTPROD
     : APP_MODE_LIVE;
-}
-
-function waitMs(ms = 0) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, Math.max(0, Number(ms) || 0));
-  });
-}
-
-function summarizeProcessFailure(procRes = {}) {
-  const code = Number(procRes?.code);
-  const timedOut = procRes?.timedOut === true;
-  const stderr = String(procRes?.stderr || '').trim();
-  const error = String(procRes?.error || '').trim();
-  if (timedOut) return 'worker_process_timeout';
-  if (stderr) return stderr.slice(0, 400);
-  if (error) return error.slice(0, 400);
-  if (Number.isFinite(code)) return `worker_process_exit_${code}`;
-  return 'worker_process_failed';
-}
-
-function compactProcessLogText(value = '', maxChars = 700) {
-  const raw = String(value || '').replace(/\r\n/g, '\n').trim();
-  const maxLen = Number.isFinite(Number(maxChars)) ? Math.max(80, Math.trunc(Number(maxChars))) : 700;
-  if (!raw) return '';
-  if (raw.length <= maxLen) return raw;
-  return `...${raw.slice(raw.length - maxLen)}`;
-}
-
-function compactProcessLogTextMiddle(value = '', maxChars = 1200) {
-  const raw = String(value || '').replace(/\r\n/g, '\n').trim();
-  const maxLen = Number.isFinite(Number(maxChars)) ? Math.max(120, Math.trunc(Number(maxChars))) : 1200;
-  if (!raw) return '';
-  if (raw.length <= maxLen) return raw;
-  const half = Math.max(40, Math.floor((maxLen - 12) / 2));
-  const head = raw.slice(0, half);
-  const tail = raw.slice(raw.length - half);
-  return `${head}\n...[snip]...\n${tail}`;
-}
-
-function extractProcessDiagnosticLines(value = '', maxLines = 18) {
-  const raw = String(value || '').replace(/\r\n/g, '\n');
-  if (!raw) return [];
-  const lines = raw.split('\n');
-  const out = [];
-  const seen = new Set();
-  const rx = /(error|fatal|exception|failed|moviepipeline|uurender|remote ?control|not bound|invalid|missing|unknown|warning)/i;
-  for (const line of lines) {
-    const trimmed = String(line || '').trim();
-    if (!trimmed) continue;
-    if (/metadata set\s*:\s*commandline/i.test(trimmed)) continue;
-    if (/^logcsvprofiler:/i.test(trimmed) && /commandline/i.test(trimmed)) continue;
-    if (!rx.test(trimmed)) continue;
-    const normalizedLine = trimmed.length > 340 ? `${trimmed.slice(0, 340)} ...` : trimmed;
-    const key = normalizedLine.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(normalizedLine);
-    if (out.length >= maxLines) break;
-  }
-  return out;
-}
-
-function buildWorkerProcessEventComment({
-  command = '',
-  args = [],
-  procRes = {},
-  workerLogPath = '',
-  workerLogText = '',
-} = {}) {
-  const safeCommand = String(command || '').trim();
-  const resolvedCommand = String(procRes?.command || '').trim();
-  const safeArgs = Array.isArray(args)
-    ? args.map((arg) => String(arg || '').trim()).filter(Boolean)
-    : [];
-  const cmdLine = [safeCommand, ...safeArgs].filter(Boolean).join(' ');
-  const cmdLineShort = compactProcessLogTextMiddle(cmdLine, 1400);
-  const exitCodeRaw = Number(procRes?.code);
-  const hasExitCode = Number.isFinite(exitCodeRaw);
-  const timedOut = procRes?.timedOut === true;
-  const ok = procRes?.ok === true;
-  const stdoutRaw = String(procRes?.stdout || '');
-  const stderrRaw = String(procRes?.stderr || '');
-  const stdoutTail = compactProcessLogText(stdoutRaw, 2400);
-  const stderrTail = compactProcessLogText(stderrRaw, 2400);
-  const stdoutHead = String(stdoutRaw || '').replace(/\r\n/g, '\n').slice(0, 900).trim();
-  const stderrHead = String(stderrRaw || '').replace(/\r\n/g, '\n').slice(0, 900).trim();
-  const diagnostics = [
-    ...extractProcessDiagnosticLines(stderrRaw, 20),
-    ...extractProcessDiagnosticLines(stdoutRaw, 20),
-    ...extractProcessDiagnosticLines(workerLogText, 28),
-  ].slice(0, 24);
-  const out = [];
-  if (cmdLineShort) out.push(`cmd: ${cmdLineShort}`);
-  if (resolvedCommand && resolvedCommand !== safeCommand) {
-    out.push(`cmd_resolved: ${resolvedCommand}`);
-  }
-  if (String(workerLogPath || '').trim()) out.push(`workerlog: ${String(workerLogPath).trim()}`);
-  if (ok) out.push(`exit: ok${hasExitCode ? ` (${Math.trunc(exitCodeRaw)})` : ''}`);
-  else if (timedOut) out.push('exit: timeout');
-  else out.push(`exit: failed${hasExitCode ? ` (${Math.trunc(exitCodeRaw)})` : ''}`);
-  if (diagnostics.length > 0) {
-    out.push(`diagnostics:\n${diagnostics.join('\n')}`);
-  }
-  if (stderrHead) out.push(`stderr(head):\n${stderrHead}`);
-  if (stderrTail) out.push(`stderr:\n${stderrTail}`);
-  if (stdoutHead) out.push(`stdout(head):\n${stdoutHead}`);
-  if (stdoutTail) out.push(`stdout:\n${stdoutTail}`);
-  if (workerLogText) {
-    const logHead = String(workerLogText || '').replace(/\r\n/g, '\n').slice(0, 900).trim();
-    const logTail = compactProcessLogText(workerLogText, 2400);
-    if (logHead) out.push(`workerlog(head):\n${logHead}`);
-    if (logTail) out.push(`workerlog(tail):\n${logTail}`);
-  }
-  if (!out.length) return '';
-  return out.join('\n');
-}
-
-function replaceProcessTemplateVars(input = '', context = {}) {
-  const source = String(input == null ? '' : input);
-  if (!source) return '';
-  const values = context && typeof context === 'object' ? context : {};
-  return source.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}|%([a-zA-Z0-9_]+)%/g, (_match, p1, p2) => {
-    const keyRaw = String(p1 || p2 || '').trim();
-    if (!keyRaw) return '';
-    const key = keyRaw.toLowerCase();
-    const value = values[key];
-    if (value == null) return '';
-    return String(value);
-  });
-}
-
-function hasProcessTemplateToken(value = '') {
-  const input = String(value || '');
-  if (!input) return false;
-  return /\{\{\s*[a-zA-Z0-9_]+\s*\}\}|%[a-zA-Z0-9_]+%/.test(input);
-}
-
-function encodeBase64Utf8(value = '') {
-  const source = String(value == null ? '' : value);
-  if (!source) return '';
-  try {
-    if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
-      return Buffer.from(source, 'utf8').toString('base64');
-    }
-  } catch {}
-  try {
-    if (typeof TextEncoder === 'function' && typeof btoa === 'function') {
-      const bytes = new TextEncoder().encode(source);
-      let binary = '';
-      const chunkSize = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-      }
-      return btoa(binary);
-    }
-  } catch {}
-  return '';
-}
-
-function ensureRenderOutputExt(fileName = '', fallbackExt = '.mov') {
-  const raw = String(fileName || '').trim();
-  if (!raw) return '';
-  if (/[\\/]\s*$/.test(raw)) return raw;
-  if (/\.[a-z0-9]{2,6}$/i.test(raw)) return raw;
-  return `${raw}${String(fallbackExt || '.mov')}`;
-}
-
-const RENDER_OUTPUT_VIDEO_EXTS = ['.mp4', '.mov', '.mxf', '.avi', '.webm', '.mkv'];
-const RENDER_OUTPUT_IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.exr', '.tga', '.bmp', '.dpx', '.hdr'];
-const RENDER_OUTPUT_ALL_EXTS = [...RENDER_OUTPUT_VIDEO_EXTS, ...RENDER_OUTPUT_IMAGE_EXTS];
-
-function getRenderPathExtension(filePath = '') {
-  const raw = String(filePath || '').trim();
-  if (!raw) return '';
-  const clean = raw.replace(/[\\/]+$/g, '');
-  const fileName = clean.split(/[\\/]/).pop() || clean;
-  const idx = fileName.lastIndexOf('.');
-  if (idx <= 0) return '';
-  return fileName.slice(idx).toLowerCase();
-}
-
-function replaceRenderPathExtension(filePath = '', nextExt = '') {
-  const raw = String(filePath || '').trim();
-  const ext = String(nextExt || '').trim().toLowerCase();
-  if (!raw || !ext) return raw;
-  const slashIdx = Math.max(raw.lastIndexOf('/'), raw.lastIndexOf('\\'));
-  const head = slashIdx >= 0 ? raw.slice(0, slashIdx + 1) : '';
-  const tail = slashIdx >= 0 ? raw.slice(slashIdx + 1) : raw;
-  const dotIdx = tail.lastIndexOf('.');
-  const base = dotIdx > 0 ? tail.slice(0, dotIdx) : tail;
-  return `${head}${base}${ext}`;
-}
-
-function inferExpectedRenderOutputExt(outputProfile = '') {
-  const profile = String(outputProfile || '').trim().toLowerCase();
-  if (!profile) return '.mov';
-  if (profile.includes('h264') || profile.includes('h265') || profile.includes('hevc') || profile.includes('mp4')) {
-    return '.mp4';
-  }
-  if (profile.includes('mxf') || profile.includes('dnxhd') || profile.includes('dnxhr')) {
-    return '.mxf';
-  }
-  if (profile.includes('avi')) return '.avi';
-  if (profile.includes('webm')) return '.webm';
-  if (profile.includes('jpg') || profile.includes('jpeg')) return '.jpg';
-  if (profile.includes('exr')) return '.exr';
-  if (profile.includes('png')) return '.png';
-  return '.mov';
-}
-
-function isLikelyRenderOutputMedia(filePath = '') {
-  const ext = getRenderPathExtension(filePath);
-  return RENDER_OUTPUT_ALL_EXTS.includes(ext);
-}
-
-function buildRenderOutputPathCandidates(filePath = '') {
-  const raw = String(filePath || '').trim();
-  if (!raw) return [];
-  const out = [];
-  const seen = new Set();
-  const push = (value) => {
-    const next = String(value || '').trim();
-    if (!next) return;
-    const key = next.replace(/\\/g, '/').toLowerCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push(next);
-  };
-  push(raw);
-  const currentExt = getRenderPathExtension(raw);
-  if (currentExt) {
-    for (const altExt of RENDER_OUTPUT_ALL_EXTS) {
-      push(replaceRenderPathExtension(raw, altExt));
-    }
-  } else {
-    for (const ext of RENDER_OUTPUT_ALL_EXTS) {
-      push(`${raw}${ext}`);
-    }
-  }
-  return out;
-}
-
-function joinRenderOutputPath(baseDir = '', fileName = '') {
-  const dir = String(baseDir || '').trim().replace(/[\\/]+$/g, '');
-  const name = String(fileName || '').trim().replace(/^[\\/]+/g, '');
-  if (dir && name) return `${dir}/${name}`;
-  if (dir) return dir;
-  return name;
-}
-
-function normalizeUnrealMapLaunchArg(rawMapName = '') {
-  let mapArg = String(rawMapName || '').trim();
-  if (!mapArg) return '';
-  mapArg = mapArg.replace(/\\/g, '/');
-  if (mapArg.startsWith('/Game/')) {
-    // already normalized
-  } else if (mapArg.startsWith('/Maps/')) mapArg = `/Game${mapArg}`;
-  else if (mapArg.startsWith('Maps/')) mapArg = `/Game/${mapArg}`;
-  else if (mapArg.startsWith('/')) mapArg = `/Game${mapArg}`;
-  mapArg = mapArg.replace(/\.umap$/i, '');
-  if (mapArg.startsWith('/Game/') && mapArg.includes('.')) {
-    mapArg = mapArg.split('.')[0];
-  }
-  return mapArg;
-}
-
-function normalizeUnrealPresetName(rawPreset = '') {
-  const input = String(rawPreset || '').trim();
-  if (!input) return '';
-  const normalized = input.replace(/\\/g, '/');
-  const tail = normalized.split('/').filter(Boolean).pop() || normalized;
-  if (tail.includes('.')) {
-    const parts = tail.split('.');
-    return String(parts[parts.length - 1] || tail).trim();
-  }
-  return String(tail || input).trim();
-}
-
-function normalizeBooleanFlag(value, fallback = false) {
-  if (value === true) return true;
-  if (value === false) return false;
-  if (typeof value === 'number') return value !== 0;
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return fallback === true;
-  if (raw === 'true' || raw === '1' || raw === 'yes' || raw === 'on') return true;
-  if (raw === 'false' || raw === '0' || raw === 'no' || raw === 'off') return false;
-  return fallback === true;
-}
-
-function withJobContextProcessArgs(execution = null, hasFormData = false) {
-  if (!execution || typeof execution !== 'object' || Array.isArray(execution)) return null;
-  const args = Array.isArray(execution.args) ? [...execution.args] : [];
-  const hasJobB64 = args.some((a) => String(a || '').toLowerCase().includes('renderjobb64'));
-  const hasFormB64 = args.some((a) => String(a || '').toLowerCase().includes('formdatab64'));
-  const hasOutputDir = args.some((a) => String(a || '').toLowerCase().includes('uurenderoutputdir'));
-  const hasMovieFolder = args.some((a) => String(a || '').toLowerCase().includes('moviefolder'));
-  const hasMovieName = args.some((a) => String(a || '').toLowerCase().includes('moviename'));
-  if (!hasJobB64) args.push('-UURenderJobB64={{renderjobb64}}');
-  if (hasFormData && !hasFormB64) args.push('-UURenderFormDataB64={{formdatab64}}');
-  if (!hasMovieFolder) args.push('-MovieFolder={{outputdir}}');
-  if (!hasMovieName) args.push('-MovieName={{expectedrendername}}');
-  if (!hasOutputDir) args.push('-UURenderOutputDir={{outputdir}}');
-  return { ...execution, args };
-}
-
-function withRenderOffscreenProcessArgs(execution = null, renderOffscreen = false) {
-  if (!execution || typeof execution !== 'object' || Array.isArray(execution)) return null;
-  const offscreen = normalizeBooleanFlag(renderOffscreen, false);
-  const cloned = {
-    ...execution,
-    renderOffscreen: offscreen,
-  };
-  const args = Array.isArray(execution?.args) ? execution.args : [];
-  if (args.length <= 0) {
-    if (offscreen) cloned.args = ['-RenderOffscreen'];
-    return cloned;
-  }
-  const nextArgs = args
-    .map((arg) => String(arg || '').trim())
-    .filter(Boolean)
-    .filter((arg) => String(arg || '').trim().toLowerCase() !== '-renderoffscreen');
-  if (offscreen) nextArgs.push('-RenderOffscreen');
-  cloned.args = nextArgs;
-  return cloned;
-}
-
-function buildRenderProcessTemplateContext({
-  render = null,
-  payload = null,
-  execution = null,
-  workerKey = '',
-  defaultUnrealEditorPath = '',
-} = {}) {
-  const renderObj = render && typeof render === 'object' ? render : {};
-  const payloadObj = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
-  const executionObj = execution && typeof execution === 'object' && !Array.isArray(execution) ? execution : {};
-  const renderId = Number(renderObj?.id || 0);
-  const linkedTaskId = Number(renderObj?.linkedTaskId || payloadObj?.taskId || 0);
-  const taskExpectedCount = Number(payloadObj?.taskExpectedRenderCount || renderObj?.taskExpectedRenderCount || 0);
-  const taskDetectedCount = Number(payloadObj?.taskDetectedRenderCount || renderObj?.taskDetectedRenderCount || 0);
-  const fallbackExpectedName = renderId > 0 ? `render-${renderId}` : '';
-  const expectedRenderNameRaw = String(
-    payloadObj?.matchedExpectedRenderName ||
-    renderObj?.matchedExpectedRenderName ||
-    fallbackExpectedName
-  ).trim();
-  const expectedExt = inferExpectedRenderOutputExt(payloadObj?.outputProfile || '');
-  const expectedRenderName = ensureRenderOutputExt(expectedRenderNameRaw, expectedExt);
-  const outputDir = String(
-    payloadObj?.outputDir ||
-    payloadObj?.renderOutputDir ||
-    executionObj?.outputDir ||
-    ''
-  ).trim();
-  const projectPath = String(
-    payloadObj?.projectPath ||
-    payloadObj?.uprojectPath ||
-    executionObj?.projectPath ||
-    executionObj?.uprojectPath ||
-    ''
-  ).trim();
-  const unrealEditorPath = String(
-    payloadObj?.unrealEditorPath ||
-    payloadObj?.unrealExe ||
-    executionObj?.unrealEditorPath ||
-    executionObj?.unrealExe ||
-    defaultUnrealEditorPath ||
-    ''
-  ).trim();
-  const outputPathRaw = String(
-    executionObj?.outputPath ||
-    payloadObj?.outputPath ||
-    ''
-  ).trim();
-  const outputPathFallback = joinRenderOutputPath(outputDir, expectedRenderName || fallbackExpectedName);
-  const outputPath = outputPathRaw && !hasProcessTemplateToken(outputPathRaw)
-    ? outputPathRaw
-    : outputPathFallback;
-  const workerLogPath = outputDir
-    ? joinRenderOutputPath(joinRenderOutputPath(outputDir, 'logs'), `uu-worker-render-${renderId > 0 ? renderId : 'latest'}.log`)
-    : '';
-  const formDataObject = payloadObj?.formData && typeof payloadObj.formData === 'object' && !Array.isArray(payloadObj.formData)
-    ? payloadObj.formData
-    : {};
-  const hasFormData = Object.keys(formDataObject).length > 0;
-  const payloadWrcFiles = Array.isArray(payloadObj?.wrcFiles)
-    ? payloadObj.wrcFiles
-    : (Array.isArray(payloadObj?.wrc_files) ? payloadObj.wrc_files : []);
-  const fallbackWrcPresetPath = payloadWrcFiles
-    .map((entry) => String(entry || '').trim())
-    .find(Boolean) || '';
-  const presetPathRaw = String(
-    payloadObj?.presetPath
-    || payloadObj?.preset_path
-    || executionObj?.presetPath
-    || executionObj?.preset_path
-    || fallbackWrcPresetPath
-    || ''
-  ).trim();
-  const explicitPresetNameRaw = String(
-    payloadObj?.presetName
-    || payloadObj?.wrcPresetName
-    || executionObj?.presetName
-    || ''
-  ).trim();
-  const legacyPresetFallback = hasFormData
-    ? ''
-    : String(
-      payloadObj?.renderModeName
-      || renderObj?.templateName
-      || ''
-    ).trim();
-  const presetNameRaw = explicitPresetNameRaw
-    || normalizeUnrealPresetName(presetPathRaw)
-    || legacyPresetFallback;
-  const presetName = normalizeUnrealPresetName(presetNameRaw) || presetNameRaw;
-  const presetPath = presetPathRaw.startsWith('/') ? presetPathRaw : '';
-  let formDataJson = '';
-  try {
-    formDataJson = JSON.stringify(formDataObject || {});
-  } catch {
-    formDataJson = '{}';
-  }
-  if (!formDataJson) formDataJson = '{}';
-  const bridgeJobPayload = {
-    renderId: Number.isFinite(renderId) ? renderId : 0,
-    taskId: Number.isFinite(linkedTaskId) ? linkedTaskId : 0,
-    workerKey: String(workerKey || renderObj?.assignedWorkerKey || '').trim(),
-    projectPath,
-    unrealEditorPath,
-    projectName: String(renderObj?.projectName || payloadObj?.projectName || '').trim(),
-    templateName: String(renderObj?.templateName || payloadObj?.templateName || '').trim(),
-    mapName: normalizeUnrealMapLaunchArg(payloadObj?.mapName || '') || String(payloadObj?.mapName || '').trim(),
-    sequenceName: String(payloadObj?.sequenceName || '').trim(),
-    outputProfile: String(payloadObj?.outputProfile || '').trim(),
-    outputDir,
-    outputPath,
-    expectedRenderName: expectedRenderName || fallbackExpectedName,
-    presetName,
-    presetPath,
-    formData: formDataObject,
-    textValue: String(payloadObj?.textValue || '').trim(),
-    payload: payloadObj,
-  };
-  let renderJobJson = '';
-  try {
-    renderJobJson = JSON.stringify(bridgeJobPayload || {});
-  } catch {
-    renderJobJson = '{}';
-  }
-  if (!renderJobJson) renderJobJson = '{}';
-  const formDataB64 = encodeBase64Utf8(formDataJson);
-  const renderJobB64 = encodeBase64Utf8(renderJobJson);
-  const now = new Date();
-  const isoNow = now.toISOString();
-  return {
-    workerkey: String(workerKey || renderObj?.assignedWorkerKey || '').trim(),
-    renderid: Number.isFinite(renderId) && renderId > 0 ? String(Math.trunc(renderId)) : '',
-    taskid: Number.isFinite(linkedTaskId) && linkedTaskId > 0 ? String(Math.trunc(linkedTaskId)) : '',
-    tasktitle: String(payloadObj?.taskTitle || renderObj?.linkedTaskTitle || '').trim(),
-    projectname: String(renderObj?.projectName || payloadObj?.projectName || '').trim(),
-    templatename: String(renderObj?.templateName || payloadObj?.templateName || '').trim(),
-    mapname: normalizeUnrealMapLaunchArg(payloadObj?.mapName || '') || String(payloadObj?.mapName || '').trim(),
-    sequencename: String(payloadObj?.sequenceName || '').trim(),
-    outputprofile: String(payloadObj?.outputProfile || '').trim(),
-    presetname: presetName,
-    presetpath: presetPath,
-    textvalue: String(payloadObj?.textValue || '').trim(),
-    formdatajson: formDataJson,
-    formdatab64: formDataB64,
-    renderjobjson: renderJobJson,
-    renderjobb64: renderJobB64,
-    projectpath: projectPath,
-    uprojectpath: projectPath,
-    unrealeditorpath: unrealEditorPath,
-    unrealexepath: unrealEditorPath,
-    outputdir: outputDir,
-    expectedrendername: expectedRenderName || fallbackExpectedName,
-    outputpath: outputPath,
-    workerlogpath: workerLogPath,
-    date: isoNow.slice(0, 10),
-    datetime: isoNow,
-    timestamp: String(Math.trunc(now.getTime())),
-    taskexpectedrendercount: Number.isFinite(taskExpectedCount) && taskExpectedCount > 0
-      ? String(Math.trunc(taskExpectedCount))
-      : '',
-    taskdetectedrendercount: Number.isFinite(taskDetectedCount) && taskDetectedCount >= 0
-      ? String(Math.trunc(taskDetectedCount))
-      : '',
-  };
-}
-
-function buildDefaultUnrealProcessExecution({
-  mapName = '',
-  sequenceName = '',
-  outputProfile = '',
-  presetName = '',
-  formData = null,
-  textValue = '',
-  renderOffscreen = false,
-} = {}) {
-  const safeMapName = normalizeUnrealMapLaunchArg(mapName);
-  const safeSequenceName = String(sequenceName || '').trim();
-  const safeOutputProfile = String(outputProfile || '').trim();
-  const safePresetRaw = String(presetName || '').trim();
-  const safePresetName = normalizeUnrealPresetName(safePresetRaw);
-  const safePresetPath = safePresetRaw.startsWith('/') ? safePresetRaw : '';
-  const safeFormData = formData && typeof formData === 'object' && !Array.isArray(formData)
-    ? formData
-    : {};
-  const safeTextValue = String(textValue || '').trim();
-  const offscreenEnabled = normalizeBooleanFlag(renderOffscreen, false);
-  const hasFormData = Object.keys(safeFormData).length > 0;
-
-  const args = [
-    '{{uprojectpath}}',
-  ];
-  if (safeMapName) args.push('{{mapname}}');
-  args.push('-game');
-  args.push(
-    '-NoLoadingScreen',
-    '-Unattended',
-    '-log',
-    '-StdOut',
-    '-allowStdOutLogVerbosity',
-    '-FullStdOutLogOutput',
-    '-RCWebControlEnable',
-    '-MoviePipelineLocalExecutorClass=/Script/MovieRenderPipelineCore.MoviePipelineInProcessExecutor'
-  );
-  if (safeSequenceName) args.push('-LevelSequence={{sequencename}}');
-  if (safeOutputProfile) args.push('-MoviePipelineConfig={{outputprofile}}');
-  args.push('-MovieFolder={{outputdir}}');
-  args.push('-MovieName={{expectedrendername}}');
-  args.push('-UURenderOutputDir={{outputdir}}');
-  args.push('-Abslog={{workerlogpath}}');
-  if (safePresetName) args.push('-UURenderPreset={{presetname}}');
-  if (safePresetPath) args.push('-UURenderPresetPath={{presetpath}}');
-  if (hasFormData) args.push('-UURenderFormDataB64={{formdatab64}}');
-  args.push('-UURenderJobB64={{renderjobb64}}');
-  if (safeTextValue) args.push('-UUTextValue={{textvalue}}');
-  if (offscreenEnabled) args.push('-RenderOffscreen');
-
-  return {
-    mode: 'process',
-    command: '{{unrealeditorpath}}',
-    commandFallback: 'UnrealEditor.exe',
-    args,
-    renderOffscreen: offscreenEnabled,
-    timeoutMs: 4 * 60 * 60 * 1000,
-    outputPath: '',
-  };
-}
-
-function canReplayWorkerCompletion(render = null, workerKey = '') {
-  const job = render && typeof render === 'object' ? render : null;
-  if (!job) return false;
-  const status = String(job?.status || '').trim();
-  const assignedWorkerKey = String(job?.assignedWorkerKey || '').trim();
-  const expectedWorkerKey = String(workerKey || '').trim();
-  return status === 'Running' && !!assignedWorkerKey && assignedWorkerKey === expectedWorkerKey;
-}
-
-function buildWorkerCompletionReplayPayload(basePayload = {}, render = null, workerKey = '') {
-  const rawPayload = basePayload && typeof basePayload === 'object' ? basePayload : {};
-  const job = render && typeof render === 'object' ? render : {};
-  const jobPayload = job?.payload && typeof job.payload === 'object' && !Array.isArray(job.payload)
-    ? job.payload
-    : {};
-  const jobExecution = jobPayload?.execution && typeof jobPayload.execution === 'object' && !Array.isArray(jobPayload.execution)
-    ? jobPayload.execution
-    : {};
-  const normalizedWorkerKey = String(workerKey || rawPayload?.workerKey || job?.assignedWorkerKey || '').trim();
-  const success = rawPayload?.success !== false;
-
-  if (success) {
-    const fallbackRenderId = Number(job?.id || 0);
-    const outputPathRaw = String(
-      rawPayload?.outputPath ||
-      job?.outputPath ||
-      jobExecution?.outputPath ||
-      jobPayload?.outputPath ||
-      (fallbackRenderId > 0 ? `renders/render-${fallbackRenderId}.mov` : '')
-    ).trim();
-    const outputPath = hasProcessTemplateToken(outputPathRaw) ? '' : outputPathRaw;
-    if (!outputPath) {
-      return {
-        ...rawPayload,
-        workerKey: normalizedWorkerKey,
-        success: false,
-        outputPath: '',
-        errorMessage: 'output_file_not_found',
-        comment: String(rawPayload?.comment || '').trim() || 'worker_offline_replay_missing_output',
-      };
-    }
-    return {
-      ...rawPayload,
-      workerKey: normalizedWorkerKey,
-      success: true,
-      outputPath,
-      errorMessage: '',
-      comment: String(rawPayload?.comment || '').trim() || 'worker_offline_replay_done',
-    };
-  }
-
-  const errorMessage = String(
-    rawPayload?.errorMessage ||
-    job?.errorMessage ||
-    'worker_offline_replay_failed'
-  ).trim().slice(0, 400);
-  return {
-    ...rawPayload,
-    workerKey: normalizedWorkerKey,
-    success: false,
-    outputPath: '',
-    errorMessage: errorMessage || 'worker_offline_replay_failed',
-    comment: String(rawPayload?.comment || '').trim() || 'worker_offline_replay_fail',
-  };
 }
 
 function getLiveAccountTabs({ authenticated = false, canManageUsers = false, canManageRoles = false } = {}) {
@@ -2025,17 +1052,22 @@ function App() {
   const postprodCanManageRoles = postprodAuth.user?.permissions?.canManageRoles === true;
   const postprodCanManageRenderTemplates = postprodAuth.user?.permissions?.canManageForms === true;
   const postprodCanManageMachines = postprodAuth.user?.permissions?.canManageMachines === true;
+  const postprodCanManageConfiguration = postprodAuthenticated
+    ? postprodAuth.user?.permissions?.canManageConfiguration === true
+    : true;
   const postprodCanBanUsers = postprodAuth.user?.permissions?.canBanUsers === true;
   const postprodCanManageProjectPermissions =
     postprodAuth.user?.permissions?.canManageProjectPermissions === true;
   const postprodCanViewResources = postprodAuth.user?.permissions?.canViewResources !== false;
-  const resourcesEnabled = !!(
+  const postprodUserShowFabResources = resolveUserShowFabResourcesPreference(postprodAuth.user);
+  const resourcesEnabledGlobal = !!(
     commonCfg
     && (
       commonCfg.fab_resources_enabled === true
       || commonCfg.fabResourcesEnabled === true
     )
   );
+  const resourcesEnabled = resourcesEnabledGlobal && (!postprodAuthenticated || postprodUserShowFabResources);
   const postprodCanAccessResources = postprodCanViewResources && resourcesEnabled;
   const postprodCanCreateTasks = postprodAuth.user?.permissions?.canCreateTasks !== false;
   const postprodCanAssignRenderRequests = postprodAuth.user?.permissions?.canAssignRenderRequests === true;
@@ -3036,8 +2068,9 @@ function App() {
       });
       applyUserLanguageToIdentity(user);
       setPostprodProfile({ saving: false, error: '' });
+      const nextResourcesEnabled = resourcesEnabledGlobal && resolveUserShowFabResourcesPreference(user);
       const nextTabs = getPostprodTabsForUser(user, true, {
-        resourcesEnabled,
+        resourcesEnabled: nextResourcesEnabled,
       });
       const allowed = getAllowedTabs({
         role: normalizedMode === APP_MODE_POSTPROD
@@ -3068,7 +2101,7 @@ function App() {
     applyUserLanguageToIdentity,
     clientSyncEnabled,
     resourcesTabAvailable,
-    resourcesEnabled,
+    resourcesEnabledGlobal,
     postprodCanManageMachines,
     liveAccountTabs,
     postprodVisibleTabs,
@@ -5007,7 +4040,7 @@ function App() {
 
   const handlePostprodUpdateMe = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
-    if (!token) return;
+    if (!token) return false;
     setPostprodProfile({ saving: true, error: '' });
     try {
       const res = await postprodUpdateMe(token, payload);
@@ -5036,11 +4069,13 @@ function App() {
         await loadPostprodUsers();
       }
       showNotice(t('postprod.profile.msg.updated'), 'ok');
+      return true;
     } catch (e) {
       setPostprodProfile({
         saving: false,
         error: resolvePostprodUsersError(e, t),
       });
+      return false;
     }
   }, [postprodAuth.token, postprodCanManageUsers, loadPostprodUsers, showNotice, t, applyUserLanguageToIdentity]);
 
@@ -5102,6 +4137,36 @@ function App() {
       return false;
     }
   }, [postprodAuth.token, postprodAuth.user?.id, loadPostprodUsers, showNotice, t, applyUserLanguageToIdentity]);
+
+  const refreshPostprodSessionUser = useCallback(async () => {
+    const token = String(postprodAuth.token || '').trim();
+    if (!token) return null;
+    try {
+      const me = await postprodAuthMe(token);
+      const meUser = me?.user && typeof me.user === 'object' ? me.user : null;
+      if (!meUser) return null;
+      setPostprodAuth((prev) => {
+        const next = {
+          ...prev,
+          user: meUser,
+          expiresAt: String(me?.session?.expiresAt || prev.expiresAt || '').trim(),
+          error: '',
+          busy: false,
+          hydrated: true,
+        };
+        writePostprodAuth({
+          token: String(next.token || ''),
+          user: next.user,
+          expiresAt: String(next.expiresAt || ''),
+        });
+        return next;
+      });
+      applyUserLanguageToIdentity(meUser);
+      return meUser;
+    } catch {
+      return null;
+    }
+  }, [postprodAuth.token, applyUserLanguageToIdentity]);
 
   const handlePostprodDeleteUser = useCallback(async (userId) => {
     const token = String(postprodAuth.token || '').trim();
@@ -5243,7 +4308,7 @@ function App() {
     setPostprodRoles((prev) => ({ ...prev, loading: true, error: '' }));
     try {
       await postprodUpdateRole(token, roleKey, payload);
-      await loadPostprodRoles();
+      await Promise.all([loadPostprodRoles(), refreshPostprodSessionUser()]);
       showNotice(t('postprod.roles.msg.updated'), 'info');
       return true;
     } catch (e) {
@@ -5254,7 +4319,7 @@ function App() {
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodRoles, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodRoles, refreshPostprodSessionUser, showNotice, t]);
 
   const handlePostprodDeleteRole = useCallback(async (roleKey) => {
     const token = String(postprodAuth.token || '').trim();
@@ -5262,7 +4327,7 @@ function App() {
     setPostprodRoles((prev) => ({ ...prev, loading: true, error: '' }));
     try {
       await postprodDeleteRole(token, roleKey);
-      await Promise.all([loadPostprodRoles(), loadPostprodUsers()]);
+      await Promise.all([loadPostprodRoles(), loadPostprodUsers(), refreshPostprodSessionUser()]);
       showNotice(t('postprod.roles.msg.deleted'), 'ok');
       return true;
     } catch (e) {
@@ -5273,7 +4338,7 @@ function App() {
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodRoles, loadPostprodUsers, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodRoles, loadPostprodUsers, refreshPostprodSessionUser, showNotice, t]);
 
   const handlePostprodCreateTask = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -7488,10 +6553,13 @@ function App() {
                 onLibraryImported={handleLibraryImported}
                 onIdentityUpdated={setIdentity}
                 onScanDetectedRenders={handlePostprodScanDetectedRenders}
+                onUpdateMe={handlePostprodUpdateMe}
                 appMode={appMode}
                 canViewResources={postprodCanViewResources}
                 canManageProjects={postprodCanEditProjects}
+                canManageConfiguration={postprodCanManageConfiguration}
                 canLaunchUnrealEditor={liveCanLaunchEditorProjects}
+                notificationPrefs={postprodAuth.user?.notificationPreferences || postprodAuth.user?.notificationPrefsJson || {}}
               />
             </Suspense>
           )}

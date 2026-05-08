@@ -1,3 +1,5 @@
+const renderHealthStateCache = new Map();
+
 async function handlePostprodRenderHealthRoutes({
   req,
   res,
@@ -52,13 +54,18 @@ async function handlePostprodRenderHealthRoutes({
     eventAt,
     eventId: eventId || null,
   };
-  audit(
-    auth.session.user_id,
-    POSTPROD_RENDER_HEALTH_AUDIT_ACTION,
-    payload,
-    'render',
-    ''
-  );
+  const cacheKey = `${source}|${kind}`;
+  const lastState = renderHealthStateCache.get(cacheKey);
+  renderHealthStateCache.set(cacheKey, state);
+  if (lastState !== state) {
+    audit(
+      auth.session.user_id,
+      POSTPROD_RENDER_HEALTH_AUDIT_ACTION,
+      payload,
+      'render',
+      ''
+    );
+  }
   sendJSON(res, 201, {
     ok: true,
     event: {

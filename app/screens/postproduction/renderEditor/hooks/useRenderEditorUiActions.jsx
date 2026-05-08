@@ -5,6 +5,7 @@ function useRenderEditorUiActions({
   t,
   tasksLoading = false,
   canCreateTasks = false,
+  canAssignRenderRequests = false,
   showCreateForm = false,
   onDeleteTask = null,
   openTaskEditor = null,
@@ -36,11 +37,11 @@ function useRenderEditorUiActions({
       t={t}
       task={task}
       disabledEdit={!canCreateTasks || (tasksLoading && !showCreateForm)}
-      disabledDelete={!canCreateTasks || tasksLoading || typeof onDeleteTask !== "function"}
+      disabledDelete={!canAssignRenderRequests || tasksLoading || typeof onDeleteTask !== "function"}
       onEdit={openTaskEditor}
       onDelete={openDeleteTaskDialog}
     />
-  ), [t, canCreateTasks, tasksLoading, showCreateForm, onDeleteTask, openTaskEditor, openDeleteTaskDialog]);
+  ), [t, canCreateTasks, canAssignRenderRequests, tasksLoading, showCreateForm, onDeleteTask, openTaskEditor, openDeleteTaskDialog]);
 
   const clearListFilters = useCallback(() => {
     setSearchQuery?.("");

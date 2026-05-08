@@ -277,7 +277,7 @@ export default function PostProductionScreen({
           tasksError={tasksError}
           onCreateTask={onCreateTask}
           onUpdateTask={onUpdateTask}
-          onDeleteTask={onDeleteTask}
+          onDeleteTask={canAssignRenderRequests ? onDeleteTask : null}
           onCreateRender={onCreateRender}
           onReserveRenderId={onReserveRenderId}
           onLoadRenderFormFields={onLoadRenderFormFields}
@@ -390,7 +390,7 @@ export default function PostProductionScreen({
           onScheduleRender={onScheduleRender}
           onUpdateRenderExportDestinations={onUpdateRenderExportDestinations}
           onReorderRenders={onReorderRenders}
-          onDeleteTask={canCreateTasks ? onDeleteTask : null}
+          onDeleteTask={canAssignRenderRequests ? onDeleteTask : null}
           onDeleteRender={onDeleteRender}
           onGenerateProxy={onGenerateProxy}
           onRequestOpenRenderEditor={handleRequestOpenRenderEditor}

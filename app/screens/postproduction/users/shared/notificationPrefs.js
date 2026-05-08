@@ -21,6 +21,7 @@ const DEFAULT_NOTIFICATION_PREFS = Object.freeze({
   email: true,
   inApp: true,
   categories: [],
+  showFabResources: true,
 });
 
 function parseNotificationPrefs(value) {
@@ -44,6 +45,7 @@ function parseNotificationPrefs(value) {
     email: parsed.email !== false,
     inApp: parsed.inApp !== false,
     categories: normalizeNotificationPrefsCategories(parsed.categories),
+    showFabResources: parsed.showFabResources !== false,
   };
 }
 
@@ -53,6 +55,7 @@ function stringifyNotificationPrefs(value) {
     email: prefs.email !== false,
     inApp: prefs.inApp !== false,
     categories: normalizeNotificationPrefsCategories(prefs.categories),
+    showFabResources: prefs.showFabResources !== false,
   });
 }
 

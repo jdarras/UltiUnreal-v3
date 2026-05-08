@@ -771,4 +771,5 @@ async function handlePostprodRenderTransitionRoutes({
 
 module.exports = {
   handlePostprodRenderTransitionRoutes,
+  scheduleProxyGenerationForDoneRender,
 };

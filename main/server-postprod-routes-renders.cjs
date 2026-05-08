@@ -531,16 +531,41 @@ async function handlePostprodRendersRoutes({
         });
         return true;
       }
-      if (!requireRenderLaunchForProject(
+      if (!normalizedPayload.ok) {
+        sendJSON(res, 400, { ok: false, error: normalizedPayload.error || 'invalid_render_payload' });
+        return true;
+      }
+      const payloadObject = (() => {
+        try { return JSON.parse(normalizedPayload.payloadJson || '{}'); } catch { return {}; }
+      })();
+      const linkedTaskIdRaw = Number(payloadObject?.taskId ?? body?.taskId ?? 0);
+      const linkedTaskId = Number.isFinite(linkedTaskIdRaw) && linkedTaskIdRaw > 0
+        ? Math.trunc(linkedTaskIdRaw)
+        : 0;
+      if (linkedTaskId <= 0) {
+        sendJSON(res, 400, { ok: false, error: 'missing_linked_task' });
+        return true;
+      }
+      const linkedTask = typeof stmts.findTaskById?.get === 'function'
+        ? (stmts.findTaskById.get(linkedTaskId) || null)
+        : null;
+      if (!linkedTask) {
+        sendJSON(res, 400, { ok: false, error: 'task_not_found' });
+        return true;
+      }
+      const actorUserId = toPositiveInt(auth?.session?.user_id);
+      const taskAssigneeUserId = toPositiveInt(linkedTask?.assignee_user_id);
+      const actorIsLinkedTaskAssignee = (
+        actorUserId > 0
+        && taskAssigneeUserId > 0
+        && actorUserId === taskAssigneeUserId
+      );
+      if (!actorIsLinkedTaskAssignee && !requireRenderLaunchForProject(
         auth,
         res,
         sendJSON,
         projectEligibility?.project?.id || projectName
       )) return true;
-      if (!normalizedPayload.ok) {
-        sendJSON(res, 400, { ok: false, error: normalizedPayload.error || 'invalid_render_payload' });
-        return true;
-      }
 
       const now = nowIso();
       const initialStatus = 'Queued';
@@ -562,24 +587,6 @@ async function handlePostprodRendersRoutes({
       const requestedReservedRenderId = Number.isFinite(requestedReservedRenderIdRaw) && requestedReservedRenderIdRaw > 0
         ? Math.trunc(requestedReservedRenderIdRaw)
         : 0;
-      const payloadObject = (() => {
-        try { return JSON.parse(normalizedPayload.payloadJson || '{}'); } catch { return {}; }
-      })();
-      const linkedTaskIdRaw = Number(payloadObject?.taskId ?? body?.taskId ?? 0);
-      const linkedTaskId = Number.isFinite(linkedTaskIdRaw) && linkedTaskIdRaw > 0
-        ? Math.trunc(linkedTaskIdRaw)
-        : 0;
-      if (linkedTaskId <= 0) {
-        sendJSON(res, 400, { ok: false, error: 'missing_linked_task' });
-        return true;
-      }
-      const linkedTask = typeof stmts.findTaskById?.get === 'function'
-        ? (stmts.findTaskById.get(linkedTaskId) || null)
-        : null;
-      if (!linkedTask) {
-        sendJSON(res, 400, { ok: false, error: 'task_not_found' });
-        return true;
-      }
       payloadObject.taskId = linkedTaskId;
       if (!String(payloadObject?.taskTitle || '').trim()) {
         payloadObject.taskTitle = String(linkedTask?.title || '').trim();
@@ -672,7 +679,6 @@ async function handlePostprodRendersRoutes({
         sendJSON(res, 500, { ok: false, error: 'render_create_failed' });
         return true;
       }
-      const actorUserId = toPositiveInt(auth?.session?.user_id);
       const taskTitleForAlert = String(linkedTask?.title || '').trim();
       const assigneeUserId = toPositiveInt(linkedTask?.assignee_user_id);
       if (assigneeUserId > 0 && assigneeUserId !== actorUserId) {

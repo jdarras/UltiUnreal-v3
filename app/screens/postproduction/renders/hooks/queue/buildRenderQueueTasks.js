@@ -1,5 +1,12 @@
-import { resolveAutoRenderConfig } from "../../../shared/autoRenderHelpers";
 import { resolveTaskAutoRenderState } from "../../../renderEditor/helpers";
+import { resolveAutoRenderConfig } from "../../../shared/autoRenderHelpers";
+
+function isAssignmentDraftTask(task = null) {
+  const autoRenderConfig = resolveAutoRenderConfig(task) || {};
+  const raw = autoRenderConfig?.assignmentDraft;
+  if (raw === true) return true;
+  return String(raw || "").trim().toLowerCase() === "true";
+}
 
 export function buildRenderQueueTasks({
   tasks = [],
@@ -20,6 +27,11 @@ export function buildRenderQueueTasks({
     const renderStateEntry = autoRenderStateByTaskId.get(Math.trunc(taskId));
     const visualStatus = String(renderStateEntry?.visualStatus || "").trim().toLowerCase();
     const linkedRender = renderStateEntry?.render || null;
+    // Queue is strictly render-jobs based: a task without linked render job
+    // belongs to assignment/todo panels, never to queue.
+    if (!linkedRender) continue;
+    const assignmentDraft = isAssignmentDraftTask(task);
+    if (assignmentDraft) continue;
     const explicitReviewStatus = String(linkedRender?.reviewStatus || "").trim().toLowerCase();
     const isToModify = visualStatus === "rejected" && explicitReviewStatus === "to_modify";
     const taskStatus = String(task?.status || "").trim().toLowerCase();
@@ -30,7 +42,7 @@ export function buildRenderQueueTasks({
     const autoRenderConfig = resolveAutoRenderConfig(task);
     const projectName = String(autoRenderConfig?.projectName || linkedRender?.projectName || "").trim();
     const templateName = String(autoRenderConfig?.templateName || linkedRender?.templateName || "").trim();
-    if (!linkedRender && (!projectName || !templateName)) continue;
+    if (!projectName || !templateName) continue;
     const workerName = String(linkedRender?.assignedWorkerName || "").trim();
     const workerKey = String(linkedRender?.assignedWorkerKey || "").trim();
     out.push({

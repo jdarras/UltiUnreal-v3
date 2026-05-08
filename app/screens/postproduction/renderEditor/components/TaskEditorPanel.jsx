@@ -29,6 +29,7 @@ function TaskEditorPanel({
   onChangeAutoRenderForm = null,
   renderFormsLoading = false,
   renderFormsError = "",
+  canCreateTasks = false,
   canManageRenderTemplates = false,
   renderTemplatesForSelectedAutoForm = [],
   autoRenderTemplateId = "",
@@ -68,6 +69,7 @@ function TaskEditorPanel({
   submitDisabled = false,
   submitLabel = "",
   onSubmit = null,
+  onRequestDeleteTask = null,
   onCancel = null,
 }) {
   const rejectionInfo = editingTaskRejectionInfo && typeof editingTaskRejectionInfo === "object"
@@ -181,6 +183,9 @@ function TaskEditorPanel({
       <TaskEditorFooter
         t={t}
         isEditingTask={isEditingTask}
+        editingTaskId={editingTaskId}
+        taskTitle={title}
+        canDeleteTasks={canCreateTasks === true && assigneeUserIdLocked !== true}
         editingTaskVisualStatusKey={editingTaskVisualStatusKey}
         renderOutputDir={renderOutputDir}
         autoRenderProjectRef={autoRenderProjectRef}
@@ -195,6 +200,7 @@ function TaskEditorPanel({
         selectedExportDestinationIds={autoRenderExportDestinationIds}
         onChangeExportDestinationIds={onChangeAutoRenderExportDestinationIds}
         onSubmit={onSubmit}
+        onRequestDeleteTask={onRequestDeleteTask}
         onCancel={onCancel}
       />
     </div>
