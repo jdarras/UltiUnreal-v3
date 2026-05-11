@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { fromDateTimeLocalToIso, safeT } from "../../shared/helpers";
+import { useMemo, useState } from "react";
+import { safeT } from "../../shared/helpers";
 import {
   activityMatchesSearchQuery,
   activityMatchesSelectedType,
   getActivityTypeSummary,
   mapActivityActionTypeToApi,
 } from "../userSharedHelpers";
+import { useActivityFilters } from "./useActivityFilters";
 
 function useUserActivity({
   t,
@@ -16,52 +17,30 @@ function useUserActivity({
   const [activityByUserId, setActivityByUserId] = useState({});
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState("");
-  const [activityFromAtLocal, setActivityFromAtLocal] = useState("");
-  const [activityToAtLocal, setActivityToAtLocal] = useState("");
-  const [activityActionType, setActivityActionType] = useState("all");
-  const [activityProjectRef, setActivityProjectRef] = useState("");
-  const [activitySearchQuery, setActivitySearchQuery] = useState("");
-  const activitySearchDebounceRef = useRef(null);
-
-  useEffect(() => (
-    () => {
-      if (activitySearchDebounceRef.current) {
-        clearTimeout(activitySearchDebounceRef.current);
-        activitySearchDebounceRef.current = null;
-      }
-    }
-  ), []);
-
-  function clearActivitySearchDebounce() {
-    if (activitySearchDebounceRef.current) {
-      clearTimeout(activitySearchDebounceRef.current);
-      activitySearchDebounceRef.current = null;
-    }
-  }
+  const {
+    activityFromAtLocal,
+    setActivityFromAtLocal,
+    activityToAtLocal,
+    setActivityToAtLocal,
+    activityActionType,
+    setActivityActionType,
+    activityProjectRef,
+    setActivityProjectRef,
+    activitySearchQuery,
+    setActivitySearchQuery,
+    activitySearchDebounceRef,
+    clearActivitySearchDebounce,
+    resetActivityFilters,
+    buildActivityFilters,
+  } = useActivityFilters({ mapActionType: mapActivityActionTypeToApi });
 
   function resetActivityState() {
-    clearActivitySearchDebounce();
-    setActivityFromAtLocal("");
-    setActivityToAtLocal("");
-    setActivityActionType("all");
-    setActivityProjectRef("");
-    setActivitySearchQuery("");
+    resetActivityFilters();
     setActivityError("");
   }
 
   function buildUserActivityFilters(overrides = {}) {
-    const fromAtLocal = String(overrides?.fromAtLocal ?? activityFromAtLocal ?? "").trim();
-    const toAtLocal = String(overrides?.toAtLocal ?? activityToAtLocal ?? "").trim();
-    const actionType = String(overrides?.actionType ?? activityActionType ?? "all").trim().toLowerCase();
-    const projectRef = String(overrides?.projectRef ?? activityProjectRef ?? "").trim();
-    const searchQuery = String(overrides?.searchQuery ?? activitySearchQuery ?? "").trim();
-    return {
-      fromAt: fromAtLocal ? fromDateTimeLocalToIso(fromAtLocal) : "",
-      toAt: toAtLocal ? fromDateTimeLocalToIso(toAtLocal) : "",
-      actionType: mapActivityActionTypeToApi(actionType || "all"),
-      projectRef: projectRef || "",
-      searchQuery,
-    };
+    return buildActivityFilters(overrides);
   }
 
   async function loadUserActivity(userId, filterOverrides = {}) {

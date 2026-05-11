@@ -18,7 +18,6 @@ async function handlePostprodUsersRoutes({
   sanitizeEmail,
   resolvePhoneFromBody,
   sanitizePhone,
-  sanitizeEmploymentType,
   sanitizeUserNote,
   sanitizeAvatarPath,
   sanitizeTimezone,
@@ -85,8 +84,6 @@ async function handlePostprodUsersRoutes({
     const mobilePhone = sanitizePhone(phone || phone2 || '');
     const officePhone = sanitizePhone(phone2 || mobilePhone || '');
     const primaryPhone = sanitizePhone(mobilePhone || officePhone || '');
-    const rawEmploymentType = String(body?.employmentType || '').trim();
-    const employmentType = sanitizeEmploymentType(rawEmploymentType);
     const note = sanitizeUserNote(body?.note);
     const avatarPath = sanitizeAvatarPath(body?.avatarPath);
     const mustChangePassword = body?.mustChangePassword === true;
@@ -117,10 +114,6 @@ async function handlePostprodUsersRoutes({
     }
     if (!isValidEmail(email2)) {
       sendJSON(res, 400, { ok: false, error: 'invalid_email' });
-      return true;
-    }
-    if (rawEmploymentType && !employmentType) {
-      sendJSON(res, 400, { ok: false, error: 'invalid_employment_type' });
       return true;
     }
     if (!isValidAvatarPath(avatarPath)) {
@@ -179,7 +172,6 @@ async function handlePostprodUsersRoutes({
         mobilePhone,
         officePhone,
         primaryPhone,
-        employmentType,
         note,
         avatarPath,
         mustChangePassword ? 1 : 0,
@@ -216,7 +208,6 @@ async function handlePostprodUsersRoutes({
           phone: primaryPhone,
           phone1: mobilePhone,
           phone2: officePhone,
-          employmentType,
           note,
           avatarPath: !!avatarPath,
           mustChangePassword,

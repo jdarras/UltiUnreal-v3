@@ -1,4 +1,3 @@
-// app/screens/configuration.jsx
 import React from 'react';
 import { readIdentity } from '../utils/identity';
 import {
@@ -9,133 +8,29 @@ import {
   getHosts,
   postHost,
   postLaunch,
-  postProjectsScan,
-  postProjectsImport,
-  postLibraryImportRemote,
-  postLibraryImportRemotePreview,
   postprodRegenerateAllProxies,
 } from '../utils/agent';
-import { createT } from '../i18n';
+import { createT, preloadI18n } from '../i18n';
 import { NoticeContext } from '../NoticeContext';
-
-const EMPTY_COMMON = {
-  refreshSec: '',
-  logWarnLines: 1500,
-  logHardLimitLines: 2000,
-  auditWarnLines: 5000,
-  auditHardLimitLines: 10000,
-  renderOutputDir: '',
-  proxyEnabled: false,
-  proxyResolution: 50,
-  proxyCrf: 23,
-  renderExportDestinations: [],
-  rcHttpPort: '',
-  rcWsPort: '',
-  wrcMaxAttempts: 10,
-  wrcRetryDelaySec: 3,
-  startLayoutSendDelaySec: 3,
-  fabResourcesEnabled: false,
-  showUnrealLaunchButtons: false,
-  allowStartDesynced: false,
-  useStartLayout: false,
-};
-
-const APP_MODE_POSTPROD = 'postprod';
-const PROXY_RESOLUTION_ALLOWED = new Set([25, 50, 75]);
-const PROXY_CRF_ALLOWED = new Set([18, 23, 28]);
-
-function sanitizeExportDestinationId(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-}
-
-function buildExportDestinationId(name = '', pathValue = '', index = 0) {
-  const byName = sanitizeExportDestinationId(name);
-  if (byName) return byName;
-  const byPath = sanitizeExportDestinationId(String(pathValue || '').replace(/[\\/]+/g, '-'));
-  if (byPath) return byPath;
-  return `dest-${Math.max(1, Number(index) + 1)}`;
-}
-
-function normalizeExportDestinations(value, fallback = [], options = {}) {
-  const keepEmpty = options && typeof options === 'object' && options.keepEmpty === true;
-  const src = Array.isArray(value)
-    ? value
-    : (Array.isArray(fallback) ? fallback : []);
-  const out = [];
-  const seen = new Set();
-  for (let index = 0; index < src.length; index += 1) {
-    const entry = src[index];
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
-    const destinationPath = String(entry.path || entry.destinationPath || entry.dir || '').trim();
-    if (!destinationPath && !keepEmpty) continue;
-    const name = String(entry.name || entry.label || entry.title || '').trim();
-    const id = sanitizeExportDestinationId(
-      entry.id
-      || entry.destinationId
-      || buildExportDestinationId(name, destinationPath, index)
-    );
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    out.push({
-      id,
-      name: name || id,
-      path: destinationPath,
-      isActive: entry.isActive !== false && entry.enabled !== false,
-    });
-  }
-  return out;
-}
-
-function normalizeProxyResolution(value, fallback = 50) {
-  const n = Number(value);
-  const normalized = Number.isFinite(n) ? Math.trunc(n) : Math.trunc(Number(fallback) || 50);
-  return PROXY_RESOLUTION_ALLOWED.has(normalized) ? normalized : 50;
-}
-
-function normalizeProxyCrf(value, fallback = 23) {
-  const n = Number(value);
-  const normalized = Number.isFinite(n) ? Math.trunc(n) : Math.trunc(Number(fallback) || 23);
-  return PROXY_CRF_ALLOWED.has(normalized) ? normalized : 23;
-}
-
-function formatLicenseDate(exp, lang) {
-  const raw = String(exp || '').trim();
-  if (!raw) return '';
-  const locale = lang === 'en' ? 'en-US' : 'fr-FR';
-  const date = new Date(`${raw}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return raw;
-  return date.toLocaleDateString(locale);
-}
-
-function formatDateTime(value, lang) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return raw;
-  const locale = lang === 'en' ? 'en-US' : 'fr-FR';
-  return date.toLocaleString(locale, { hour12: false });
-}
-
-function parseLicenseExpToUtcMs(exp) {
-  const raw = String(exp || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
-  const ms = Date.parse(`${raw}T23:59:59Z`);
-  return Number.isFinite(ms) ? ms : null;
-}
-
-function getDaysLeft(exp) {
-  const expMs = parseLicenseExpToUtcMs(exp);
-  if (!expMs) return null;
-  const diffMs = expMs - Date.now();
-  const days = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-  return Math.max(0, days);
-}
+import {
+  EMPTY_COMMON,
+  APP_MODE_POSTPROD,
+  sanitizeExportDestinationId,
+  buildExportDestinationId,
+  normalizeExportDestinations,
+  normalizeProxyResolution,
+  normalizeProxyCrf,
+  normalizeInterfaceLanguage,
+  formatLicenseDate,
+  formatDateTime,
+  getDaysLeft,
+  normalizePathKey,
+  normalizeProjectRoots,
+  parseNotificationPrefsObject,
+  resolveShowFabResourcesPreference,
+} from './configurationHelpers';
+import { useConfigFabLibrary } from './useConfigFabLibrary';
+import { useConfigProjectScan } from './useConfigProjectScan';
 
 export default function ConfigurationScreen({
   licenseStatus,
@@ -155,7 +50,8 @@ export default function ConfigurationScreen({
   // identité + langue courante
   const identity = React.useMemo(readIdentity, []);
   const localIp = String(identity?.localIp || '').trim();
-  const lang = String(identity?.lang || '').trim().toLowerCase() === 'en' ? 'en' : 'fr';
+  const initialInterfaceLanguage = normalizeInterfaceLanguage(identity?.lang);
+  const [lang, setLang] = React.useState(initialInterfaceLanguage);
 
   const t = React.useMemo(() => createT(lang), [lang]);
   const isPostprodMode = String(appMode || '').trim().toLowerCase() === APP_MODE_POSTPROD;
@@ -171,40 +67,12 @@ export default function ConfigurationScreen({
   const noticeApi = React.useContext(NoticeContext);
 
   const [cfg, setCfg] = React.useState(EMPTY_COMMON);
-  const [infoMsg, setInfoMsg] = React.useState({ text: '', type: '', section: '' }); // section: common|versions|projects
+  const [infoMsg, setInfoMsg] = React.useState({ text: '', type: '', section: '' });
   const [proxyRegenBusy, setProxyRegenBusy] = React.useState(false);
   const [proxyRegenResult, setProxyRegenResult] = React.useState('');
   const [detectedScanBusy, setDetectedScanBusy] = React.useState(false);
-  const [versions, setVersions] = React.useState([]); // [{name, path}]
+  const [versions, setVersions] = React.useState([]);
   const [projectRoots, setProjectRoots] = React.useState([]);
-  const [projectScanMsg, setProjectScanMsg] = React.useState('');
-  const [projectScanMsgType, setProjectScanMsgType] = React.useState('');
-  const [projectScanBusy, setProjectScanBusy] = React.useState(false);
-  const [projectScanRecursive, setProjectScanRecursive] = React.useState(true);
-  const [projectScanResults, setProjectScanResults] = React.useState([]);
-  const [projectImportBusy, setProjectImportBusy] = React.useState(false);
-  const [hideImportedProjects, setHideImportedProjects] = React.useState(() => {
-    try {
-      const stored = localStorage.getItem('uu_hide_imported_projects');
-      if (stored === 'true') return true;
-      if (stored === 'false') return false;
-    } catch {}
-    return false;
-  });
-  const [fabAuthConnected, setFabAuthConnected] = React.useState(false);
-  const [fabAuthBusy, setFabAuthBusy] = React.useState(false);
-  const [fabAuthMsg, setFabAuthMsg] = React.useState('');
-  const [fabAuthMsgType, setFabAuthMsgType] = React.useState('');
-  const [fabPreviewItems, setFabPreviewItems] = React.useState([]);
-  const [fabSelection, setFabSelection] = React.useState({});
-  const [fabPreviewBusy, setFabPreviewBusy] = React.useState(false);
-  const [fabPreviewToken, setFabPreviewToken] = React.useState('');
-  const [fabImporting, setFabImporting] = React.useState(false);
-  const [fabImportDone, setFabImportDone] = React.useState(0);
-  const [fabImportTotal, setFabImportTotal] = React.useState(0);
-  const [fabRemoteImportMsg, setFabRemoteImportMsg] = React.useState('');
-  const [fabRemoteImportMsgType, setFabRemoteImportMsgType] = React.useState('');
-  const [fabRemoteImportBusy, setFabRemoteImportBusy] = React.useState(false);
   const [catalogStats, setCatalogStats] = React.useState({
     resourcesCount: 0,
     resourcesLastImport: '',
@@ -214,15 +82,82 @@ export default function ConfigurationScreen({
   const [showFabResourcesForUser, setShowFabResourcesForUser] = React.useState(
     () => resolveShowFabResourcesPreference(notificationPrefs)
   );
+  const [interfaceLanguageForUser, setInterfaceLanguageForUser] = React.useState(initialInterfaceLanguage);
   const [userPrefsSaving, setUserPrefsSaving] = React.useState(false);
   const [userPrefsMsg, setUserPrefsMsg] = React.useState({ text: '', type: '' });
   const [loaded, setLoaded] = React.useState(false);
   const saveTimer = React.useRef(null);
   const userPrefsMsgTimer = React.useRef(null);
+  const cfgRef = React.useRef(EMPTY_COMMON);
+  const versionsRef = React.useRef([]);
+  const projectRootsRef = React.useRef([]);
+
+  const refreshCatalogStats = React.useCallback(async () => {
+    const [libraryMetaRes, projectsRes] = await Promise.all([
+      getLibraryMeta().catch(() => ({})),
+      getProjects({ light: 1 }).catch(() => ({})),
+    ]);
+
+    const libraryMeta = libraryMetaRes?.meta && typeof libraryMetaRes.meta === 'object'
+      ? libraryMetaRes.meta
+      : {};
+    const resourcesCountRaw = Number(libraryMetaRes?.count);
+    const resourcesCount = Number.isFinite(resourcesCountRaw)
+      ? Math.max(0, Math.trunc(resourcesCountRaw))
+      : 0;
+    const resourcesLastImportRaw = String(
+      libraryMeta?.lastImportAt ||
+      libraryMeta?.lastImportDate ||
+      ''
+    ).trim();
+
+    const projectsList = Array.isArray(projectsRes?.projects) ? projectsRes.projects : [];
+    const projectsCount = projectsList.length;
+    let latestProjectImportRaw = '';
+    let latestProjectImportMs = -1;
+    for (const project of projectsList) {
+      const raw = String(project?.createdAt || '').trim();
+      if (!raw) continue;
+      const ms = Date.parse(raw);
+      if (!Number.isFinite(ms)) continue;
+      if (ms > latestProjectImportMs) {
+        latestProjectImportMs = ms;
+        latestProjectImportRaw = raw;
+      }
+    }
+
+    setCatalogStats({
+      resourcesCount,
+      resourcesLastImport: formatDateTime(resourcesLastImportRaw, lang),
+      projectsCount,
+      projectsLastImport: formatDateTime(latestProjectImportRaw, lang),
+    });
+  }, [lang]);
+
+  const {
+    fabAuthConnected, fabAuthBusy, fabAuthMsg, fabAuthMsgType,
+    fabPreviewItems, fabSelection, setFabSelection,
+    fabPreviewBusy, fabImporting,
+    fabRemoteImportMsg, fabRemoteImportMsgType, fabRemoteImportBusy,
+    handleFabLogin, handleFabLogout, handleFabPreview, handleFabRemoteImport,
+    fabSelectedCount, fabSelectableCount, fabAllSelected,
+    fabHasPreview, fabShowControls, fabShowImportProgress,
+    fabRemainingCount, fabCountLabel, fabRemainingLabel,
+    fabPreviewNewItems, fabPreviewUpdatedItems,
+    normalizeUid,
+  } = useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavigate });
+
+  const {
+    projectScanMsg, projectScanMsgType, projectScanBusy,
+    projectScanRecursive, setProjectScanRecursive,
+    projectScanResults, setProjectScanResults,
+    projectImportBusy, hideImportedProjects, setHideImportedProjects,
+    handleProjectScan, handleProjectImport,
+    selectableScanCount, allSelectableSelected, visibleScanResults,
+  } = useConfigProjectScan({ t, projectRootsRef, refreshCatalogStats, onNavigate });
 
   React.useEffect(() => {
     if (!noticeApi) return;
-    // Debug deps order (disabled in runtime builds)
     if (projectScanMsg) {
       noticeApi.showNotice?.(projectScanMsg, projectScanMsgType || '');
       return;
@@ -253,10 +188,6 @@ export default function ConfigurationScreen({
     fabRemoteImportMsgType,
     noticeApi,
   ]);
-  const cfgRef = React.useRef(EMPTY_COMMON);
-  const versionsRef = React.useRef([]);
-  const projectRootsRef = React.useRef([]);
-
   // chargement des options communes
   React.useEffect(() => {
     (async () => {
@@ -382,56 +313,10 @@ export default function ConfigurationScreen({
     setShowFabResourcesForUser(resolveShowFabResourcesPreference(notificationPrefs));
   }, [notificationPrefs]);
 
-  const refreshCatalogStats = React.useCallback(async () => {
-    const [libraryMetaRes, projectsRes] = await Promise.all([
-      getLibraryMeta().catch(() => ({})),
-      getProjects({ light: 1 }).catch(() => ({})),
-    ]);
-
-    const libraryMeta = libraryMetaRes?.meta && typeof libraryMetaRes.meta === 'object'
-      ? libraryMetaRes.meta
-      : {};
-    const resourcesCountRaw = Number(libraryMetaRes?.count);
-    const resourcesCount = Number.isFinite(resourcesCountRaw)
-      ? Math.max(0, Math.trunc(resourcesCountRaw))
-      : 0;
-    const resourcesLastImportRaw = String(
-      libraryMeta?.lastImportAt ||
-      libraryMeta?.lastImportDate ||
-      ''
-    ).trim();
-
-    const projectsList = Array.isArray(projectsRes?.projects) ? projectsRes.projects : [];
-    const projectsCount = projectsList.length;
-    let latestProjectImportRaw = '';
-    let latestProjectImportMs = -1;
-    for (const project of projectsList) {
-      const raw = String(project?.createdAt || '').trim();
-      if (!raw) continue;
-      const ms = Date.parse(raw);
-      if (!Number.isFinite(ms)) continue;
-      if (ms > latestProjectImportMs) {
-        latestProjectImportMs = ms;
-        latestProjectImportRaw = raw;
-      }
-    }
-
-    setCatalogStats({
-      resourcesCount,
-      resourcesLastImport: formatDateTime(resourcesLastImportRaw, lang),
-      projectsCount,
-      projectsLastImport: formatDateTime(latestProjectImportRaw, lang),
-    });
-  }, [lang]);
-
   React.useEffect(() => {
     if (!loaded) return;
     refreshCatalogStats();
   }, [loaded, refreshCatalogStats]);
-
-  React.useEffect(() => {
-    refreshFabAuthStatus();
-  }, []);
 
   React.useEffect(() => {
     cfgRef.current = cfg;
@@ -446,76 +331,10 @@ export default function ConfigurationScreen({
   }, [projectRoots]);
 
   React.useEffect(() => {
-    try {
-      localStorage.setItem(
-        'uu_hide_imported_projects',
-        hideImportedProjects ? 'true' : 'false'
-      );
-    } catch {}
-  }, [hideImportedProjects]);
-
-  React.useEffect(() => {
     if (!noticeApi || !licenseWarn) return;
     if (!licenseLine) return;
     noticeApi.showNotice?.(licenseLine, 'error');
   }, [noticeApi, licenseWarn, licenseLine]);
-
-  function normalizeProjectRoots(list = []) {
-    const out = [];
-    const seen = new Set();
-    (Array.isArray(list) ? list : []).forEach((val) => {
-      const raw = String(val || '').trim();
-      if (!raw) return;
-      const key = raw.replace(/\\/g, '/').toLowerCase();
-      if (seen.has(key)) return;
-      seen.add(key);
-      out.push(raw);
-    });
-    return out;
-  }
-
-  function normalizeUid(uid) {
-    return String(uid || '').trim().toLowerCase();
-  }
-
-  function normalizeFabPreviewStatus(item) {
-    const raw = String(item?.status || item?.state || item?.kind || '').trim().toLowerCase();
-    if (raw === 'new' || raw === 'added') return 'new';
-    if (raw === 'modified' || raw === 'updated' || raw === 'update') return 'modified';
-    if (item?.isNew) return 'new';
-    if (item?.isModified) return 'modified';
-    return 'modified';
-  }
-
-  function normalizePathKey(p) {
-    return String(p || '')
-      .trim()
-      .replace(/\\/g, '/')
-      .toLowerCase();
-  }
-
-  function deriveNameFromPath(p) {
-    const file = String(p || '').split(/[\\/]/).pop() || '';
-    return file.replace(/\.uproject$/i, '');
-  }
-
-  function parseNotificationPrefsObject(value) {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      return value;
-    }
-    const raw = String(value || '').trim();
-    if (!raw) return {};
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-    } catch {}
-    return {};
-  }
-
-  function resolveShowFabResourcesPreference(value) {
-    const parsed = parseNotificationPrefsObject(value);
-    return parsed?.showFabResources !== false;
-  }
 
   function updateField(field, value, sectionOverride = null) {
     const section =
@@ -578,6 +397,38 @@ export default function ConfigurationScreen({
       showUserPrefsFeedback(t('config.userPreferences.saved'), 'ok');
     } else {
       setShowFabResourcesForUser(resolveShowFabResourcesPreference(notificationPrefs));
+      showUserPrefsFeedback(t('config.userPreferences.saveError'), 'error');
+    }
+  }
+
+  async function handleChangeInterfaceLanguageForUser(nextValue) {
+    const normalized = normalizeInterfaceLanguage(nextValue);
+    const previous = normalizeInterfaceLanguage(interfaceLanguageForUser);
+    if (normalized === previous) return;
+    setInterfaceLanguageForUser(normalized);
+    if (typeof onUpdateMe !== 'function') {
+      showUserPrefsFeedback(t('config.userPreferences.authRequired'), 'warn');
+      setInterfaceLanguageForUser(previous);
+      return;
+    }
+    setUserPrefsSaving(true);
+    let ok = false;
+    try {
+      const result = await Promise.resolve(onUpdateMe({
+        language: normalized,
+      }));
+      ok = result !== false;
+    } catch {
+      ok = false;
+    } finally {
+      setUserPrefsSaving(false);
+    }
+    if (ok) {
+      await preloadI18n(normalized);
+      setLang(normalized);
+      showUserPrefsFeedback(t('config.userPreferences.saved'), 'ok');
+    } else {
+      setInterfaceLanguageForUser(previous);
       showUserPrefsFeedback(t('config.userPreferences.saveError'), 'error');
     }
   }
@@ -822,427 +673,7 @@ export default function ConfigurationScreen({
     }
   }, [detectedScanBusy, onScanDetectedRenders]);
 
-  async function handleProjectScan() {
-    const cleaned = normalizeProjectRoots(projectRootsRef.current);
-    if (cleaned.length === 0) {
-      setProjectScanMsgType('error');
-      setProjectScanMsg(t('setup.server.projectRoots.empty'));
-      setProjectScanResults([]);
-      setTimeout(() => {
-        setProjectScanMsg('');
-        setProjectScanMsgType('');
-      }, 2500);
-      return;
-    }
-
-    setProjectScanBusy(true);
-    setProjectScanMsg('');
-    setProjectScanMsgType('');
-
-    try {
-      const res = await postProjectsScan({
-        project_roots: cleaned,
-        recursive: projectScanRecursive,
-      });
-      const items = Array.isArray(res?.items) ? res.items : [];
-      const normalized = items.map((it) => {
-        const up = String(it?.uprojectPath || it?.uproject || it?.path || '').trim();
-        const name = String(it?.name || '').trim() || deriveNameFromPath(up);
-        const exists = !!it?.exists;
-        return {
-          name,
-          uprojectPath: up,
-          exists,
-          selected: !exists,
-        };
-      });
-
-      const found = normalized.length;
-      const existing = normalized.filter((it) => it.exists).length;
-      setProjectScanResults(normalized);
-      setProjectScanMsgType('ok');
-      setProjectScanMsg(
-        t('setup.server.projectRoots.scanResult', { found, existing })
-      );
-    } catch {
-      setProjectScanResults([]);
-      setProjectScanMsgType('error');
-      setProjectScanMsg(t('setup.server.projectRoots.scanError'));
-    } finally {
-      setProjectScanBusy(false);
-      setTimeout(() => {
-        setProjectScanMsg('');
-        setProjectScanMsgType('');
-      }, 3000);
-    }
-  }
-
-  async function handleProjectImport() {
-    const selected = projectScanResults.filter((it) => it.selected && !it.exists);
-    if (selected.length === 0) {
-      setProjectScanMsgType('error');
-      setProjectScanMsg(t('setup.server.projectRoots.noSelection'));
-      setTimeout(() => {
-        setProjectScanMsg('');
-        setProjectScanMsgType('');
-      }, 2500);
-      return;
-    }
-
-    setProjectImportBusy(true);
-    setProjectScanMsg('');
-    setProjectScanMsgType('');
-
-    try {
-      const res = await postProjectsImport({
-        uprojectPaths: selected.map((it) => it.uprojectPath),
-      });
-      const imported = Number(res?.imported || 0);
-      const skipped = Number(res?.skipped || 0);
-      const importedSet = new Set(
-        (Array.isArray(res?.importedPaths) ? res.importedPaths : [])
-          .map((p) => normalizePathKey(p))
-          .filter(Boolean)
-      );
-      const skippedSet = new Set(
-        (Array.isArray(res?.skippedPaths) ? res.skippedPaths : [])
-          .map((p) => normalizePathKey(p))
-          .filter(Boolean)
-      );
-      setProjectScanResults((prev) =>
-        prev.map((it) => {
-          const key = normalizePathKey(it.uprojectPath);
-          if (importedSet.has(key) || skippedSet.has(key)) {
-            return { ...it, exists: true, selected: false };
-          }
-          return it;
-        })
-      );
-      setProjectScanMsgType('ok');
-      setProjectScanMsg(
-        t('setup.server.projectRoots.importResult', { imported, skipped })
-      );
-      refreshCatalogStats();
-      if (imported > 0 && typeof onNavigate === 'function') {
-        onNavigate('Projets', { force: true });
-      }
-    } catch {
-      setProjectScanMsgType('error');
-      setProjectScanMsg(t('setup.server.projectRoots.importError'));
-    } finally {
-      setProjectImportBusy(false);
-      setTimeout(() => {
-        setProjectScanMsg('');
-        setProjectScanMsgType('');
-      }, 3000);
-    }
-  }
-
-  async function refreshFabAuthStatus() {
-    if (typeof window.electron?.fabAuthStatus !== 'function') {
-      setFabAuthConnected(false);
-      return;
-    }
-    try {
-      const res = await window.electron.fabAuthStatus();
-      setFabAuthConnected(!!res?.connected);
-    } catch {
-      setFabAuthConnected(false);
-    }
-  }
-
-  async function handleFabLogin() {
-    if (fabAuthBusy) return;
-    if (typeof window.electron?.fabLogin !== 'function') {
-      setFabAuthMsgType('error');
-      setFabAuthMsg(t('config.resources.loginUnavailable'));
-      setTimeout(() => {
-        setFabAuthMsg('');
-        setFabAuthMsgType('');
-      }, 2500);
-      return;
-    }
-
-    setFabAuthBusy(true);
-    setFabAuthMsg('');
-    setFabAuthMsgType('');
-
-    try {
-      const res = await window.electron.fabLogin();
-      const connected = !!res?.connected;
-      setFabAuthConnected(connected);
-      setFabAuthMsgType(connected ? 'ok' : 'error');
-      setFabAuthMsg(
-        connected
-          ? (t('config.resources.loginOk'))
-          : (t('config.resources.loginError'))
-      );
-    } catch {
-      setFabAuthMsgType('error');
-      setFabAuthMsg(t('config.resources.loginError'));
-    } finally {
-      setFabAuthBusy(false);
-      setTimeout(() => {
-        setFabAuthMsg('');
-        setFabAuthMsgType('');
-      }, 3000);
-    }
-  }
-
-  async function handleFabLogout() {
-    if (fabAuthBusy) return;
-    if (typeof window.electron?.fabLogout !== 'function') {
-      setFabAuthConnected(false);
-      return;
-    }
-    setFabAuthBusy(true);
-    try {
-      await window.electron.fabLogout();
-      setFabAuthConnected(false);
-      setFabPreviewItems([]);
-      setFabSelection({});
-      setFabPreviewToken('');
-      setFabImporting(false);
-      setFabImportDone(0);
-      setFabImportTotal(0);
-    } finally {
-      setFabAuthBusy(false);
-    }
-  }
-
-  async function handleFabPreview() {
-    if (fabPreviewBusy || fabRemoteImportBusy) return;
-    if (!fabAuthConnected) {
-      setFabRemoteImportMsgType('error');
-      setFabRemoteImportMsg(t('config.resources.loginRequired'));
-      setTimeout(() => {
-        setFabRemoteImportMsg('');
-        setFabRemoteImportMsgType('');
-      }, 2500);
-      return;
-    }
-
-    setFabPreviewBusy(true);
-    setFabRemoteImportMsg('');
-    setFabRemoteImportMsgType('');
-    setFabImporting(false);
-    setFabImportDone(0);
-    setFabImportTotal(0);
-    setFabPreviewToken('');
-
-    try {
-      const res = await postLibraryImportRemotePreview({
-        downloadThumbnails: false,
-      });
-      const ok = res && res.ok !== false;
-      if (!ok) {
-        const detail = String(res?.detail || res?.error || res?.status || '').trim();
-        const base = t('resources.fabImport.previewError');
-        setFabRemoteImportMsgType('error');
-        setFabRemoteImportMsg(detail ? `${base} (${detail})` : base);
-        return;
-      }
-
-      const list = Array.isArray(res?.items) ? res.items : [];
-      const ignored = Array.isArray(res?.ignored) ? res.ignored : [];
-      const ignoredSet = new Set(ignored.map((uid) => normalizeUid(uid)).filter(Boolean));
-      const selection = {};
-      list.forEach((item) => {
-        const key = normalizeUid(item?.uid);
-        if (!key) return;
-        selection[key] = !ignoredSet.has(key);
-      });
-      setFabPreviewItems(list);
-      setFabSelection(selection);
-      setFabPreviewToken(String(res?.token || res?.previewToken || res?.cacheToken || ''));
-
-      if (!list.length) {
-        setFabRemoteImportMsgType('info');
-        setFabRemoteImportMsg(t('resources.fabImport.empty'));
-      } else {
-        const selectedCount = Object.values(selection).filter(Boolean).length;
-        setFabRemoteImportMsgType('ok');
-        setFabRemoteImportMsg(
-          t('resources.fabImport.selectionCount', {
-            selected: selectedCount,
-            total: list.length,
-          })
-        );
-      }
-    } catch (e) {
-      const detail = String(e?.message || e || '').trim();
-      const base = t('resources.fabImport.previewError');
-      setFabRemoteImportMsgType('error');
-      setFabRemoteImportMsg(detail ? `${base} (${detail})` : base);
-      setFabPreviewToken('');
-    } finally {
-      setFabPreviewBusy(false);
-      setTimeout(() => {
-        setFabRemoteImportMsg('');
-        setFabRemoteImportMsgType('');
-      }, 3000);
-    }
-  }
-
-  async function handleFabRemoteImport() {
-    if (fabRemoteImportBusy || fabImporting) return;
-    if (!fabAuthConnected) {
-      setFabRemoteImportMsgType('error');
-      setFabRemoteImportMsg(t('config.resources.loginRequired'));
-      setTimeout(() => {
-        setFabRemoteImportMsg('');
-        setFabRemoteImportMsgType('');
-      }, 2500);
-      return;
-    }
-
-    const selected = [];
-    const ignored = [];
-    for (const item of fabPreviewItems) {
-      const key = normalizeUid(item?.uid);
-      if (!key) continue;
-      if (fabSelection[key]) selected.push(key);
-      else ignored.push(key);
-    }
-
-    if (selected.length === 0) {
-      setFabRemoteImportBusy(false);
-      setFabRemoteImportMsgType('error');
-      setFabRemoteImportMsg(t('resources.fabImport.noSelection'));
-      setTimeout(() => {
-        setFabRemoteImportMsg('');
-        setFabRemoteImportMsgType('');
-      }, 2500);
-      return;
-    }
-
-    const visibleUids = [...selected, ...ignored];
-    let importedTotal = 0;
-    let skippedTotal = 0;
-    let processed = 0;
-    let failed = false;
-
-    setFabRemoteImportBusy(true);
-    setFabRemoteImportMsg('');
-    setFabRemoteImportMsgType('');
-    setFabImporting(true);
-    setFabImportDone(0);
-    setFabImportTotal(selected.length);
-
-    try {
-      for (const uid of selected) {
-        const res = await postLibraryImportRemote({
-          selectedUids: [uid],
-          ignoredUids: ignored,
-          visibleUids,
-          previewToken: fabPreviewToken,
-          downloadThumbnails: true,
-        });
-        const ok = res && res.ok !== false;
-        if (!ok) {
-          const detail = String(res?.detail || res?.error || res?.status || '').trim();
-          const base = t('config.resources.remoteImportError');
-          setFabRemoteImportMsgType('error');
-          setFabRemoteImportMsg(detail ? `${base} (${detail})` : base);
-          failed = true;
-          break;
-        }
-
-        importedTotal += Number(res?.imported || 0);
-        skippedTotal += Number(res?.skipped || 0);
-        processed += 1;
-        setFabImportDone(processed);
-        setFabPreviewItems((prev) =>
-          prev.filter((row) => normalizeUid(row?.uid) !== uid)
-        );
-        setFabSelection((prev) => {
-          const next = { ...prev };
-          delete next[uid];
-          return next;
-        });
-      }
-
-      if (!failed) {
-        setFabRemoteImportMsgType('ok');
-        setFabRemoteImportMsg(
-          t('config.resources.remoteImportResult', {
-            imported: importedTotal,
-            skipped: skippedTotal,
-          })
-        );
-        refreshCatalogStats();
-        if (typeof onLibraryImported === 'function' && importedTotal > 0) {
-          onLibraryImported();
-        }
-        await handleFabLogout();
-        if (typeof onNavigate === 'function') {
-          onNavigate('Ressources', { force: true });
-        }
-      }
-    } catch {
-      if (!failed) {
-        setFabRemoteImportMsgType('error');
-        setFabRemoteImportMsg(t('config.resources.remoteImportError'));
-      }
-    } finally {
-      setFabRemoteImportBusy(false);
-      setFabImporting(false);
-      setTimeout(() => {
-        setFabRemoteImportMsg('');
-        setFabRemoteImportMsgType('');
-      }, 3000);
-    }
-  }
-
   const cleanedProjectRoots = normalizeProjectRoots(projectRoots);
-  const selectableScanCount = projectScanResults.filter((it) => !it.exists).length;
-  const allSelectableSelected =
-    selectableScanCount > 0 &&
-    projectScanResults.every((it) => it.exists || it.selected);
-  const visibleScanResults = hideImportedProjects
-    ? projectScanResults.filter((it) => !it.exists)
-    : projectScanResults;
-  const fabSelectedCount = React.useMemo(() => {
-    if (!fabPreviewItems.length) return 0;
-    let count = 0;
-    for (const item of fabPreviewItems) {
-      const key = normalizeUid(item?.uid);
-      if (key && fabSelection[key]) count += 1;
-    }
-    return count;
-  }, [fabPreviewItems, fabSelection]);
-  const fabSelectableCount = React.useMemo(() => {
-    if (!fabPreviewItems.length) return 0;
-    let count = 0;
-    for (const item of fabPreviewItems) {
-      if (normalizeUid(item?.uid)) count += 1;
-    }
-    return count;
-  }, [fabPreviewItems]);
-  const fabAllSelected =
-    fabSelectableCount > 0 && fabSelectedCount === fabSelectableCount;
-  const fabHasPreview = fabPreviewItems.length > 0;
-  const fabShowControls = fabHasPreview || fabImporting;
-  const fabShowImportProgress = fabImporting;
-  const fabRemainingCount = Math.max(fabImportTotal - fabImportDone, 0);
-  const fabCountLabel = fabShowImportProgress
-    ? t('resources.fabImport.importCount', {
-        imported: fabImportDone,
-        total: fabImportTotal,
-      })
-    : t('resources.fabImport.selectionCount', {
-        selected: fabSelectedCount,
-        total: fabSelectableCount,
-      });
-  const fabRemainingLabel = fabShowImportProgress
-    ? t('resources.fabImport.remainingCount', { count: fabRemainingCount })
-    : '';
-  const fabPreviewNewItems = React.useMemo(() => (
-    fabPreviewItems.filter((item) => normalizeFabPreviewStatus(item) === 'new')
-  ), [fabPreviewItems]);
-  const fabPreviewUpdatedItems = React.useMemo(() => (
-    fabPreviewItems.filter((item) => normalizeFabPreviewStatus(item) === 'modified')
-  ), [fabPreviewItems]);
   const showAdminConfiguration = canManageConfiguration === true;
 
   const renderFabPreviewList = (list) => (
@@ -1285,8 +716,22 @@ export default function ConfigurationScreen({
               {t('config.userPreferences.title')}
             </h3>
           </div>
-          <div className="uu-muted">
-            {t('config.userPreferences.hint')}
+          <div className="uu-grid-field uu-maxw-420 mt-12" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <label className="uu-label" style={{ width: '170px', minWidth: '170px', margin: 0 }}>
+              {t('config.lang.label')}
+            </label>
+            <select
+              className="uu-input"
+              style={{ flex: 1 }}
+              value={interfaceLanguageForUser}
+              disabled={userPrefsSaving}
+              onChange={(e) => {
+                void handleChangeInterfaceLanguageForUser(e.target.value);
+              }}
+            >
+              <option value="fr">{t('common.lang.fr')}</option>
+              <option value="en">{t('common.lang.en')}</option>
+            </select>
           </div>
           <label className="uu-check">
             <input
@@ -1304,16 +749,6 @@ export default function ConfigurationScreen({
       {showAdminConfiguration ? (
       <>
       <div className="uu-section mt-16">
-        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
-          <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
-            {t('config.scope.system.title')}
-          </h3>
-        </div>
-        <div className="uu-muted">
-          {t('config.scope.system.hint')}
-        </div>
-      </div>
-      <div className="uu-section">
         <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
           <h3 className="uu-h3 uu-block-title">
             {t('config.commonTitle')}
@@ -1453,18 +888,6 @@ export default function ConfigurationScreen({
         </div>
 
       </div>
-
-      <div className="uu-section mt-16">
-        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
-          <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
-            {t('config.scope.station.title')}
-          </h3>
-        </div>
-        <div className="uu-muted">
-          {t('config.scope.station.hint')}
-        </div>
-      </div>
-
       <div className="uu-section mt-16">
         <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
           <h3 className="uu-h3 uu-block-title">{t('config.postprod.sectionTitle')}</h3>

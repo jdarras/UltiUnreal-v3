@@ -17,7 +17,6 @@ async function handlePostprodUserUpdateRoutes({
   sanitizeLastName,
   sanitizeEmail,
   sanitizePhone,
-  sanitizeEmploymentType,
   sanitizeUserNote,
   sanitizeAvatarPath,
   sanitizeTimezone,
@@ -154,7 +153,6 @@ async function handlePostprodUserUpdateRoutes({
   const hasLastName = Object.prototype.hasOwnProperty.call(body || {}, 'lastName');
   const hasEmail = Object.prototype.hasOwnProperty.call(body || {}, 'email');
   const hasEmail2 = Object.prototype.hasOwnProperty.call(body || {}, 'email2');
-  const hasEmploymentType = Object.prototype.hasOwnProperty.call(body || {}, 'employmentType');
   const hasNote = Object.prototype.hasOwnProperty.call(body || {}, 'note');
   const hasAvatarPath = Object.prototype.hasOwnProperty.call(body || {}, 'avatarPath');
   const hasMustChangePassword = Object.prototype.hasOwnProperty.call(body || {}, 'mustChangePassword');
@@ -253,15 +251,6 @@ async function handlePostprodUserUpdateRoutes({
     nextOfficePhone = sanitizePhone(body?.phone2 ?? body?.officePhone ?? '');
     if (!nextPhone) nextPhone = nextOfficePhone;
     if (!nextMobilePhone) nextMobilePhone = nextPhone;
-  }
-  let nextEmploymentType = sanitizeEmploymentType(currentUser.employment_type);
-  if (hasEmploymentType) {
-    const rawEmploymentType = String(body?.employmentType || '').trim();
-    nextEmploymentType = sanitizeEmploymentType(rawEmploymentType);
-    if (rawEmploymentType && !nextEmploymentType) {
-      sendJSON(res, 400, { ok: false, error: 'invalid_employment_type' });
-      return true;
-    }
   }
   let nextNote = sanitizeUserNote(currentUser.user_note);
   if (hasNote) {
@@ -362,7 +351,6 @@ async function handlePostprodUserUpdateRoutes({
     !hasEmail2 &&
     !phoneInputInfo.hasAny &&
     !hasPhone2 &&
-    !hasEmploymentType &&
     !hasNote &&
     !hasAvatarPath &&
     !hasMustChangePassword &&
@@ -391,7 +379,6 @@ async function handlePostprodUserUpdateRoutes({
         hasEmail2 ||
         phoneInputInfo.hasAny ||
         hasPhone2 ||
-        hasEmploymentType ||
         hasNote ||
         hasAvatarPath
       ) {
@@ -407,7 +394,6 @@ async function handlePostprodUserUpdateRoutes({
           nextMobilePhone,
           nextOfficePhone,
           nextPhone,
-          nextEmploymentType,
           nextNote,
           nextAvatarPath,
           now,
@@ -476,7 +462,6 @@ async function handlePostprodUserUpdateRoutes({
         phone: phoneInputInfo.hasAny || hasPhone2,
         mobilePhone: phoneInputInfo.hasLegacyMobile,
         officePhone: phoneInputInfo.hasLegacyOffice || hasPhone2,
-        employmentType: hasEmploymentType,
         note: hasNote,
         avatarPath: hasAvatarPath,
         mustChangePassword: hasMustChangePassword,

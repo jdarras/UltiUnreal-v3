@@ -1,0 +1,410 @@
+import { useEffect } from 'react';
+import { useSnapshots } from './useSnapshots';
+import { useHttpBind } from './useHttpBind';
+import { useVideoProduction } from './useVideoProduction';
+import { useProjectDetailState } from './useProjectDetailState';
+import { useProjectDetailRefs } from './useProjectDetailRefs';
+import { useProjectDetailRenderBridge } from './useProjectDetailRenderBridge';
+import { useProjectDetailProjectVersion } from './useProjectDetailProjectVersion';
+import { useProjectDetailDefaultMaps } from './useProjectDetailDefaultMaps';
+import { useProjectDetailKeywords } from './useProjectDetailKeywords';
+import { useProjectDetailLifecycle } from './useProjectDetailLifecycle';
+import { useProjectDetailResetState } from './useProjectDetailResetState';
+import { useProjectDetailEditor } from './useProjectDetailEditor';
+import { useProjectDetailPersistence } from './useProjectDetailPersistence';
+
+function useProjectDetail({
+  t,
+  canEditFields,
+  projects,
+  setProjects,
+  activeName,
+  activeId,
+  activeByHost,
+  saveToServer,
+  projectFavoritesRef,
+}) {
+  const {
+    detailId,
+    setDetailId,
+    detailName,
+    setDetailName,
+    detailPath,
+    setDetailPath,
+    detailWrcNames,
+    setDetailWrcNames,
+    detailMeta,
+    setDetailMeta,
+    detailInsights,
+    setDetailInsights,
+    detailLoading,
+    setDetailLoading,
+    detailMsg,
+    setDetailMsg,
+    detailIsNew,
+    setDetailIsNew,
+    projectVersion,
+    setProjectVersion,
+    projectVersionMsg,
+    setProjectVersionMsg,
+    projectVersionMsgType,
+    setProjectVersionMsgType,
+    projectVersionBusy,
+    setProjectVersionBusy,
+    indexationMsg,
+    setIndexationMsg,
+    indexationMsgType,
+    setIndexationMsgType,
+    intervenantsMsg,
+    setIntervenantsMsg,
+    intervenantsMsgType,
+    setIntervenantsMsgType,
+    renderBridgeStatus,
+    setRenderBridgeStatus,
+    renderBridgeBusy,
+    setRenderBridgeBusy,
+    renderBridgeMsg,
+    setRenderBridgeMsg,
+    renderBridgeMsgType,
+    setRenderBridgeMsgType,
+    mapsMsg,
+    setMapsMsg,
+    mapsMsgType,
+    setMapsMsgType,
+    mapsBusy,
+    setMapsBusy,
+    keywordsInput,
+    setKeywordsInput,
+  } = useProjectDetailState();
+
+  const {
+    detailMetaRef,
+    detailNoteRef,
+    detailSavedNoteRef,
+    detailNoteDirtyRef,
+    keywordsDirtyRef,
+    projectDropdownDirtyRef,
+    renderBridgeAutoInstallAttemptRef,
+    saveTimer,
+    projectVersionTimer,
+  } = useProjectDetailRefs();
+
+  const {
+    snapshotOpen,
+    snapshotBusy,
+    snapshotMsg,
+    snapshotMsgType,
+    setSnapshotOpen,
+    setSnapshotBusy,
+    setSnapshotMsg,
+    setSnapshotMsgType,
+    snapshotSrc,
+    setAutoScreenshotFromSnapshot,
+  } = useSnapshots({ t, detailId, setDetailMeta, setProjects });
+
+  const {
+    httpBindBusy,
+    httpBindEditing,
+    httpBindDraft,
+    setHttpBindDraft,
+    httpBindDisplay,
+    httpBindDisplayClass,
+    httpIniExists,
+    httpBindDraftValid,
+    httpBindInlineMsg,
+    httpBindInlineClass,
+    canEditHttpBind,
+    startHttpBindEdit,
+    cancelHttpBindEdit,
+    saveHttpBindAddress,
+    resetHttpBind,
+  } = useHttpBind({ detailInsights, detailId, detailIsNew, t, setDetailInsights });
+
+  const {
+    vpDraft,
+    setVpDraft,
+    setVpMsg,
+    setVpMsgType,
+    vpBusy,
+    setVpBusy,
+    scheduleVpSave,
+  } = useVideoProduction({ t, detailId, detailIsNew, detailInsights, setDetailInsights });
+
+  useEffect(() => {
+    detailMetaRef.current = detailMeta;
+  }, [detailMeta]);
+
+  useEffect(() => {
+    const el = detailNoteRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [detailMeta?.note, detailNoteRef]);
+
+  useEffect(() => {
+    setKeywordsInput('');
+  }, [detailId, detailMeta?.keywords]);
+
+  const {
+    isRenderBridgeUsage,
+    loadRenderBridgeStatus,
+    installRenderBridgeForDetail,
+  } = useProjectDetailRenderBridge({
+    t,
+    detailId,
+    detailIsNew,
+    detailUsageMode: detailMeta?.usageMode,
+    renderBridgeAutoInstallAttemptRef,
+    setRenderBridgeStatus,
+    setRenderBridgeBusy,
+    setRenderBridgeMsg,
+    setRenderBridgeMsgType,
+  });
+
+  const { scheduleProjectVersionSave } = useProjectDetailProjectVersion({
+    t,
+    canEditFields,
+    detailId,
+    detailIsNew,
+    detailInsights,
+    detailMeta,
+    projectVersion,
+    setProjectVersion,
+    setProjectVersionMsg,
+    setProjectVersionMsgType,
+    setProjectVersionBusy,
+    setDetailInsights,
+    setDetailMeta,
+    setProjects,
+    projectVersionTimer,
+  });
+
+  const { applyDefaultMapsPatch } = useProjectDetailDefaultMaps({
+    t,
+    detailId,
+    setDetailInsights,
+    setProjects,
+    setMapsBusy,
+    setMapsMsg,
+    setMapsMsgType,
+  });
+
+  const { resetDetailState } = useProjectDetailResetState({
+    resetHttpBind,
+    projectVersionTimer,
+    setDetailMsg,
+    setIndexationMsg,
+    setIndexationMsgType,
+    setRenderBridgeStatus,
+    setRenderBridgeMsg,
+    setRenderBridgeMsgType,
+    setRenderBridgeBusy,
+    setIntervenantsMsg,
+    setIntervenantsMsgType,
+    setProjectVersion,
+    setProjectVersionMsg,
+    setProjectVersionMsgType,
+    setProjectVersionBusy,
+    setSnapshotOpen,
+    setSnapshotBusy,
+    setSnapshotMsg,
+    setSnapshotMsgType,
+    setMapsMsg,
+    setMapsMsgType,
+    setMapsBusy,
+    setVpMsg,
+    setVpMsgType,
+    setVpBusy,
+    setVpDraft,
+    setDetailMeta,
+    setDetailInsights,
+    keywordsDirtyRef,
+    projectDropdownDirtyRef,
+    detailNoteDirtyRef,
+  });
+
+  const { saveDetails } = useProjectDetailPersistence({
+    t,
+    canEditFields,
+    detailIsNew,
+    detailId,
+    detailMeta,
+    detailPath,
+    detailWrcNames,
+    projectVersion,
+    projects,
+    activeName,
+    activeId,
+    activeByHost,
+    saveToServer,
+    projectFavoritesRef,
+    detailMetaRef,
+    detailSavedNoteRef,
+    setDetailLoading,
+    setDetailMeta,
+    setDetailInsights,
+    setProjectVersion,
+    setProjectVersionMsg,
+    setProjectVersionMsgType,
+    setProjects,
+    setIndexationMsg,
+    setIndexationMsgType,
+    setIntervenantsMsg,
+    setIntervenantsMsgType,
+  });
+
+  const { updateDetailField, scheduleSave } = useProjectDetailEditor({
+    canEditFields,
+    detailIsNew,
+    detailId,
+    detailMeta,
+    detailWrcNames,
+    projectVersion,
+    detailMetaRef,
+    detailNoteDirtyRef,
+    saveTimer,
+    setDetailMeta,
+    setIndexationMsg,
+    setIndexationMsgType,
+    setIntervenantsMsg,
+    setIntervenantsMsgType,
+    saveDetails,
+  });
+
+  const {
+    detailKeywordsList,
+    addKeywordToDraft,
+    removeKeywordFromDraft,
+    handleKeywordKeyDown,
+  } = useProjectDetailKeywords({
+    detailKeywordsRaw: detailMeta?.keywords,
+    keywordsInput,
+    setKeywordsInput,
+    updateDetailField,
+    keywordsDirtyRef,
+  });
+
+  const {
+    openDetails,
+    closeDetailAndSave,
+  } = useProjectDetailLifecycle({
+    detailId,
+    detailIsNew,
+    detailMeta,
+    detailPath,
+    detailWrcNames,
+    projectVersion,
+    projects,
+    projectFavoritesRef,
+    saveTimer,
+    detailMetaRef,
+    detailSavedNoteRef,
+    detailNoteDirtyRef,
+    keywordsDirtyRef,
+    projectDropdownDirtyRef,
+    setDetailId,
+    setDetailIsNew,
+    setDetailName,
+    setDetailPath,
+    setDetailWrcNames,
+    setDetailLoading,
+    setDetailMeta,
+    setDetailInsights,
+    setProjectVersion,
+    setProjects,
+    resetDetailState,
+    saveDetails,
+  });
+
+  const httpBindVisible = !detailIsNew && !!detailId && (httpIniExists !== null);
+
+  return {
+    detailId,
+    setDetailId,
+    detailName,
+    setDetailName,
+    detailPath,
+    setDetailPath,
+    detailWrcNames,
+    setDetailWrcNames,
+    detailMeta,
+    setDetailMeta,
+    detailMetaRef,
+    detailInsights,
+    setDetailInsights,
+    detailLoading,
+    detailMsg,
+    setDetailMsg,
+    detailIsNew,
+    setDetailIsNew,
+    detailNoteRef,
+    projectDropdownDirtyRef,
+    projectVersion,
+    setProjectVersion,
+    projectVersionMsg,
+    setProjectVersionMsg,
+    projectVersionMsgType,
+    setProjectVersionMsgType,
+    projectVersionBusy,
+    indexationMsg,
+    indexationMsgType,
+    intervenantsMsg,
+    intervenantsMsgType,
+    renderBridgeStatus,
+    renderBridgeBusy,
+    renderBridgeMsg,
+    renderBridgeMsgType,
+    mapsMsg,
+    mapsMsgType,
+    mapsBusy,
+    keywordsInput,
+    setKeywordsInput,
+    detailKeywordsList,
+    isRenderBridgeUsage,
+    loadRenderBridgeStatus,
+    installRenderBridgeForDetail,
+    updateDetailField,
+    scheduleSave,
+    scheduleProjectVersionSave,
+    applyDefaultMapsPatch,
+    openDetails,
+    closeDetailAndSave,
+    resetDetailState,
+    addKeywordToDraft,
+    removeKeywordFromDraft,
+    handleKeywordKeyDown,
+    httpBindVisible,
+    // snapshot
+    snapshotOpen,
+    snapshotBusy,
+    snapshotMsg,
+    snapshotMsgType,
+    setSnapshotOpen,
+    setSnapshotMsg,
+    setSnapshotMsgType,
+    snapshotSrc,
+    setAutoScreenshotFromSnapshot,
+    // httpBind
+    httpBindBusy,
+    httpBindEditing,
+    httpBindDraft,
+    setHttpBindDraft,
+    httpBindDisplay,
+    httpBindDisplayClass,
+    httpBindDraftValid,
+    httpBindInlineMsg,
+    httpBindInlineClass,
+    canEditHttpBind,
+    startHttpBindEdit,
+    cancelHttpBindEdit,
+    saveHttpBindAddress,
+    // videoProduction
+    vpDraft,
+    setVpDraft,
+    vpBusy,
+    scheduleVpSave,
+  };
+}
+
+export { useProjectDetail };
+export default useProjectDetail;

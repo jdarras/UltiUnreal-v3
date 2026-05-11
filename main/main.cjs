@@ -403,6 +403,23 @@ function createWindow() {
   if (isDev) mainWindow.loadURL('http://localhost:5173');
   else       mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 
+  // Raccourci DevTools explicite (menu global désactivé plus bas).
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    const key = String(input?.key || '').toLowerCase();
+    const isMacToggle = process.platform === 'darwin' && input.meta && input.alt && key === 'i';
+    const isWinToggle = process.platform !== 'darwin' && input.control && input.shift && key === 'i';
+    const isF12 = key === 'f12';
+    if (!isMacToggle && !isWinToggle && !isF12) return;
+
+    event.preventDefault();
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.webContents.isDevToolsOpened()) {
+      mainWindow.webContents.closeDevTools();
+    } else {
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }
+  });
+
   // ✅ accrocher le handler ici, sur mainWindow
   mainWindow.on('close', (e) => {
     if (isQuitting) return;      // on laisse passer si déjà en sortie

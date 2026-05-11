@@ -5,7 +5,7 @@ import { useUserActivity } from "../useUserActivity";
 import { useUserProjectPermissions } from "../useUserProjectPermissions";
 import { useUserEditorFlow } from "../useUserEditorFlow";
 import { useUserCatalogOptions } from "../useUserCatalogOptions";
-import { USER_LIST_SORT_COLUMNS } from "../../userSharedHelpers";
+import { DEFAULT_NOTIFICATION_PREFS, stringifyNotificationPrefs, USER_LIST_SORT_COLUMNS } from "../../userSharedHelpers";
 
 export function useUserManagementState({
   t,
@@ -138,6 +138,63 @@ export function useUserManagementState({
     listSortDir,
   });
 
+  function openCreate() {
+    resetEditorDraft(roleOptions[0] || "");
+    resetPermissionState?.();
+    resetActivityState?.();
+    setEditingUserId(0);
+    setEditorMode("create");
+  }
+
+  function openEdit(entry) {
+    const id = Number(entry?.id || 0);
+    if (!id) return;
+    setDraft({
+      username: String(entry?.username || ""),
+      displayName: String(entry?.displayName || ""),
+      password: "",
+      firstName: String(entry?.firstName || ""),
+      lastName: String(entry?.lastName || ""),
+      email: String(entry?.email || ""),
+      email2: String(entry?.email2 || ""),
+      phone: String(entry?.phone1 || entry?.phone || ""),
+      phone2: String(entry?.phone2 || entry?.officePhone || ""),
+      note: String(entry?.note || ""),
+      avatarPath: String(entry?.avatarPath || ""),
+      language: String(entry?.language || "fr").trim().toLowerCase() === "en" ? "en" : "fr",
+      notificationPrefsJson: stringifyNotificationPrefs(
+        entry?.notificationPrefsJson || entry?.notificationPreferences || DEFAULT_NOTIFICATION_PREFS
+      ),
+      mustChangePassword: entry?.mustChangePassword === true,
+      role: String(entry?.role || roleOptions[0] || "").trim(),
+      isActive: entry?.isActive !== false,
+    });
+    resetPermissionState?.();
+    resetActivityState?.();
+    setEditorAvatarError("");
+    setEditorAvatarLoading(false);
+    setEditingUserId(id);
+    setEditorMode("edit");
+    void loadUserActivity?.(id, {
+      fromAtLocal: "",
+      toAtLocal: "",
+      actionType: "all",
+      projectRef: "",
+      searchQuery: "",
+    });
+    if (canManageProjectPermissions) {
+      void loadUserProjectPermissions?.(id);
+    }
+  }
+
+  function closeEditor() {
+    setEditorMode("list");
+    setEditingUserId(0);
+    resetEditorDraft(roleOptions[0] || "");
+    resetPermissionState?.();
+    resetActivityState?.();
+  }
+
   useEffect(() => {
     if (typeof onEditorModeChange !== "function") return;
     onEditorModeChange(inEditor);
@@ -229,6 +286,9 @@ export function useUserManagementState({
     groupedUsersByProfile,
     sortedUsersForList,
     editingEntry,
+    openCreate,
+    openEdit,
+    closeEditor,
   };
 }
 

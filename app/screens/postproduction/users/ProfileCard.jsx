@@ -1,9 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  fromDateTimeLocalToIso,
-} from "../shared/helpers";
 import { ProfileDetailsForm } from "./profile/ProfileDetailsForm";
 import { ProfileActivityPanel } from "./profile/ProfileActivityPanel";
+import { useActivityFilters } from "./hooks/useActivityFilters";
 import {
   DEFAULT_NOTIFICATION_PREFS,
   activityMatchesSearchQuery,
@@ -18,8 +16,6 @@ import {
 function ProfileCard({
   t,
   user = null,
-  appLang = "fr",
-  onChangeAppLanguage = null,
   saving = false,
   error = "",
   projects = [],
@@ -36,7 +32,6 @@ function ProfileCard({
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [employmentType, setEmploymentType] = useState("");
   const [note, setNote] = useState("");
   const [notificationPrefs, setNotificationPrefs] = useState(() => parseNotificationPrefs(DEFAULT_NOTIFICATION_PREFS));
   const [password, setPassword] = useState("");
@@ -44,12 +39,16 @@ function ProfileCard({
   const [avatarError, setAvatarError] = useState("");
   const [avatarLoading, setAvatarLoading] = useState(false);
   const avatarInputRef = useRef(null);
-  const activitySearchDebounceRef = useRef(null);
-  const [activityFromAtLocal, setActivityFromAtLocal] = useState("");
-  const [activityToAtLocal, setActivityToAtLocal] = useState("");
-  const [activityActionType, setActivityActionType] = useState("all");
-  const [activityProjectRef, setActivityProjectRef] = useState("");
-  const [activitySearchQuery, setActivitySearchQuery] = useState("");
+  const {
+    activityFromAtLocal, setActivityFromAtLocal,
+    activityToAtLocal, setActivityToAtLocal,
+    activityActionType, setActivityActionType,
+    activityProjectRef, setActivityProjectRef,
+    activitySearchQuery, setActivitySearchQuery,
+    activitySearchDebounceRef,
+    resetActivityFilters,
+    buildActivityFilters,
+  } = useActivityFilters();
 
   useEffect(() => {
     setDisplayName(String(user?.displayName || ""));
@@ -57,7 +56,6 @@ function ProfileCard({
     setLastName(String(user?.lastName || ""));
     setEmail(String(user?.email || ""));
     setPhone(String(user?.phone || ""));
-    setEmploymentType(String(user?.employmentType || ""));
     setNote(String(user?.note || ""));
     const rawPrefsJson = String(user?.notificationPrefsJson || "").trim();
     setNotificationPrefs(parseNotificationPrefs(rawPrefsJson || user?.notificationPreferences || DEFAULT_NOTIFICATION_PREFS));
@@ -65,25 +63,8 @@ function ProfileCard({
     setAvatarError("");
     setAvatarLoading(false);
     setPassword("");
-    setActivityFromAtLocal("");
-    setActivityToAtLocal("");
-    setActivityActionType("all");
-    setActivityProjectRef("");
-    setActivitySearchQuery("");
-    if (activitySearchDebounceRef.current) {
-      clearTimeout(activitySearchDebounceRef.current);
-      activitySearchDebounceRef.current = null;
-    }
+    resetActivityFilters();
   }, [user]);
-
-  useEffect(() => (
-    () => {
-      if (activitySearchDebounceRef.current) {
-        clearTimeout(activitySearchDebounceRef.current);
-        activitySearchDebounceRef.current = null;
-      }
-    }
-  ), []);
 
   const activityItems = Array.isArray(myActivity) ? myActivity : [];
   const activitySummary = myActivitySummary && typeof myActivitySummary === "object"
@@ -137,28 +118,11 @@ function ProfileCard({
     }
   }
 
-  function buildActivityFilters(overrides = {}) {
-    const fromAtLocal = String(overrides?.fromAtLocal ?? activityFromAtLocal ?? "").trim();
-    const toAtLocal = String(overrides?.toAtLocal ?? activityToAtLocal ?? "").trim();
-    const actionType = String(overrides?.actionType ?? activityActionType ?? "all").trim().toLowerCase();
-    const projectRef = String(overrides?.projectRef ?? activityProjectRef ?? "").trim();
-    const searchQuery = String(overrides?.searchQuery ?? activitySearchQuery ?? "").trim();
-    return {
-      fromAt: fromAtLocal ? fromDateTimeLocalToIso(fromAtLocal) : "",
-      toAt: toAtLocal ? fromDateTimeLocalToIso(toAtLocal) : "",
-      actionType: actionType || "all",
-      projectRef: projectRef || "",
-      searchQuery,
-    };
-  }
-
   return (
     <section className="uu-section">
       <ProfileDetailsForm
         t={t}
         user={user}
-        appLang={appLang}
-        onChangeAppLanguage={onChangeAppLanguage}
         saving={saving}
         error={error}
         displayName={displayName}
@@ -171,8 +135,6 @@ function ProfileCard({
         setEmail={setEmail}
         phone={phone}
         setPhone={setPhone}
-        employmentType={employmentType}
-        setEmploymentType={setEmploymentType}
         note={note}
         setNote={setNote}
         notificationPrefs={notificationPrefs}

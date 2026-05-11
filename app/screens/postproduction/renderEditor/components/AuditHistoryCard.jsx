@@ -6,7 +6,6 @@ import {
   ACTIVITY_TYPE_FILTERS,
   activityActionTypeFromAction,
   activityActionTypeLabel,
-  activityTypeChipLevel,
 } from "../../users/shared/activityHelpers";
 import { entryLevel } from "./audit/auditUiHelpers";
 

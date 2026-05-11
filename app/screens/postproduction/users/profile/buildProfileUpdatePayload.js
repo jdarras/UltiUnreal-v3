@@ -6,10 +6,8 @@ function buildProfileUpdatePayload({
   lastName = "",
   email = "",
   phone = "",
-  employmentType = "",
   note = "",
   avatarPath = "",
-  appLang = "fr",
   notificationPrefs = null,
   password = "",
 }) {
@@ -19,10 +17,8 @@ function buildProfileUpdatePayload({
     lastName,
     email,
     phone,
-    employmentType,
     note,
     avatarPath,
-    language: String(appLang || "fr").trim().toLowerCase() === "en" ? "en" : "fr",
     notificationPrefsJson: stringifyNotificationPrefs(notificationPrefs),
   };
   if (String(password || "").trim()) {

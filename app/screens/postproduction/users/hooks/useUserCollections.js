@@ -29,7 +29,6 @@ function useUserCollections({
       const email2 = String(entry?.email2 || "").toLowerCase();
       const phone = String(entry?.phone || "").toLowerCase();
       const phone2 = String(entry?.phone2 || "").toLowerCase();
-      const employmentType = String(entry?.employmentType || "").toLowerCase();
       const publicId = String(entry?.publicId || "").toLowerCase();
       const note = String(entry?.note || "").toLowerCase();
       const role = String(entry?.role || "").toLowerCase();
@@ -42,7 +41,6 @@ function useUserCollections({
         || email2.includes(query)
         || phone.includes(query)
         || phone2.includes(query)
-        || employmentType.includes(query)
         || publicId.includes(query)
         || note.includes(query)
         || role.includes(query)

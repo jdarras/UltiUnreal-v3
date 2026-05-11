@@ -23,7 +23,6 @@ function createUsersSyncHelpers(deps = {}) {
     sanitizeLastName = (value) => String(value || '').trim(),
     sanitizeEmail = (value) => String(value || '').trim(),
     sanitizePhone = (value) => String(value || '').trim(),
-    sanitizeEmploymentType = (value) => String(value || '').trim(),
     sanitizeUserNote = (value) => String(value || '').trim(),
     sanitizeAvatarPath = (value) => String(value || '').trim(),
     MAX_FAILED_LOGIN_COUNT = 10,
@@ -390,7 +389,6 @@ function buildUserSyncPayload(userRow) {
     mobilePhone: sanitizePhone(row.mobile_phone ?? row.mobilePhone),
     officePhone: sanitizePhone(row.office_phone ?? row.officePhone),
     phone: sanitizePhone(row.phone || row.mobile_phone || row.office_phone || row.mobilePhone || row.officePhone || ''),
-    employmentType: sanitizeEmploymentType(row.employment_type ?? row.employmentType),
     note: sanitizeUserNote(row.user_note ?? row.note),
     avatarPath: sanitizeAvatarPath(row.avatar_path ?? row.avatarPath),
     mustChangePassword: Number(row.must_change_password) === 1 || row.mustChangePassword === true,
@@ -809,7 +807,6 @@ function applyUsersSyncEvent(event, peer = {}) {
               sanitizePhone(current?.mobile_phone),
               sanitizePhone(current?.office_phone),
               sanitizePhone(current?.phone || current?.mobile_phone || current?.office_phone || ''),
-              sanitizeEmploymentType(current?.employment_type),
               sanitizeUserNote(current?.user_note),
               sanitizeAvatarPath(current?.avatar_path),
               Number(current?.must_change_password) === 1 ? 1 : 0,
@@ -965,9 +962,6 @@ function applyUsersSyncEvent(event, peer = {}) {
           || ''
         )
     );
-    const employmentType = sanitizeEmploymentType(
-      pickPayloadValue('employmentType', current?.employment_type)
-    );
     const note = sanitizeUserNote(
       hasPayloadField('note')
         ? payloadObject.note
@@ -1032,7 +1026,6 @@ function applyUsersSyncEvent(event, peer = {}) {
         mobilePhone,
         officePhone,
         unifiedPhone,
-        employmentType,
         note,
         avatarPath,
         mustChangePassword ? 1 : 0,
@@ -1058,7 +1051,6 @@ function applyUsersSyncEvent(event, peer = {}) {
         mobilePhone,
         officePhone,
         unifiedPhone,
-        employmentType,
         note,
         avatarPath,
         mustChangePassword ? 1 : 0,

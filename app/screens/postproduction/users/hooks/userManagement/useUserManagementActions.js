@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from "react";
 import { safeT } from "../../../shared/helpers";
 import { useConfirmDialogState } from "../../../catalogs/hooks/useConfirmDialogState";
 import { useUserAutosave } from "../useUserAutosave";
-import { useUserEditorActions } from "../useUserEditorActions";
 import { useUserListSortController } from "../useUserListSortController";
 import { useUserAvatarUpload } from "../useUserAvatarUpload";
 import { useUserSubmitController } from "../useUserSubmitController";
@@ -23,25 +22,23 @@ export function useUserManagementActions({
 } = {}) {
   const {
     roleOptions,
-    loadUserActivity,
-    setDraft,
-    setEditorAvatarError,
-    setEditorAvatarLoading,
-    setEditingUserId,
-    setEditorMode,
-    resetEditorDraft,
-    resetActivityState,
     orderedUsers,
     listSortMode,
     setListSortMode,
     listSortDir,
     setListSortDir,
     draft,
+    setDraft,
     editorMode,
     editingUserId,
+    setEditorAvatarError,
+    setEditorAvatarLoading,
     rolesByKey,
     editorInputFocused,
     autosavePulse,
+    openCreate,
+    openEdit,
+    closeEditor,
   } = state;
 
   const [deleteUserBusy, setDeleteUserBusy] = useState(false);
@@ -71,22 +68,6 @@ export function useUserManagementActions({
       && Number(editingUserId || 0) > 0
       && typeof onDeleteUser === "function"
       && !deleteUserBusy,
-  });
-
-  const {
-    openCreate,
-    openEdit,
-    closeEditor,
-  } = useUserEditorActions({
-    roleOptions,
-    loadUserActivity,
-    setDraft,
-    setEditorAvatarError,
-    setEditorAvatarLoading,
-    setEditingUserId,
-    setEditorMode,
-    resetEditorDraft,
-    resetActivityState,
   });
 
   useUserExternalEditRequest({

@@ -37,7 +37,6 @@ function resolvePostprodUsersError(err, t) {
   if (code === 'missing_username' || code === 'invalid_username') return t('postprod.users.error.invalidUsername');
   if (code === 'invalid_password') return t('postprod.users.error.invalidPassword');
   if (code === 'invalid_email') return t('postprod.users.error.invalidEmail');
-  if (code === 'invalid_employment_type') return t('postprod.users.error.invalidEmploymentType');
   if (code === 'invalid_avatar_path') return t('postprod.users.error.invalidAvatarPath');
   if (code === 'invalid_failed_login_count') return t('postprod.users.error.invalidFailedLoginCount');
   if (code === 'invalid_locked_until') return t('postprod.users.error.invalidLockedUntil');

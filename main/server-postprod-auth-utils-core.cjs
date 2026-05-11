@@ -5,7 +5,6 @@ const {
   MAX_DISPLAY_NAME_LEN,
   MAX_USER_EMAIL_LEN,
   MAX_USER_PHONE_LEN,
-  MAX_EMPLOYMENT_TYPE_LEN,
   MAX_TIMEZONE_LEN,
   MAX_USER_LANGUAGE_LEN,
   MAX_USER_NOTE_LEN,
@@ -14,7 +13,6 @@ const {
   MAX_ROLE_NOTE_LEN,
   DEFAULT_USER_LANGUAGE,
   USER_LANGUAGE_ALLOWED,
-  EMPLOYMENT_TYPE_LOOKUP,
 } = require('./server-postprod-auth-constants.cjs');
 
 function coercePositiveInt(value, fallback, min = 1) {
@@ -156,13 +154,6 @@ function sanitizeEmail(value) {
 
 function sanitizePhone(value) {
   return String(value || '').trim().slice(0, MAX_USER_PHONE_LEN);
-}
-
-function sanitizeEmploymentType(value) {
-  const raw = String(value || '').trim().slice(0, MAX_EMPLOYMENT_TYPE_LEN);
-  if (!raw) return '';
-  const normalized = normalizeAscii(raw).replace(/[\s_-]+/g, '');
-  return EMPLOYMENT_TYPE_LOOKUP.get(normalized) || '';
 }
 
 function buildPublicId() {
@@ -337,7 +328,6 @@ module.exports = {
   sanitizeLastName,
   sanitizeEmail,
   sanitizePhone,
-  sanitizeEmploymentType,
   buildPublicId,
   normalizePublicId,
   resolvePhoneFromBody,

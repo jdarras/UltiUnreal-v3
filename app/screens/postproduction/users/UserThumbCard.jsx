@@ -13,7 +13,6 @@ function UserThumbCard({
   const canEditRow = manageableSet?.has?.(rowRole) === true;
   const isActive = entry?.isActive !== false;
   const rowDisplayName = resolveUserDisplayName(entry);
-  const rowUsername = String(entry?.username || "").trim() || rowDisplayName;
   const rowFirstName = String(entry?.firstName || "").trim();
   const rowLastName = String(entry?.lastName || "").trim();
   const rowNameLine = `${rowFirstName} ${rowLastName}`.trim() || "-";
@@ -83,7 +82,7 @@ function UserThumbCard({
                 color: "var(--uu-fg, #fff)",
               }}
             >
-              {rowUsername}
+              {rowDisplayName}
             </div>
             <span
               title={isActive

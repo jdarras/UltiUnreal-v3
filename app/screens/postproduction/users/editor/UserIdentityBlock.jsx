@@ -130,39 +130,6 @@ function UserIdentityBlock({
           />
         </div>
       </div>
-      <div className="uu-grid-2 mt-12">
-        <div className="uu-grid-field" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
-            {safeT(t, "postprod.users.form.employmentType", "Type de contrat")}
-          </label>
-          <select
-            className="uu-input"
-            style={{ flex: 1 }}
-            value={String(draft?.employmentType || "")}
-            onChange={(e) => setDraft((prev) => ({ ...(prev || {}), employmentType: e.target.value }))}
-            disabled={readOnlyFields}
-          >
-            <option value="">{safeT(t, "postprod.users.form.employmentType.empty", "Non renseigne")}</option>
-            <option value="Interne">{safeT(t, "postprod.users.form.employmentType.interne", "Interne")}</option>
-            <option value="Exterieur">{safeT(t, "postprod.users.form.employmentType.exterieur", "Exterieur")}</option>
-            <option value="CDD">{safeT(t, "postprod.users.form.employmentType.cdd", "CDD")}</option>
-          </select>
-        </div>
-        <div className="uu-grid-field" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
-            {safeT(t, "postprod.users.form.language", "Langue")}
-          </label>
-          <select
-            className="uu-input"
-            style={{ flex: 1 }}
-            value={String(draft?.language || "fr").trim().toLowerCase() === "en" ? "en" : "fr"}
-            onChange={(e) => setDraft((prev) => ({ ...(prev || {}), language: e.target.value }))}
-          >
-            <option value="fr">{safeT(t, "common.lang.fr", "Français")}</option>
-            <option value="en">{safeT(t, "common.lang.en", "English")}</option>
-          </select>
-        </div>
-      </div>
       <div className="uu-grid-field mt-12">
         <label className="uu-label">{safeT(t, "postprod.users.form.note", "Note visible par l'equipe")}</label>
         <textarea

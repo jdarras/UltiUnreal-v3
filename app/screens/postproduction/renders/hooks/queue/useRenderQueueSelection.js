@@ -17,12 +17,17 @@ export function useRenderQueueSelection({
   ), [filteredRenderQueueTasks, getQueueEntryLaunchMeta]);
 
   useEffect(() => {
-    setSelectedQueueTaskIds((prev) => (
-      (Array.isArray(prev) ? prev : [])
+    setSelectedQueueTaskIds((prev) => {
+      const current = (Array.isArray(prev) ? prev : [])
         .map((id) => Number(id))
-        .filter((id) => Number.isFinite(id) && id > 0 && launchableQueueTaskIdSet.has(Math.trunc(id)))
-        .map((id) => Math.trunc(id))
-    ));
+        .filter((id) => Number.isFinite(id) && id > 0)
+        .map((id) => Math.trunc(id));
+      const next = current.filter((id) => launchableQueueTaskIdSet.has(id));
+      if (current.length === next.length && current.every((id, index) => id === next[index])) {
+        return prev;
+      }
+      return next;
+    });
   }, [launchableQueueTaskIdSet]);
 
   const selectedQueueEntrySet = useMemo(() => (

@@ -27,7 +27,6 @@ function RoleUsersSection({
             const entryId = Number(entry?.id || 0);
             const isActive = entry?.isActive !== false;
             const rowDisplayName = resolveUserDisplayName(entry);
-            const rowUsername = String(entry?.username || "").trim() || rowDisplayName;
             const rowFirstName = String(entry?.firstName || "").trim();
             const rowLastName = String(entry?.lastName || "").trim();
             const rowNameLine = `${rowFirstName} ${rowLastName}`.trim() || "-";
@@ -97,7 +96,7 @@ function RoleUsersSection({
                           color: "var(--uu-fg, #fff)",
                         }}
                       >
-                        {rowUsername}
+                        {rowDisplayName}
                       </div>
                       <span
                         title={isActive

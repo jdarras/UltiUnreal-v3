@@ -142,9 +142,13 @@ async function handlePostprodRenderDispatchRoutes({
     const body = await parseBody(req);
     const apte = body?.apte === true || body?.apte === 1;
     const now = nowIso();
-    stmts.updateRenderWorkerAptitude.run(apte ? 1 : 0, now, workerKey);
-    const updated = stmts.findRenderWorkerByKey.get(workerKey);
-    const apteChanged = (Number(existing.apte) === 1) !== apte;
+    const wasApte = Number(existing?.apte) === 1;
+    const apteChanged = wasApte !== apte;
+    let updated = existing;
+    if (apteChanged) {
+      stmts.updateRenderWorkerAptitude.run(apte ? 1 : 0, now, workerKey);
+      updated = stmts.findRenderWorkerByKey.get(workerKey);
+    }
     if (apteChanged) {
       audit(
         auth.session.user_id,

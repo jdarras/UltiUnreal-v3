@@ -1,9 +1,10 @@
 // app/components/ResourceList.jsx
 import React from 'react';
-import { FixedSizeList } from 'react-window';
+import { VariableSizeList } from 'react-window';
 
-const CARD_VIRTUAL_THRESHOLD = 100000; // désactive la virtualisation pour éviter les barres de scroll internes
-const CARD_ROW_HEIGHT = 260;
+const CARD_VIRTUAL_THRESHOLD = 90;
+const CARD_ESTIMATED_ROW_HEIGHT = 520;
+const CARD_MIN_ROW_HEIGHT = 320;
 
 function normalizeThumbCandidates(candidates = []) {
   const list = Array.isArray(candidates) ? candidates : [candidates];
@@ -588,18 +589,95 @@ function VirtualizedResourceListCards(props) {
     return () => {};
   }, []);
 
+  const listRef = React.useRef(null);
+  const itemHeightsRef = React.useRef(new Map());
+  const resizeObserversRef = React.useRef(new Map());
+  const rowRefCallbacksRef = React.useRef(new Map());
+
+  const setMeasuredHeight = React.useCallback((index, nextHeight) => {
+    if (!Number.isFinite(nextHeight) || nextHeight <= 0) return;
+    const normalized = Math.max(CARD_MIN_ROW_HEIGHT, Math.ceil(nextHeight));
+    const previous = Number(itemHeightsRef.current.get(index) || 0);
+    if (Math.abs(previous - normalized) < 1) return;
+    itemHeightsRef.current.set(index, normalized);
+    if (listRef.current && typeof listRef.current.resetAfterIndex === 'function') {
+      listRef.current.resetAfterIndex(index, false);
+    }
+  }, []);
+
+  const disconnectRowObserver = React.useCallback((index) => {
+    const observer = resizeObserversRef.current.get(index);
+    if (observer) {
+      try { observer.disconnect(); } catch {}
+      resizeObserversRef.current.delete(index);
+    }
+  }, []);
+
+  const bindRowNode = React.useCallback((index, node) => {
+    disconnectRowObserver(index);
+    if (!node) return;
+    const measure = () => {
+      const rectHeight = Number(node.getBoundingClientRect?.().height || 0);
+      if (!Number.isFinite(rectHeight) || rectHeight <= 0) return;
+      setMeasuredHeight(index, rectHeight + 12);
+    };
+    measure();
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver(() => measure());
+      try {
+        observer.observe(node);
+        resizeObserversRef.current.set(index, observer);
+      } catch {}
+    }
+  }, [disconnectRowObserver, setMeasuredHeight]);
+
+  const getRowRefCallback = React.useCallback((index) => {
+    if (rowRefCallbacksRef.current.has(index)) {
+      return rowRefCallbacksRef.current.get(index);
+    }
+    const callback = (node) => bindRowNode(index, node);
+    rowRefCallbacksRef.current.set(index, callback);
+    return callback;
+  }, [bindRowNode]);
+
+  React.useEffect(() => {
+    for (const index of resizeObserversRef.current.keys()) {
+      if (index >= items.length) disconnectRowObserver(index);
+    }
+    for (const index of rowRefCallbacksRef.current.keys()) {
+      if (index >= items.length) rowRefCallbacksRef.current.delete(index);
+    }
+  }, [items.length, disconnectRowObserver]);
+
+  React.useEffect(() => {
+    return () => {
+      for (const observer of resizeObserversRef.current.values()) {
+        try { observer.disconnect(); } catch {}
+      }
+      resizeObserversRef.current.clear();
+    };
+  }, []);
+
+  const getItemSize = React.useCallback((index) => {
+    const measured = Number(itemHeightsRef.current.get(index) || 0);
+    if (Number.isFinite(measured) && measured > 0) return measured;
+    return CARD_ESTIMATED_ROW_HEIGHT;
+  }, []);
+
   const itemKey = React.useCallback((index, data) => {
     const it = data.items[index];
     return it?.uid || `${index}-${it?.title || 'item'}`;
   }, []);
 
   return (
-    <FixedSizeList
+    <VariableSizeList
+      ref={listRef}
       height={listHeight}
       itemCount={items.length}
-      itemSize={CARD_ROW_HEIGHT}
+      itemSize={getItemSize}
       width="100%"
       itemKey={itemKey}
+      overscanCount={3}
       itemData={{
         items,
         keywordInputs,
@@ -634,20 +712,22 @@ function VirtualizedResourceListCards(props) {
         const key = item?.uid || `${item?.title || 'item'}-${index}`;
         const keywordVal = data.keywordInputs[key] || '';
         return (
-          <div style={{ ...style, paddingRight: 8, paddingBottom: 12 }}>
-            <ResourceCardItem
-              item={item}
-              idx={index}
-              keywordValue={keywordVal}
-              onKeywordChange={data.handleKeywordChange}
-              onKeywordSubmit={data.handleKeywordSubmit}
-              {...data.handlers}
-              style={{ height: '100%' }}
-            />
+          <div style={{ ...style, boxSizing: 'border-box', paddingRight: 8 }}>
+            <div ref={getRowRefCallback(index)} style={{ paddingBottom: 12 }}>
+              <ResourceCardItem
+                item={item}
+                idx={index}
+                keywordValue={keywordVal}
+                onKeywordChange={data.handleKeywordChange}
+                onKeywordSubmit={data.handleKeywordSubmit}
+                {...data.handlers}
+                style={{ marginBottom: 0 }}
+              />
+            </div>
           </div>
         );
       }}
-    </FixedSizeList>
+    </VariableSizeList>
   );
 }
 

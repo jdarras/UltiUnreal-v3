@@ -212,7 +212,6 @@ const {
   sanitizeLastName,
   sanitizeEmail,
   sanitizePhone,
-  sanitizeEmploymentType,
   buildPublicId,
   normalizePublicId,
   resolvePhoneFromBody,
@@ -3355,7 +3354,6 @@ function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {
         mobile_phone TEXT NOT NULL DEFAULT '',
         office_phone TEXT NOT NULL DEFAULT '',
         phone TEXT NOT NULL DEFAULT '',
-        employment_type TEXT NOT NULL DEFAULT '',
         user_note TEXT NOT NULL DEFAULT '',
         avatar_path TEXT NOT NULL DEFAULT '',
         must_change_password INTEGER NOT NULL DEFAULT 0,
@@ -4731,7 +4729,7 @@ function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {
     db.exec(`
       UPDATE roles
       SET can_manage_forms = CASE
-        WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur') THEN 1
+        WHEN key IN ('Admin', 'Responsable Fabrication', 'Integrateur') THEN 1
         ELSE 0
       END
       WHERE is_system = 1;
@@ -4789,11 +4787,11 @@ function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {
       UPDATE roles
       SET
         can_ban_users = CASE
-          WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur') THEN 1
+          WHEN key IN ('Admin', 'Responsable Fabrication', 'Integrateur') THEN 1
           ELSE 0
         END,
         can_manage_project_permissions = CASE
-          WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur') THEN 1
+          WHEN key IN ('Admin', 'Responsable Fabrication', 'Integrateur') THEN 1
           ELSE 0
         END
       WHERE is_system = 1;
@@ -4825,7 +4823,7 @@ function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {
     db.exec(`
       UPDATE roles
       SET can_manage_machines = CASE
-        WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur') THEN 1
+        WHEN key IN ('Admin', 'Responsable Fabrication', 'Integrateur') THEN 1
         ELSE 0
       END
       WHERE is_system = 1;
@@ -4851,7 +4849,7 @@ function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {
     db.exec(`
       UPDATE roles
       SET can_launch_projects = CASE
-        WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur', 'Operateur') THEN 1
+        WHEN key IN ('Admin', 'Responsable Fabrication', 'Integrateur', 'Operateur') THEN 1
         WHEN key IN ('Graphiste', 'Journaliste') THEN 0
         ELSE can_launch_projects
       END
@@ -4976,20 +4974,20 @@ function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {
       UPDATE roles
       SET
         can_view_resources = CASE
-          WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur', 'Operateur', 'Graphiste', 'Journaliste') THEN 1
+          WHEN key IN ('Admin', 'Responsable Fabrication', 'Integrateur', 'Operateur', 'Graphiste', 'Journaliste') THEN 1
           ELSE CASE WHEN can_use_live_mode = 1 OR can_use_postprod_mode = 1 THEN 1 ELSE 0 END
         END,
         can_create_tasks = CASE
-          WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur', 'Operateur', 'Graphiste', 'Journaliste') THEN 1
+          WHEN key IN ('Admin', 'Responsable Fabrication', 'Integrateur', 'Operateur', 'Graphiste', 'Journaliste') THEN 1
           ELSE CASE WHEN can_launch_renders = 1 THEN 1 ELSE 0 END
         END,
         can_edit_projects = CASE
-          WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur', 'Operateur') THEN 1
+          WHEN key IN ('Admin', 'Responsable Fabrication', 'Integrateur', 'Operateur') THEN 1
           WHEN key IN ('Graphiste', 'Journaliste') THEN 0
           ELSE CASE WHEN can_launch_projects = 1 THEN 1 ELSE 0 END
         END,
         can_manage_layouts = CASE
-          WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur', 'Operateur') THEN 1
+          WHEN key IN ('Admin', 'Responsable Fabrication', 'Integrateur', 'Operateur') THEN 1
           WHEN key IN ('Graphiste', 'Journaliste') THEN 0
           ELSE CASE WHEN can_use_live_mode = 1 THEN 1 ELSE 0 END
         END
@@ -5246,7 +5244,7 @@ function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {
     db.exec(`
       UPDATE roles
       SET can_assign_render_requests = CASE
-        WHEN key IN ('Maintenance', 'Responsable Fabrication', 'Integrateur') THEN 1
+        WHEN key IN ('Admin', 'Responsable Fabrication', 'Integrateur') THEN 1
         ELSE 0
       END
       WHERE is_system = 1;
@@ -5368,7 +5366,7 @@ function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {
     db.exec(`
       UPDATE roles
       SET can_manage_configuration = CASE
-        WHEN key = 'Maintenance' THEN 1
+        WHEN key = 'Admin' THEN 1
         ELSE 0
       END
       WHERE is_system = 1;
@@ -5379,6 +5377,27 @@ function ensureSchema(db, { logLine = () => {}, bootstrapRolePolicies = [] } = {
       src: 'postprod',
       action: 'db_migration_v51',
       message: 'Migration SQLite postprod v51 appliquee (permission can_manage_configuration)',
+    });
+  }
+
+  const hasV52 = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE version = 52 LIMIT 1')
+    .get();
+  if (!hasV52) {
+    const userCols52 = db.prepare('PRAGMA table_info(users)').all();
+    const userColNames52 = new Set(userCols52.map((c) => String(c?.name || '').trim()));
+    if (userColNames52.has('employment_type')) {
+      db.exec(`
+        DROP INDEX IF EXISTS idx_users_employment_type;
+        ALTER TABLE users DROP COLUMN employment_type;
+      `);
+    }
+    db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(52, ?)').run(nowIso());
+    logLine({
+      level: 'info',
+      src: 'postprod',
+      action: 'db_migration_v52',
+      message: 'Migration SQLite postprod v52 appliquee (suppression colonne employment_type)',
     });
   }
 
@@ -5410,7 +5429,6 @@ function createStatements(db) {
         u.mobile_phone,
         u.office_phone,
         u.phone,
-        u.employment_type,
         u.user_note,
         u.avatar_path,
         u.must_change_password,
@@ -5459,7 +5477,6 @@ function createStatements(db) {
         u.mobile_phone,
         u.office_phone,
         u.phone,
-        u.employment_type,
         u.user_note,
         u.avatar_path,
         u.must_change_password,
@@ -5494,7 +5511,6 @@ function createStatements(db) {
         u.mobile_phone,
         u.office_phone,
         u.phone,
-        u.employment_type,
         u.user_note,
         u.avatar_path,
         u.must_change_password,
@@ -5528,7 +5544,6 @@ function createStatements(db) {
         u.mobile_phone,
         u.office_phone,
         u.phone,
-        u.employment_type,
         u.user_note,
         u.avatar_path,
         u.must_change_password,
@@ -5561,7 +5576,6 @@ function createStatements(db) {
         mobile_phone,
         office_phone,
         phone,
-        employment_type,
         user_note,
         avatar_path,
         must_change_password,
@@ -5570,7 +5584,7 @@ function createStatements(db) {
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     updateUserBasics: db.prepare(`
       UPDATE users
@@ -5586,7 +5600,6 @@ function createStatements(db) {
         mobile_phone = ?,
         office_phone = ?,
         phone = ?,
-        employment_type = ?,
         user_note = ?,
         avatar_path = ?,
         updated_at = ?
@@ -5673,7 +5686,6 @@ function createStatements(db) {
         mobile_phone,
         office_phone,
         phone,
-        employment_type,
         user_note,
         avatar_path,
         must_change_password,
@@ -5685,7 +5697,7 @@ function createStatements(db) {
         last_source_station,
         last_source_version
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
     updateUserFromSyncByPublicId: db.prepare(`
       UPDATE users
@@ -5702,7 +5714,6 @@ function createStatements(db) {
         mobile_phone = ?,
         office_phone = ?,
         phone = ?,
-        employment_type = ?,
         user_note = ?,
         avatar_path = ?,
         must_change_password = ?,
@@ -5829,7 +5840,6 @@ function createStatements(db) {
         u.mobile_phone,
         u.office_phone,
         u.phone,
-        u.employment_type,
         u.user_note,
         u.avatar_path,
         u.must_change_password,
@@ -6927,6 +6937,7 @@ function createStatements(db) {
         w.display_name,
         w.capabilities_json,
         w.can_render,
+        w.apte,
         w.is_active,
         w.is_online,
         w.current_render_job_id,
@@ -6985,6 +6996,7 @@ function createStatements(db) {
         w.display_name,
         w.capabilities_json,
         w.can_render,
+        w.apte,
         w.is_active,
         w.is_online,
         w.current_render_job_id,
@@ -7592,7 +7604,6 @@ function buildUserPayload(row, rolesCache) {
     phone2: sanitizePhone(row?.office_phone || ''),
     mobilePhone: sanitizePhone(row?.mobile_phone || ''),
     officePhone: sanitizePhone(row?.office_phone || ''),
-    employmentType: sanitizeEmploymentType(row?.employment_type),
     note: sanitizeUserNote(row?.user_note),
     avatarPath: sanitizeAvatarPath(row?.avatar_path),
     mustChangePassword: Number(row?.must_change_password) === 1,
@@ -7632,7 +7643,6 @@ function buildUserAdminPayload(row, rolesCache) {
     phone2: sanitizePhone(row?.office_phone || ''),
     mobilePhone: sanitizePhone(row?.mobile_phone || ''),
     officePhone: sanitizePhone(row?.office_phone || ''),
-    employmentType: sanitizeEmploymentType(row?.employment_type),
     note: sanitizeUserNote(row?.user_note),
     avatarPath: sanitizeAvatarPath(row?.avatar_path),
     mustChangePassword: Number(row?.must_change_password) === 1,
@@ -8337,19 +8347,174 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     };
   }
   let rolesCache = buildRolesCache(stmts.listRoles.all());
+  function resolveBootstrapAdminRoleKey() {
+    const byKey = rolesCache?.byKey instanceof Map ? rolesCache.byKey : new Map();
+    const preferredRoles = ['Admin', DEFAULT_FALLBACK_ROLE];
+    for (const candidate of preferredRoles) {
+      const resolved = resolveRoleInput(candidate, rolesCache, '');
+      if (resolved && byKey.has(resolved)) return resolved;
+    }
+    for (const roleRow of byKey.values()) {
+      const roleKey = String(roleRow?.key || '').trim();
+      if (!roleKey) continue;
+      const perms = rolePermissions(roleKey, rolesCache);
+      if (perms?.canManageUsers === true && perms?.canManageRoles === true) {
+        return roleKey;
+      }
+    }
+    const firstRoleKey = Array.isArray(rolesCache?.list) && rolesCache.list.length > 0
+      ? String(rolesCache.list[0]?.key || '').trim()
+      : '';
+    if (firstRoleKey) return firstRoleKey;
+    return DEFAULT_FALLBACK_ROLE || 'Admin';
+  }
+
+  function ensureBootstrapAdminUser() {
+    const usersCountRaw = Number(stmts.countUsers.get()?.n || 0);
+    const usersCount = Number.isFinite(usersCountRaw) ? Math.max(0, Math.trunc(usersCountRaw)) : 0;
+    if (usersCount > 0) return null;
+
+    const roleKey = resolveBootstrapAdminRoleKey();
+    const username = normalizeUsername('Admin') || 'admin';
+    const displayName = 'Admin';
+    const firstName = 'Admin';
+    const now = nowIso();
+    const publicId = 'usr_bootstrap_admin';
+    try {
+      const result = stmts.insertUser.run(
+        publicId,
+        username,
+        hashPassword('Admin', pbkdf2Iters),
+        roleKey,
+        1,
+        displayName,
+        firstName,
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        0,
+        0,
+        null,
+        now,
+        now
+      );
+      const createdId = Number(result?.lastInsertRowid || 0);
+      if (Number.isFinite(createdId) && createdId > 0) {
+        stmts.upsertUserPreferences.run(
+          createdId,
+          '',
+          DEFAULT_USER_LANGUAGE,
+          '{}',
+          now,
+          now
+        );
+      }
+      const created = stmts.findUserById.get(createdId);
+      logLine({
+        level: 'info',
+        src: 'postprod',
+        action: 'bootstrap_admin_seeded',
+        message: `Utilisateur bootstrap cree: ${username} / Admin`,
+      });
+      return created || null;
+    } catch (err) {
+      logLine({
+        level: 'warn',
+        src: 'postprod',
+        action: 'bootstrap_admin_seed_failed',
+        message: `Creation utilisateur bootstrap impossible: ${String(err?.message || err)}`,
+      });
+      return null;
+    }
+  }
+  const bootstrappedAdminUser = ensureBootstrapAdminUser();
 
   // Merge WRC fields into existing SQLite fields, scoped to a single wrcFile.
   // - Match by source_path (stable WRC GUID identifier) within the wrcFile scope.
   // - Matched: update only group_name + default_value_json (preserve user customizations).
   // - New (not in existing for this wrcFile): insert with sort_order after all existing ones.
   // - Orphaned (in SQLite for this wrcFile but not in incoming list): delete.
-  // If wrcFile is empty, falls back to unscoped behavior (all fields).
+  // If wrcFile is empty, the editor save is treated as a full form snapshot replacement.
   function mergeRenderFormFieldsTx(formId, normalizedFields, wrcFile, nowIsoValue, localStmts) {
     const s = localStmts || stmts;
     const scopedWrcFile = String(wrcFile || '').trim();
     db.transaction(() => {
       const allExisting = s.listRenderFormFieldsByFormId.all(formId);
-      // Scope to matching wrc_file (or all if no scope)
+      function reserveUniqueFieldKey(rawFieldKey, sourcePath, usedSet) {
+        const baseKey = sanitizeRenderFormFieldKey(rawFieldKey, sourcePath);
+        if (!baseKey) return '';
+        let candidate = baseKey;
+        let dedupeIndex = 2;
+        while (usedSet.has(candidate.toLowerCase())) {
+          candidate = sanitizeRenderFormFieldKey(`${baseKey}_${dedupeIndex}`, baseKey);
+          dedupeIndex += 1;
+          if (!candidate) break;
+        }
+        if (!candidate) return '';
+        usedSet.add(candidate.toLowerCase());
+        return candidate;
+      }
+      function reserveUniquePayloadKey(rawPayloadKey, fieldKey, usedSet) {
+        const baseKey = sanitizeRenderFormFieldPayloadKey(rawPayloadKey, fieldKey) || fieldKey;
+        let candidate = baseKey;
+        let dedupeIndex = 2;
+        while (usedSet.has(candidate.toLowerCase())) {
+          candidate = sanitizeRenderFormFieldPayloadKey(`${baseKey}_${dedupeIndex}`, fieldKey) || `${fieldKey}_${dedupeIndex}`;
+          dedupeIndex += 1;
+        }
+        usedSet.add(candidate.toLowerCase());
+        return candidate;
+      }
+
+      // Manual editor save (no WRC scope): replace the full form field snapshot.
+      if (!scopedWrcFile) {
+        s.deleteRenderFormFieldsByFormId.run(formId);
+        const usedFieldKeys = new Set();
+        const usedPayloadKeys = new Set();
+        const incoming = (Array.isArray(normalizedFields) ? normalizedFields : [])
+          .slice()
+          .sort((a, b) => Number(a?.sortOrder || 0) - Number(b?.sortOrder || 0));
+        let nextSortOrder = 1;
+        for (const field of incoming) {
+          const sourcePath = String(field?.sourcePath || '').trim();
+          const fieldKeySeed = sourcePath || `field_${nextSortOrder}`;
+          const nextFieldKey = reserveUniqueFieldKey(field?.fieldKey, fieldKeySeed, usedFieldKeys);
+          if (!nextFieldKey) continue;
+          const nextPayloadKey = reserveUniquePayloadKey(field?.payloadKey, nextFieldKey, usedPayloadKeys);
+          s.insertRenderFormField.run(
+            formId,
+            nextFieldKey,
+            field?.fieldLabel,
+            sourcePath,
+            field?.sourceType,
+            field?.inputKind,
+            field?.valueType,
+            field?.groupName,
+            nextPayloadKey,
+            field?.placeholder,
+            field?.helpText,
+            field?.optionsJson,
+            field?.validationJson,
+            field?.defaultValueJson,
+            field?.isRequired ? 1 : 0,
+            field?.isVisible ? 1 : 0,
+            nextSortOrder,
+            String(field?.wrcFile || '').trim(),
+            nowIsoValue,
+            nowIsoValue
+          );
+          nextSortOrder += 1;
+        }
+        return;
+      }
+
+      // Scope to matching wrc_file
       const existing = scopedWrcFile
         ? allExisting.filter((row) => String(row.wrc_file || '').trim() === scopedWrcFile)
         : allExisting;
@@ -8401,31 +8566,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
           .map((row) => String(row?.payload_key || '').trim().toLowerCase())
           .filter(Boolean)
       );
-      function reserveUniqueFieldKey(rawFieldKey, sourcePath, usedSet) {
-        const baseKey = sanitizeRenderFormFieldKey(rawFieldKey, sourcePath);
-        if (!baseKey) return '';
-        let candidate = baseKey;
-        let dedupeIndex = 2;
-        while (usedSet.has(candidate.toLowerCase())) {
-          candidate = sanitizeRenderFormFieldKey(`${baseKey}_${dedupeIndex}`, baseKey);
-          dedupeIndex += 1;
-          if (!candidate) break;
-        }
-        if (!candidate) return '';
-        usedSet.add(candidate.toLowerCase());
-        return candidate;
-      }
-      function reserveUniquePayloadKey(rawPayloadKey, fieldKey, usedSet) {
-        const baseKey = sanitizeRenderFormFieldPayloadKey(rawPayloadKey, fieldKey) || fieldKey;
-        let candidate = baseKey;
-        let dedupeIndex = 2;
-        while (usedSet.has(candidate.toLowerCase())) {
-          candidate = sanitizeRenderFormFieldPayloadKey(`${baseKey}_${dedupeIndex}`, fieldKey) || `${fieldKey}_${dedupeIndex}`;
-          dedupeIndex += 1;
-        }
-        usedSet.add(candidate.toLowerCase());
-        return candidate;
-      }
       let nextSortOrder = maxExistingSortOrder + 1;
       for (const field of normalizedFields) {
         const sourcePath = String(field.sourcePath || '').trim();
@@ -8501,7 +8641,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     sanitizeLastName,
     sanitizeEmail,
     sanitizePhone,
-    sanitizeEmploymentType,
     sanitizeUserNote,
     sanitizeAvatarPath,
     MAX_FAILED_LOGIN_COUNT,
@@ -8527,6 +8666,14 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     refreshRolesCache,
     logLine,
   });
+  if (bootstrappedAdminUser && typeof emitUserSyncUpsert === 'function') {
+    try {
+      emitUserSyncUpsert(bootstrappedAdminUser, {
+        actorUserId: null,
+        reason: 'bootstrap_admin_seed',
+      });
+    } catch {}
+  }
 
   function audit(actorUserId, action, payload = {}, scopeType = 'auth', scopeId = '') {
     try {
@@ -8774,7 +8921,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     sanitizeFirstName,
     sanitizeLastName,
     sanitizePhone,
-    sanitizeEmploymentType,
     sanitizeUserNote,
     sanitizeAvatarPath,
     isValidAvatarPath,

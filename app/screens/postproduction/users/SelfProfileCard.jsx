@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fromDateTimeLocalToIso, safeT } from "../shared/helpers";
+import { safeT } from "../shared/helpers";
 import { UserEditorPanel } from "./components/UserEditorPanel";
 import { useUserAvatarUpload } from "./hooks/useUserAvatarUpload";
+import { useActivityFilters } from "./hooks/useActivityFilters";
 import { resolveUserProfileLabel } from "./roleHelpers";
 import {
   activityMatchesSearchQuery,
@@ -27,16 +28,18 @@ function SelfProfileCard({
   projectsLoading = false,
 }) {
   const [draft, setDraft] = useState({});
-  const [editorAvatarError, setEditorAvatarError] = useState("");
+  const [_editorAvatarError, setEditorAvatarError] = useState("");
   const [editorAvatarLoading, setEditorAvatarLoading] = useState(false);
   const editorAvatarInputRef = useRef(null);
-  const activitySearchDebounceRef = useRef(null);
-
-  const [activityFromAtLocal, setActivityFromAtLocal] = useState("");
-  const [activityToAtLocal, setActivityToAtLocal] = useState("");
-  const [activityActionType, setActivityActionType] = useState("all");
-  const [activityProjectRef, setActivityProjectRef] = useState("");
-  const [activitySearchQuery, setActivitySearchQuery] = useState("");
+  const {
+    activityFromAtLocal, setActivityFromAtLocal,
+    activityToAtLocal, setActivityToAtLocal,
+    activityActionType, setActivityActionType,
+    activityProjectRef, setActivityProjectRef,
+    activitySearchQuery, setActivitySearchQuery,
+    activitySearchDebounceRef,
+    buildActivityFilters,
+  } = useActivityFilters({ mapActionType: mapActivityActionTypeToApi });
 
   const rolesByKey = useMemo(() => {
     const map = new Map();
@@ -114,21 +117,6 @@ function SelfProfileCard({
     [editingSummary, typedActivities]
   );
 
-  function buildActivityFilters(overrides = {}) {
-    const fromAtLocal = String(overrides?.fromAtLocal ?? activityFromAtLocal ?? "").trim();
-    const toAtLocal = String(overrides?.toAtLocal ?? activityToAtLocal ?? "").trim();
-    const actionType = String(overrides?.actionType ?? activityActionType ?? "all").trim().toLowerCase();
-    const projectRef = String(overrides?.projectRef ?? activityProjectRef ?? "").trim();
-    const searchQuery = String(overrides?.searchQuery ?? activitySearchQuery ?? "").trim();
-    return {
-      fromAt: fromAtLocal ? fromDateTimeLocalToIso(fromAtLocal) : "",
-      toAt: toAtLocal ? fromDateTimeLocalToIso(toAtLocal) : "",
-      actionType: mapActivityActionTypeToApi(actionType || "all"),
-      projectRef: projectRef || "",
-      searchQuery,
-    };
-  }
-
   function handleLoadActivity(_, filterOverrides = {}) {
     onRefreshMyActivity?.(buildActivityFilters(filterOverrides));
   }
@@ -143,8 +131,6 @@ function SelfProfileCard({
       phone: String(user?.phone || ""),
       phone2: String(user?.phone2 || ""),
       role: String(user?.role || ""),
-      employmentType: String(user?.employmentType || ""),
-      language: String(user?.language || "fr"),
       note: String(user?.note || ""),
       avatarPath: String(user?.avatarPath || ""),
       password: "",
@@ -154,15 +140,6 @@ function SelfProfileCard({
     setEditorAvatarError("");
     setEditorAvatarLoading(false);
   }, [userId]);
-
-  useEffect(() => (
-    () => {
-      if (activitySearchDebounceRef.current) {
-        clearTimeout(activitySearchDebounceRef.current);
-        activitySearchDebounceRef.current = null;
-      }
-    }
-  ), []);
 
   const avatarPath = String(draft?.avatarPath || "");
   const editorAvatarSrc = isUsableAvatarSrc(avatarPath) ? avatarPath : "";
@@ -182,8 +159,6 @@ function SelfProfileCard({
       email2: String(draft?.email2 || ""),
       phone: String(draft?.phone || ""),
       phone2: String(draft?.phone2 || ""),
-      employmentType: String(draft?.employmentType || ""),
-      language: String(draft?.language || "fr"),
       note: String(draft?.note || ""),
       avatarPath: String(draft?.avatarPath || ""),
     };

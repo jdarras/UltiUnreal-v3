@@ -14,10 +14,6 @@ function ProfileGeneralSection({
   setEmail = null,
   phone = "",
   setPhone = null,
-  employmentType = "",
-  setEmploymentType = null,
-  appLang = "fr",
-  onChangeAppLanguage = null,
   notificationPrefs = null,
   setNotificationPrefs = null,
   note = "",
@@ -83,34 +79,6 @@ function ProfileGeneralSection({
             onChange={(e) => setPhone?.(e.target.value)}
           />
         </div>
-      </div>
-
-      <div className="uu-grid-field mt-12">
-        <label className="uu-label">{safeT(t, "postprod.profile.form.employmentType", "Type de contrat")}</label>
-        <select
-          className="uu-input"
-          value={employmentType}
-          disabled={saving}
-          onChange={(e) => setEmploymentType?.(e.target.value)}
-        >
-          <option value="">{safeT(t, "postprod.profile.form.employmentType.empty", "Non renseigne")}</option>
-          <option value="Interne">{safeT(t, "postprod.profile.form.employmentType.interne", "Interne")}</option>
-          <option value="Exterieur">{safeT(t, "postprod.profile.form.employmentType.exterieur", "Exterieur")}</option>
-          <option value="CDD">{safeT(t, "postprod.profile.form.employmentType.cdd", "CDD")}</option>
-        </select>
-      </div>
-
-      <div className="uu-grid-field mt-12">
-        <label className="uu-label">{safeT(t, "postprod.profile.form.language", "Langue de l'interface")}</label>
-        <select
-          className="uu-input"
-          value={String(appLang || "fr").trim().toLowerCase() === "en" ? "en" : "fr"}
-          disabled={saving}
-          onChange={(e) => onChangeAppLanguage?.(e.target.value)}
-        >
-          <option value="fr">{safeT(t, "common.lang.fr", "Français")}</option>
-          <option value="en">{safeT(t, "common.lang.en", "English")}</option>
-        </select>
       </div>
 
       <div className="uu-grid-field mt-12">

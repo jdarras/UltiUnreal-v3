@@ -1,19 +1,49 @@
+import React, { Suspense, lazy, useEffect } from "react";
 import {
   resolveTitle,
   safeT,
-  AuthCard,
-  UserManagementCard,
-  RoleManagementCard,
-  RenderEditorCard,
-  ProjectsCatalogCard,
-  ResourcesCatalogCard,
-  DatasCard,
-  RendersValidationCard,
-  AuditHistoryCard,
-} from "./postproduction/cards";
-import { SelfProfileCard } from "./postproduction/users/SelfProfileCard.jsx";
+} from "./postproduction/shared/helpers";
 
-export default function PostProductionScreen({
+const loadAuthCard = () => import("./postproduction/users/AuthCard");
+const loadSelfProfileCard = () => import("./postproduction/users/SelfProfileCard.jsx");
+const loadUsersCards = () => import("./postproduction/users");
+const loadRenderEditorCards = () => import("./postproduction/renderEditor");
+const loadCatalogCards = () => import("./postproduction/catalogs");
+const loadRendersCards = () => import("./postproduction/renders");
+
+const AuthCard = lazy(() =>
+  loadAuthCard().then((module) => ({ default: module.AuthCard }))
+);
+
+const SelfProfileCard = lazy(() =>
+  loadSelfProfileCard().then((module) => ({ default: module.SelfProfileCard }))
+);
+const UserManagementCard = lazy(() =>
+  loadUsersCards().then((module) => ({ default: module.UserManagementCard }))
+);
+const RoleManagementCard = lazy(() =>
+  loadUsersCards().then((module) => ({ default: module.RoleManagementCard }))
+);
+const RenderEditorCard = lazy(() =>
+  loadRenderEditorCards().then((module) => ({ default: module.RenderEditorCard }))
+);
+const AuditHistoryCard = lazy(() =>
+  loadRenderEditorCards().then((module) => ({ default: module.AuditHistoryCard }))
+);
+const ProjectsCatalogCard = lazy(() =>
+  loadCatalogCards().then((module) => ({ default: module.ProjectsCatalogCard }))
+);
+const ResourcesCatalogCard = lazy(() =>
+  loadCatalogCards().then((module) => ({ default: module.ResourcesCatalogCard }))
+);
+const DatasCard = lazy(() =>
+  loadCatalogCards().then((module) => ({ default: module.DatasCard }))
+);
+const RendersValidationCard = lazy(() =>
+  loadRendersCards().then((module) => ({ default: module.RendersValidationCard }))
+);
+
+function PostProductionScreen({
   tabKey = "Utilisateurs",
   userTabKey = 0,
   roleTabKey = 0,
@@ -26,8 +56,6 @@ export default function PostProductionScreen({
   authError = "",
   onLogin = null,
   user = null,
-  appLang = "fr",
-  onChangeAppLanguage = null,
   canManageUsers = false,
   canManageRoles = false,
   canManageRenderTemplates = false,
@@ -45,7 +73,7 @@ export default function PostProductionScreen({
   rolesLoading = false,
   rolesError = "",
   profileSaving = false,
-  profileError = "",
+  profileError: _profileError = "",
   myActivity = [],
   myActivitySummary = null,
   myActivityLoading = false,
@@ -181,10 +209,53 @@ export default function PostProductionScreen({
     "Next step: connect SQLite + authentication + audit."
   );
 
+  const cardFallback = (
+    <section className="uu-section">
+      <div className="uu-loading" style={{ padding: "12px 0" }}>
+        {safeT(t, "common.loading", "Chargement...")}
+      </div>
+    </section>
+  );
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const preloaders = [
+      loadUsersCards,
+      loadRenderEditorCards,
+      loadCatalogCards,
+      loadRendersCards,
+    ];
+    if (!canManageUsers) preloaders.push(loadSelfProfileCard);
+
+    const runPreload = () => {
+      preloaders.forEach((preload) => {
+        void preload();
+      });
+    };
+
+    if (typeof window === "undefined") return undefined;
+
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(runPreload, { timeout: 1500 });
+      return () => {
+        if (typeof window.cancelIdleCallback === "function") {
+          window.cancelIdleCallback(idleId);
+        }
+      };
+    }
+
+    const timerId = window.setTimeout(runPreload, 120);
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [isAuthenticated, canManageUsers]);
+
   if (!isAuthenticated) {
     return (
       <div className="uu-page uu-page-compact">
-        <AuthCard t={t} busy={authBusy} error={authError} onLogin={onLogin} />
+        <Suspense fallback={cardFallback}>
+          <AuthCard t={t} busy={authBusy} error={authError} onLogin={onLogin} />
+        </Suspense>
       </div>
     );
   }
@@ -201,250 +272,254 @@ export default function PostProductionScreen({
         </section>
       ) : null}
 
-      {tabKey === "Utilisateurs" && !canManageUsers ? (
-        <SelfProfileCard
-          t={t}
-          user={user}
-          roles={roles}
-          saving={profileSaving}
-          onUpdateMe={onUpdateMe}
-          myActivity={myActivity}
-          myActivitySummary={myActivitySummary}
-          myActivityLoading={myActivityLoading}
-          myActivityError={myActivityError}
-          onRefreshMyActivity={onRefreshMyActivity}
-          projects={projects}
-          projectsLoading={projectsLoading}
-        />
-      ) : null}
+      <Suspense fallback={cardFallback}>
+        {tabKey === "Utilisateurs" && !canManageUsers ? (
+          <SelfProfileCard
+            t={t}
+            user={user}
+            roles={roles}
+            saving={profileSaving}
+            onUpdateMe={onUpdateMe}
+            myActivity={myActivity}
+            myActivitySummary={myActivitySummary}
+            myActivityLoading={myActivityLoading}
+            myActivityError={myActivityError}
+            onRefreshMyActivity={onRefreshMyActivity}
+            projects={projects}
+            projectsLoading={projectsLoading}
+          />
+        ) : null}
 
-      {tabKey === "Utilisateurs" && canManageUsers ? (
-        <UserManagementCard
-          t={t}
-          tabKey={userTabKey}
-          manageableRoles={manageableRoles}
-          canBanUsers={canBanUsers}
-          canManageProjectPermissions={canManageProjectPermissions}
-          roles={roles}
-          users={users}
-          usersLoading={usersLoading}
-          usersError={usersError}
-          projects={projects}
-          projectsLoading={projectsLoading}
-          projectsError={projectsError}
-          onCreateUser={onCreateUser}
-          onUpdateUser={onUpdateUser}
-          onDeleteUser={onDeleteUser}
-          onUpdateUserProjectPermissions={onUpdateUserProjectPermissions}
-          onLoadUserActivity={onLoadUserActivity}
-          onLoadUserProjectPermissions={onLoadUserProjectPermissions}
-          onToggleUserActive={onToggleUserActive}
-          onRefreshUsers={onRefreshUsers}
-          onRefreshProjects={onRefreshProjects}
-          onEditorModeChange={onUserEditorModeChange}
-          onNotify={onNotify}
-          editUserIdRequest={editUserIdRequest}
-          onEditUserIdHandled={onEditUserIdHandled}
-          onPurgeUserActivity={onPurgeUserActivity}
-          onOpenActivityTarget={onOpenActivityTarget}
-        />
-      ) : null}
+        {tabKey === "Utilisateurs" && canManageUsers ? (
+          <UserManagementCard
+            t={t}
+            tabKey={userTabKey}
+            manageableRoles={manageableRoles}
+            canBanUsers={canBanUsers}
+            canManageProjectPermissions={canManageProjectPermissions}
+            roles={roles}
+            users={users}
+            usersLoading={usersLoading}
+            usersError={usersError}
+            projects={projects}
+            projectsLoading={projectsLoading}
+            projectsError={projectsError}
+            onCreateUser={onCreateUser}
+            onUpdateUser={onUpdateUser}
+            onDeleteUser={onDeleteUser}
+            onUpdateUserProjectPermissions={onUpdateUserProjectPermissions}
+            onLoadUserActivity={onLoadUserActivity}
+            onLoadUserProjectPermissions={onLoadUserProjectPermissions}
+            onToggleUserActive={onToggleUserActive}
+            onRefreshUsers={onRefreshUsers}
+            onRefreshProjects={onRefreshProjects}
+            onEditorModeChange={onUserEditorModeChange}
+            onNotify={onNotify}
+            editUserIdRequest={editUserIdRequest}
+            onEditUserIdHandled={onEditUserIdHandled}
+            onPurgeUserActivity={onPurgeUserActivity}
+            onOpenActivityTarget={onOpenActivityTarget}
+          />
+        ) : null}
 
-      {tabKey === "RendusCreate" ? (
-        <RenderEditorCard
-          t={t}
-          tasks={tasks}
-          renders={renders}
-          projectOptions={taskProjectOptions}
-          resourceOptions={taskResourceOptions}
-          renderTemplates={renderTemplates}
-          renderForms={renderForms}
-          renderFormsLoading={renderFormsLoading}
-          renderFormsError={renderFormsError}
-          canManageRenderTemplates={canManageRenderTemplates}
-          canCreateTasks={canCreateTasks}
-          canAssignRenderRequests={canAssignRenderRequests}
-          currentUser={user}
-          users={users}
-          renderWorkers={renderWorkers}
-          renderWorkersLoading={renderWorkersLoading}
-          renderWorkersError={renderWorkersError}
-          renderOutputDir={renderOutputDir}
-          renderExportDestinationOptions={renderExportDestinationOptions}
-          renderFocusRequest={normalizedRenderFocusRequest}
-          onRenderFocusHandled={handleRenderFocusHandled}
-          tasksLoading={tasksLoading || taskCatalogLoading}
-          tasksError={tasksError}
-          onCreateTask={onCreateTask}
-          onUpdateTask={onUpdateTask}
-          onDeleteTask={canAssignRenderRequests ? onDeleteTask : null}
-          onCreateRender={onCreateRender}
-          onReserveRenderId={onReserveRenderId}
-          onLoadRenderFormFields={onLoadRenderFormFields}
-          onLoadProjectUnrealCatalog={onLoadProjectUnrealCatalog}
-          onTransitionTask={onTransitionTask}
-          onFormModeChange={onTaskFormOpenChange}
-          onNavigateToProject={onNavigateToProject}
-          onNavigateToRenderForm={onNavigateToRenderForm}
-        />
-      ) : null}
+        {tabKey === "RendusCreate" ? (
+          <RenderEditorCard
+            t={t}
+            tasks={tasks}
+            renders={renders}
+            projectOptions={taskProjectOptions}
+            resourceOptions={taskResourceOptions}
+            renderTemplates={renderTemplates}
+            renderForms={renderForms}
+            renderFormsLoading={renderFormsLoading}
+            renderFormsError={renderFormsError}
+            canManageRenderTemplates={canManageRenderTemplates}
+            canCreateTasks={canCreateTasks}
+            canAssignRenderRequests={canAssignRenderRequests}
+            currentUser={user}
+            users={users}
+            renderWorkers={renderWorkers}
+            renderWorkersLoading={renderWorkersLoading}
+            renderWorkersError={renderWorkersError}
+            renderOutputDir={renderOutputDir}
+            renderExportDestinationOptions={renderExportDestinationOptions}
+            renderFocusRequest={normalizedRenderFocusRequest}
+            onRenderFocusHandled={handleRenderFocusHandled}
+            tasksLoading={tasksLoading || taskCatalogLoading}
+            tasksError={tasksError}
+            onCreateTask={onCreateTask}
+            onUpdateTask={onUpdateTask}
+            onDeleteTask={canAssignRenderRequests ? onDeleteTask : null}
+            onCreateRender={onCreateRender}
+            onReserveRenderId={onReserveRenderId}
+            onLoadRenderFormFields={onLoadRenderFormFields}
+            onLoadProjectUnrealCatalog={onLoadProjectUnrealCatalog}
+            onTransitionTask={onTransitionTask}
+            onFormModeChange={onTaskFormOpenChange}
+            onNavigateToProject={onNavigateToProject}
+            onNavigateToRenderForm={onNavigateToRenderForm}
+          />
+        ) : null}
 
-      {tabKey === "Projets" ? (
-        <ProjectsCatalogCard
-          t={t}
-          projects={projects}
-          tasks={tasks}
-          loading={projectsLoading}
-          error={projectsError}
-          onOpenLinkedTasks={handleRequestOpenRenderEditor}
-          onLoadProjectRenderTemplates={onLoadProjectRenderTemplates}
-          onSyncProject={onSyncProject}
-          onLoadProjectDataTables={onLoadProjectDataTables}
-        />
-      ) : null}
+        {tabKey === "Projets" ? (
+          <ProjectsCatalogCard
+            t={t}
+            projects={projects}
+            tasks={tasks}
+            loading={projectsLoading}
+            error={projectsError}
+            onOpenLinkedTasks={handleRequestOpenRenderEditor}
+            onLoadProjectRenderTemplates={onLoadProjectRenderTemplates}
+            onSyncProject={onSyncProject}
+            onLoadProjectDataTables={onLoadProjectDataTables}
+          />
+        ) : null}
 
-      {tabKey === "Ressources" && canViewResources ? (
-        <ResourcesCatalogCard
-          t={t}
-          resources={resources}
-          tasks={tasks}
-          source={resourcesSource}
-          sync={resourcesSync}
-          loading={resourcesLoading}
-          error={resourcesError}
-          onOpenLinkedTasks={handleRequestOpenRenderEditor}
-          onRefreshResources={onRefreshResources}
-          onReindexResources={onReindexResources}
-          onLoadResourceDetail={onLoadResourceDetail}
-        />
-      ) : null}
-      {tabKey === "Ressources" && !canViewResources ? (
-        <section className="uu-section">
-          <div className="uu-msg warn">
-            {safeT(
-              t,
-              "postprod.resources.forbidden",
-              "Tu n'es pas autorise a voir les ressources."
-            )}
-          </div>
-        </section>
-      ) : null}
+        {tabKey === "Ressources" && canViewResources ? (
+          <ResourcesCatalogCard
+            t={t}
+            resources={resources}
+            tasks={tasks}
+            source={resourcesSource}
+            sync={resourcesSync}
+            loading={resourcesLoading}
+            error={resourcesError}
+            onOpenLinkedTasks={handleRequestOpenRenderEditor}
+            onRefreshResources={onRefreshResources}
+            onReindexResources={onReindexResources}
+            onLoadResourceDetail={onLoadResourceDetail}
+          />
+        ) : null}
+        {tabKey === "Ressources" && !canViewResources ? (
+          <section className="uu-section">
+            <div className="uu-msg warn">
+              {safeT(
+                t,
+                "postprod.resources.forbidden",
+                "Tu n'es pas autorise a voir les ressources."
+              )}
+            </div>
+          </section>
+        ) : null}
 
-      {tabKey === "Datas" && canManageRenderTemplates ? (
-        <DatasCard
-          t={t}
-          tabKey={datasTabKey}
-          projects={projects}
-          projectsLoading={projectsLoading}
-          projectsError={projectsError}
-          onLoadProjectWrcFields={onLoadProjectWrcFields}
-          onLoadProjectUnrealCatalog={onLoadProjectUnrealCatalog}
-          renderForms={renderForms}
-          renderFormsLoading={renderFormsLoading}
-          renderFormsError={renderFormsError}
-          canManageRenderTemplates={canManageRenderTemplates}
-          onCreateRenderForm={onCreateRenderForm}
-          onUpdateRenderForm={onUpdateRenderForm}
-          onDeleteRenderForm={onDeleteRenderForm}
-          onLoadRenderFormFields={onLoadRenderFormFields}
-          onReplaceRenderFormFields={onReplaceRenderFormFields}
-          onNavigateToProject={onNavigateToProject}
-          renderFormFocusRequest={renderFormFocusRequest}
-          onRenderFormFocusHandled={onRenderFormFocusHandled}
-        />
-      ) : null}
-      {tabKey === "Datas" && !canManageRenderTemplates ? (
-        <section className="uu-section">
-          <div className="uu-msg warn">
-            {safeT(
-              t,
-              "postprod.data.forms.forbidden",
-              "Tu n'es pas autorise a gerer les formulaires."
-            )}
-          </div>
-        </section>
-      ) : null}
+        {tabKey === "Datas" && canManageRenderTemplates ? (
+          <DatasCard
+            t={t}
+            tabKey={datasTabKey}
+            projects={projects}
+            projectsLoading={projectsLoading}
+            projectsError={projectsError}
+            onLoadProjectWrcFields={onLoadProjectWrcFields}
+            onLoadProjectUnrealCatalog={onLoadProjectUnrealCatalog}
+            renderForms={renderForms}
+            renderFormsLoading={renderFormsLoading}
+            renderFormsError={renderFormsError}
+            canManageRenderTemplates={canManageRenderTemplates}
+            onCreateRenderForm={onCreateRenderForm}
+            onUpdateRenderForm={onUpdateRenderForm}
+            onDeleteRenderForm={onDeleteRenderForm}
+            onLoadRenderFormFields={onLoadRenderFormFields}
+            onReplaceRenderFormFields={onReplaceRenderFormFields}
+            onNavigateToProject={onNavigateToProject}
+            renderFormFocusRequest={renderFormFocusRequest}
+            onRenderFormFocusHandled={onRenderFormFocusHandled}
+          />
+        ) : null}
+        {tabKey === "Datas" && !canManageRenderTemplates ? (
+          <section className="uu-section">
+            <div className="uu-msg warn">
+              {safeT(
+                t,
+                "postprod.data.forms.forbidden",
+                "Tu n'es pas autorise a gerer les formulaires."
+              )}
+            </div>
+          </section>
+        ) : null}
 
-      {tabKey === "Rendus" ? (
-        <RendersValidationCard
-          t={t}
-          user={user}
-          renders={renders}
-          rendersLoading={rendersLoading}
-          rendersError={rendersError}
-          projects={projects}
-          renderForms={renderForms}
-          tasks={tasks}
-          tasksLoading={tasksLoading}
-          renderWorkers={renderWorkers}
-          renderWorkersLoading={renderWorkersLoading}
-          onPatchWorkerAptitude={onPatchWorkerAptitude}
-          health={renderHealth}
-          onCreateRender={onCreateRender}
-          onTransitionRender={onTransitionRender}
-          onLoadRenderTransitions={onLoadRenderTransitions}
-          onLoadRenderFormFields={onLoadRenderFormFields}
-          onScanDetectedRenders={onScanDetectedRenders}
-          onDispatchRenders={onDispatchRenders}
-          onSaveDispatchPolicy={onSaveDispatchPolicy}
-          onScheduleRender={onScheduleRender}
-          onUpdateRenderExportDestinations={onUpdateRenderExportDestinations}
-          onReorderRenders={onReorderRenders}
-          onDeleteTask={canAssignRenderRequests ? onDeleteTask : null}
-          onDeleteRender={onDeleteRender}
-          onGenerateProxy={onGenerateProxy}
-          onRequestOpenRenderEditor={handleRequestOpenRenderEditor}
-          onNavigateToProject={onNavigateToProject}
-          onNavigateToRenderForm={onNavigateToRenderForm}
-          renderExportDestinationOptions={renderExportDestinationOptions}
-        />
-      ) : null}
+        {tabKey === "Rendus" ? (
+          <RendersValidationCard
+            t={t}
+            user={user}
+            renders={renders}
+            rendersLoading={rendersLoading}
+            rendersError={rendersError}
+            projects={projects}
+            renderForms={renderForms}
+            tasks={tasks}
+            tasksLoading={tasksLoading}
+            renderWorkers={renderWorkers}
+            renderWorkersLoading={renderWorkersLoading}
+            onPatchWorkerAptitude={onPatchWorkerAptitude}
+            health={renderHealth}
+            onCreateRender={onCreateRender}
+            onTransitionRender={onTransitionRender}
+            onLoadRenderTransitions={onLoadRenderTransitions}
+            onLoadRenderFormFields={onLoadRenderFormFields}
+            onScanDetectedRenders={onScanDetectedRenders}
+            onDispatchRenders={onDispatchRenders}
+            onSaveDispatchPolicy={onSaveDispatchPolicy}
+            onScheduleRender={onScheduleRender}
+            onUpdateRenderExportDestinations={onUpdateRenderExportDestinations}
+            onReorderRenders={onReorderRenders}
+            onDeleteTask={canAssignRenderRequests ? onDeleteTask : null}
+            onDeleteRender={onDeleteRender}
+            onGenerateProxy={onGenerateProxy}
+            onRequestOpenRenderEditor={handleRequestOpenRenderEditor}
+            onNavigateToProject={onNavigateToProject}
+            onNavigateToRenderForm={onNavigateToRenderForm}
+            renderExportDestinationOptions={renderExportDestinationOptions}
+          />
+        ) : null}
 
-      {tabKey === "Historique" ? (
-        <AuditHistoryCard
-          t={t}
-          entries={auditEntries}
-          loading={auditLoading}
-          error={auditError}
-          total={auditTotal}
-          page={auditPage}
-          pageSize={auditPageSize}
-          hasMore={auditHasMore}
-          filters={auditFilters}
-          auditLogStore={auditLogStore}
-          canManageRetention={canManageRoles}
-          renderHealthAuditMaintenance={renderHealthAuditMaintenance}
-          renderHealthAuditMaintenanceLoading={renderHealthAuditMaintenanceLoading}
-          renderHealthAuditMaintenanceError={renderHealthAuditMaintenanceError}
-          renderHealthAuditPurgeBusy={renderHealthAuditPurgeBusy}
-          renderHealthAuditPurgeError={renderHealthAuditPurgeError}
-          renderHealthAuditLastPurge={renderHealthAuditLastPurge}
-          onRefreshAudit={onRefreshAudit}
-          onPurgeAudit={onPurgeAudit}
-          onRefreshRenderHealthAuditMaintenance={onRefreshRenderHealthAuditMaintenance}
-          onPurgeRenderHealthAudit={onPurgeRenderHealthAudit}
-          onExportAuditAll={onExportAuditAll}
-          onExportAuditAllJson={onExportAuditAllJson}
-          onExportAuditAllNdjson={onExportAuditAllNdjson}
-          onOpenActivityTarget={onOpenActivityTarget}
-        />
-      ) : null}
+        {tabKey === "Historique" ? (
+          <AuditHistoryCard
+            t={t}
+            entries={auditEntries}
+            loading={auditLoading}
+            error={auditError}
+            total={auditTotal}
+            page={auditPage}
+            pageSize={auditPageSize}
+            hasMore={auditHasMore}
+            filters={auditFilters}
+            auditLogStore={auditLogStore}
+            canManageRetention={canManageRoles}
+            renderHealthAuditMaintenance={renderHealthAuditMaintenance}
+            renderHealthAuditMaintenanceLoading={renderHealthAuditMaintenanceLoading}
+            renderHealthAuditMaintenanceError={renderHealthAuditMaintenanceError}
+            renderHealthAuditPurgeBusy={renderHealthAuditPurgeBusy}
+            renderHealthAuditPurgeError={renderHealthAuditPurgeError}
+            renderHealthAuditLastPurge={renderHealthAuditLastPurge}
+            onRefreshAudit={onRefreshAudit}
+            onPurgeAudit={onPurgeAudit}
+            onRefreshRenderHealthAuditMaintenance={onRefreshRenderHealthAuditMaintenance}
+            onPurgeRenderHealthAudit={onPurgeRenderHealthAudit}
+            onExportAuditAll={onExportAuditAll}
+            onExportAuditAllJson={onExportAuditAllJson}
+            onExportAuditAllNdjson={onExportAuditAllNdjson}
+            onOpenActivityTarget={onOpenActivityTarget}
+          />
+        ) : null}
 
-      {tabKey === "Profils" && canManageRoles ? (
-        <RoleManagementCard
-          t={t}
-          tabKey={roleTabKey}
-          roles={roles}
-          rolesLoading={rolesLoading}
-          rolesError={rolesError}
-          users={users}
-          onCreateRole={onCreateRole}
-          onUpdateRole={onUpdateRole}
-          onDeleteRole={onDeleteRole}
-          onOpenUser={onOpenUser}
-          onRefreshRoles={onRefreshRoles}
-        />
-      ) : null}
+        {tabKey === "Profils" && canManageRoles ? (
+          <RoleManagementCard
+            t={t}
+            tabKey={roleTabKey}
+            roles={roles}
+            rolesLoading={rolesLoading}
+            rolesError={rolesError}
+            users={users}
+            onCreateRole={onCreateRole}
+            onUpdateRole={onUpdateRole}
+            onDeleteRole={onDeleteRole}
+            onOpenUser={onOpenUser}
+            onRefreshRoles={onRefreshRoles}
+          />
+        ) : null}
+      </Suspense>
     </div>
   );
 }
+
+export default React.memo(PostProductionScreen);

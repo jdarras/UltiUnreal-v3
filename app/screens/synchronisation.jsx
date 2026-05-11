@@ -908,7 +908,7 @@ export default function SynchronisationScreen() {
     }));
 
     if (addList.length || removeList.length) {
-      console.log('[sync] toggle selection -> updateSyncIgnore', ip, { addList, removeList });
+      console.debug('[sync] toggle selection -> updateSyncIgnore', ip, { addList, removeList });
       try {
         const resp = await updateSyncIgnore(ip, addList, removeList);
         if (resp && resp.ok === false) {
@@ -1101,7 +1101,7 @@ export default function SynchronisationScreen() {
       });
 
       if (addList.length > 0) {
-        console.log('[sync] updateSyncIgnore (UI) addList', ip, addList);
+        console.debug('[sync] updateSyncIgnore (UI) addList', ip, addList);
         const resp = await updateSyncIgnore(ip, addList, []);
         if (resp && resp.ok === false) {
           throw new Error(resp.message || 'updateSyncIgnore failed');
@@ -2045,4 +2045,3 @@ export default function SynchronisationScreen() {
   // Sécurité
   return null;
 }
-

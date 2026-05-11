@@ -68,7 +68,7 @@ function UserListTable({
             const id = Number(entry?.id || 0);
             const rowRole = String(entry?.role || "").trim();
             const canEditRow = manageableSet.has(rowRole);
-            const rowUser = String(entry?.username || "").trim() || resolveUserDisplayName(entry);
+            const rowUser = resolveUserDisplayName(entry);
             const rowLastName = String(entry?.lastName || "").trim();
             const rowFirstName = String(entry?.firstName || "").trim();
             const rowPhone = resolveUserPhoneValue(entry);

@@ -20,7 +20,6 @@ async function handlePostprodMeRoutes(options = {}) {
     sanitizeEmail,
     isValidEmail,
     sanitizePhone,
-    sanitizeEmploymentType,
     sanitizeUserNote,
     sanitizeAvatarPath,
     isValidAvatarPath,
@@ -73,7 +72,6 @@ async function handlePostprodMeRoutes(options = {}) {
     const hasLastName = Object.prototype.hasOwnProperty.call(body || {}, 'lastName');
     const hasEmail = Object.prototype.hasOwnProperty.call(body || {}, 'email');
     const hasEmail2 = Object.prototype.hasOwnProperty.call(body || {}, 'email2');
-    const hasEmploymentType = Object.prototype.hasOwnProperty.call(body || {}, 'employmentType');
     const hasNote = Object.prototype.hasOwnProperty.call(body || {}, 'note');
     const hasAvatarPath = Object.prototype.hasOwnProperty.call(body || {}, 'avatarPath');
     const hasTimezone = Object.prototype.hasOwnProperty.call(body || {}, 'timezone');
@@ -96,7 +94,6 @@ async function handlePostprodMeRoutes(options = {}) {
       hasEmail2 ||
       phoneInputInfo.hasAny ||
       Object.prototype.hasOwnProperty.call(body || {}, 'phone2') ||
-      hasEmploymentType ||
       hasNote ||
       hasAvatarPath ||
       hasTimezone ||
@@ -161,15 +158,6 @@ async function handlePostprodMeRoutes(options = {}) {
       if (!nextPhone) nextPhone = nextOfficePhone;
       if (!nextMobilePhone) nextMobilePhone = nextPhone;
     }
-    let nextEmploymentType = sanitizeEmploymentType(currentUser.employment_type);
-    if (hasEmploymentType) {
-      const rawEmploymentType = String(body?.employmentType || '').trim();
-      nextEmploymentType = sanitizeEmploymentType(rawEmploymentType);
-      if (rawEmploymentType && !nextEmploymentType) {
-        sendJSON(res, 400, { ok: false, error: 'invalid_employment_type' });
-        return true;
-      }
-    }
     let nextNote = sanitizeUserNote(currentUser.user_note);
     if (hasNote) nextNote = sanitizeUserNote(body?.note);
     let nextAvatarPath = sanitizeAvatarPath(currentUser.avatar_path);
@@ -201,7 +189,6 @@ async function handlePostprodMeRoutes(options = {}) {
           hasEmail2 ||
           phoneInputInfo.hasAny ||
           hasPhone2 ||
-          hasEmploymentType ||
           hasNote ||
           hasAvatarPath
         ) {
@@ -217,7 +204,6 @@ async function handlePostprodMeRoutes(options = {}) {
             nextMobilePhone,
             nextOfficePhone,
             nextPhone,
-            nextEmploymentType,
             nextNote,
             nextAvatarPath,
             now,
@@ -270,7 +256,6 @@ async function handlePostprodMeRoutes(options = {}) {
           phone: phoneInputInfo.hasAny || hasPhone2,
           mobilePhone: phoneInputInfo.hasLegacyMobile,
           officePhone: phoneInputInfo.hasLegacyOffice || hasPhone2,
-          employmentType: hasEmploymentType,
           note: hasNote,
           avatarPath: hasAvatarPath,
           timezone: hasTimezone,

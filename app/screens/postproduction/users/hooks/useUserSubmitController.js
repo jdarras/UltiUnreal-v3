@@ -23,7 +23,6 @@ function useUserSubmitController({
       phone2: String(userDraft?.phone2 || ""),
       mobilePhone: String(userDraft?.phone || ""),
       officePhone: String(userDraft?.phone2 || ""),
-      employmentType: String(userDraft?.employmentType || ""),
       note: String(userDraft?.note || ""),
       avatarPath: String(userDraft?.avatarPath || ""),
       language: String(userDraft?.language || "fr").trim().toLowerCase() === "en" ? "en" : "fr",

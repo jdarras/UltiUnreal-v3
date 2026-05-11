@@ -1,7 +1,7 @@
 [
   {
-    "key": "Maintenance",
-    "displayName": "Maintenance",
+    "key": "Admin",
+    "displayName": "Admin",
     "canUseLiveMode": true,
     "canUsePostprodMode": true,
     "canValidate": true,
@@ -22,7 +22,7 @@
     "canEditProjects": true,
     "canManageLayouts": true,
     "manageableRoles": [
-      "Maintenance",
+      "Admin",
       "Responsable Fabrication",
       "Integrateur",
       "Operateur",

@@ -7,8 +7,6 @@ import { ProfileMetaAndSubmitSection } from "./components/ProfileMetaAndSubmitSe
 function ProfileDetailsForm({
   t,
   user = null,
-  appLang = "fr",
-  onChangeAppLanguage = null,
   saving = false,
   error = "",
   displayName = "",
@@ -21,8 +19,6 @@ function ProfileDetailsForm({
   setEmail,
   phone = "",
   setPhone,
-  employmentType = "",
-  setEmploymentType,
   note = "",
   setNote,
   notificationPrefs = null,
@@ -74,10 +70,6 @@ function ProfileDetailsForm({
         setEmail={setEmail}
         phone={phone}
         setPhone={setPhone}
-        employmentType={employmentType}
-        setEmploymentType={setEmploymentType}
-        appLang={appLang}
-        onChangeAppLanguage={onChangeAppLanguage}
         notificationPrefs={notificationPrefs}
         setNotificationPrefs={setNotificationPrefs}
         note={note}
@@ -99,10 +91,8 @@ function ProfileDetailsForm({
             lastName,
             email,
             phone,
-            employmentType,
             note,
             avatarPath,
-            appLang,
             notificationPrefs,
             password,
           });

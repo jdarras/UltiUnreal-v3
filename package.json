@@ -11,14 +11,14 @@
     "build:exe": "npm run build:ui && npm run build:main && electron-builder -c electron-builder.json",
     "dev:ui": "vite --config app/vite.config.mjs",
     "dev:electron": "npm run rebuild:electron && set VITE_DEV=true && npx electron .",
-    "test": "npm run rebuild:node && node --test",
+    "test": "node --test",
+    "test:full": "npm run rebuild:node && node --test",
     "rebuild:electron": "node scripts/rebuild-electron.mjs",
     "rebuild:node": "npm rebuild better-sqlite3 --build-from-source",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
     "@vitejs/plugin-react": "5.1.0",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",

@@ -44,7 +44,14 @@ function useRenderEditorCatalogOptions({
   useEffect(() => {
     const allowed = new Set(normalizedResourceOptions.map((entry) => entry.ref));
     if (typeof setSelectedResourceRefs === "function") {
-      setSelectedResourceRefs((prev) => sanitizeSelectedResourceRefs(prev, selectedResourceRefs, allowed));
+      setSelectedResourceRefs((prev) => {
+        const current = Array.isArray(prev) ? prev : [];
+        const next = sanitizeSelectedResourceRefs(prev, selectedResourceRefs, allowed);
+        if (current.length === next.length && current.every((ref, index) => ref === next[index])) {
+          return prev;
+        }
+        return next;
+      });
     }
   }, [normalizedResourceOptions, setSelectedResourceRefs, selectedResourceRefs]);
 
