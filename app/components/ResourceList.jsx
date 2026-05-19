@@ -1,10 +1,59 @@
 // app/components/ResourceList.jsx
 import React from 'react';
 import { VariableSizeList } from 'react-window';
+import { safeT } from '../utils/i18nSafe.js';
+import {
+  getAddKeywordLabel,
+  getAmbianceLabel,
+  getDistributionLabel,
+  getFavoriteLabel,
+  getLicenseLabel,
+  getNoPreviewLabel,
+  getNoneOptionLabel,
+  getPerformanceLabel,
+  getPurchasedLabel,
+  getQualityLabel,
+  getResourceEditLabel,
+  getResourceOpenLabel,
+  getStyleLabel,
+  getTagsLabel,
+  getTestedLabel,
+  getTypeLabel,
+  getUsageLabel,
+  getUeVersionsLabel,
+  getVersionIncompatibleLabel,
+} from './componentI18n';
 
 const CARD_VIRTUAL_THRESHOLD = 90;
 const CARD_ESTIMATED_ROW_HEIGHT = 520;
 const CARD_MIN_ROW_HEIGHT = 320;
+const RESOURCE_LIST_CARD_FULL_HEIGHT_STYLE = { height: '100%' };
+const RESOURCE_LIST_THUMB_SHRINK_STYLE = { flexShrink: 0 };
+const RESOURCE_LIST_THUMB_ACTIONS_STYLE = { gap: '5px', flexWrap: 'nowrap' };
+const RESOURCE_LIST_THUMB_ACTION_BUTTON_STYLE = { padding: '6px 6px', whiteSpace: 'nowrap', flexShrink: 0 };
+const RESOURCE_LIST_CARD_BODY_STYLE = { gap: '8px', minHeight: '110px', flex: 1, minWidth: 0 };
+const RESOURCE_LIST_CARD_TITLE_ROW_STYLE = { flexWrap: 'wrap' };
+const RESOURCE_LIST_CARD_TITLE_STYLE = { flex: '0 1 auto' };
+const RESOURCE_LIST_COMPAT_BADGE_STYLE = { marginLeft: '4px', marginTop: '2px' };
+const RESOURCE_LIST_ACTIONS_STYLE = {
+  flexWrap: 'wrap',
+  rowGap: '6px',
+  columnGap: '12px',
+  alignItems: 'center',
+  width: '100%',
+  marginTop: 'auto',
+};
+const RESOURCE_LIST_CHECK_LABEL_STYLE = { whiteSpace: 'nowrap' };
+const RESOURCE_LIST_KEYWORD_WRAP_STYLE = { flex: '0 0 auto', marginLeft: '12px' };
+const RESOURCE_LIST_KEYWORD_INPUT_STYLE = { width: '240px' };
+const RESOURCE_LIST_CARD_MARGIN_BOTTOM_STYLE = { marginBottom: '12px' };
+const RESOURCE_LIST_VIRTUAL_ROW_OUTER_BASE_STYLE = { boxSizing: 'border-box', paddingRight: 8 };
+const RESOURCE_LIST_VIRTUAL_ROW_INNER_STYLE = { paddingBottom: 12 };
+const RESOURCE_LIST_CARD_MARGIN_ZERO_STYLE = { marginBottom: 0 };
+
+function buildResourceListVirtualRowOuterStyle(style) {
+  return { ...style, ...RESOURCE_LIST_VIRTUAL_ROW_OUTER_BASE_STYLE };
+}
 
 function normalizeThumbCandidates(candidates = []) {
   const list = Array.isArray(candidates) ? candidates : [candidates];
@@ -57,6 +106,11 @@ function ResourceListThumbs({
   isUeIncompatible,
   t,
 }) {
+  const noPreviewLabel = getNoPreviewLabel(t);
+  const editLabel = getResourceEditLabel(t);
+  const favoriteLabel = getFavoriteLabel(t);
+  const openLabel = getResourceOpenLabel(t);
+  const versionIncompatibleLabel = getVersionIncompatibleLabel(t);
   return (
     <div className="uu-resource-grid thumbs">
       {items.map((item, idx) => {
@@ -72,23 +126,20 @@ function ResourceListThumbs({
         const meta = [seller, kind].filter(Boolean).join(' | ');
         const isFav = item?.user?.favorite === true;
         const incompatible = typeof isUeIncompatible === 'function' ? isUeIncompatible(item) : false;
-        const compatLabel = t('resources.versionIncompatible');
-        const compatText = compatLabel && compatLabel !== 'resources.versionIncompatible'
-          ? compatLabel
-          : 'Version non compatible';
+        const compatText = versionIncompatibleLabel;
 
         return (
-          <div key={key} className="uu-card uu-resource-thumb-card" style={{ height: '100%' }}>
+          <div key={key} className="uu-card uu-resource-thumb-card" style={RESOURCE_LIST_CARD_FULL_HEIGHT_STYLE}>
             {thumbCandidates.length > 0 ? (
               <ResourceThumbImage
                 className="uu-resource-thumb-lg"
                 candidates={thumbCandidates}
                 alt={title}
-                style={{ flexShrink: 0 }}
+                style={RESOURCE_LIST_THUMB_SHRINK_STYLE}
               />
             ) : (
-              <div className="uu-resource-thumb-lg placeholder" style={{ flexShrink: 0 }}>
-                {t('resources.noThumbnail') || 'No preview'}
+              <div className="uu-resource-thumb-lg placeholder" style={RESOURCE_LIST_THUMB_SHRINK_STYLE}>
+                {noPreviewLabel}
               </div>
             )}
             <div className="uu-resource-thumb-body">
@@ -102,14 +153,14 @@ function ResourceListThumbs({
               ) : null}
               <div
                 className="uu-resource-actions uu-resource-actions-sticky"
-                style={{ gap: '5px', flexWrap: 'nowrap' }}
+                style={RESOURCE_LIST_THUMB_ACTIONS_STYLE}
               >
                 <button
                   className="uu-btn"
-                  style={{ padding: '6px 6px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  style={RESOURCE_LIST_THUMB_ACTION_BUTTON_STYLE}
                   onClick={() => onOpenDetail(item)}
                 >
-                  {t('resources.edit') || 'Edit'}
+                  {editLabel}
                 </button>
                 {typeof onToggleFavorite === 'function' ? (
                   <button
@@ -117,8 +168,8 @@ function ResourceListThumbs({
                     className={`uu-fav-btn ${isFav ? 'active' : ''}`}
                     onClick={() => onToggleFavorite(item)}
                     aria-pressed={isFav ? 'true' : 'false'}
-                    title={t('resources.detail.labels.favorite') || 'Favoris'}
-                    aria-label={t('resources.detail.labels.favorite') || 'Favoris'}
+                    title={favoriteLabel}
+                    aria-label={favoriteLabel}
                   >
                     ★
                   </button>
@@ -126,10 +177,10 @@ function ResourceListThumbs({
                 {item?.listingUrl ? (
                   <button
                     className="uu-btn"
-                    style={{ padding: '6px 6px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                    style={RESOURCE_LIST_THUMB_ACTION_BUTTON_STYLE}
                     onClick={() => onOpenExternal(item.listingUrl)}
                   >
-                    {t('resources.openFab') || 'Open'}
+                    {openLabel}
                   </button>
                 ) : null}
               </div>
@@ -149,6 +200,12 @@ function toListStringLocal(list) {
 }
 
 function buildMetaLineCards(item, t) {
+  const usageLabel = getUsageLabel(t);
+  const styleLabel = getStyleLabel(t);
+  const ambianceLabel = getAmbianceLabel(t);
+  const typeLabel = getTypeLabel(t);
+  const distributionLabel = getDistributionLabel(t);
+  const ueVersionsLabel = getUeVersionsLabel(t);
   const usage = item?.user?.usage ? String(item.user.usage).trim() : '';
   const style = item?.user?.style ? String(item.user.style).trim() : '';
   const ambiance = item?.user?.ambiance ? String(item.user.ambiance).trim() : '';
@@ -159,14 +216,14 @@ function buildMetaLineCards(item, t) {
   const ue = item?.ueVersions?.length ? toListStringLocal(item.ueVersions) : '';
 
   const line1 = [];
-  if (usage) line1.push(`${t('resources.detail.labels.usage') || 'Usage'}: ${usage}`);
-  if (style) line1.push(`${t('resources.detail.labels.style') || 'Style'}: ${style}`);
-  if (ambiance) line1.push(`${t('resources.detail.labels.ambiance') || 'Ambiance'}: ${ambiance}`);
-  if (type) line1.push(`${t('resources.type') || 'Type'}: ${type}`);
+  if (usage) line1.push(`${usageLabel}: ${usage}`);
+  if (style) line1.push(`${styleLabel}: ${style}`);
+  if (ambiance) line1.push(`${ambianceLabel}: ${ambiance}`);
+  if (type) line1.push(`${typeLabel}: ${type}`);
 
   const line2 = [];
-  if (distribution) line2.push(`${t('resources.detail.distribution') || 'Distribution'}: ${distribution}`);
-  if (ue) line2.push(`${t('resources.ueVersions') || 'UE'}: ${ue}`);
+  if (distribution) line2.push(`${distributionLabel}: ${distribution}`);
+  if (ue) line2.push(`${ueVersionsLabel}: ${ue}`);
 
   return { line1: line1.join(' | '), line2: line2.join(' | ') };
 }
@@ -200,6 +257,22 @@ function ResourceCardItem({
   style = {},
 }) {
   if (!item) return null;
+  const noPreviewLabel = getNoPreviewLabel(t);
+  const editLabel = getResourceEditLabel(t);
+  const favoriteLabel = getFavoriteLabel(t);
+  const openLabel = getResourceOpenLabel(t);
+  const noneLabel = getNoneOptionLabel(t);
+  const usageLabel = getUsageLabel(t);
+  const styleLabel = getStyleLabel(t);
+  const ambianceLabel = getAmbianceLabel(t);
+  const licenseLabel = getLicenseLabel(t);
+  const qualityLabel = getQualityLabel(t);
+  const performanceLabel = getPerformanceLabel(t);
+  const purchasedLabel = getPurchasedLabel(t);
+  const testedLabel = getTestedLabel(t);
+  const addKeywordLabel = getAddKeywordLabel(t);
+  const tagsLabel = getTagsLabel(t);
+  const versionIncompatibleLabel = getVersionIncompatibleLabel(t);
   const thumbCandidates = normalizeThumbCandidates(
     typeof getThumbCandidates === 'function'
       ? getThumbCandidates(item)
@@ -228,10 +301,10 @@ function ResourceCardItem({
   };
   const optValLabel = (opt, keyPrefix) => {
     if (typeof opt === 'string') {
-      return { value: opt, label: t(`resources.detail.${keyPrefix}.${opt}`) || opt };
+      return { value: opt, label: safeT(t, `resources.detail.${keyPrefix}.${opt}`, opt) };
     }
     const v = String(opt?.value || '').trim();
-    const label = opt?.label || t(`resources.detail.${keyPrefix}.${v}`) || v;
+    const label = opt?.label || safeT(t, `resources.detail.${keyPrefix}.${v}`, v);
     return { value: v, label };
   };
 
@@ -254,10 +327,7 @@ function ResourceCardItem({
   const ratingQuality = Math.max(0, Math.min(5, Math.round(Number(item?.user?.ratingQuality) || 0)));
   const ratingPerformance = Math.max(0, Math.min(5, Math.round(Number(item?.user?.ratingPerformance) || 0)));
   const incompatible = typeof isUeIncompatible === 'function' ? isUeIncompatible(item) : false;
-  const compatLabel = t('resources.versionIncompatible');
-  const compatText = compatLabel && compatLabel !== 'resources.versionIncompatible'
-    ? compatLabel
-    : 'Version non compatible';
+  const compatText = versionIncompatibleLabel;
 
   const handleKeywordSubmit = () => {
     if (typeof onKeywordSubmit === 'function') {
@@ -275,14 +345,14 @@ function ResourceCardItem({
         />
       ) : (
         <div className="uu-resource-thumb placeholder">
-          {t('resources.noThumbnail') || 'No preview'}
+          {noPreviewLabel}
         </div>
       )}
-      <div className="uu-col" style={{ gap: '8px', minHeight: '110px', flex: 1, minWidth: 0 }}>
-        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
-          <div className="uu-resource-title" style={{ flex: '0 1 auto' }}>{title}</div>
+      <div className="uu-col" style={RESOURCE_LIST_CARD_BODY_STYLE}>
+        <div className="uu-row uu-align-center uu-gap-8" style={RESOURCE_LIST_CARD_TITLE_ROW_STYLE}>
+          <div className="uu-resource-title" style={RESOURCE_LIST_CARD_TITLE_STYLE}>{title}</div>
           {incompatible ? (
-            <div className="uu-resource-compat" style={{ marginLeft: '4px', marginTop: '2px' }}>
+            <div className="uu-resource-compat" style={RESOURCE_LIST_COMPAT_BADGE_STYLE}>
               <span className="uu-dot fail" aria-hidden="true" />
               <span>{compatText}</span>
             </div>
@@ -292,59 +362,59 @@ function ResourceCardItem({
         {metaLines && metaLines.line2 ? <div className="uu-resource-meta">{metaLines.line2}</div> : null}
         <div className="uu-resource-indexing">
           <div className="uu-index-field">
-            <label className="uu-label-sm">{t('resources.detail.labels.usage') || 'Usage'}</label>
+            <label className="uu-label-sm">{usageLabel}</label>
             <select
               className="uu-select"
               value={usageVal}
               onChange={(e) => onSetUsage && onSetUsage(item, e.target.value)}
             >
-              <option value="">{t('common.none') || 'None'}</option>
+              <option value="">{noneLabel}</option>
               {usageOpts.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </div>
           <div className="uu-index-field">
-            <label className="uu-label-sm">{t('resources.detail.labels.style') || 'Style'}</label>
+            <label className="uu-label-sm">{styleLabel}</label>
             <select
               className="uu-select"
               value={styleVal}
               onChange={(e) => onSetStyle && onSetStyle(item, e.target.value)}
             >
-              <option value="">{t('common.none') || 'None'}</option>
+              <option value="">{noneLabel}</option>
               {styleOpts.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </div>
           <div className="uu-index-field">
-            <label className="uu-label-sm">{t('resources.detail.labels.ambiance') || 'Ambiance'}</label>
+            <label className="uu-label-sm">{ambianceLabel}</label>
             <select
               className="uu-select"
               value={ambianceVal}
               onChange={(e) => onSetAmbiance && onSetAmbiance(item, e.target.value)}
             >
-              <option value="">{t('common.none') || 'None'}</option>
+              <option value="">{noneLabel}</option>
               {ambianceOpts.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </div>
           <div className="uu-index-field">
-            <label className="uu-label-sm">{t('resources.detail.labels.license') || 'License'}</label>
+            <label className="uu-label-sm">{licenseLabel}</label>
             <select
               className="uu-select"
               value={licenseVal}
               onChange={(e) => onSetLicense && onSetLicense(item, e.target.value)}
             >
-              <option value="">{t('common.none') || 'None'}</option>
+              <option value="">{noneLabel}</option>
               {licenseOpts.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </div>
           <div className="uu-index-field rating">
-            <span className="uu-label-sm">{t('resources.detail.labels.quality') || 'Quality'}</span>
+            <span className="uu-label-sm">{qualityLabel}</span>
             <div className="uu-rating">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button
@@ -360,7 +430,7 @@ function ResourceCardItem({
             </div>
           </div>
           <div className="uu-index-field rating">
-            <span className="uu-label-sm">{t('resources.detail.labels.performance') || 'Performance'}</span>
+            <span className="uu-label-sm">{performanceLabel}</span>
             <div className="uu-rating">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button
@@ -378,10 +448,10 @@ function ResourceCardItem({
         </div>
         <div
           className="uu-resource-actions"
-          style={{ flexWrap: 'wrap', rowGap: '6px', columnGap: '12px', alignItems: 'center', width: '100%', marginTop: 'auto' }}
+          style={RESOURCE_LIST_ACTIONS_STYLE}
         >
           <button className="uu-btn" onClick={() => onOpenDetail(item)}>
-            {t('resources.edit') || 'Edit'}
+            {editLabel}
           </button>
           {typeof onToggleFavorite === 'function' ? (
             <button
@@ -389,45 +459,45 @@ function ResourceCardItem({
               className={`uu-fav-btn ${isFav ? 'active' : ''}`}
               onClick={() => onToggleFavorite(item)}
               aria-pressed={isFav ? 'true' : 'false'}
-              title={t('resources.detail.labels.favorite') || 'Favoris'}
-              aria-label={t('resources.detail.labels.favorite') || 'Favoris'}
+              title={favoriteLabel}
+              aria-label={favoriteLabel}
             >
               ★
             </button>
           ) : null}
           {item?.listingUrl ? (
             <button className="uu-btn" onClick={() => onOpenExternal(item.listingUrl)}>
-              {t('resources.openFab') || 'Open'}
+              {openLabel}
             </button>
           ) : null}
           {typeof onTogglePurchased === 'function' ? (
-            <label className="uu-check uu-row uu-gap-4 uu-align-center" style={{ whiteSpace: 'nowrap' }}>
+            <label className="uu-check uu-row uu-gap-4 uu-align-center" style={RESOURCE_LIST_CHECK_LABEL_STYLE}>
               <input
                 type="checkbox"
                 checked={isPurchased}
                 onChange={() => onTogglePurchased(item)}
               />
-              <span>{t('resources.detail.labels.purchased') || 'Acheté'}</span>
+              <span>{purchasedLabel}</span>
             </label>
           ) : null}
           {typeof onToggleTested === 'function' ? (
-            <label className="uu-check uu-row uu-gap-4 uu-align-center" style={{ whiteSpace: 'nowrap' }}>
+            <label className="uu-check uu-row uu-gap-4 uu-align-center" style={RESOURCE_LIST_CHECK_LABEL_STYLE}>
               <input
                 type="checkbox"
                 checked={isTested}
                 onChange={() => onToggleTested(item)}
               />
-              <span>{t('resources.detail.labels.tested') || 'Testé'}</span>
+              <span>{testedLabel}</span>
             </label>
           ) : null}
           {typeof onAddKeyword === 'function' ? (
             <div
               className="uu-row uu-gap-8 uu-align-center"
-              style={{ flex: '0 0 auto', marginLeft: '12px' }}
+              style={RESOURCE_LIST_KEYWORD_WRAP_STYLE}
             >
               <input
                 className="uu-input"
-                style={{ width: '240px' }}
+                style={RESOURCE_LIST_KEYWORD_INPUT_STYLE}
                 value={keywordValue || ''}
                 onChange={(e) => {
                   if (typeof onKeywordChange === 'function') onKeywordChange(key, e.target.value);
@@ -438,14 +508,14 @@ function ResourceCardItem({
                     handleKeywordSubmit();
                   }
                 }}
-                placeholder={t('resources.detail.labels.addKeyword') || 'Ajouter mot-clé'}
+                placeholder={addKeywordLabel}
               />
             </div>
           ) : null}
         </div>
 
         {keywords.length ? (
-          <div className="uu-resource-tags" aria-label={t('resources.detail.labels.tags') || 'Mots-clés'}>
+          <div className="uu-resource-tags" aria-label={tagsLabel}>
             {keywords.map((tag, i) => (
               <span key={`${key}-tag-${i}`} className="uu-tag">{tag}</span>
             ))}
@@ -529,7 +599,7 @@ function ResourceListCards(props) {
           getThumbCandidates={getThumbCandidates}
           isUeIncompatible={isUeIncompatible}
           t={t}
-          style={{ marginBottom: '12px' }}
+          style={RESOURCE_LIST_CARD_MARGIN_BOTTOM_STYLE}
         />
         );
       })}
@@ -712,8 +782,8 @@ function VirtualizedResourceListCards(props) {
         const key = item?.uid || `${item?.title || 'item'}-${index}`;
         const keywordVal = data.keywordInputs[key] || '';
         return (
-          <div style={{ ...style, boxSizing: 'border-box', paddingRight: 8 }}>
-            <div ref={getRowRefCallback(index)} style={{ paddingBottom: 12 }}>
+          <div style={buildResourceListVirtualRowOuterStyle(style)}>
+            <div ref={getRowRefCallback(index)} style={RESOURCE_LIST_VIRTUAL_ROW_INNER_STYLE}>
               <ResourceCardItem
                 item={item}
                 idx={index}
@@ -721,7 +791,7 @@ function VirtualizedResourceListCards(props) {
                 onKeywordChange={data.handleKeywordChange}
                 onKeywordSubmit={data.handleKeywordSubmit}
                 {...data.handlers}
-                style={{ marginBottom: 0 }}
+                style={RESOURCE_LIST_CARD_MARGIN_ZERO_STYLE}
               />
             </div>
           </div>

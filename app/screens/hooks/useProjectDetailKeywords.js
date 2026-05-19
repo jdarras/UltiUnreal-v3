@@ -75,5 +75,3 @@ export function useProjectDetailKeywords({
     handleKeywordKeyDown,
   };
 }
-
-export default useProjectDetailKeywords;

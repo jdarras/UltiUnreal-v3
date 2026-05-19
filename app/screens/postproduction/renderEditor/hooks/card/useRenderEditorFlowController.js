@@ -87,5 +87,3 @@ export function useRenderEditorFlowController({
   const sectionProps = useRenderEditorSectionProps(sectionPropsInput);
   return sectionProps;
 }
-
-export default useRenderEditorFlowController;

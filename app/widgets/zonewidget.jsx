@@ -1,13 +1,14 @@
 // app/widgets/zonewidget.jsx
 import { useEffect, useRef } from 'react';
 import './zonewidget.css';
-import { readIdentity } from '../utils/identity';
-import { createT } from '../i18n';
+import { getWidgetT } from './widgetTranslator.js';
 
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
+function buildZoneHeaderStyle(headerColor) {
+  return { backgroundColor: headerColor };
+}
+
+function buildZoneBodyStyle(bodyColor) {
+  return { backgroundColor: bodyColor };
 }
 
 /**
@@ -25,7 +26,7 @@ export default function ZoneWidget({
   onHeaderHeightChange
 }) {
 
-  const t = getT();
+  const t = getWidgetT();
   const headerColor = color || '#1F2937';
 
     const headerRef = useRef(null);
@@ -85,7 +86,7 @@ export default function ZoneWidget({
         <div
           ref={headerRef}
           className="uu-zone-header"
-          style={{ backgroundColor: headerColor }}
+          style={buildZoneHeaderStyle(headerColor)}
         >
           <div className="uu-zone-header-main">
             <div className="uu-zone-title-block">
@@ -130,7 +131,7 @@ export default function ZoneWidget({
 
         <div
           className="uu-zone-body"
-          style={{ backgroundColor: bodyColor }}
+          style={buildZoneBodyStyle(bodyColor)}
         >
           {/* Les widgets "enfants" sont gérés par le layout global,
               ici c'est juste le fond visuel de la zone */}
@@ -146,7 +147,7 @@ export default function ZoneWidget({
 export function ZoneEditorRight({ selected, updateSelected }) {
   const ui = selected.ui || {};
   const color = ui.color || '#1F2937';
-  const t = getT()
+  const t = getWidgetT()
 
   function handleLabelChange(e) {
     updateSelected?.({ label: e.target.value });
@@ -196,7 +197,7 @@ export function ZoneEditorRight({ selected, updateSelected }) {
 export function ZoneNoteEditor({ selected, updateSelected }) {
   const textareaRef = useRef(null);
   const note = selected.note || '';
-  const t = getT();
+  const t = getWidgetT();
 
   useEffect(() => {
     if (!textareaRef.current) return;
@@ -223,3 +224,4 @@ export function ZoneNoteEditor({ selected, updateSelected }) {
     </div>
   );
 }
+

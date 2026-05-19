@@ -107,5 +107,3 @@ export function buildTaskPayloadFromForm({
     renderStationName: context.renderStationName,
   };
 }
-
-export default buildTaskPayloadFromForm;

@@ -81,6 +81,5 @@ function buildResourceThumbCandidates(item) {
 }
 
 export {
-  pickThumbValue,
   buildResourceThumbCandidates,
 };

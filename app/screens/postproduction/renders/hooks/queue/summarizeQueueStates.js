@@ -20,5 +20,3 @@ export function summarizeQueueStates({
   }
   return { waiting, running, error, toModify };
 }
-
-export default summarizeQueueStates;

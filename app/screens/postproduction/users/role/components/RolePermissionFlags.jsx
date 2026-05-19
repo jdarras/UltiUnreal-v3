@@ -1,6 +1,12 @@
 import { safeT } from "../../../shared/helpers";
 import { RoleManageableRolesSection } from "./RoleManageableRolesSection";
 
+const PERMISSION_TOGGLE_ROW_STYLE = { gap: "6px", justifyContent: "flex-start" };
+const ROLE_PERMISSION_SECTION_STYLE = { gap: "12px" };
+const ROLE_PERMISSION_TITLE_STYLE = { marginBottom: "8px" };
+const ROLE_PERMISSION_LIST_STYLE = { gap: "8px" };
+const ROLE_PERMISSION_GRID_STYLE = { alignItems: "start" };
+
 function PermissionToggleRow({
   label = "",
   checked = false,
@@ -8,7 +14,7 @@ function PermissionToggleRow({
   onChange = null,
 } = {}) {
   return (
-    <label className="uu-row" style={{ gap: "6px", justifyContent: "flex-start" }}>
+    <label className="uu-row" style={PERMISSION_TOGGLE_ROW_STYLE}>
       <input
         type="checkbox"
         checked={checked}
@@ -50,12 +56,12 @@ function RolePermissionFlags({
   const canUseLiveMode = draft?.canUseLiveMode !== false;
 
   return (
-    <div className="uu-col mt-12" style={{ gap: "12px" }}>
+    <div className="uu-col mt-12" style={ROLE_PERMISSION_SECTION_STYLE}>
       <div className="uu-card">
-        <h4 className="uu-h3 uu-block-title" style={{ marginBottom: "8px" }}>
+        <h4 className="uu-h3 uu-block-title" style={ROLE_PERMISSION_TITLE_STYLE}>
           {safeT(t, "postprod.roles.form.sectionUsersProfiles", "Profils et utilisateurs")}
         </h4>
-        <div className="uu-col" style={{ gap: "8px" }}>
+        <div className="uu-col" style={ROLE_PERMISSION_LIST_STYLE}>
           <PermissionToggleRow
             label={safeT(t, "postprod.roles.form.canManageRoles", "Peut gérer les profils")}
             checked={draft?.canManageRoles === true}
@@ -99,8 +105,8 @@ function RolePermissionFlags({
       />
 
       <div className="uu-card">
-        <div className="uu-grid-2" style={{ alignItems: "start" }}>
-          <div className="uu-col" style={{ gap: "8px" }}>
+        <div className="uu-grid-2" style={ROLE_PERMISSION_GRID_STYLE}>
+          <div className="uu-col" style={ROLE_PERMISSION_LIST_STYLE}>
             <PermissionToggleRow
               label={safeT(t, "postprod.roles.form.mode.live", "Mode Live")}
               checked={canUseLiveMode}
@@ -108,7 +114,7 @@ function RolePermissionFlags({
               onChange={(e) => applyModeFlag("canUseLiveMode", e.target.checked)}
             />
           </div>
-          <div className="uu-col" style={{ gap: "8px" }}>
+          <div className="uu-col" style={ROLE_PERMISSION_LIST_STYLE}>
             <PermissionToggleRow
               label={safeT(t, "postprod.roles.form.mode.render", "Mode Rendu")}
               checked={canUseRenderMode}
@@ -121,7 +127,7 @@ function RolePermissionFlags({
 
       {(canUseLiveMode || canUseRenderMode) && <div className="uu-grid-2">
         {canUseLiveMode && <div className="uu-card">
-          <div className="uu-col" style={{ gap: "8px" }}>
+          <div className="uu-col" style={ROLE_PERMISSION_LIST_STYLE}>
             <h4 className="uu-h3 uu-block-title">{safeT(t, "postprod.roles.form.mode.live", "Mode Live")}</h4>
             <PermissionToggleRow
               label={safeT(t, "postprod.roles.form.canManageMachinesLive", "Peut gérer les stations")}
@@ -177,7 +183,7 @@ function RolePermissionFlags({
         </div>}
 
         {canUseRenderMode && <div className="uu-card">
-          <div className="uu-col" style={{ gap: "8px" }}>
+          <div className="uu-col" style={ROLE_PERMISSION_LIST_STYLE}>
             <h4 className="uu-h3 uu-block-title">{safeT(t, "postprod.roles.form.mode.render", "Mode Rendu")}</h4>
             <PermissionToggleRow
               label={safeT(t, "postprod.roles.form.canManageMachines", "Peut gérer les stations de rendu")}
@@ -246,4 +252,3 @@ function RolePermissionFlags({
 }
 
 export { RolePermissionFlags };
-export default RolePermissionFlags;

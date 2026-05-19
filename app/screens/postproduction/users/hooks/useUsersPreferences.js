@@ -46,5 +46,3 @@ export function useUsersPreferences({
     setListSortDir,
   };
 }
-
-export default useUsersPreferences;

@@ -152,4 +152,3 @@ function useProductionBootstrap({
 }
 
 export { useProductionBootstrap };
-export default useProductionBootstrap;

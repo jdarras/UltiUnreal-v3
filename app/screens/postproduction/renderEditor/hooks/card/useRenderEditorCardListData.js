@@ -53,5 +53,3 @@ export function useRenderEditorCardListData({
     list,
   });
 }
-
-export default useRenderEditorCardListData;

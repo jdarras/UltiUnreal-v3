@@ -50,5 +50,3 @@ export function buildRenderEditorSectionPropsInput({
     }),
   };
 }
-
-export default buildRenderEditorSectionPropsInput;

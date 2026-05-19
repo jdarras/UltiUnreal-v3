@@ -17,12 +17,12 @@ function ProjectsCatalogTableView({
       <table className="uu-table">
         <thead>
           <tr>
-            <th style={{ textAlign: "left" }}>{safeT(t, "projects.table.id", "ID")}</th>
-            <th style={{ textAlign: "left" }}>{safeT(t, "projects.table.name", "Nom")}</th>
-            <th style={{ textAlign: "left" }}>{safeT(t, "projects.table.usageMode", "Mode d'usage")}</th>
-            <th style={{ textAlign: "left" }}>{safeT(t, "postprod.projects.table.code", "Code")}</th>
-            <th style={{ textAlign: "left" }}>{safeT(t, "postprod.projects.table.linkedTasks", "Taches liees")}</th>
-            <th style={{ textAlign: "left" }}>{safeT(t, "postprod.projects.table.actions", "Actions")}</th>
+            <th className="uu-text-left">{safeT(t, "projects.table.id", "ID")}</th>
+            <th className="uu-text-left">{safeT(t, "projects.table.name", "Nom")}</th>
+            <th className="uu-text-left">{safeT(t, "projects.table.usageMode", "Mode d'usage")}</th>
+            <th className="uu-text-left">{safeT(t, "postprod.projects.table.code", "Code")}</th>
+            <th className="uu-text-left">{safeT(t, "postprod.projects.table.linkedTasks", "Taches liees")}</th>
+            <th className="uu-text-left">{safeT(t, "postprod.projects.table.actions", "Actions")}</th>
           </tr>
         </thead>
         <tbody>
@@ -59,4 +59,3 @@ function ProjectsCatalogTableView({
 }
 
 export { ProjectsCatalogTableView };
-export default ProjectsCatalogTableView;

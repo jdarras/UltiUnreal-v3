@@ -1,4 +1,4 @@
-// app/screens/launchcontrol.jsx
+﻿// app/screens/launchcontrol.jsx
 import React from 'react';
 import {
   getHosts,
@@ -16,87 +16,23 @@ import {
 import { readIdentity } from '../utils/identity';
 import { createT } from '../i18n';
 import { NoticeContext } from '../NoticeContext';
-
-function sortHosts(list, locale = 'fr') {
-  const collator = new Intl.Collator(locale || 'fr', { numeric: true, sensitivity: 'base' });
-  return [...(Array.isArray(list) ? list : [])]
-    .filter((h) => h && h.renderAvailability !== 'excluded' && h.eligible !== false)
-    .sort((a, b) => {
-      const ai = Number(a?.sortIndex);
-      const bi = Number(b?.sortIndex);
-      const hasAi = Number.isFinite(ai);
-      const hasBi = Number.isFinite(bi);
-      if (hasAi && hasBi && ai !== bi) return ai - bi;
-      if (hasAi && !hasBi) return -1;
-      if (!hasAi && hasBi) return 1;
-
-      const na = String(a?.name || '').trim();
-      const nb = String(b?.name || '').trim();
-      if (na && nb) {
-        const c = collator.compare(na, nb);
-        if (c !== 0) return c;
-      } else if (na) {
-        return -1;
-      } else if (nb) {
-        return 1;
-      }
-      return collator.compare(String(a?.ip || ''), String(b?.ip || ''));
-    });
-}
-
-function buildHostsSignature(list) {
-  const arr = Array.isArray(list) ? list : [];
-  return arr
-    .map((h) => {
-      const ip = String(h?.ip || '').trim();
-      const name = String(h?.name || '').trim();
-      const color = String(h?.color || '').trim();
-      const uproject = String(h?.uproject || '').trim();
-      const syncRoot = String(h?.syncRoot || '').trim();
-      const avail = h?.renderAvailability || (h?.eligible === false ? 'excluded' : 'capable');
-      const syncEnabled = h?.syncEnabled ? '1' : '0';
-      const sortIndexRaw = Number(h?.sortIndex);
-      const sortIndex = Number.isFinite(sortIndexRaw) ? String(sortIndexRaw) : '';
-      return `${ip}|${name}|${color}|${uproject}|${syncRoot}|${avail}|${syncEnabled}|${sortIndex}`;
-    })
-    .sort()
-    .join('||');
-}
-
-function buildProjectsSignature(payload) {
-  const activeId = String(payload?.activeId || '').trim();
-  const activeName = String(payload?.activeName || '').trim();
-
-  const projectsSig = (Array.isArray(payload?.projects) ? payload.projects : [])
-    .map((project) => {
-      const id = String(project?.id || '').trim();
-      const name = String(project?.name || '').trim();
-      const uproject = String(project?.uproject || '').trim();
-      const projectPath = String(project?.projectPath || '').trim();
-      const pathValue = String(project?.path || '').trim();
-      const engineVersion = String(project?.engineVersion || '').trim();
-      return `${id}|${name}|${uproject}|${projectPath}|${pathValue}|${engineVersion}`;
-    })
-    .sort()
-    .join('||');
-
-  const activeByHost = payload?.activeByHost && typeof payload.activeByHost === 'object'
-    ? payload.activeByHost
-    : {};
-  const activeByHostSig = Object.entries(activeByHost)
-    .map(([ip, mapping]) => {
-      const mapObj = mapping && typeof mapping === 'object' ? mapping : {};
-      const mappingSig = Object.entries(mapObj)
-        .map(([projectId, up]) => `${String(projectId || '').trim()}:${String(up || '').trim()}`)
-        .sort()
-        .join(',');
-      return `${String(ip || '').trim()}=>${mappingSig}`;
-    })
-    .sort()
-    .join('||');
-
-  return `${activeId}|${activeName}|${projectsSig}|${activeByHostSig}`;
-}
+import {
+  sortHosts,
+  buildHostsSignature,
+  buildProjectsSignature,
+  isHostAllowedForLaunchMode,
+  computeAgentStatus,
+  computeProjectStatus,
+  computeExeStatus,
+  buildColorDotStyle,
+} from './launchcontrolHelpers';
+import {
+  LaunchHostCard,
+  LaunchEditorVersionsSection,
+  LaunchActiveProjectSummary,
+  LaunchToolbarActions,
+  renderStatusDot,
+} from './launchcontrolSections';
 
 export default function LaunchControlScreen({
   isVisible = true,
@@ -123,6 +59,7 @@ export default function LaunchControlScreen({
   const [ueVersions, setUeVersions] = React.useState([]); // ['5.7', ...]
   const [rcHttpPort, setRcHttpPort] = React.useState(30010);
   const [statusMsg, setStatusMsg] = React.useState('');
+  const errorTimerRef = React.useRef(null);
   const wrcProbeCancelRef = React.useRef(false);
   const [wrcReadyTick, setWrcReadyTick] = React.useState(0); // incrément à chaque connexion WRC
   const wrcAttemptsRef = React.useRef(0);
@@ -151,6 +88,38 @@ export default function LaunchControlScreen({
   const sortLocale = lang || 'fr';
   const noticeApi = React.useContext(NoticeContext);
 
+  const clearErrorMessage = React.useCallback(() => {
+    if (errorTimerRef.current) {
+      clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = null;
+    }
+    setError('');
+  }, []);
+
+  const scheduleErrorClear = React.useCallback((delayMs = 0) => {
+    if (errorTimerRef.current) {
+      clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = null;
+    }
+    const rawDelay = Number(delayMs);
+    const timeoutMs = Number.isFinite(rawDelay) && rawDelay > 0 ? Math.trunc(rawDelay) : 0;
+    if (timeoutMs <= 0) return;
+    errorTimerRef.current = setTimeout(() => {
+      errorTimerRef.current = null;
+      setError('');
+    }, timeoutMs);
+  }, []);
+
+  const showErrorMessage = React.useCallback((message = '', clearAfterMs = 0) => {
+    const msg = String(message || '').trim();
+    if (!msg) {
+      clearErrorMessage();
+      return;
+    }
+    setError(msg);
+    scheduleErrorClear(clearAfterMs);
+  }, [clearErrorMessage, scheduleErrorClear]);
+
   const projectsDataRef = React.useRef(projectsData);
   const syncStatusRef = React.useRef(syncStatusMap);
   const commonCfgRef = React.useRef({});
@@ -166,6 +135,43 @@ export default function LaunchControlScreen({
       // silencieux : ne bloque pas l'action
     }
   }, []);
+  const setHostBusy = React.useCallback((ip, isBusy) => {
+    const key = String(ip || '').trim();
+    if (!key) return;
+    setBusy((prev) => ({ ...prev, [key]: !!isBusy }));
+  }, []);
+  const setHostsBusy = React.useCallback((ips, isBusy) => {
+    const keys = Array.isArray(ips)
+      ? ips.map((ip) => String(ip || '').trim()).filter(Boolean)
+      : [];
+    if (!keys.length) return;
+    setBusy((prev) => {
+      const next = { ...prev };
+      keys.forEach((key) => {
+        next[key] = !!isBusy;
+      });
+      return next;
+    });
+  }, []);
+  const armProductionStartCycle = React.useCallback(() => {
+    if (launchMode !== 'production') return;
+    startRequestedRef.current = true;
+    wrcReadyRef.current = false;
+    lastStartLayoutSigRef.current = '';
+    wrcAttemptsRef.current = 0;
+    try {
+      startWrcProbeRef.current?.();
+    } catch {}
+  }, [launchMode]);
+  const showStartLayoutStatus = React.useCallback(() => {
+    if (launchMode !== 'production') return;
+    if (!useStartLayoutRef.current || !hasStartLayoutRef.current) return;
+    setStatusMsg(
+      wrcReadyRef.current
+        ? t('launch.status.startLayoutSent')
+        : t('launch.status.startLayoutWaiting')
+    );
+  }, [launchMode, t]);
   const hostsRef = React.useRef(hosts);
   const hostsSigRef = React.useRef('');
   const projSigRef = React.useRef('');
@@ -194,6 +200,15 @@ export default function LaunchControlScreen({
     const timer = setTimeout(() => setStatusMsg(''), 5000);
     return () => clearTimeout(timer);
   }, [statusMsg]);
+
+  React.useEffect(() => {
+    return () => {
+      if (errorTimerRef.current) {
+        clearTimeout(errorTimerRef.current);
+        errorTimerRef.current = null;
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!noticeApi) return;
@@ -735,7 +750,7 @@ export default function LaunchControlScreen({
   React.useEffect(() => {
     (async () => {
       setLoading(true);
-      setError('');
+      showErrorMessage('');
       try {
         const [h, p, c] = await Promise.all([getHosts(), getProjects({ light: true }), getCommon()]);
         hostsSigRef.current = buildHostsSignature(h);
@@ -772,13 +787,13 @@ export default function LaunchControlScreen({
           const rcPort = Number(c?.rcHttpPort || 0);
           if (rcPort) setRcHttpPort(rcPort);
       } catch (e) {
-        setError(e.message || String(e));
+        showErrorMessage(e.message || String(e));
       } finally {
         setLoading(false);
       }
     })
     ();
-  }, [canUseEditorLaunch, sortLocale, sortVersions]);
+  }, [canUseEditorLaunch, sortLocale, sortVersions, showErrorMessage]);
 
   // Heartbeat connexion (online/offline) + refresh hosts (allégé) + projets si changement
   React.useEffect(() => {
@@ -1136,18 +1151,18 @@ export default function LaunchControlScreen({
       null
     );
   }
+  const activeProject = React.useMemo(() => getActiveProject(), [projectsData]);
+  const activeProjectEngineVersion = String(activeProject?.engineVersion || '').trim();
 
   function resolveExeForHost(h) {
-    const activeProject = getActiveProject();
-    const requiredVersion = String(activeProject?.engineVersion || '').trim();
-    if (!requiredVersion) return '';
+    if (!activeProjectEngineVersion) return '';
 
     const editors =
       (h && h.unrealEditors && typeof h.unrealEditors === 'object'
         ? h.unrealEditors
         : {}) || {};
 
-    return editors[requiredVersion] || '';
+    return editors[activeProjectEngineVersion] || '';
   }
 
   // --- Résolution d'un exe UE spécifique (pour lancement éditeur seul) ---
@@ -1170,14 +1185,13 @@ export default function LaunchControlScreen({
       if (!ip) return;
       const exe = resolveEditorPath(serverHost, version);
       if (!exe) {
-        setError(t('launch.status.missingExeVersion', { version }));
-        setTimeout(() => setError(''), 2000);
+        showErrorMessage(t('launch.status.missingExeVersion', { version }), 2000);
         return;
       }
       try {
         const launchRes = await postLaunch(ip, { editorOnly: true, requiredVersion: version, uproject: '' });
         maybeNotifyLocalFallback(launchRes);
-        setError('');
+        showErrorMessage('');
       } catch (e) {
         console.error('[LaunchControl] launch editor failed', {
           ip,
@@ -1187,19 +1201,18 @@ export default function LaunchControlScreen({
           message: e?.message || String(e),
           details: e?.details || '',
         });
-        setError(getStartErrorMessage(e));
-        setTimeout(() => setError(''), 2500);
+        showErrorMessage(getStartErrorMessage(e), 2500);
       }
     },
-    [serverHost, t, maybeNotifyLocalFallback, canUseEditorLaunch]
+    [serverHost, t, maybeNotifyLocalFallback, canUseEditorLaunch, showErrorMessage]
   );
 
   // ---- Helpers: état d'association machine (EXE + .uproject spécifique IP) ----
-  function isReadyHost(h) {
-    const exe = resolveExeForHost(h);
-    const uproj = resolveUprojectFor(h);
+  function isReadyHost(h, resolved = null) {
+    const exe = resolved?.exe ?? resolveExeForHost(h);
+    const uproj = resolved?.uproj ?? resolveUprojectFor(h);
     const active = String(projectsData?.activeId || '').trim();
-    const ip = String(h?.ip || '').trim();
+    const ip = String(resolved?.ip ?? h?.ip ?? '').trim();
     const syncEnabled = !!h?.syncEnabled;
     const syncRoot = String(h?.syncRoot || '').trim();
     const syncStatus = syncEnabled ? syncStatusMap[ip] : null;
@@ -1217,27 +1230,10 @@ export default function LaunchControlScreen({
     return !!active && !!exe && !!uproj && syncOk;
   }
 
-  // Petites pastilles d'état réutilisables
-  const renderStatusDot = (cls, title = '') => (
-    <span
-      className={`uu-dot ${cls}`}
-      title={title}
-      aria-label={title || cls}
-      style={{ marginLeft: '6px' }}
-    />
-  );
-
   const renderColorDot = (color, title = '') => (
     <span
       className="uu-pastille"
-      style={{
-        background: color || '#6B7280',
-        display: 'inline-block',
-        width: 12,
-        height: 12,
-        marginRight: 8,
-        borderRadius: '50%',
-      }}
+      style={buildColorDotStyle(color)}
       title={title}
       aria-label={title || 'host color'}
     />
@@ -1257,7 +1253,7 @@ export default function LaunchControlScreen({
         await setQuietModeFlag(false);
       }
     } catch (err) {
-      setError(err.message || String(err));
+      showErrorMessage(err.message || String(err));
     }
   }
 
@@ -1267,7 +1263,7 @@ export default function LaunchControlScreen({
     try {
       await postCommon({ useStartLayout: checked });
     } catch (err) {
-      setError(err?.message || String(err));
+      showErrorMessage(err?.message || String(err));
       setUseStartLayout(useStartLayoutRef.current);
     }
   }
@@ -1301,7 +1297,7 @@ export default function LaunchControlScreen({
     if (!res || typeof res !== 'object') return false;
     const fb = res.localFallback;
     if (!fb || fb.used !== true) return false;
-    const msg = t('launch.msg.localFallback') || 'Reseau Ethernet inactif, bascule locale sur 127.0.0.1.';
+    const msg = t('launch.msg.localFallback');
     if (noticeApi?.showNotice) {
       noticeApi.showNotice(msg, 'warn');
     } else {
@@ -1317,31 +1313,21 @@ export default function LaunchControlScreen({
     if (launchMode === 'production' && !canUseLiveLaunch) return;
     if (launchMode === 'integration' && !canUseEditorLaunch) return;
 
-    if (launchMode === 'production') {
-      startRequestedRef.current = true;
-      wrcReadyRef.current = false;
-      lastStartLayoutSigRef.current = '';
-      wrcAttemptsRef.current = 0;
-      try {
-        startWrcProbeRef.current?.();
-      } catch {}
-    }
+    armProductionStartCycle();
 
     const host = hosts.find(h => String(h.ip || '').trim() === targetIp);
     if (!host) {
-      setError(t('launch.msg.startOneErrorPrefix').replace('{ip}', targetIp) + 'host not found');
+      showErrorMessage(t('launch.msg.startOneErrorPrefix').replace('{ip}', targetIp) + t('launch.msg.hostNotFoundSuffix'));
       return;
     }
 
     const exe = resolveExeForHost(host);
     const uproj = resolveUprojectFor(host);
-    if (!isReadyHost(host)) {
-      const activeProject = getActiveProject();
-      const requiredVersion = String(activeProject?.engineVersion || '').trim();
-      setError(
+    if (!isReadyHost(host, { exe, uproj, ip: targetIp })) {
+      showErrorMessage(
         !exe
-          ? (requiredVersion
-              ? t('launch.status.missingExeVersion', { version: requiredVersion })
+          ? (activeProjectEngineVersion
+              ? t('launch.status.missingExeVersion', { version: activeProjectEngineVersion })
               : t('launch.status.missingExe'))
           : (host?.syncEnabled
               ? t('launch.status.missingUprojectSync')
@@ -1350,7 +1336,7 @@ export default function LaunchControlScreen({
       return;
     }
 
-    setBusy(b => ({ ...b, [targetIp]: true }));
+    setHostBusy(targetIp, true);
     try {
       if (launchMode === 'production') {
         await setQuietModeFlag(true);
@@ -1359,14 +1345,8 @@ export default function LaunchControlScreen({
       }
       const launchRes = await postLaunch(targetIp, { uproject: uproj });
       maybeNotifyLocalFallback(launchRes);
-      setError('');
-      if (launchMode === 'production' && useStartLayoutRef.current && hasStartLayoutRef.current) {
-        setStatusMsg(
-          wrcReadyRef.current
-            ? t('launch.status.startLayoutSent')
-            : t('launch.status.startLayoutWaiting')
-        );
-      }
+      showErrorMessage('');
+      showStartLayoutStatus();
       } catch (e) {
         console.error('[LaunchControl] start failed', {
           ip: targetIp,
@@ -1377,32 +1357,32 @@ export default function LaunchControlScreen({
         });
         const prefix = t('launch.msg.startOneErrorPrefix').replace('{ip}', targetIp);
         const suffix = getStartErrorMessage(e);
-        setError(prefix + suffix);
+        showErrorMessage(prefix + suffix);
       } finally {
-        setBusy(b => ({ ...b, [targetIp]: false }));
+        setHostBusy(targetIp, false);
       }
     }
 
   async function onStop(ip) {
     if (launchMode === 'production' && !canUseLiveLaunch) return;
     if (launchMode === 'integration' && !canUseEditorLaunch) return;
-    setBusy(b => ({ ...b, [ip]: true }));
+    setHostBusy(ip, true);
     try {
       const stopMode = launchMode === 'integration' ? 'integration' : 'production';
       const host = hosts.find(h => String(h.ip || '').trim() === String(ip));
       const uproject = stopMode === 'integration' && host ? resolveUprojectFor(host) : '';
       const stopRes = await postStop(ip, { mode: stopMode, uproject });
       maybeNotifyLocalFallback(stopRes);
-      setError('');
+      showErrorMessage('');
       if (launchMode === 'production') {
         await setQuietModeFlag(false);
       }
     } catch (e) {
       const prefix = t('launch.msg.stopOneErrorPrefix').replace('{ip}', String(ip));
       const suffix = e?.message || String(e);
-      setError(prefix + suffix);
+      showErrorMessage(prefix + suffix);
     } finally {
-        setBusy(b => ({ ...b, [ip]: false }));
+        setHostBusy(ip, false);
       }
     }
 
@@ -1411,13 +1391,7 @@ export default function LaunchControlScreen({
     if (launchMode === 'production' && !canUseLiveLaunch) return;
     if (launchMode === 'integration' && !canUseEditorLaunch) return;
     if (launchMode !== 'production') return;
-    startRequestedRef.current = true;
-    wrcReadyRef.current = false;
-    lastStartLayoutSigRef.current = '';
-    wrcAttemptsRef.current = 0;
-    try {
-      startWrcProbeRef.current?.();
-    } catch {}
+    armProductionStartCycle();
     const targets = hosts
       .filter(h => isReadyHost(h) && (onlineMap[h.ip]?.online) && !busy[h.ip])
       .filter(h => !(onlineMap[h.ip]?.unrealRunning))
@@ -1430,7 +1404,7 @@ export default function LaunchControlScreen({
 
     const ips = targets.map(t => t.ip);
 
-    setBusy(b => ips.reduce((acc, ip) => ({ ...acc, [ip]: true }), { ...b }));
+    setHostsBusy(ips, true);
     try {
       if (launchMode === 'production') {
         await setQuietModeFlag(true);
@@ -1443,14 +1417,8 @@ export default function LaunchControlScreen({
       );
       const fallbackLaunch = launchResults.find((entry) => entry?.res?.localFallback?.used);
       if (fallbackLaunch) maybeNotifyLocalFallback(fallbackLaunch.res);
-      setError('');
-      if (useStartLayoutRef.current && hasStartLayoutRef.current) {
-        setStatusMsg(
-          wrcReadyRef.current
-            ? t('launch.status.startLayoutSent')
-            : t('launch.status.startLayoutWaiting')
-        );
-      }
+      showErrorMessage('');
+      showStartLayoutStatus();
     } catch (e) {
       console.error('[LaunchControl] start all failed', {
         code: e?.code || '',
@@ -1460,9 +1428,9 @@ export default function LaunchControlScreen({
       });
       const prefix = t('launch.msg.startAllErrorPrefix');
       const suffix = getStartErrorMessage(e);
-      setError(prefix + suffix);
+      showErrorMessage(prefix + suffix);
     } finally {
-      setBusy(b => ips.reduce((acc, ip) => ({ ...acc, [ip]: false }), { ...b }));
+      setHostsBusy(ips, false);
     }
   }
 
@@ -1473,7 +1441,7 @@ export default function LaunchControlScreen({
       .filter((h) => onlineMap[h.ip]?.online && onlineMap[h.ip]?.unrealRunning)
       .map((h) => h.ip);
     if (!ips.length) return;
-    setBusy(b => ips.reduce((acc, ip) => ({ ...acc, [ip]: true }), { ...b }));
+    setHostsBusy(ips, true);
     try {
       const stopMode = launchMode === 'integration' ? 'integration' : 'production';
       const stopResults = await Promise.all(
@@ -1485,16 +1453,16 @@ export default function LaunchControlScreen({
       );
       const fallbackStop = stopResults.find((entry) => entry?.localFallback?.used);
       if (fallbackStop) maybeNotifyLocalFallback(fallbackStop);
-      setError('');
+      showErrorMessage('');
       if (launchMode === 'production') {
         await setQuietModeFlag(false);
       }
     } catch (e) {
       const prefix = t('launch.msg.stopAllErrorPrefix');
       const suffix = e?.message || String(e);
-      setError(prefix + suffix);
+      showErrorMessage(prefix + suffix);
     } finally {
-      setBusy(b => ips.reduce((acc, ip) => ({ ...acc, [ip]: false }), { ...b }));
+      setHostsBusy(ips, false);
     }
   }
 
@@ -1503,31 +1471,67 @@ export default function LaunchControlScreen({
     const v = (s || '').toString().replace(/\//g, '\\').replace(/\\+/g, '\\').trim();
     return v || t('launch.path.undefined');
   };
-
-  const canStartAnyHost =
-    hosts.some((h) => {
-      const ip = String(h.ip || '').trim();
-      const entry = onlineMap && onlineMap[ip];
-      const online = !!(entry && entry.online);
-      const running = !!(entry && entry.unrealRunning);
-      const isServerHost = localIp && ip === localIp;
-      const allowed =
-        (launchMode === 'production' && canUseLiveLaunch) ||
-        (launchMode === 'integration' && canUseEditorLaunch && isServerHost);
-      return allowed && isReadyHost(h) && online && !running && !busy[h.ip];
+  const hostRuntimeRows = (Array.isArray(hosts) ? hosts : []).map((host) => {
+    const ip = String(host?.ip || '').trim();
+    const entry = onlineMap && onlineMap[ip];
+    const online = !!(entry && entry.online);
+    const running = !!(entry && entry.unrealRunning);
+    const modeAllowsHost = isHostAllowedForLaunchMode({
+      ip,
+      localIp,
+      launchMode,
+      canUseLiveLaunch,
+      canUseEditorLaunch,
     });
-
-  const canStopAnyHost =
-    hosts.some((h) => {
-      const ip = String(h.ip || '').trim();
-      const entry = onlineMap && onlineMap[ip];
-      const running = !!(entry && entry.unrealRunning);
-      const isServerHost = localIp && ip === localIp;
-      const allowed =
-        (launchMode === 'production' && canUseLiveLaunch) ||
-        (launchMode === 'integration' && canUseEditorLaunch && isServerHost);
-      return allowed && running && !busy[h.ip];
+    const ue = resolveExeForHost(host);
+    const uproj = resolveUprojectFor(host);
+    const ready = isReadyHost(host, { exe: ue, uproj, ip });
+    const canStart = modeAllowsHost && ready && online && !running && !busy[host.ip];
+    const canStop = modeAllowsHost && !busy[host.ip] && running;
+    const agentStatus = computeAgentStatus({
+      isBusy: !!busy[ip],
+      online,
+      running,
+      t,
     });
+    const projectStatus = computeProjectStatus({
+      host,
+      ip,
+      uproj,
+      syncStatusMap,
+      t,
+    });
+    const exeStatus = computeExeStatus({
+      hasExe: !!ue,
+      requiredVersion: activeProjectEngineVersion,
+      t,
+    });
+    const ipValid = !!ip && /\d/.test(ip);
+    const hostInvalid =
+      !ipValid ||
+      !online ||
+      projectStatus.cls === 'fail' ||
+      exeStatus.cls === 'fail';
+    const hostWarn = projectStatus.cls === 'warn';
+    return {
+      host,
+      ip,
+      online,
+      running,
+      ue,
+      uproj,
+      canStart,
+      canStop,
+      agentStatus,
+      projectStatus,
+      exeStatus,
+      hostInvalid,
+      hostWarn,
+    };
+  });
+
+  const canStartAnyHost = hostRuntimeRows.some((row) => row.canStart);
+  const canStopAnyHost = hostRuntimeRows.some((row) => row.canStop);
 
   const activeLabel = loading
     ? t('launch.loading')
@@ -1537,60 +1541,26 @@ export default function LaunchControlScreen({
     <div className="uu-page uu-page-compact launch-page">
         <div className="uu-section">
         <div className="uu-toolbar">
-          <div className="uu-kv">
-            {canOpenProjectDetail && projectsData?.activeId ? (
-              <button className="uu-btn" onClick={editActiveProject}>
-                {t('projects.actions.edit')}
-              </button>
-            ) : null}
-            <span className="uu-k">{t('launch.activeProject.label')}</span>
-            <span className="uu-v">
-              {activeLabel}{' '}
-              {projectsData.activeId ? (
-                <span className="uu-id-tag uu-muted">[{projectsData.activeId}]</span>
-              ) : null}
-            </span>
-          </div>
-          <div className="uu-toolbar-actions">
-            {launchMode !== 'integration' && hasStartLayout ? (
-              <label className="uu-check uu-row uu-align-center uu-gap-8" style={{ marginRight: '12px' }}>
-                {t('launch.useStartLayout')}
-                <input
-                  type="checkbox"
-                  checked={!!useStartLayout}
-                  onChange={onToggleUseStartLayout}
-                />
-              </label>
-            ) : null}
-            <select
-              className="uu-select uu-launch-mode-select"
-              value={launchMode}
-              onChange={onChangeLaunchMode}
-            >
-              <option value="production">{t('launch.mode.production')}</option>
-              {canUseEditorLaunch ? (
-                <option value="integration">{t('launch.mode.integration')}</option>
-              ) : null}
-            </select>
-            <button
-              className={`uu-btn ${
-                launchMode === 'integration'
-                  ? ''
-                  : (canStartAnyHost ? 'prod-toggle-active' : '')
-              }`}
-              onClick={onStartAll}
-              disabled={launchMode === 'integration' || !canStartAnyHost}
-            >
-              {t('launch.buttons.startAll')}
-            </button>
-            <button
-              className={`uu-btn ${canStopAnyHost ? 'uu-btn-danger' : ''}`}
-              onClick={onStopAll}
-              disabled={!canStopAnyHost}
-            >
-              {t('launch.buttons.stopAll')}
-            </button>
-          </div>
+          <LaunchActiveProjectSummary
+            canOpenProjectDetail={canOpenProjectDetail}
+            activeProjectId={projectsData.activeId}
+            activeLabel={activeLabel}
+            onEditProject={editActiveProject}
+            t={t}
+          />
+          <LaunchToolbarActions
+            t={t}
+            launchMode={launchMode}
+            hasStartLayout={hasStartLayout}
+            useStartLayout={useStartLayout}
+            onToggleUseStartLayout={onToggleUseStartLayout}
+            onChangeLaunchMode={onChangeLaunchMode}
+            canUseEditorLaunch={canUseEditorLaunch}
+            canStartAnyHost={canStartAnyHost}
+            canStopAnyHost={canStopAnyHost}
+            onStartAll={onStartAll}
+            onStopAll={onStopAll}
+          />
         </div>
       </div>
 
@@ -1604,212 +1574,37 @@ export default function LaunchControlScreen({
 
       {!loading && hasMachines && (
         <div className="uu-list">
-          {hosts.map((h) => {
-            const activeProject = getActiveProject();
-            const requiredVersion = String(activeProject?.engineVersion || '').trim();
-            const ue = resolveExeForHost(h);
-            const ip = String(h.ip || '').trim();
-            const entry = onlineMap && onlineMap[ip];
-            const online = !!(entry && entry.online);
-            const running = !!(entry && entry.unrealRunning);
-            const isServerHost = localIp && ip === localIp;
-            const modeAllowsHost =
-              (launchMode === 'production' && canUseLiveLaunch) ||
-              (launchMode === 'integration' && canUseEditorLaunch && isServerHost);
-
-            const canStart =
-              modeAllowsHost &&
-              isReadyHost(h) &&
-              online &&
-              !running &&
-              !busy[h.ip];
-
-            const canStop =
-              modeAllowsHost &&
-              !busy[h.ip] &&
-              running;
-
-            const uproj = resolveUprojectFor(h);
-
-
-            // Statuts détaillés
-            const agentStatus = (() => {
-              if (busy[ip]) return { cls: 'testing', title: t('launch.status.testing') };
-              if (online && running) return { cls: 'ok', title: t('launch.status.unrealRunning') };
-              if (online) return { cls: 'ok', title: t('launch.status.agentOnline') };
-              return { cls: 'fail', title: t('launch.status.agentOffline') };
-            })();
-
-            const projectStatus = (() => {
-              const syncEnabled = !!h?.syncEnabled;
-              const syncRoot = String(h?.syncRoot || '').trim();
-              const syncStatus = syncEnabled ? syncStatusMap[ip] : null;
-              const syncStatusName = String(syncStatus?.status || '').trim().toLowerCase();
-              const rawDiffValue = syncEnabled
-                ? Number(
-                    syncStatus?.rawDiffCount ??
-                      (syncStatusName === 'desync' ? syncStatus?.diffCount : 0)
-                  )
-                : 0;
-              const rawDiffCount =
-                Number.isFinite(rawDiffValue) && rawDiffValue > 0
-                  ? Math.trunc(rawDiffValue)
-                  : 0;
-              const hasProject = !!uproj && (!syncEnabled || !!syncRoot);
-              const syncDesync = syncEnabled && syncStatusName === 'desync';
-              const syncError = syncEnabled && syncStatus && syncStatus.ok === false;
-              const syncMissingRoot = syncEnabled && syncStatusName === 'no_root';
-              return {
-                cls: !hasProject || syncError || syncMissingRoot ? 'fail' : syncDesync ? 'warn' : 'ok',
-                title: !hasProject
-                  ? t('launch.status.missingUproject')
-                  : (syncMissingRoot
-                      ? t('launch.status.missingSyncRoot')
-                      : (syncError
-                          ? t('launch.status.syncError')
-                          : (syncDesync
-                              ? (t('launch.status.projectDesynced'))
-                              : t('launch.status.projectDefined')))),
-                rawDiffCount,
-              };
-            })();
-
-            const exeStatus = (() => {
-              const requiredVersion = String(getActiveProject()?.engineVersion || '').trim();
-              const hasExe = !!ue;
-              return {
-                cls: hasExe ? 'ok' : 'fail',
-                title: hasExe
-                  ? t('launch.status.unrealExeReady')
-                  : (requiredVersion
-                    ? t('launch.status.missingExeVersion', { version: requiredVersion })
-                  : t('launch.status.missingExe')),
-              };
-            })();
-
-            const ipValid = !!ip && /\d/.test(ip);
-            const hostInvalid =
-              !ipValid ||
-              !online ||
-              projectStatus.cls === 'fail' ||
-              exeStatus.cls === 'fail';
-            const hostWarn = projectStatus.cls === 'warn';
-
+          {hostRuntimeRows.map((row) => {
             return (
-              <div
-                key={h.ip}
-                className={`uu-card ${hostInvalid ? 'launch-host-invalid' : hostWarn ? 'launch-host-warn' : ''}`}
-              >
-                <div className="uu-row uu-row-launch-host">
-                  <div className="uu-col">
-                    <div className="uu-item-title">
-                      {renderColorDot(h.color, h.name || h.ip)}
-                      {h.name || h.ip}
-                    </div>
-                    <div
-                      className="uu-item-sub"
-                      title={
-                        online
-                          ? t('launch.status.agentOnline')
-                          : t('launch.status.agentOffline')
-                      }
-                    >
-                      {h.ip}
-                      {renderStatusDot(agentStatus.cls, agentStatus.title)}
-                    </div>
-                  </div>
-
-                  <div className="uu-col">
-                    <div className="uu-kv">
-                      <span className="uu-k">
-                        {requiredVersion
-                          ? t('launch.labels.unrealExeVersion', { version: requiredVersion })
-                          : t('launch.labels.unrealExe')}
-                      </span>
-                      <span className="uu-v uu-row uu-row-gap4 uu-align-center">
-                        {pathOrND(ue)}
-                        {renderStatusDot(exeStatus.cls, exeStatus.title)}
-                      </span>
-                    </div>
-                    <div className="uu-kv">
-                      <span className="uu-k">
-                        {h.syncEnabled && h.syncRoot
-                          ? t('launch.labels.projectPathSync')
-                          : t('launch.labels.projectPath')}
-                      </span>
-                      <span className="uu-v uu-row uu-row-gap4 uu-align-center">
-                        {pathOrND(uproj)}
-                        {renderStatusDot(projectStatus.cls, projectStatus.title)}
-                        {projectStatus.cls === 'warn' ? (
-                          <span className="uu-text-warn">
-                            {t('launch.labels.desynced')}
-                          </span>
-                        ) : null}
-                        {projectStatus.rawDiffCount > 0 ? (
-                          <span className="uu-text-warn">
-                            {t('launch.labels.diffFilesWarning', {
-                              count: projectStatus.rawDiffCount,
-                            })}
-                          </span>
-                        ) : null}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="uu-col uu-actions">
-                    <button
-                      className={`uu-btn ${canStart ? 'prod-toggle-active' : ''}`}
-                      disabled={!canStart}
-                      onClick={() => onStart(h.ip)}
-                    >
-                      {busy[h.ip]
-                        ? t('launch.buttons.starting')
-                        : t('launch.buttons.start')}
-                    </button>
-                    <button
-                      className={`uu-btn ${canStop ? 'uu-btn-danger' : ''}`}
-                      disabled={!canStop}
-                      onClick={() => onStop(h.ip)}
-                    >
-                      {t('launch.buttons.stop')}
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <LaunchHostCard
+                key={row.host.ip}
+                row={row}
+                t={t}
+                activeProjectEngineVersion={activeProjectEngineVersion}
+                pathOrND={pathOrND}
+                renderColorDot={renderColorDot}
+                renderStatusDot={renderStatusDot}
+                onStart={onStart}
+                onStop={onStop}
+                busy={busy}
+              />
             );
           })}
         </div>
       )}
 
       {/* Bloc de lancement Unreal Editor (boutons plein format) en dessous des machines */}
-      {showUeLaunch && serverHost && ueVersions.length > 0 ? (
-        <div className="uu-section" style={{ marginTop: '12px' }}>
-          <div className="uu-row uu-align-center uu-gap-12 uu-wrap" style={{ marginBottom: '8px' }}>
-            <strong className="uu-block-title">
-              {t('launch.unrealEditor.title')}
-            </strong>
-            <span className="uu-muted">{serverHost.name || serverHost.ip}</span>
-          </div>
-          <div className="uu-row uu-gap-12 uu-wrap">
-            {ueVersions.map((ver, idx) => {
-              const path = resolveEditorPath(serverHost, ver);
-              const disabled = !path || !onlineMap[serverHost.ip]?.online;
-              return (
-                <button
-                  key={`${ver}-${idx}`}
-                  className={`uu-btn ${!disabled ? 'prod-toggle-active' : ''}`}
-                  style={{ minWidth: '140px', padding: '10px 16px' }}
-                  disabled={disabled}
-                  onClick={() => onLaunchEditor(ver)}
-                  title={path || t('launch.labels.unrealExe')}
-                >
-                  {t('launch.buttons.startVersion', { ver })}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      {showUeLaunch ? (
+        <LaunchEditorVersionsSection
+          t={t}
+          serverHost={serverHost}
+          ueVersions={ueVersions}
+          resolveEditorPath={resolveEditorPath}
+          onlineMap={onlineMap}
+          onLaunchEditor={onLaunchEditor}
+        />
       ) : null}
     </div>
   );
 }
+

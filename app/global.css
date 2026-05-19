@@ -215,6 +215,7 @@ textarea::placeholder {
 .mt-16 { margin-top:16px; }
 .mt-20 { margin-top:20px; }
 .mt-24 { margin-top:24px; }
+.w-90 { width: 90px; }
 .w-160 { width:160px; }
 .uu-maxw-420 { max-width:420px; }
 .gap-8 { gap:8px; }
@@ -224,6 +225,9 @@ textarea::placeholder {
 .uu-gap-10 { gap: 10px !important; }
 .uu-gap-12 { gap: 12px !important; }
 .uu-gap-16 { gap: 16px !important; }
+.uu-text-left { text-align: left; }
+.uu-flex-45-min-320 { flex: 1 1 45%; min-width: 320px; }
+.uu-label-fixed-120 { width: 120px; min-width: 120px; margin: 0; }
 .uu-muted { opacity:0.5; align-self:center; }
 
 .uu-datetime-confirm {

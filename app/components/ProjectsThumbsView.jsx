@@ -1,5 +1,49 @@
 import { FixedSizeList as List } from 'react-window';
-import { normalizeThumbnailPath } from '../utils/projects-helpers';
+import { getProjectUsageModeLabel, normalizeThumbnailPath } from '../utils/projects-helpers';
+import { getFavoriteLabel } from './componentI18n';
+
+const PROJECTS_THUMBS_CARD_BASE_STYLE = { padding: '8px', gap: '6px', display: 'flex', flexDirection: 'column' };
+const PROJECTS_THUMBS_CARD_ACTIVE_STYLE = { border: '1px solid #2ecc71', background: '#132b1a' };
+const PROJECTS_THUMBS_TITLE_STYLE = { textAlign: 'left', marginBottom: '6px' };
+const PROJECTS_THUMBS_THUMB_BOX_STYLE = {
+  width: '100%',
+  height: '180px',
+  background: '#1c1f24',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  overflow: 'hidden',
+  borderRadius: '6px',
+};
+const PROJECTS_THUMBS_THUMB_IMAGE_STYLE = { width: '100%', height: '100%', objectFit: 'cover', display: 'block' };
+const PROJECTS_THUMBS_THUMB_PLACEHOLDER_STYLE = { fontSize: '11px', textAlign: 'center', padding: '4px' };
+const PROJECTS_THUMBS_CARD_COL_STYLE = { gap: '1px', flex: 1, minHeight: 0 };
+const PROJECTS_THUMBS_ACTIONS_WRAP_STYLE = { marginTop: '4px', paddingTop: '0px' };
+const PROJECTS_THUMBS_VIRTUAL_ROW_BASE_STYLE = { columnGap: '12px', alignItems: 'start', padding: '0 0 12px 0', boxSizing: 'border-box' };
+const PROJECTS_THUMBS_GRID_STYLE = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(252px, 1fr))',
+  columnGap: '12px',
+  rowGap: '12px',
+  alignItems: 'start',
+};
+
+function buildProjectsThumbCardStyle({ isActive = false, style = {} } = {}) {
+  return {
+    ...PROJECTS_THUMBS_CARD_BASE_STYLE,
+    ...(isActive ? PROJECTS_THUMBS_CARD_ACTIVE_STYLE : {}),
+    ...style,
+  };
+}
+
+function buildProjectsThumbVirtualRowStyle(style, cols) {
+  return {
+    ...style,
+    display: 'grid',
+    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+    ...PROJECTS_THUMBS_VIRTUAL_ROW_BASE_STYLE,
+  };
+}
 
 export default function ProjectsThumbsView({
   t,
@@ -20,6 +64,7 @@ export default function ProjectsThumbsView({
   isAutoRenderUsage = null,
   showActivationControls = true,
 }) {
+  const favoriteLabel = getFavoriteLabel(t);
   const canEditFields = canEditProjectFields !== null
     ? canEditProjectFields === true
     : canManageUnrealProjects;
@@ -30,15 +75,6 @@ export default function ProjectsThumbsView({
   const projectList = Array.isArray(projects)
     ? projects.filter((entry) => entry && typeof entry === 'object')
     : [];
-  const usageModeLabel = (value) => {
-    const v = String(value || '').trim();
-    if (v === 'live') return t('projects.thumb.usage.live', 'Live');
-    if (v === 'auto_render') return t('projects.thumb.usage.auto_render', 'Rendu Auto');
-    if (v === 'live_auto_render') return t('projects.thumb.usage.live_auto_render', 'Rendu Auto + Live');
-    if (v === 'other') return t('projects.detail.usageMode.other');
-    return '—';
-  };
-
   const renderCard = (p, key, style = {}) => {
     const isActive = !!p.isActive;
     const isFav = p?.favorite === true;
@@ -58,50 +94,41 @@ export default function ProjectsThumbsView({
       <div
         key={key}
         className={`uu-card ${showActiveState ? 'is-active' : ''}`}
-        style={{ padding: '8px', gap: '6px', display: 'flex', flexDirection: 'column', ...activeStyle, ...style }}
+        style={buildProjectsThumbCardStyle({ isActive: showActiveState, style: { ...activeStyle, ...style } })}
       >
         <div
           className="uu-item-title"
           title={p.name || ''}
-          style={{ textAlign: 'left', marginBottom: '6px' }}
+          style={PROJECTS_THUMBS_TITLE_STYLE}
         >
           {p.name || '—'}
         </div>
         <div
           className="uu-thumb"
-          style={{
-            width: '100%',
-            height: '180px',
-            background: '#1c1f24',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-            borderRadius: '6px'
-          }}
+          style={PROJECTS_THUMBS_THUMB_BOX_STYLE}
         >
           {p.thumbnail ? (
             <img
               src={normalizeThumbnailPath(p.thumbnail)}
               alt=""
               loading="lazy"
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              style={PROJECTS_THUMBS_THUMB_IMAGE_STYLE}
             />
           ) : (
-            <span className="uu-muted" style={{ fontSize: '11px', textAlign: 'center', padding: '4px' }}>
+            <span className="uu-muted" style={PROJECTS_THUMBS_THUMB_PLACEHOLDER_STYLE}>
               {t('projects.server.card.thumbnailPlaceholder')}
             </span>
           )}
         </div>
-        <div className="uu-col" style={{ gap: '1px', flex: 1, minHeight: 0 }}>
+        <div className="uu-col" style={PROJECTS_THUMBS_CARD_COL_STYLE}>
           <div className="uu-row uu-gap-4 uu-align-center">
             <span className="uu-id-tag uu-muted">[{p.id || '----'}]</span>
             <span>{t('projects.detail.labels.engineVersionShort')} {versionEl(p.engineVersion)}</span>
           </div>
           <div className="uu-row uu-gap-4 uu-project-usage-line">
-            <span>{usageModeLabel(p.metaUsageMode)}</span>
+            <span>{getProjectUsageModeLabel(t, p.metaUsageMode, { preferThumbKeys: true })}</span>
           </div>
-          <div className="uu-project-thumb-actions" style={{ marginTop: '4px', paddingTop: '0px' }}>
+          <div className="uu-project-thumb-actions" style={PROJECTS_THUMBS_ACTIONS_WRAP_STYLE}>
             <div className="uu-project-thumb-actions-main">
               {canOpenProjectDetails ? (
                 <>
@@ -156,7 +183,7 @@ export default function ProjectsThumbsView({
                   className="uu-btn"
                   onClick={() => onCreateTaskFromProject?.(p.id)}
                 >
-                  {t('projects.actions.createTask', 'Rendu')}
+                  {t('projects.actions.createTask')}
                 </button>
               ) : null}
             </div>
@@ -166,7 +193,7 @@ export default function ProjectsThumbsView({
                 className={`uu-fav-btn ${isFav ? 'active' : ''}`}
                 onClick={() => onToggleFavorite(p)}
                 aria-pressed={isFav ? 'true' : 'false'}
-                title={t('resources.detail.labels.favorite') || 'Favoris'}
+                title={favoriteLabel}
               >
                 ★
               </button>
@@ -203,15 +230,7 @@ export default function ProjectsThumbsView({
           }
           return (
             <div
-              style={{
-                ...style,
-                display: 'grid',
-                gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`,
-                columnGap: '12px',
-                alignItems: 'start',
-                padding: '0 0 12px 0',
-                boxSizing: 'border-box',
-              }}
+              style={buildProjectsThumbVirtualRowStyle(style, COLS)}
             >
               {rowItems}
             </div>
@@ -224,13 +243,7 @@ export default function ProjectsThumbsView({
   return (
     <div
       className="uu-thumbs-grid"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(252px, 1fr))',
-        columnGap: '12px',
-        rowGap: '12px',
-        alignItems: 'start',
-      }}
+      style={PROJECTS_THUMBS_GRID_STYLE}
     >
       {projectList.map((p, idx) => renderCard(p, p.id || p.name || idx))}
     </div>

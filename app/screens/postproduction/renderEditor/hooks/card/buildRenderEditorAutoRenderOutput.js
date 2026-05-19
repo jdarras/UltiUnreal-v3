@@ -46,5 +46,3 @@ function buildRenderEditorAutoRenderOutput({
 export {
   buildRenderEditorAutoRenderOutput,
 };
-
-export default buildRenderEditorAutoRenderOutput;

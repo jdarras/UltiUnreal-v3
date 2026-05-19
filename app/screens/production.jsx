@@ -12,6 +12,8 @@ import {
 import { readIdentity } from '../utils/identity';
 import { createT } from '../i18n';
 import { NoticeContext } from '../NoticeContext';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { resolveConfirmDialogLabels } from '../components/confirmDialogLabels';
 const ProductionLayoutTabs = lazy(() => import('../components/ProductionLayoutTabs.jsx'));
 const ProductionLayoutCanvas = lazy(() => import('../components/ProductionLayoutCanvas.jsx'));
 const ProductionSidebar = lazy(() => import('../components/ProductionSidebar.jsx'));
@@ -54,8 +56,12 @@ import { useProductionWidgetUpdate } from './hooks/useProductionWidgetUpdate';
 import { useProductionLayoutUi } from './hooks/useProductionLayoutUi';
 import { useProductionWrcStatus } from './hooks/useProductionWrcStatus';
 const loadTimelineUtils = () => import('../utils/timeline');
+const LAZY_FALLBACK_STYLE = { padding: '12px' };
 
 export default function ProductionScreen({ canManageLayouts = true }) {
+  const id = useMemo(readIdentity, []);
+  const lang = String(id.lang || 'fr').trim();
+  const t = useMemo(() => createT(lang), [lang]);
   const [common, setCommon] = useState(null);
   const [hosts, setHosts] = useState([]);
   const [activeName, setActiveName] = useState('');
@@ -89,7 +95,14 @@ export default function ProductionScreen({ canManageLayouts = true }) {
     closeConfirmDialog,
     requestConfirm,
   } = usePromiseConfirmDialog();
-  const lazyFallback = <div className="uu-loading" style={{ padding: '12px' }}>…</div>;
+  const {
+    title: confirmTitle,
+    cancelLabel: confirmCancelLabel,
+    confirmLabel: confirmOkLabel,
+  } = resolveConfirmDialogLabels(t, {
+    cancelAltKey: 'app.quit.confirm.cancel',
+  });
+  const lazyFallback = <div className="uu-loading" style={LAZY_FALLBACK_STYLE}>…</div>;
   // Ref pour mémoire de la dernière sauvegarde (sérialisée) par projet
   const lastSavedLayoutRef = useRef({});
   const layoutsRef = useRef([]);
@@ -114,9 +127,6 @@ export default function ProductionScreen({ canManageLayouts = true }) {
     widgetsRef.current = widgets;
   }, [widgets]);
 
-  const id = useMemo(readIdentity, []);
-  const lang = String(id.lang || 'fr').trim();
-  const t = useMemo(() => createT(lang), [lang]);
   const noticeApi = React.useContext(NoticeContext);
   const showNotice = noticeApi?.showNotice;
   const { reportLayoutError } = useLayoutErrorReporter({
@@ -791,60 +801,18 @@ export default function ProductionScreen({ canManageLayouts = true }) {
         </Suspense>
       </div>
 
-      {confirmDialog.open ? (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2000
-          }}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              closeConfirmDialog(false);
-            }
-          }}
-        >
-          <div
-            className="uu-card"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('production.confirm.title')}
-            style={{
-              width: 'min(460px, calc(100vw - 32px))',
-              padding: '16px'
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontWeight: 600, marginBottom: '10px' }}>
-              {t('production.confirm.title')}
-            </div>
-            <div style={{ marginBottom: '14px', lineHeight: 1.35 }}>
-              {confirmDialog.message}
-            </div>
-            <div className="uu-row" style={{ justifyContent: 'flex-end', gap: '8px' }}>
-              <button
-                type="button"
-                className="uu-btn"
-                onClick={() => closeConfirmDialog(false)}
-              >
-                {t('production.confirm.cancel')}
-              </button>
-              <button
-                ref={confirmOkBtnRef}
-                type="button"
-                className="uu-btn prod-toggle-active"
-                onClick={() => closeConfirmDialog(true)}
-              >
-                {t('production.confirm.ok')}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        busy={false}
+        title={confirmTitle}
+        message={confirmDialog.message}
+        cancelLabel={confirmCancelLabel}
+        confirmLabel={confirmOkLabel}
+        onCancel={() => closeConfirmDialog(false)}
+        onConfirm={() => closeConfirmDialog(true)}
+        confirmRef={confirmOkBtnRef}
+        overlayZIndex={2000}
+      />
     </div>
   );
 }

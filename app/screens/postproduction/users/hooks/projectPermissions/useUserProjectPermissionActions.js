@@ -159,4 +159,3 @@ function useUserProjectPermissionActions({
 }
 
 export { useUserProjectPermissionActions };
-export default useUserProjectPermissionActions;

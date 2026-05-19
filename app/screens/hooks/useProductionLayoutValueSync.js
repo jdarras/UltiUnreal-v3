@@ -136,4 +136,3 @@ function useProductionLayoutValueSync({
 }
 
 export { useProductionLayoutValueSync };
-export default useProductionLayoutValueSync;

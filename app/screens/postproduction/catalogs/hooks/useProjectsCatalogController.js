@@ -179,5 +179,3 @@ export function useProjectsCatalogController({
     openProjectLinkedTasks,
   };
 }
-
-export default useProjectsCatalogController;

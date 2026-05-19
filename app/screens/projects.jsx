@@ -23,10 +23,13 @@ import {
 import useFilteredProjects from '../utils/useFilteredProjects';
 import { readIdentity } from '../utils/identity';
 import { NoticeContext } from '../NoticeContext';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { resolveConfirmDialogLabels } from '../components/confirmDialogLabels';
 import { useProjectIntegration } from './hooks/useProjectIntegration';
 import { useProjectsList } from './hooks/useProjectsList';
 import { useProjectDetail } from './hooks/useProjectDetail';
 import { usePromiseConfirmDialog } from './hooks/usePromiseConfirmDialog';
+import { useProjectsNoticeEffect } from './hooks/useProjectsNoticeEffect';
 
 const ProjectsHeaderBar = React.lazy(() => import('../components/ProjectsHeaderBar'));
 const ProjectsListView = React.lazy(() => import('../components/ProjectsListView'));
@@ -49,6 +52,81 @@ function createInitialAdvanced() {
     tags: '',
   };
 }
+
+const DETAIL_SECTION_TITLE_ROW_STYLE = { marginBottom: '12px' };
+const DETAIL_NAME_INPUT_STYLE = { minWidth: '240px', width: '50%' };
+const FLEX_ZERO_AUTO_STYLE = { flex: '0 0 auto' };
+const MARGIN_LEFT_AUTO_STYLE = { marginLeft: 'auto' };
+const FLEX_1_300_STYLE = { flex: '1 1 300px' };
+const OVERFLOW_HIDDEN_STYLE = { overflow: 'hidden' };
+const FLEX_1_AUTO_STYLE = { flex: '1 1 auto' };
+const KEYWORDS_INPUT_STYLE = { minWidth: '220px', flex: '1 1 260px' };
+const KEYWORDS_CHIPS_ROW_STYLE = { marginLeft: '160px' };
+const CHIP_STYLE = { border: 'none', padding: '6px 10px', gap: '8px' };
+const CHIP_TEXT_STYLE = { marginRight: '6px' };
+const CHIP_REMOVE_STYLE = { padding: '2px 6px', minWidth: 'auto', height: '22px' };
+const LABEL_CLICKABLE_STYLE = { cursor: 'pointer', userSelect: 'none' };
+const WIDTH_110_LEFT_LABEL_STYLE = { width: '110px', textAlign: 'left', marginLeft: '8px' };
+const WIDTH_90_LEFT_LABEL_STYLE = { width: '90px', textAlign: 'left', marginLeft: '8px' };
+const TEXT_ELLIPSIS_STYLE = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+const SNAPSHOT_VIEWER_IMAGE_ROW_STYLE = { marginTop: '12px', display: 'flex', justifyContent: 'center' };
+const SNAPSHOT_VIEWER_IMAGE_STYLE = { maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px' };
+const PROJECT_DETAIL_FIELDSET_STYLE = {
+  border: 'none',
+  padding: 0,
+  margin: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '12px',
+};
+const WORD_BREAK_ALL_STYLE = { wordBreak: 'break-all' };
+const SNAPSHOT_GRID_STYLE = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+  gap: '12px',
+};
+const SNAPSHOT_TILE_STYLE = { padding: '6px', cursor: 'pointer' };
+const SNAPSHOT_TILE_PREVIEW_STYLE = {
+  width: '100%',
+  aspectRatio: '16 / 9',
+  background: '#1c1f24',
+  borderRadius: '6px',
+  overflow: 'hidden',
+};
+const SNAPSHOT_TILE_IMAGE_STYLE = { width: '100%', height: '100%', objectFit: 'cover' };
+const SNAPSHOT_TILE_EMPTY_STYLE = { padding: '8px' };
+const SNAPSHOT_OVERLAY_STYLE = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,0.75)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '24px',
+  zIndex: 9999,
+};
+const SNAPSHOT_MODAL_STYLE = {
+  width: 'min(1200px, 95vw)',
+  maxHeight: '90vh',
+  overflow: 'auto',
+  padding: '12px',
+};
+const WIDTH_260_STYLE = { width: '260px' };
+const WIDTH_180_STYLE = { width: '180px' };
+const WIDTH_120_STYLE = { width: '120px' };
+const WIDTH_48_STYLE = { width: '48px' };
+const WIDTH_520_STYLE = { width: '520px' };
+const SEARCH_PANEL_MARGIN_BOTTOM_STYLE = { marginBottom: '16px' };
+const ADV_WIDTH_500_STYLE = { width: '500px', minWidth: '500px', maxWidth: '500px' };
+const ADV_WIDTH_520_STYLE = { width: '520px', minWidth: '520px', maxWidth: '520px' };
+const ADV_WIDTH_500_INPUT_STYLE = { width: '500px', minWidth: '500px', maxWidth: '500px', height: '36px' };
+const ADV_WIDTH_520_INPUT_STYLE = { width: '520px', minWidth: '520px', maxWidth: '520px', height: '36px' };
+const WIDTH_60_PERCENT_STYLE = { width: '60%' };
+const PAGINATION_ROW_MARGIN_STYLE = { margin: '12px 0' };
+const PAGE_SIZE_SELECT_STYLE = { width: '80px' };
+const RENDER_BRIDGE_STATE_READY_STYLE = { color: 'var(--uu-ok)' };
+const RENDER_BRIDGE_STATE_DEFAULT_STYLE = { color: 'var(--uu-color-text)' };
+const RENDER_BRIDGE_STATE_ERROR_STYLE = { color: 'var(--uu-error)' };
 
 /* ===================================================== */
 export default function ProjectsScreen({
@@ -84,43 +162,28 @@ export default function ProjectsScreen({
     closeConfirmDialog,
     requestConfirm,
   } = usePromiseConfirmDialog();
+  const {
+    title: confirmTitle,
+    cancelLabel: confirmCancelLabel,
+    confirmLabel: confirmOkLabel,
+  } = React.useMemo(() => resolveConfirmDialogLabels(t, {
+    cancelAltKey: 'app.quit.confirm.cancel',
+  }), [t]);
 
   function renderConfirmDialog() {
-    if (!confirmDialog.open) return null;
-    const title = t('production.confirm.title') || 'Confirmation';
-    const labelCancel = t('production.confirm.cancel') || t('app.quit.confirm.cancel') || 'Annuler';
-    const labelOk = t('production.confirm.ok') || 'OK';
     return (
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0, 0, 0, 0.45)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 12000
-        }}
-        onMouseDown={(e) => {
-          if (e.target === e.currentTarget) closeConfirmDialog(false);
-        }}
-      >
-        <div
-          className="uu-card"
-          role="dialog"
-          aria-modal="true"
-          aria-label={title}
-          style={{ width: 'min(460px, calc(100vw - 32px))', padding: '16px' }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <div style={{ fontWeight: 600, marginBottom: '10px' }}>{title}</div>
-          <div style={{ marginBottom: '14px', lineHeight: 1.35 }}>{confirmDialog.message}</div>
-          <div className="uu-row" style={{ justifyContent: 'flex-end', gap: '8px' }}>
-            <button type="button" className="uu-btn" onClick={() => closeConfirmDialog(false)}>{labelCancel}</button>
-            <button ref={confirmOkBtnRef} type="button" className="uu-btn prod-toggle-active" onClick={() => closeConfirmDialog(true)}>{labelOk}</button>
-          </div>
-        </div>
-      </div>
+      <ConfirmDialog
+        open={confirmDialog.open}
+        busy={false}
+        title={confirmTitle}
+        message={confirmDialog.message}
+        cancelLabel={confirmCancelLabel}
+        confirmLabel={confirmOkLabel}
+        onCancel={() => closeConfirmDialog(false)}
+        onConfirm={() => closeConfirmDialog(true)}
+        confirmRef={confirmOkBtnRef}
+        overlayZIndex={12000}
+      />
     );
   }
 
@@ -171,9 +234,7 @@ export default function ProjectsScreen({
   const [searchExpanded, setSearchExpanded] = React.useState(false);
   const [searchAdvanced, setSearchAdvanced] = React.useState(createInitialAdvanced);
 
-  // Top-level httpBind message (from saveToServer warnings)
-  const [httpBindMsg, setHttpBindMsg] = React.useState('');
-  const [httpBindMsgType, setHttpBindMsgType] = React.useState('');
+  const [detailMsg, setDetailMsg] = React.useState('');
 
   // === Domain Hooks ===
   const {
@@ -197,6 +258,8 @@ export default function ProjectsScreen({
     clientActiveId,
     clientAssocPath,
     clientSyncEnabled,
+    httpBindMsg,
+    httpBindMsgType,
     pendingDetailIdRef,
     pendingStartRef,
     saveToServer,
@@ -212,9 +275,6 @@ export default function ProjectsScreen({
     identity: id,
     canManageUnrealProjects,
     requestConfirm,
-    setHttpBindMsg,
-    setHttpBindMsgType,
-    httpBindMsg,
   });
 
   const {
@@ -232,8 +292,6 @@ export default function ProjectsScreen({
     detailInsights,
     setDetailInsights,
     detailLoading,
-    detailMsg,
-    setDetailMsg,
     detailIsNew,
     setDetailIsNew,
     detailNoteRef,
@@ -277,10 +335,9 @@ export default function ProjectsScreen({
     snapshotBusy,
     snapshotMsg,
     snapshotMsgType,
-    setSnapshotOpen,
-    setSnapshotMsg,
-    setSnapshotMsgType,
     snapshotSrc,
+    openSnapshotViewer,
+    closeSnapshotViewer,
     setAutoScreenshotFromSnapshot,
     httpBindBusy,
     httpBindEditing,
@@ -329,6 +386,10 @@ export default function ProjectsScreen({
     canManageUnrealProjects,
     noticeApi,
   });
+
+  React.useEffect(() => {
+    setDetailMsg('');
+  }, [detailId]);
 
   const detailMapsView = React.useMemo(() => {
     const maps = (detailInsights && typeof detailInsights === 'object') ? detailInsights.maps : null;
@@ -408,25 +469,17 @@ export default function ProjectsScreen({
     return associateForClientActive(clientActiveId, clientActiveName);
   }, [associateForClientActive, clientActiveId, clientActiveName]);
 
-  // Notice effect
-  React.useEffect(() => {
-    if (!noticeApi) return;
-    const candidates = [
-      integrationMsg ? { text: integrationMsg, type: integrationMsgType } : null,
-      httpBindMsg ? { text: httpBindMsg, type: httpBindMsgType } : null,
-      detailMsg ? { text: detailMsg, type: 'error' } : null,
-      projectVersionMsg ? { text: projectVersionMsg, type: projectVersionMsgType } : null,
-      indexationMsg ? { text: indexationMsg, type: indexationMsgType } : null,
-      renderBridgeMsg ? { text: renderBridgeMsg, type: renderBridgeMsgType } : null,
-      intervenantsMsg ? { text: intervenantsMsg, type: intervenantsMsgType } : null,
-      snapshotMsg ? { text: snapshotMsg, type: snapshotMsgType } : null,
-      mapsMsg ? { text: mapsMsg, type: mapsMsgType } : null,
-    ];
-    const first = candidates.find(Boolean);
-    if (first && first.text) {
-      noticeApi.showNotice?.(first.text, first.type || '');
-    }
-  }, [
+  const noticeCandidates = React.useMemo(() => ([
+    integrationMsg ? { text: integrationMsg, type: integrationMsgType } : null,
+    httpBindMsg ? { text: httpBindMsg, type: httpBindMsgType } : null,
+    detailMsg ? { text: detailMsg, type: 'error' } : null,
+    projectVersionMsg ? { text: projectVersionMsg, type: projectVersionMsgType } : null,
+    indexationMsg ? { text: indexationMsg, type: indexationMsgType } : null,
+    renderBridgeMsg ? { text: renderBridgeMsg, type: renderBridgeMsgType } : null,
+    intervenantsMsg ? { text: intervenantsMsg, type: intervenantsMsgType } : null,
+    snapshotMsg ? { text: snapshotMsg, type: snapshotMsgType } : null,
+    mapsMsg ? { text: mapsMsg, type: mapsMsgType } : null,
+  ]), [
     integrationMsg, integrationMsgType,
     httpBindMsg, httpBindMsgType,
     detailMsg,
@@ -436,8 +489,9 @@ export default function ProjectsScreen({
     intervenantsMsg, intervenantsMsgType,
     snapshotMsg, snapshotMsgType,
     mapsMsg, mapsMsgType,
-    noticeApi,
   ]);
+
+  useProjectsNoticeEffect({ noticeApi, candidates: noticeCandidates });
 
   // Expose closeDetailAndSave for sidebar navigation
   React.useEffect(() => {
@@ -467,15 +521,12 @@ export default function ProjectsScreen({
       const key = e.key || e.code || '';
       if (key === 'Escape' || key === 'Esc') {
         e.preventDefault();
-        if (snapshotBusy) return;
-        setSnapshotOpen(null);
-        setSnapshotMsg('');
-        setSnapshotMsgType('');
+        closeSnapshotViewer();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [snapshotOpen, snapshotBusy, setSnapshotOpen, setSnapshotMsg, setSnapshotMsgType]);
+  }, [snapshotOpen, closeSnapshotViewer]);
 
   // Adjust form note textarea height
   React.useEffect(() => {
@@ -734,6 +785,25 @@ export default function ProjectsScreen({
   const visibleProjects = projectsWithActive.slice(pageStart, pageStart + pageSize);
   const canPrevPage = currentPage > 0;
   const canNextPage = currentPage < totalPages - 1;
+  const projectViewCommonProps = {
+    t,
+    projects: visibleProjects,
+    versionEl,
+    openDetails,
+    activateOne,
+    onToggleFavorite: handleToggleFavorite,
+    onCreateTaskFromProject: createTaskFromProject,
+    startIntegration,
+    stopIntegration,
+    serverHost,
+    serverRunning,
+    integrationBusy,
+    canManageUnrealProjects,
+    canEditProjectFields: canEditFields,
+    canCreateTasks: canCreateTaskFromProject,
+    isAutoRenderUsage,
+    showActivationControls: showProjectActivation,
+  };
 
   function handleSort(col) {
     if (sortMode === col) {
@@ -831,7 +901,7 @@ export default function ProjectsScreen({
             <span className="uu-id-tag">[{detailId}]</span>
             <input
               className="uu-input"
-              style={{ minWidth: '240px', width: '50%' }}
+              style={DETAIL_NAME_INPUT_STYLE}
               value={detailName}
               onChange={(e) => {
                 const name = e.target.value;
@@ -847,7 +917,7 @@ export default function ProjectsScreen({
                 saveToServer(updated, name, activeByHost, detailId);
               }}
             />
-            <div className="uu-row uu-align-center uu-gap-6" style={{ flex: '0 0 auto' }}>
+            <div className="uu-row uu-align-center uu-gap-6" style={FLEX_ZERO_AUTO_STYLE}>
               <button
                 type="button"
                 className={`uu-fav-btn ${detailMeta?.favorite === true ? 'active' : ''}`}
@@ -864,7 +934,7 @@ export default function ProjectsScreen({
               <span>—</span>
               <span>{t('projects.detail.labels.engineVersionShort')} {versionEl(proj?.engineVersion)}</span>
             </div>
-            <div className="uu-row uu-gap-8" style={{ marginLeft: 'auto' }}>
+            <div className="uu-row uu-gap-8" style={MARGIN_LEFT_AUTO_STYLE}>
               {detailIsNew ? (
                 <button className="uu-btn" onClick={() => { createProjectFromDraft(); }}>
                   {t('projects.detail.buttons.add')}
@@ -883,14 +953,7 @@ export default function ProjectsScreen({
             <fieldset
               className="uu-project-detail-stack"
               disabled={!canEditFields}
-              style={{
-                border: 'none',
-                padding: 0,
-                margin: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-              }}
+              style={PROJECT_DETAIL_FIELDSET_STYLE}
             >
               {/* Bloc : Chemin (sans titre) */}
               <div className="uu-card">
@@ -900,7 +963,7 @@ export default function ProjectsScreen({
                     <div className="uu-row uu-gap-6 uu-wrap uu-align-center">
                       <input
                         className="uu-input"
-                        style={{ flex: '1 1 300px' }}
+                        style={FLEX_1_300_STYLE}
                         value={detailPath}
                         onChange={(e) => { setDetailPath(e.target.value); setDetailMsg(''); }}
                         onBlur={(e) => {
@@ -951,7 +1014,7 @@ export default function ProjectsScreen({
 
               {/* Bloc : Indexation */}
               <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8" style={{ marginBottom: '12px' }}>
+                <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
                   <strong className="uu-block-title">{t('projects.detail.blocks.indexation')}</strong>
                 </div>
                 <div className="uu-col uu-gap-16">
@@ -959,7 +1022,7 @@ export default function ProjectsScreen({
                     <div className="uu-label w-160">{t('projects.detail.labels.status')}</div>
                     <select
                       className="uu-select"
-                      style={{ width: '260px' }}
+                      style={WIDTH_260_STYLE}
                       value={meta.status || ''}
                       onChange={(e) => {
                         projectDropdownDirtyRef.current = true;
@@ -974,12 +1037,12 @@ export default function ProjectsScreen({
                       <option value="Archive">{t('projects.detail.status.archive')}</option>
                     </select>
 
-                    <div className="uu-label" style={{ width: '110px', textAlign: 'left', marginLeft: '8px' }}>
+                    <div className="uu-label" style={WIDTH_110_LEFT_LABEL_STYLE}>
                       {t('projects.detail.labels.usageMode')}
                     </div>
                     <select
                       className="uu-select"
-                      style={{ width: '260px' }}
+                      style={WIDTH_260_STYLE}
                       value={meta.usageMode || ''}
                       onChange={(e) => {
                         projectDropdownDirtyRef.current = true;
@@ -998,7 +1061,7 @@ export default function ProjectsScreen({
                     <div className="uu-label w-160">{t('projects.detail.labels.type')}</div>
                     <select
                       className="uu-select"
-                      style={{ width: '260px' }}
+                      style={WIDTH_260_STYLE}
                       value={meta.type || ''}
                       onChange={(e) => {
                         projectDropdownDirtyRef.current = true;
@@ -1018,12 +1081,12 @@ export default function ProjectsScreen({
 
                     {!detailIsNew && (
                       <>
-                        <div className="uu-label" style={{ width: '90px', textAlign: 'left', marginLeft: '8px' }}>
+                        <div className="uu-label" style={WIDTH_90_LEFT_LABEL_STYLE}>
                           {t('projects.detail.labels.fileVersion')}
                         </div>
                         <input
                           className="uu-input"
-                          style={{ width: '180px' }}
+                          style={WIDTH_180_STYLE}
                           value={projectVersion ?? ''}
                           disabled={detailLoading || projectVersionBusy}
                           onChange={(e) => {
@@ -1051,7 +1114,7 @@ export default function ProjectsScreen({
                       ref={detailNoteRef}
                       className="uu-input"
                       rows={1}
-                      style={{ overflow: 'hidden' }}
+                      style={OVERFLOW_HIDDEN_STYLE}
                       value={meta.note || ''}
                       onChange={(e) => {
                         const el = e.target;
@@ -1065,10 +1128,10 @@ export default function ProjectsScreen({
 
                   <div className="uu-row wrap">
                     <div className="uu-label w-160">{t('projects.detail.labels.keywords')}</div>
-                    <div className="uu-row" style={{ flex: '1 1 auto' }}>
+                    <div className="uu-row" style={FLEX_1_AUTO_STYLE}>
                       <input
                         className="uu-input"
-                        style={{ minWidth: '220px', flex: '1 1 260px' }}
+                        style={KEYWORDS_INPUT_STYLE}
                         placeholder=""
                         value={keywordsInput}
                         onChange={(e) => setKeywordsInput(e.target.value)}
@@ -1077,20 +1140,20 @@ export default function ProjectsScreen({
                       />
                     </div>
                   </div>
-                  <div className="uu-row uu-gap-6 uu-wrap" style={{ marginLeft: '160px' }}>
+                  <div className="uu-row uu-gap-6 uu-wrap" style={KEYWORDS_CHIPS_ROW_STYLE}>
                     {detailKeywordsList.map((kw) => (
                       <span
                         key={kw}
                         className="uu-chip"
-                        style={{ border: 'none', padding: '6px 10px', gap: '8px' }}
+                        style={CHIP_STYLE}
                       >
-                        <span style={{ marginRight: '6px' }}>{kw}</span>
+                        <span style={CHIP_TEXT_STYLE}>{kw}</span>
                         <button
                           type="button"
                           className="uu-chip-remove"
                           onClick={() => removeKeywordFromDraft(kw)}
           aria-label={t('common.delete')}
-                          style={{ padding: '2px 6px', minWidth: 'auto', height: '22px' }}
+                          style={CHIP_REMOVE_STYLE}
                         >
                           ×
                         </button>
@@ -1103,7 +1166,7 @@ export default function ProjectsScreen({
               {/* Bloc : Plugin Rendu (Bridge) */}
               {!detailIsNew && renderBridgeEligible ? (
                 <div className="uu-card">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ marginBottom: '12px' }}>
+                  <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
                     <strong className="uu-block-title">{t('projects.detail.blocks.renderBridge')}</strong>
                   </div>
                   <div className="uu-col uu-gap-10">
@@ -1111,7 +1174,7 @@ export default function ProjectsScreen({
                       <div className="uu-label w-160">{t('projects.detail.renderBridge.stateLabel')}</div>
                       <div
                         className="uu-value"
-                        style={{ color: renderBridgeReady ? 'var(--uu-ok)' : 'var(--uu-color-text)' }}
+                        style={renderBridgeReady ? RENDER_BRIDGE_STATE_READY_STYLE : RENDER_BRIDGE_STATE_DEFAULT_STYLE}
                       >
                         {renderBridgeStateLabel}
                       </div>
@@ -1119,7 +1182,7 @@ export default function ProjectsScreen({
                     {!renderBridgePackageAvailable ? (
                       <div className="uu-row wrap uu-align-center uu-gap-8">
                         <div className="uu-label w-160">{t('projects.detail.renderBridge.packageLabel')}</div>
-                        <div className="uu-value" style={{ color: 'var(--uu-error)' }}>
+                        <div className="uu-value" style={RENDER_BRIDGE_STATE_ERROR_STYLE}>
                           {t('projects.detail.renderBridge.compatibilityHint')}
                         </div>
                       </div>
@@ -1127,7 +1190,7 @@ export default function ProjectsScreen({
                     {renderBridgeStatus?.packageDir ? (
                       <div className="uu-row wrap uu-align-center uu-gap-8">
                         <div className="uu-label w-160">{t('projects.detail.renderBridge.packagePathLabel')}</div>
-                        <div className="uu-value uu-muted" style={{ wordBreak: 'break-all' }}>
+                        <div className="uu-value uu-muted" style={WORD_BREAK_ALL_STYLE}>
                           {String(renderBridgeStatus.packageDir || '')}
                         </div>
                       </div>
@@ -1164,7 +1227,7 @@ export default function ProjectsScreen({
               {/* Bloc : Maps (si info) */}
               {hasMaps ? (
                 <div className="uu-card">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ marginBottom: '12px' }}>
+                  <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
                     <strong className="uu-block-title">{t('projects.detail.blocks.maps')}</strong>
                   </div>
 
@@ -1174,7 +1237,7 @@ export default function ProjectsScreen({
                       <div className="uu-value">
                         <select
                           className="uu-select"
-                          style={{ width: '520px' }}
+                          style={WIDTH_520_STYLE}
                           value={selectedGame}
                           onChange={(e) => {
                             const v = String(e.target.value || '').trim();
@@ -1198,7 +1261,7 @@ export default function ProjectsScreen({
                       <div className="uu-value">
                         <select
                           className="uu-select"
-                          style={{ width: '520px' }}
+                          style={WIDTH_520_STYLE}
                           value={selectedEditor}
                           onChange={(e) => {
                             const v = String(e.target.value || '').trim();
@@ -1235,7 +1298,7 @@ export default function ProjectsScreen({
 
               {/* Bloc : Sequences Unreal */}
               <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={{ marginBottom: '12px' }}>
+                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
                   <strong className="uu-block-title">{t('projects.detail.blocks.sequences')}</strong>
                   {!hasSequences ? (
                     <div className="uu-muted">{t('projects.detail.sequences.noInfo')}</div>
@@ -1267,7 +1330,7 @@ export default function ProjectsScreen({
 
               {/* Bloc : Parametres de rendu */}
               <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={{ marginBottom: '12px' }}>
+                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
                   <strong className="uu-block-title">{t('projects.detail.blocks.renderPresets')}</strong>
                   {!hasRenderPresets ? (
                     <div className="uu-muted">{t('projects.detail.renderPresets.noInfo')}</div>
@@ -1299,7 +1362,7 @@ export default function ProjectsScreen({
 
               {/* Bloc : WRC */}
               <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={{ marginBottom: '12px' }}>
+                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
                   <strong className="uu-block-title">{t('projects.detail.blocks.wrc')}</strong>
                 </div>
                 <Suspense fallback={lazyBlockFallback}>
@@ -1350,7 +1413,7 @@ export default function ProjectsScreen({
                                 scheduleSave(null, null, { wrcNames: next });
                               }}
                             />
-                            <label htmlFor={`wrc-preset-${key}`} className="uu-small" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                            <label htmlFor={`wrc-preset-${key}`} className="uu-small" style={LABEL_CLICKABLE_STYLE}>
                               {assetPath || relativePath || name || '-'}
                             </label>
                           </div>
@@ -1368,7 +1431,7 @@ export default function ProjectsScreen({
 
               {/* Bloc : Setup Video Production */}
               <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={{ marginBottom: '12px' }}>
+                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
                   <strong className="uu-block-title">{t('projects.detail.blocks.setupVideoProduction')}</strong>
                   {!hasSetupVP ? (
                     <div className="uu-muted">
@@ -1383,7 +1446,7 @@ export default function ProjectsScreen({
                       <div className="uu-value">
                         <input
                           className="uu-input"
-                          style={{ width: '180px' }}
+                          style={WIDTH_180_STYLE}
                           value={vpDraft?.minDesiredFrameRate ?? ''}
                           onChange={(e) => {
                             const next = { ...(vpDraft || {}), minDesiredFrameRate: e.target.value };
@@ -1422,7 +1485,7 @@ export default function ProjectsScreen({
                           </label>
                           <input
                             className="uu-input"
-                            style={{ width: '180px' }}
+                            style={WIDTH_180_STYLE}
                             value={vpDraft?.fixedFrameRate ?? ''}
                             onChange={(e) => {
                               const next = { ...(vpDraft || {}), fixedFrameRate: e.target.value };
@@ -1461,10 +1524,10 @@ export default function ProjectsScreen({
                             <span>{t('projects.detail.vp.enabled')}</span>
                           </label>
                           <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-                            <div className="uu-label" style={{ width: '48px' }}>{t('projects.detail.vp.min')}</div>
+                            <div className="uu-label" style={WIDTH_48_STYLE}>{t('projects.detail.vp.min')}</div>
                             <input
                               className="uu-input"
-                              style={{ width: '120px' }}
+                              style={WIDTH_120_STYLE}
                               value={vpDraft?.smoothMin ?? ''}
                               onChange={(e) => {
                                 const next = { ...(vpDraft || {}), smoothMin: e.target.value };
@@ -1481,10 +1544,10 @@ export default function ProjectsScreen({
                               }}
                               disabled={vpBusy || !vpDraft?.smoothEnabled}
                             />
-                            <div className="uu-label" style={{ width: '48px' }}>{t('projects.detail.vp.max')}</div>
+                            <div className="uu-label" style={WIDTH_48_STYLE}>{t('projects.detail.vp.max')}</div>
                             <input
                               className="uu-input"
-                              style={{ width: '120px' }}
+                              style={WIDTH_120_STYLE}
                               value={vpDraft?.smoothMax ?? ''}
                               onChange={(e) => {
                                 const next = { ...(vpDraft || {}), smoothMax: e.target.value };
@@ -1531,19 +1594,13 @@ export default function ProjectsScreen({
               {/* Bloc : Snapshots (si info) */}
               {hasSnapshots ? (
                 <div className="uu-card">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ marginBottom: '12px' }}>
+                  <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
                     <strong className="uu-block-title">{t('projects.detail.blocks.snapshots')}</strong>
                   </div>
                   <div className="uu-row wrap">
                     <div className="uu-label w-160" />
                     <div className="uu-value">
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-                          gap: '12px',
-                        }}
-                      >
+                      <div style={SNAPSHOT_GRID_STYLE}>
                         {snapshotsList.map((it, idx) => {
                           const rel = String(it?.rel || '').trim();
                           const full = String(it?.path || '').trim();
@@ -1555,33 +1612,22 @@ export default function ProjectsScreen({
                             <div
                               key={relOrPath || idx}
                               className="uu-card"
-                              style={{
-                                padding: '6px',
-                                cursor: 'pointer',
-                              }}
-                              onClick={() => { setSnapshotMsg(''); setSnapshotMsgType(''); setSnapshotOpen({ rel: relOrPath, path: full, mtime }); }}
+                              style={SNAPSHOT_TILE_STYLE}
+                              onClick={() => openSnapshotViewer({ rel: relOrPath, path: full, mtime })}
                               title={relOrPath}
                             >
-                              <div
-                                style={{
-                                  width: '100%',
-                                  aspectRatio: '16 / 9',
-                                  background: '#1c1f24',
-                                  borderRadius: '6px',
-                                  overflow: 'hidden',
-                                }}
-                              >
+                              <div style={SNAPSHOT_TILE_PREVIEW_STYLE}>
                                 {src ? (
                                   <img
                                     src={src}
                                     alt=""
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    style={SNAPSHOT_TILE_IMAGE_STYLE}
                                   />
                                 ) : (
-                                  <div className="uu-muted" style={{ padding: '8px' }}>{t('common.none')}</div>
+                                  <div className="uu-muted" style={SNAPSHOT_TILE_EMPTY_STYLE}>{t('common.none')}</div>
                                 )}
                               </div>
-                              <div className="uu-muted uu-small mt-4" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <div className="uu-muted uu-small mt-4" style={TEXT_ELLIPSIS_STYLE}>
                                 {fileName}
                               </div>
                             </div>
@@ -1596,7 +1642,7 @@ export default function ProjectsScreen({
               {/* Bloc : Plugins (si info) */}
               {hasPlugins ? (
                 <div className="uu-card">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ marginBottom: '12px' }}>
+                  <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
                     <strong className="uu-block-title">{t('projects.detail.blocks.plugins')}</strong>
                   </div>
                   <div className="uu-row wrap">
@@ -1614,7 +1660,7 @@ export default function ProjectsScreen({
 
               {/* Bloc : Intervenants */}
               <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8" style={{ marginBottom: '12px' }}>
+                <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
                   <strong className="uu-block-title">{t('projects.detail.blocks.intervenants')}</strong>
                 </div>
                 <div className="uu-col uu-gap-16">
@@ -1623,7 +1669,7 @@ export default function ProjectsScreen({
                     <div className="uu-value">
                       <input
                         className="uu-input"
-                        style={{ width: '60%' }}
+                        style={WIDTH_60_PERCENT_STYLE}
                         value={refs.director || ''}
                         onChange={(e) => {
                           const next = updateDetailField('referents.director', e.target.value);
@@ -1638,7 +1684,7 @@ export default function ProjectsScreen({
                     <div className="uu-value">
                       <input
                         className="uu-input"
-                        style={{ width: '60%' }}
+                        style={WIDTH_60_PERCENT_STYLE}
                         value={refs.technician || ''}
                         onChange={(e) => {
                           const next = updateDetailField('referents.technician', e.target.value);
@@ -1653,7 +1699,7 @@ export default function ProjectsScreen({
                     <div className="uu-value">
                       <input
                         className="uu-input"
-                        style={{ width: '60%' }}
+                        style={WIDTH_60_PERCENT_STYLE}
                         value={refs.operator || ''}
                         onChange={(e) => {
                           const next = updateDetailField('referents.operator', e.target.value);
@@ -1668,7 +1714,7 @@ export default function ProjectsScreen({
                     <div className="uu-value">
                       <input
                         className="uu-input"
-                        style={{ width: '60%' }}
+                        style={WIDTH_60_PERCENT_STYLE}
                         value={refs.journalist || ''}
                         onChange={(e) => {
                           const next = updateDetailField('referents.journalist', e.target.value);
@@ -1683,7 +1729,7 @@ export default function ProjectsScreen({
               {/* Bloc : Setup Unreal (si info) */}
               {hasSetupUnreal ? (
                 <div className="uu-card">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ marginBottom: '12px' }}>
+                  <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
                     <strong className="uu-block-title">{t('projects.detail.blocks.setupUnreal')}</strong>
                   </div>
                   <div className="uu-col uu-gap-16">
@@ -1770,7 +1816,7 @@ export default function ProjectsScreen({
                     className="uu-btn"
                     onClick={() => { createTaskFromProject(detailId); }}
                   >
-                    {t('projects.actions.createTask', 'Rendu')}
+                    {t('projects.actions.createTask')}
                   </button>
                 ) : null}
                 {canManageUnrealProjects ? (
@@ -1782,50 +1828,33 @@ export default function ProjectsScreen({
         </div>
 
         {snapshotOpen ? (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.75)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '24px',
-              zIndex: 9999,
-            }}
-            onClick={() => { if (!snapshotBusy) { setSnapshotOpen(null); setSnapshotMsg(''); setSnapshotMsgType(''); } }}
-          >
+          <div style={SNAPSHOT_OVERLAY_STYLE} onClick={closeSnapshotViewer}>
             <div
               className="uu-card"
-              style={{
-                width: 'min(1200px, 95vw)',
-                maxHeight: '90vh',
-                overflow: 'auto',
-                padding: '12px',
-              }}
+              style={SNAPSHOT_MODAL_STYLE}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
                 <strong className="uu-block-title">{t('projects.snapshots.title')}</strong>
-                <span className="uu-muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span className="uu-muted" style={TEXT_ELLIPSIS_STYLE}>
                   {snapshotOpen.rel || ''}
                 </span>
                 <button
                   type="button"
                   className="uu-btn"
-                  style={{ marginLeft: 'auto' }}
-                  onClick={() => { setSnapshotOpen(null); setSnapshotMsg(''); setSnapshotMsgType(''); }}
+                  style={MARGIN_LEFT_AUTO_STYLE}
+                  onClick={closeSnapshotViewer}
                   disabled={snapshotBusy}
                 >
                   {t('common.close')}
                 </button>
               </div>
 
-              <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'center' }}>
+              <div style={SNAPSHOT_VIEWER_IMAGE_ROW_STYLE}>
                 <img
                   src={snapshotSrc(detailId, snapshotOpen.rel, snapshotOpen.mtime)}
                   alt=""
-                  style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px' }}
+                  style={SNAPSHOT_VIEWER_IMAGE_STYLE}
                 />
               </div>
 
@@ -1956,7 +1985,7 @@ export default function ProjectsScreen({
 
           {/* Section : liste des projets (triés) */}
           {searchExpanded && (
-            <div className="uu-card uu-col uu-gap-12" style={{ marginBottom: '16px' }}>
+            <div className="uu-card uu-col uu-gap-12" style={SEARCH_PANEL_MARGIN_BOTTOM_STYLE}>
               <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
                 <strong className="uu-block-title">{t('projects.search.advancedTitle')}</strong>
                 <div className="uu-muted">
@@ -1966,8 +1995,8 @@ export default function ProjectsScreen({
 
               <div className="uu-col uu-gap-12">
                 <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                    <label className="uu-label" style={{ width: '90px' }}>{t('projects.detail.labels.status')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                    <label className="uu-label w-90">{t('projects.detail.labels.status')}</label>
                     <Suspense fallback={lazyInlineFallback}>
                       <MultiSelectDropdown
                         options={[
@@ -1981,12 +2010,12 @@ export default function ProjectsScreen({
                         onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, status: vals }))}
                         placeholder={noneLabel}
                         noneLabel={noneLabel}
-                        style={{ width: '500px', minWidth: '500px', maxWidth: '500px' }}
+                        style={ADV_WIDTH_500_STYLE}
                       />
                     </Suspense>
                   </div>
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                    <label className="uu-label" style={{ width: '90px' }}>{t('projects.detail.labels.type')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                    <label className="uu-label w-90">{t('projects.detail.labels.type')}</label>
                     <Suspense fallback={lazyInlineFallback}>
                       <MultiSelectDropdown
                         options={[
@@ -2003,15 +2032,15 @@ export default function ProjectsScreen({
                         onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, type: vals }))}
                         placeholder={noneLabel}
                         noneLabel={noneLabel}
-                        style={{ width: '520px', minWidth: '520px', maxWidth: '520px' }}
+                        style={ADV_WIDTH_520_STYLE}
                       />
                     </Suspense>
                   </div>
                 </div>
 
                 <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                    <label className="uu-label" style={{ width: '90px' }}>{t('projects.detail.labels.usageMode')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                    <label className="uu-label w-90">{t('projects.detail.labels.usageMode')}</label>
                     <Suspense fallback={lazyInlineFallback}>
                       <MultiSelectDropdown
                         options={[
@@ -2024,12 +2053,12 @@ export default function ProjectsScreen({
                         onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, usageMode: vals }))}
                         placeholder={noneLabel}
                         noneLabel={noneLabel}
-                        style={{ width: '500px', minWidth: '500px', maxWidth: '500px' }}
+                        style={ADV_WIDTH_500_STYLE}
                       />
                     </Suspense>
                   </div>
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                    <label className="uu-label" style={{ width: '90px' }}>{t('projects.table.engineVersion')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                    <label className="uu-label w-90">{t('projects.table.engineVersion')}</label>
                     <Suspense fallback={lazyInlineFallback}>
                       <MultiSelectDropdown
                         options={engineVersionOptions}
@@ -2037,18 +2066,18 @@ export default function ProjectsScreen({
                         onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, engineVersion: vals }))}
                         placeholder={noneLabel}
                         noneLabel={noneLabel}
-                        style={{ width: '520px', minWidth: '520px', maxWidth: '520px' }}
+                        style={ADV_WIDTH_520_STYLE}
                       />
                     </Suspense>
                   </div>
                 </div>
 
                 <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                    <label className="uu-label" style={{ width: '90px' }}>{t('projects.detail.labels.director')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                    <label className="uu-label w-90">{t('projects.detail.labels.director')}</label>
                     <select
                       className="uu-select"
-                      style={{ width: '500px', minWidth: '500px', maxWidth: '500px', height: '36px' }}
+                      style={ADV_WIDTH_500_INPUT_STYLE}
                       value={searchAdvanced.director}
                       onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, director: e.target.value }))}
                     >
@@ -2058,11 +2087,11 @@ export default function ProjectsScreen({
                       ))}
                     </select>
                   </div>
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                    <label className="uu-label" style={{ width: '90px' }}>{t('projects.detail.labels.technician')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                    <label className="uu-label w-90">{t('projects.detail.labels.technician')}</label>
                     <select
                       className="uu-select"
-                      style={{ width: '520px', minWidth: '520px', maxWidth: '520px', height: '36px' }}
+                      style={ADV_WIDTH_520_INPUT_STYLE}
                       value={searchAdvanced.technician}
                       onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, technician: e.target.value }))}
                     >
@@ -2074,11 +2103,11 @@ export default function ProjectsScreen({
                   </div>
                 </div>
                 <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                    <label className="uu-label" style={{ width: '90px' }}>{t('projects.detail.labels.operator')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                    <label className="uu-label w-90">{t('projects.detail.labels.operator')}</label>
                     <select
                       className="uu-select"
-                      style={{ width: '500px', minWidth: '500px', maxWidth: '500px', height: '36px' }}
+                      style={ADV_WIDTH_500_INPUT_STYLE}
                       value={searchAdvanced.operator}
                       onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, operator: e.target.value }))}
                     >
@@ -2088,11 +2117,11 @@ export default function ProjectsScreen({
                       ))}
                     </select>
                   </div>
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                    <label className="uu-label" style={{ width: '90px' }}>{t('projects.detail.labels.journalist')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                    <label className="uu-label w-90">{t('projects.detail.labels.journalist')}</label>
                     <select
                       className="uu-select"
-                      style={{ width: '520px', minWidth: '520px', maxWidth: '520px', height: '36px' }}
+                      style={ADV_WIDTH_520_INPUT_STYLE}
                       value={searchAdvanced.journalist}
                       onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, journalist: e.target.value }))}
                     >
@@ -2105,11 +2134,11 @@ export default function ProjectsScreen({
                 </div>
 
                 <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                    <label className="uu-label" style={{ width: '90px' }}>{t('projects.detail.labels.keywords')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                    <label className="uu-label w-90">{t('projects.detail.labels.keywords')}</label>
                     <input
                       className="uu-input"
-                      style={{ width: '500px', minWidth: '500px', maxWidth: '500px' }}
+                      style={ADV_WIDTH_500_STYLE}
                       value={searchAdvanced.tags}
                       onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, tags: e.target.value }))}
                       placeholder={t('projects.search.placeholderTags')}
@@ -2137,7 +2166,7 @@ export default function ProjectsScreen({
             )}
 
             {projectsWithActive.length > 0 && (
-              <div className="uu-row uu-gap-12 uu-align-center" style={{ margin: '12px 0' }}>
+              <div className="uu-row uu-gap-12 uu-align-center" style={PAGINATION_ROW_MARGIN_STYLE}>
                 <div className="uu-row uu-gap-6 uu-align-center">
                   {canPrevPage && (
                     <button
@@ -2166,7 +2195,7 @@ export default function ProjectsScreen({
                     className="uu-select"
                     value={pageSize}
                     onChange={(e) => setPageSize(Math.max(10, Number(e.target.value) || 50))}
-                    style={{ width: '80px' }}
+                    style={PAGE_SIZE_SELECT_STYLE}
                     aria-label={t('projects.pagination.pageSizeAria')}
                   >
                     {[25, 50, 100, 200].map((n) => (
@@ -2180,26 +2209,9 @@ export default function ProjectsScreen({
             {projectsWithActive.length > 0 && viewMode === 'cards' && (
               <Suspense fallback={lazyBlockFallback}>
                 <ProjectsCardsView
-                  t={t}
-                  projects={visibleProjects}
-                  versionEl={versionEl}
-                  openDetails={openDetails}
-                  activateOne={activateOne}
-                  onToggleFavorite={handleToggleFavorite}
-                  onCreateTaskFromProject={createTaskFromProject}
-                  startIntegration={startIntegration}
-                  stopIntegration={stopIntegration}
-                  serverHost={serverHost}
-                  serverRunning={serverRunning}
-                  integrationBusy={integrationBusy}
+                  {...projectViewCommonProps}
                   integrationMsg={integrationMsg}
-                  integrationMsgType={integrationMsgType}
                   removeOne={removeOne}
-                  canManageUnrealProjects={canManageUnrealProjects}
-                  canEditProjectFields={canEditFields}
-                  canCreateTasks={canCreateTaskFromProject}
-                  isAutoRenderUsage={isAutoRenderUsage}
-                  showActivationControls={showProjectActivation}
                 />
               </Suspense>
             )}
@@ -2207,26 +2219,10 @@ export default function ProjectsScreen({
             {projectsWithActive.length > 0 && viewMode === 'list' && (
               <Suspense fallback={lazyBlockFallback}>
                 <ProjectsListView
-                  t={t}
-                  projects={visibleProjects}
-                  versionEl={versionEl}
-                  openDetails={openDetails}
-                  activateOne={activateOne}
-                  onCreateTaskFromProject={createTaskFromProject}
-                  onToggleFavorite={handleToggleFavorite}
-                  startIntegration={startIntegration}
-                  stopIntegration={stopIntegration}
-                  serverHost={serverHost}
-                  serverRunning={serverRunning}
-                  integrationBusy={integrationBusy}
+                  {...projectViewCommonProps}
                   sortMode={sortMode}
                   sortDir={sortDir}
                   onSort={handleSort}
-                  canManageUnrealProjects={canManageUnrealProjects}
-                  canEditProjectFields={canEditFields}
-                  canCreateTasks={canCreateTaskFromProject}
-                  isAutoRenderUsage={isAutoRenderUsage}
-                  showActivationControls={showProjectActivation}
                 />
               </Suspense>
             )}
@@ -2234,23 +2230,7 @@ export default function ProjectsScreen({
             {projectsWithActive.length > 0 && viewMode === 'thumbs' && (
               <Suspense fallback={lazyBlockFallback}>
                 <ProjectsThumbsView
-                  t={t}
-                  projects={visibleProjects}
-                  versionEl={versionEl}
-                  openDetails={openDetails}
-                  activateOne={activateOne}
-                  onToggleFavorite={handleToggleFavorite}
-                  onCreateTaskFromProject={createTaskFromProject}
-                  startIntegration={startIntegration}
-                  stopIntegration={stopIntegration}
-                  serverHost={serverHost}
-                  serverRunning={serverRunning}
-                  integrationBusy={integrationBusy}
-                  canManageUnrealProjects={canManageUnrealProjects}
-                  canEditProjectFields={canEditFields}
-                  canCreateTasks={canCreateTaskFromProject}
-                  isAutoRenderUsage={isAutoRenderUsage}
-                  showActivationControls={showProjectActivation}
+                  {...projectViewCommonProps}
                 />
               </Suspense>
             )}
@@ -2315,3 +2295,4 @@ export default function ProjectsScreen({
 }
 
 // MultiSelectDropdown moved to component file
+

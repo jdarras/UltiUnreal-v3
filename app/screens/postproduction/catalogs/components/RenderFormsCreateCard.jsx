@@ -1,5 +1,11 @@
 import { safeT } from "../../shared/helpers";
 
+const FORM_CREATE_FIELD_ROW_STYLE = { display: "flex", alignItems: "center", gap: "10px" };
+const FORM_CREATE_FIELD_LABEL_STYLE = { width: "150px", minWidth: "150px" };
+const FORM_CREATE_TITLE_STYLE = { fontWeight: 600 };
+const FORM_CREATE_RED_INPUT_STYLE = { borderColor: "var(--uu-color-red)", backgroundColor: "rgba(163, 46, 46, 0.18)" };
+const FORM_CREATE_RED_SELECT_STYLE = { borderColor: "var(--uu-color-red)" };
+
 export function RenderFormsCreateCard({
   t,
   normalizedProjectOptions = [],
@@ -18,20 +24,15 @@ export function RenderFormsCreateCard({
   createError = "",
   createInfo = "",
 }) {
-  const formMetaFieldRowStyle = { display: "flex", alignItems: "center", gap: "10px" };
-  const formMetaFieldLabelStyle = { width: "150px", minWidth: "150px" };
-
   const projEmpty = !String(selectedProjectRef || "").trim();
   const nameEmpty = !String(newFormName || "").trim();
   const levelEmpty = !String(newMapName || "").trim();
-  const redInputStyle = { borderColor: "var(--uu-color-red)", backgroundColor: "rgba(163, 46, 46, 0.18)" };
-  const redSelectStyle = { borderColor: "var(--uu-color-red)" };
 
   return (
     <div className="uu-card">
-      <div style={{ fontWeight: 600 }}>{safeT(t, "postprod.data.forms.create", "Nouveau formulaire")}</div>
-      <div className="uu-grid-field mt-8" style={formMetaFieldRowStyle}>
-        <label className="uu-label" style={formMetaFieldLabelStyle}>{safeT(t, "postprod.data.project", "Projet")}</label>
+      <div style={FORM_CREATE_TITLE_STYLE}>{safeT(t, "postprod.data.forms.create", "Nouveau formulaire")}</div>
+      <div className="uu-grid-field mt-8" style={FORM_CREATE_FIELD_ROW_STYLE}>
+        <label className="uu-label" style={FORM_CREATE_FIELD_LABEL_STYLE}>{safeT(t, "postprod.data.project", "Projet")}</label>
         <select
           className="uu-input"
           value={String(selectedProjectRef || "")}
@@ -40,7 +41,7 @@ export function RenderFormsCreateCard({
             const next = String(e.target.value || "").trim();
             if (typeof onSelectProjectRef === "function") onSelectProjectRef(next);
           }}
-          style={projEmpty ? redSelectStyle : undefined}
+          style={projEmpty ? FORM_CREATE_RED_SELECT_STYLE : undefined}
         >
           <option value="">{safeT(t, "common.select", "Selectionner")}</option>
           {normalizedProjectOptions.map((project) => (
@@ -50,23 +51,23 @@ export function RenderFormsCreateCard({
           ))}
         </select>
       </div>
-      <div className="uu-grid-field mt-8" style={formMetaFieldRowStyle}>
-        <label className="uu-label" style={formMetaFieldLabelStyle}>{safeT(t, "common.name", "Nom")}</label>
+      <div className="uu-grid-field mt-8" style={FORM_CREATE_FIELD_ROW_STYLE}>
+        <label className="uu-label" style={FORM_CREATE_FIELD_LABEL_STYLE}>{safeT(t, "common.name", "Nom")}</label>
         <input
           className="uu-input"
           type="text"
           value={newFormName}
           onChange={(e) => onSetNewFormName?.(e.target.value)}
-          style={nameEmpty ? redInputStyle : undefined}
+          style={nameEmpty ? FORM_CREATE_RED_INPUT_STYLE : undefined}
         />
       </div>
-      <div className="uu-grid-field mt-8" style={formMetaFieldRowStyle}>
-        <label className="uu-label" style={formMetaFieldLabelStyle}>{safeT(t, "postprod.tasks.form.autoRenderMap", "Level")}</label>
+      <div className="uu-grid-field mt-8" style={FORM_CREATE_FIELD_ROW_STYLE}>
+        <label className="uu-label" style={FORM_CREATE_FIELD_LABEL_STYLE}>{safeT(t, "postprod.tasks.form.autoRenderMap", "Level")}</label>
         <select
           className="uu-input"
           value={newMapName}
           onChange={(e) => onSetNewMapName?.(String(e.target.value || "").trim())}
-          style={levelEmpty ? redSelectStyle : undefined}
+          style={levelEmpty ? FORM_CREATE_RED_SELECT_STYLE : undefined}
         >
           <option value="">{safeT(t, "common.select", "Selectionner")}</option>
           {projectCatalogLevelOptions.map((entry) => (
@@ -86,5 +87,3 @@ export function RenderFormsCreateCard({
     </div>
   );
 }
-
-export default RenderFormsCreateCard;

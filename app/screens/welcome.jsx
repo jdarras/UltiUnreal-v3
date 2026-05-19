@@ -3,40 +3,29 @@ import React from 'react';
 import { pingLocalAgent, postCommonAtPort } from '../utils/agent';
 import { readIdentity, writeIdentity, LS_IDENTITY } from '../utils/identity';
 import { createT } from '../i18n';
+import { formatLicenseDate, getDaysLeft } from './configurationHelpers';
 import appIcon from '../assets/icon.png';
-
-function formatLicenseDate(exp, lang) {
-  const raw = String(exp || '').trim();
-  if (!raw) return '';
-  const locale = lang === 'en' ? 'en-US' : 'fr-FR';
-  const date = new Date(`${raw}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return raw;
-  return date.toLocaleDateString(locale);
-}
-
-function parseLicenseExpToUtcMs(exp) {
-  const raw = String(exp || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
-  const ms = Date.parse(`${raw}T23:59:59Z`);
-  return Number.isFinite(ms) ? ms : null;
-}
-
-function getDaysLeft(exp) {
-  const expMs = parseLicenseExpToUtcMs(exp);
-  if (!expMs) return null;
-  const diffMs = expMs - Date.now();
-  const days = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-  return Math.max(0, days);
-}
 
 const LOCAL_IP_MANUAL = '__manual__';
 const APP_MODE_LIVE = 'live';
 const APP_MODE_POSTPROD = 'postprod';
+const DEFAULT_AGENT_PORT = '4000';
+const LOCKED_MODE_ROW_STYLE = { gap: '8px', flexWrap: 'wrap' };
+const LOCAL_IP_ROW_STYLE = { flex: 1, minWidth: 0 };
+const LOCAL_IP_INPUT_STYLE = { flex: 1, minWidth: 160 };
 
 function normalizeMode(mode) {
   return String(mode || '').trim().toLowerCase() === APP_MODE_POSTPROD
     ? APP_MODE_POSTPROD
     : APP_MODE_LIVE;
+}
+
+function resolveAgentPortDefault(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return DEFAULT_AGENT_PORT;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0 || n > 65535) return DEFAULT_AGENT_PORT;
+  return String(n);
 }
 
 export default function WelcomeScreen({
@@ -57,7 +46,7 @@ export default function WelcomeScreen({
       role: String(saved.role || '').trim().toLowerCase() === 'client' ? 'client' : 'server',
       localIp: saved.localIp || '',
       serverIp: '',
-      agentPort: saved.agentPort || '',
+      agentPort: resolveAgentPortDefault(saved.agentPort),
       localIpChoice: saved.localIpChoice || '',
     };
   });
@@ -113,16 +102,60 @@ export default function WelcomeScreen({
   const localIpSelectRef = React.useRef(null);
   const localIpManualRef = React.useRef(null);
   const agentPortRef = React.useRef(null);
+  const msgTimerRef = React.useRef(null);
+
+  const clearMsg = React.useCallback(() => {
+    if (msgTimerRef.current) {
+      clearTimeout(msgTimerRef.current);
+      msgTimerRef.current = null;
+    }
+    setMsg('');
+    setMsgKind('info');
+  }, []);
+
+  const showMsg = React.useCallback((text, kind = 'info', clearAfterMs = 0) => {
+    if (msgTimerRef.current) {
+      clearTimeout(msgTimerRef.current);
+      msgTimerRef.current = null;
+    }
+    const message = String(text || '');
+    const level = String(kind || 'info');
+    setMsg(message);
+    setMsgKind(level);
+    const delay = Number(clearAfterMs);
+    const timeoutMs = Number.isFinite(delay) && delay > 0 ? Math.trunc(delay) : 0;
+    if (!message || timeoutMs <= 0) return;
+    msgTimerRef.current = setTimeout(() => {
+      msgTimerRef.current = null;
+      setMsg('');
+      setMsgKind('info');
+    }, timeoutMs);
+  }, []);
 
   // Sauvegarde locale (uu_identity via helper)
   const saveIdentity = React.useCallback((patch) => {
     setIdentity(prev => {
       const merged = { ...prev, ...patch };
       writeIdentity(merged);
-      setMsg(''); // clear message on change
+      clearMsg();
       return merged;
     });
+  }, [clearMsg]);
+
+  React.useEffect(() => {
+    return () => {
+      if (msgTimerRef.current) {
+        clearTimeout(msgTimerRef.current);
+        msgTimerRef.current = null;
+      }
+    };
   }, []);
+
+  React.useEffect(() => {
+    const raw = String(identity.agentPort ?? '').trim();
+    if (raw) return;
+    saveIdentity({ agentPort: DEFAULT_AGENT_PORT });
+  }, [identity.agentPort, saveIdentity]);
 
   React.useEffect(() => {
     if (canChooseMode || !forcedMode) return;
@@ -138,11 +171,6 @@ export default function WelcomeScreen({
       saveIdentity({ role: 'server', serverIp: '' });
     }
   }, [effectiveMode, identity.role, identity.serverIp, saveIdentity]);
-
-  function showMsg(text, kind = 'info') {
-    setMsg(text);
-    setMsgKind(kind);
-  }
 
   function focusLocalIp() {
     if (resolvedLocalIpChoice === LOCAL_IP_MANUAL) {
@@ -216,12 +244,12 @@ export default function WelcomeScreen({
     const desired = String(identity.agentPort || '').trim();
     const locIp = String(identity.localIp || '').trim();
     if (!locIp) {
-      showMsg(t('welcome.validation.localIpRequired') || 'Adresse locale requise', 'error');
+      showMsg(t('welcome.validation.localIpRequired'), 'error');
       focusLocalIp();
       return;
     }
     if (!isValidHost(locIp)) {
-      showMsg(t('welcome.validation.localIpRequired') || 'Adresse locale invalide', 'error');
+      showMsg(t('welcome.validation.localIpInvalid'), 'error');
       focusLocalIp();
       return;
     }
@@ -278,7 +306,7 @@ export default function WelcomeScreen({
         }
       }
 
-      showMsg(t('welcome.msg.ok'), 'ok');
+      showMsg(t('welcome.msg.ok'), 'ok', 1800);
       if (onContinue) {
         await onContinue({
           ...identity,
@@ -311,14 +339,14 @@ export default function WelcomeScreen({
       role: 'server',
       localIp: '',
       serverIp: '',
-      agentPort: '',
+      agentPort: DEFAULT_AGENT_PORT,
       localIpChoice: '',
     });
     setManualIp('');
     setLocalIpChoice(LOCAL_IP_MANUAL);
     setLocalIpChoiceTouched(false);
     setResetTick(t => t + 1);
-    showMsg(t('welcome.msg.resetDone'), 'info');
+    showMsg(t('welcome.msg.resetDone'), 'info', 1800);
 
     // refocus doux
     setTimeout(() => {
@@ -341,7 +369,7 @@ export default function WelcomeScreen({
         </h1>
 
         <h2 className="welcome-section-title uu-block-title">
-          {t('welcome.section.machine') || 'Identification de la station'}
+          {t('welcome.section.machine')}
         </h2>
 
         <div className="welcome-grid">
@@ -372,12 +400,12 @@ export default function WelcomeScreen({
                 </button>
               </div>
             ) : (
-              <div className="uu-row" style={{ gap: '8px', flexWrap: 'wrap' }}>
+              <div className="uu-row" style={LOCKED_MODE_ROW_STYLE}>
                 <span className="uu-chip lvl-info chip-on">
                   {effectiveMode === APP_MODE_POSTPROD ? t('welcome.mode.postprod') : t('welcome.mode.live')}
                 </span>
                 <span className="uu-muted">
-                  {t('welcome.mode.locked') || 'Mode attribue selon ton profil.'}
+                  {t('welcome.mode.locked')}
                   {currentRoleName ? ` (${currentRoleName})` : ''}
                 </span>
               </div>
@@ -403,7 +431,7 @@ export default function WelcomeScreen({
           {/* IP locale */}
           <div className="welcome-row uu-row-nowrap">
             <label className="uu-label w-160">{t('welcome.localIp.label')}</label>
-            <div className="uu-row uu-row-nowrap" style={{ flex: 1, minWidth: 0 }}>
+            <div className="uu-row uu-row-nowrap" style={LOCAL_IP_ROW_STYLE}>
               <select
                 ref={localIpSelectRef}
                 className="uu-input"
@@ -423,7 +451,7 @@ export default function WelcomeScreen({
                   saveIdentity({ localIp: next, localIpChoice: next });
                 }}
                 disabled={busy}
-                style={{ flex: 1, minWidth: 160 }}
+                style={LOCAL_IP_INPUT_STYLE}
               >
                 {localIpOptions.map((ip) => (
                   <option key={ip} value={ip}>{ip}</option>
@@ -446,7 +474,7 @@ export default function WelcomeScreen({
                     saveIdentity({ localIp: next, localIpChoice: LOCAL_IP_MANUAL });
                   }}
                   disabled={busy}
-                  style={{ flex: 1, minWidth: 160 }}
+                  style={LOCAL_IP_INPUT_STYLE}
                 />
               )}
             </div>

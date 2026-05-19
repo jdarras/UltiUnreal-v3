@@ -99,5 +99,3 @@ export function resolveAutoRenderContext({
     selectedFormIdNum,
   };
 }
-
-export default resolveAutoRenderContext;

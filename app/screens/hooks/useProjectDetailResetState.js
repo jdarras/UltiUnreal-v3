@@ -3,7 +3,6 @@ import { useCallback } from 'react';
 export function useProjectDetailResetState({
   resetHttpBind,
   projectVersionTimer,
-  setDetailMsg,
   setIndexationMsg,
   setIndexationMsgType,
   setRenderBridgeStatus,
@@ -34,7 +33,6 @@ export function useProjectDetailResetState({
   detailNoteDirtyRef,
 } = {}) {
   const resetDetailState = useCallback(() => {
-    setDetailMsg('');
     resetHttpBind();
     setIndexationMsg('');
     setIndexationMsgType('');
@@ -73,7 +71,6 @@ export function useProjectDetailResetState({
     resetHttpBind,
     setDetailInsights,
     setDetailMeta,
-    setDetailMsg,
     setIndexationMsg,
     setIndexationMsgType,
     setIntervenantsMsg,
@@ -101,5 +98,3 @@ export function useProjectDetailResetState({
 
   return { resetDetailState };
 }
-
-export default useProjectDetailResetState;

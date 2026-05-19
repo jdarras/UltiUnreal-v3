@@ -131,5 +131,3 @@ export function useFilteredRenders({
     hasActiveFilters,
   };
 }
-
-export default useFilteredRenders;

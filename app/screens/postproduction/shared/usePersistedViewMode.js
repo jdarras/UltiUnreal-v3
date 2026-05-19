@@ -30,5 +30,3 @@ export function usePersistedViewMode({
     setViewMode,
   };
 }
-
-export default usePersistedViewMode;

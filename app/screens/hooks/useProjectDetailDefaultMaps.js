@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { getProjectMeta, setProjectDefaultMaps } from '../../utils/agent';
+import { useTransientClearTimer } from './useTransientClearTimer';
 
 export function useProjectDetailDefaultMaps({
   t,
@@ -10,6 +11,8 @@ export function useProjectDetailDefaultMaps({
   setMapsMsg,
   setMapsMsgType,
 } = {}) {
+  const { scheduleClear } = useTransientClearTimer();
+
   const applyDefaultMapsPatch = useCallback(async (patch = {}) => {
     const pid = String(detailId || '').trim();
     const p = patch && typeof patch === 'object' ? patch : {};
@@ -55,7 +58,7 @@ export function useProjectDetailDefaultMaps({
         ? 'projects.detail.maps.updateOk'
         : (game ? 'projects.detail.maps.updateOkGame' : 'projects.detail.maps.updateOkEditor');
       setMapsMsg(t(okKey));
-      setTimeout(() => setMapsMsg(''), 2000);
+      scheduleClear(() => setMapsMsg(''), 2000);
     } catch {
       setMapsMsgType('error');
       setMapsMsg(t('projects.detail.maps.updateError'));
@@ -69,10 +72,9 @@ export function useProjectDetailDefaultMaps({
     setMapsMsg,
     setMapsMsgType,
     setProjects,
+    scheduleClear,
     t,
   ]);
 
   return { applyDefaultMapsPatch };
 }
-
-export default useProjectDetailDefaultMaps;

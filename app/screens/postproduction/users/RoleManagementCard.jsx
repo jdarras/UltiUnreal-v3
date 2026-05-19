@@ -4,6 +4,8 @@ import { RoleEditorPanel } from "./role/RoleEditorPanel";
 import { RoleListPanel } from "./role/RoleListPanel";
 import { useRoleManagementCardController } from "./hooks/useRoleManagementCardController";
 
+const ROLE_MANAGEMENT_ACTIONS_ROW_STYLE = { justifyContent: "flex-start", alignItems: "center", gap: "8px" };
+
 export function RoleManagementCard({
   t,
   tabKey = "",
@@ -39,7 +41,7 @@ export function RoleManagementCard({
 
   return (
     <section className="uu-section">
-      <div className="uu-row" style={{ justifyContent: "flex-start", alignItems: "center", gap: "8px" }}>
+      <div className="uu-row" style={ROLE_MANAGEMENT_ACTIONS_ROW_STYLE}>
         {!inEditor ? (
           <button
             className="uu-btn"

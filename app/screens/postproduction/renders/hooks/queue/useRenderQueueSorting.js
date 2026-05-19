@@ -33,5 +33,3 @@ export function useRenderQueueSorting({
     toggleQueueSort,
   };
 }
-
-export default useRenderQueueSorting;

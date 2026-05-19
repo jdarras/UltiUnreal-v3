@@ -11,7 +11,6 @@ import {
 } from '../../utils/resources-helpers';
 
 export function useResourceDetailPersistence({
-  t,
   detailUid,
   detailItem,
   detailDraft,
@@ -20,8 +19,6 @@ export function useResourceDetailPersistence({
   setDetailData,
   setDetailUid,
   setDetailBusy,
-  setDetailMsg,
-  setDetailMsgType,
   setDetailDeleteBusy,
   setDeleteConfirmOpen,
   detailSavedRef,
@@ -86,8 +83,6 @@ export function useResourceDetailPersistence({
         const runPayload = nextRun.payload;
         const runSnapshot = nextRun.snapshot;
         nextRun = null;
-        setDetailMsg('');
-        setDetailMsgType('');
         try {
           const body = { uid: detailUid, user: runPayload };
           const res = await postLibraryItem(body).catch(() => ({}));
@@ -118,16 +113,8 @@ export function useResourceDetailPersistence({
                 detailSavedNoteRef.current = runPayload.note || '';
               }
             }
-            setDetailMsgType('ok');
-            setDetailMsg(t('resources.detail.saveOk'));
-          } else {
-            setDetailMsgType('error');
-            setDetailMsg(t('resources.detail.saveError'));
           }
-        } catch {
-          setDetailMsgType('error');
-          setDetailMsg(t('resources.detail.saveError'));
-        }
+        } catch {}
         const pending = detailPendingRef.current;
         detailPendingRef.current = null;
         if (pending && pending.snapshot !== detailSavedRef.current) {
@@ -148,16 +135,11 @@ export function useResourceDetailPersistence({
     setItems,
     setDetailBusy,
     setDetailData,
-    setDetailMsg,
-    setDetailMsgType,
-    t,
   ]);
 
   const handleDeleteResource = useCallback(async () => {
     const uid = normalizeUid(detailUid);
     if (!uid || detailDeleteBusy) return;
-    setDetailMsg('');
-    setDetailMsgType('');
     setDetailDeleteBusy(true);
     try {
       const baseUser = detailItem?.user && typeof detailItem.user === 'object' ? detailItem.user : {};
@@ -167,14 +149,8 @@ export function useResourceDetailPersistence({
       if (ok) {
         setItems((prev) => prev.filter((it) => normalizeUid(it?.uid) !== uid));
         setDetailUid('');
-      } else {
-        setDetailMsgType('error');
-        setDetailMsg(t('resources.detail.deleteError'));
       }
-    } catch {
-      setDetailMsgType('error');
-      setDetailMsg(t('resources.detail.deleteError'));
-    } finally {
+    } catch {} finally {
       setDetailDeleteBusy(false);
     }
   }, [
@@ -182,11 +158,8 @@ export function useResourceDetailPersistence({
     detailItem,
     detailDeleteBusy,
     setDetailDeleteBusy,
-    setDetailMsg,
-    setDetailMsgType,
     setItems,
     setDetailUid,
-    t,
   ]);
 
   const closeDeleteConfirm = useCallback(
@@ -232,5 +205,3 @@ export function useResourceDetailPersistence({
     triggerDetailSave,
   };
 }
-
-export default useResourceDetailPersistence;

@@ -23,5 +23,3 @@ export function buildRenderEditorSectionPropsInputBase({
     renderOutputDir,
   };
 }
-
-export default buildRenderEditorSectionPropsInputBase;

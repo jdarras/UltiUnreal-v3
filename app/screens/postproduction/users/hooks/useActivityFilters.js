@@ -66,4 +66,3 @@ function useActivityFilters({ mapActionType = null } = {}) {
 }
 
 export { useActivityFilters };
-export default useActivityFilters;

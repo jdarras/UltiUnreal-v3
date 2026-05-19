@@ -1,18 +1,6 @@
 import { resolveTaskVisualStatus } from "../../helpers";
 import { taskRenderFormId, taskRenderModeName, taskTargetRenderWorkerKey } from "./taskListUtils";
-
-function normalizeFilterValues(values = []) {
-  const source = Array.isArray(values) ? values : [values];
-  const out = [];
-  const seen = new Set();
-  for (const value of source) {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (!normalized || normalized === "all" || seen.has(normalized)) continue;
-    seen.add(normalized);
-    out.push(normalized);
-  }
-  return out;
-}
+import { normalizeMultiFilterValues } from "../../../shared/filterValues";
 
 function buildProjectSearchText(task = null, projectLabelsByRef = new Map()) {
   return (Array.isArray(task?.projectRefs) ? task.projectRefs : [])
@@ -101,7 +89,7 @@ function filterTasksList({
     });
   }
 
-  const selectedStatus = new Set(normalizeFilterValues(listStatusFilter));
+  const selectedStatus = new Set(normalizeMultiFilterValues(listStatusFilter));
   if (selectedStatus.size > 0) {
     const legacyStatusMap = {
       __render_waiting: "waiting",
@@ -126,7 +114,7 @@ function filterTasksList({
     list = list.filter((task) => targetStatuses.has(resolveTaskVisualStatus(task, taskRenderStateByTaskId)));
   }
 
-  const selectedWorkers = new Set(normalizeFilterValues(listRenderWorkerFilter));
+  const selectedWorkers = new Set(normalizeMultiFilterValues(listRenderWorkerFilter));
   if (selectedWorkers.size > 0) {
     list = list.filter((task) => {
       const isAutoTask = String(task?.requestType || "").trim().toLowerCase() === "auto_render";
@@ -137,7 +125,7 @@ function filterTasksList({
     });
   }
 
-  const selectedProjects = new Set(normalizeFilterValues(listProjectFilter));
+  const selectedProjects = new Set(normalizeMultiFilterValues(listProjectFilter));
   if (selectedProjects.size > 0) {
     list = list.filter((task) => {
       const refs = Array.isArray(task?.projectRefs) ? task.projectRefs : [];
@@ -145,12 +133,12 @@ function filterTasksList({
     });
   }
 
-  const selectedForms = new Set(normalizeFilterValues(listFormFilter));
+  const selectedForms = new Set(normalizeMultiFilterValues(listFormFilter));
   if (selectedForms.size > 0) {
     list = list.filter((task) => selectedForms.has(String(taskRenderFormId(task)).toLowerCase()));
   }
 
-  const selectedRenderModes = new Set(normalizeFilterValues(listRenderModeFilter));
+  const selectedRenderModes = new Set(normalizeMultiFilterValues(listRenderModeFilter));
   if (selectedRenderModes.size > 0) {
     list = list.filter((task) => selectedRenderModes.has(String(taskRenderModeName(task) || "").trim().toLowerCase()));
   }
@@ -170,18 +158,17 @@ function hasActiveTaskListFilters({
   return (
     String(searchQuery || "").trim().length > 0
     || favoriteOnly
-    || normalizeFilterValues(listStatusFilter).length > 0
-    || normalizeFilterValues(listRenderWorkerFilter).length > 0
-    || normalizeFilterValues(listProjectFilter).length > 0
-    || normalizeFilterValues(listFormFilter).length > 0
-    || normalizeFilterValues(listRenderModeFilter).length > 0
+    || normalizeMultiFilterValues(listStatusFilter).length > 0
+    || normalizeMultiFilterValues(listRenderWorkerFilter).length > 0
+    || normalizeMultiFilterValues(listProjectFilter).length > 0
+    || normalizeMultiFilterValues(listFormFilter).length > 0
+    || normalizeMultiFilterValues(listRenderModeFilter).length > 0
   );
 }
 
 export {
   filterTasksList,
   hasActiveTaskListFilters,
-  buildTaskSearchHaystack,
 };
 
 export default filterTasksList;

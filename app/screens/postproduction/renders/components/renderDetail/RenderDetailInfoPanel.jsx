@@ -8,6 +8,16 @@ const DESTINATION_DROPDOWN_STYLE = {
   width: "100%",
   maxWidth: "360px",
 };
+const RENDER_DETAIL_SECTION_TITLE_STYLE = { margin: "0 0 8px 0" };
+const RENDER_DETAIL_VALUE_WRAP_ANYWHERE_STYLE = { overflowWrap: "anywhere" };
+const RENDER_DETAIL_REVIEW_SELECT_STYLE = { width: "100%" };
+const RENDER_DETAIL_LINK_CURSOR_STYLE = { cursor: "pointer" };
+const RENDER_DETAIL_MUTED_NOWRAP_STYLE = { whiteSpace: "nowrap" };
+const RENDER_DETAIL_DESCRIPTION_STYLE = { whiteSpace: "pre-wrap", wordBreak: "break-word" };
+const RENDER_DETAIL_SCHEDULE_EDIT_ROW_STYLE = { gap: "6px", alignItems: "center", flexWrap: "wrap" };
+const RENDER_DETAIL_SCHEDULE_INPUT_STYLE = { height: "30px", fontSize: "0.9em" };
+const RENDER_DETAIL_SCHEDULE_BUTTON_STYLE = { height: "30px", padding: "0 10px", fontSize: "0.85em" };
+const RENDER_DETAIL_SCHEDULE_DISPLAY_STYLE = { padding: "2px 6px", fontSize: "0.9em", textAlign: "left" };
 
 function firstNonEmptyString(values = []) {
   for (const value of Array.isArray(values) ? values : []) {
@@ -715,17 +725,17 @@ function RenderDetailInfoPanel({
   return (
     <>
       <section className="uu-render-detail-info-block">
-        <h4 className="uu-h3 uu-block-title" style={{ margin: "0 0 8px 0" }}>
+        <h4 className="uu-h3 uu-block-title" style={RENDER_DETAIL_SECTION_TITLE_STYLE}>
           {safeT(t, "postprod.renders.detail.infoTitle", "Informations")}
         </h4>
         <div className="uu-render-detail-info-grid">
         <DetailInfoRow label={safeT(t, "postprod.renders.table.file", "Fichier")}>
-          <span className="uu-render-detail-info-value-text" style={{ overflowWrap: "anywhere" }}>{renderOutputName}</span>
+          <span className="uu-render-detail-info-value-text" style={RENDER_DETAIL_VALUE_WRAP_ANYWHERE_STYLE}>{renderOutputName}</span>
         </DetailInfoRow>
         <DetailInfoRow label={safeT(t, "postprod.renders.table.reviewStatus", "Validation")}>
           <select
             className={`uu-input uu-status-select ${reviewStatusClassName(reviewStatusValue)}`}
-            style={{ width: "100%" }}
+            style={RENDER_DETAIL_REVIEW_SELECT_STYLE}
             value={reviewStatusValue}
             disabled={
               rendersLoading
@@ -756,7 +766,7 @@ function RenderDetailInfoPanel({
                 className="uu-render-detail-info-value-text uu-render-detail-inline-link"
                 onClick={handleOpenProject}
                 onKeyDown={(event) => handleInlineLinkKeyDown(event, handleOpenProject)}
-                style={{ cursor: "pointer" }}
+                style={RENDER_DETAIL_LINK_CURSOR_STYLE}
               >
                 {projectMeta.projectName || projectMeta.projectRef || "-"}
               </span>
@@ -764,7 +774,7 @@ function RenderDetailInfoPanel({
               <span className="uu-render-detail-info-value-text">{projectMeta.projectName || projectMeta.projectRef || "-"}</span>
             )}
             {projectIdTag ? (
-              <span className="uu-muted" style={{ whiteSpace: "nowrap" }}>
+              <span className="uu-muted" style={RENDER_DETAIL_MUTED_NOWRAP_STYLE}>
                 {projectIdTag}
               </span>
             ) : null}
@@ -778,7 +788,7 @@ function RenderDetailInfoPanel({
               className="uu-render-detail-info-value-text uu-render-detail-inline-link"
               onClick={handleOpenTask}
               onKeyDown={(event) => handleInlineLinkKeyDown(event, handleOpenTask)}
-              style={{ cursor: "pointer" }}
+              style={RENDER_DETAIL_LINK_CURSOR_STYLE}
             >
               {taskMeta.taskTitle || "-"}
             </span>
@@ -787,14 +797,14 @@ function RenderDetailInfoPanel({
           )}
           {taskIdTag ? (
             <>
-              <span className="uu-muted" style={{ whiteSpace: "nowrap" }}>
+              <span className="uu-muted" style={RENDER_DETAIL_MUTED_NOWRAP_STYLE}>
                 {taskIdTag}
               </span>
             </>
           ) : null}
         </DetailInfoRow>
         <DetailInfoRow label={safeT(t, "postprod.tasks.form.description", "Description")} className="uu-render-detail-info-field-full">
-          <span className="uu-render-detail-info-value-text" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <span className="uu-render-detail-info-value-text" style={RENDER_DETAIL_DESCRIPTION_STYLE}>
             {taskDescription}
           </span>
         </DetailInfoRow>
@@ -808,7 +818,7 @@ function RenderDetailInfoPanel({
                 className="uu-render-detail-info-value-text uu-render-detail-inline-link"
                 onClick={handleOpenForm}
                 onKeyDown={(event) => handleInlineLinkKeyDown(event, handleOpenForm)}
-                style={{ cursor: "pointer" }}
+                style={RENDER_DETAIL_LINK_CURSOR_STYLE}
               >
                 {formMeta.formName}
               </span>
@@ -818,7 +828,7 @@ function RenderDetailInfoPanel({
                 : null
             )}
             {formIdTag ? (
-              <span className="uu-muted" style={{ whiteSpace: "nowrap" }}>
+              <span className="uu-muted" style={RENDER_DETAIL_MUTED_NOWRAP_STYLE}>
                 {formIdTag}
               </span>
             ) : null}
@@ -878,11 +888,11 @@ function RenderDetailInfoPanel({
             <DetailInfoRow label={safeT(t, "postprod.renders.scheduledAt.label", "Date et heure de début")}>
               <div className="uu-render-detail-info-value-block">
                 {editingSchedule ? (
-                  <div className="uu-row" style={{ gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                  <div className="uu-row" style={RENDER_DETAIL_SCHEDULE_EDIT_ROW_STYLE}>
                     <input
                       type="datetime-local"
                       className="uu-input"
-                      style={{ height: "30px", fontSize: "0.9em" }}
+                      style={RENDER_DETAIL_SCHEDULE_INPUT_STYLE}
                       min={minDatetimeLocal}
                       value={scheduleValue}
                       autoFocus
@@ -894,7 +904,7 @@ function RenderDetailInfoPanel({
                     <button
                       className="uu-btn"
                       type="button"
-                      style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
+                      style={RENDER_DETAIL_SCHEDULE_BUTTON_STYLE}
                       onMouseDown={(e) => { e.preventDefault(); handleSaveSchedule(); }}
                     >
                       {safeT(t, "postprod.renders.queue.jobs.save", "Valider")}
@@ -902,7 +912,7 @@ function RenderDetailInfoPanel({
                     <button
                       className="uu-btn-ghost"
                       type="button"
-                      style={{ height: "30px", padding: "0 10px", fontSize: "0.85em" }}
+                      style={RENDER_DETAIL_SCHEDULE_BUTTON_STYLE}
                       onMouseDown={(e) => { e.preventDefault(); handleCancelSchedule(); }}
                     >
                       {safeT(t, "postprod.renders.queue.jobs.cancel", "Annuler")}
@@ -912,7 +922,7 @@ function RenderDetailInfoPanel({
                   <button
                     className="uu-btn-ghost"
                     type="button"
-                    style={{ padding: "2px 6px", fontSize: "0.9em", textAlign: "left" }}
+                    style={RENDER_DETAIL_SCHEDULE_DISPLAY_STYLE}
                     disabled={!isQueued || typeof onScheduleRender !== "function"}
                     onClick={handleStartEditSchedule}
                   >
@@ -929,7 +939,7 @@ function RenderDetailInfoPanel({
       </section>
       {hasRenderableFormBlock ? (
         <section className="uu-render-detail-formdata-panel">
-          <h4 className="uu-h3 uu-block-title" style={{ margin: "0 0 8px 0" }}>
+          <h4 className="uu-h3 uu-block-title" style={RENDER_DETAIL_SECTION_TITLE_STYLE}>
             {formBlockTitle}
           </h4>
           {renderFormFieldsLoading ? (
@@ -962,4 +972,3 @@ function RenderDetailInfoPanel({
 }
 
 export { RenderDetailInfoPanel };
-export default RenderDetailInfoPanel;

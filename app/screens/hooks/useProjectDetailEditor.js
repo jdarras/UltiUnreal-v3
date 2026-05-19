@@ -76,5 +76,3 @@ export function useProjectDetailEditor({
     scheduleSave,
   };
 }
-
-export default useProjectDetailEditor;

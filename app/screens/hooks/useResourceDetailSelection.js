@@ -42,5 +42,3 @@ export function useResourceDetailSelection({
     detailTitle,
   };
 }
-
-export default useResourceDetailSelection;

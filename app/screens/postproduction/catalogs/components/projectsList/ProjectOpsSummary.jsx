@@ -34,4 +34,3 @@ function ProjectOpsSummary({
 }
 
 export { ProjectOpsSummary };
-export default ProjectOpsSummary;

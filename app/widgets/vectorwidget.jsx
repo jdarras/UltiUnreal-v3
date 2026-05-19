@@ -2,14 +2,8 @@
 import React from 'react';
 import './vectorwidget.css';
 import { getCompanionBaseUrl } from '../utils/agent';
-import { readIdentity } from '../utils/identity';
-import { createT } from '../i18n';
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
-}
+import { getVectorDefaultsTitleLabel } from './widgetI18n.js';
+import { getWidgetT } from './widgetTranslator.js';
 
 /**
  * VectorWidget
@@ -31,7 +25,7 @@ export default function VectorWidget({
   onDuplicate,
   rightSlot
 }) {
-  const t = getT();
+  const t = getWidgetT();
   const ui = widget?.ui || {};
   const isLive = ui.live === true;
 
@@ -453,7 +447,8 @@ export default function VectorWidget({
 export function VectorEditorRight({ selected, updateSelected }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
+  const vectorDefaultsTitle = getVectorDefaultsTitleLabel(t);
   const ui = selected.ui || {};
 
   const handleDefaultChange = (axis) => (e) => {
@@ -504,7 +499,7 @@ export function VectorEditorRight({ selected, updateSelected }) {
 
   return (
     <div className="uu-list prod-editor-right-vector">
-      <div className="uu-item-title">{t('vector.defaults.title') || 'Valeurs par défaut'}</div>
+      <div className="uu-item-title">{vectorDefaultsTitle}</div>
 
       {/* Une seule ligne : label principal + X / Y / Z */}
       <div className="uu-row mt-4 uu-vector-editor-row">
@@ -545,7 +540,7 @@ export function VectorEditorRight({ selected, updateSelected }) {
 export function VectorEditorLeftExtras({ selected, updateSelected: _updateSelected, layoutId = '' }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
   const ui = selected.ui || {};
 
   const parseNumber = (raw, fallback = 0) => {
@@ -725,7 +720,7 @@ export function VectorLabelEditor({ selected, updateSelected }) {
   const label = selected.label ?? '';
   const hasError = !label.trim();
 
-  const t = getT();
+  const t = getWidgetT();
   const ui = selected.ui || {};
   const live = ui.live === true;
 
@@ -769,3 +764,4 @@ export function VectorLabelEditor({ selected, updateSelected }) {
     </>
   );
 }
+

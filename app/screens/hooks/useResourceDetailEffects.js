@@ -4,7 +4,6 @@ export function useResourceDetailEffects({
   detailUid,
   detailItem,
   detailDraft,
-  detailMsg,
   deleteConfirmOpen,
   detailDeleteBusy,
   lightboxOpen,
@@ -12,8 +11,6 @@ export function useResourceDetailEffects({
   triggerDetailSave,
   setDetailUid,
   setDeleteConfirmOpen,
-  setDetailMsg,
-  setDetailMsgType,
   deleteConfirmOkRef,
   detailSavedRef,
   detailSavedNoteRef,
@@ -128,15 +125,4 @@ export function useResourceDetailEffects({
     if (detailUid) return;
     if (deleteConfirmOpen) setDeleteConfirmOpen(false);
   }, [deleteConfirmOpen, detailUid, setDeleteConfirmOpen]);
-
-  useEffect(() => {
-    if (!detailMsg) return;
-    const timer = setTimeout(() => {
-      setDetailMsg('');
-      setDetailMsgType('');
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [detailMsg, setDetailMsg, setDetailMsgType]);
 }
-
-export default useResourceDetailEffects;

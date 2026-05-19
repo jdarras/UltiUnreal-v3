@@ -1,6 +1,13 @@
 import { safeT } from "../../../shared/helpers";
 import { normalizeActivityProjectRef } from "../../userSharedHelpers";
 
+const PROFILE_ACTIVITY_FILTERS_ROW_STYLE = { gap: "8px", flexWrap: "wrap" };
+const PROFILE_ACTIVITY_FILTER_COL_DATE_STYLE = { minWidth: "170px" };
+const PROFILE_ACTIVITY_FILTER_COL_ACTION_STYLE = { minWidth: "180px" };
+const PROFILE_ACTIVITY_FILTER_COL_PROJECT_STYLE = { minWidth: "220px", flex: 1 };
+const PROFILE_ACTIVITY_FILTER_COL_SEARCH_STYLE = { minWidth: "240px", flex: 1 };
+const PROFILE_ACTIVITY_FILTER_ACTIONS_ROW_STYLE = { marginLeft: "auto" };
+
 function ProfileActivityFiltersRow({
   t,
   saving = false,
@@ -22,8 +29,8 @@ function ProfileActivityFiltersRow({
   buildActivityFilters = null,
 } = {}) {
   return (
-    <div className="uu-row mt-8" style={{ gap: "8px", flexWrap: "wrap" }}>
-      <div className="uu-col" style={{ minWidth: "170px" }}>
+    <div className="uu-row mt-8" style={PROFILE_ACTIVITY_FILTERS_ROW_STYLE}>
+      <div className="uu-col" style={PROFILE_ACTIVITY_FILTER_COL_DATE_STYLE}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.fromAt", "Du")}</label>
         <input
           className="uu-input"
@@ -33,7 +40,7 @@ function ProfileActivityFiltersRow({
           onChange={(e) => setActivityFromAtLocal?.(e.target.value)}
         />
       </div>
-      <div className="uu-col" style={{ minWidth: "170px" }}>
+      <div className="uu-col" style={PROFILE_ACTIVITY_FILTER_COL_DATE_STYLE}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.toAt", "Au")}</label>
         <input
           className="uu-input"
@@ -43,7 +50,7 @@ function ProfileActivityFiltersRow({
           onChange={(e) => setActivityToAtLocal?.(e.target.value)}
         />
       </div>
-      <div className="uu-col" style={{ minWidth: "180px" }}>
+      <div className="uu-col" style={PROFILE_ACTIVITY_FILTER_COL_ACTION_STYLE}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.actionType", "Type d'action")}</label>
         <select
           className="uu-input"
@@ -59,7 +66,7 @@ function ProfileActivityFiltersRow({
           <option value="other">{safeT(t, "postprod.users.activity.filter.actionType.other", "Autres")}</option>
         </select>
       </div>
-      <div className="uu-col" style={{ minWidth: "220px", flex: 1 }}>
+      <div className="uu-col" style={PROFILE_ACTIVITY_FILTER_COL_PROJECT_STYLE}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.project", "Projet")}</label>
         <select
           className="uu-input"
@@ -83,7 +90,7 @@ function ProfileActivityFiltersRow({
           ))}
         </select>
       </div>
-      <div className="uu-col" style={{ minWidth: "240px", flex: 1 }}>
+      <div className="uu-col" style={PROFILE_ACTIVITY_FILTER_COL_SEARCH_STYLE}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.search", "Recherche locale")}</label>
         <input
           className="uu-input"
@@ -109,7 +116,7 @@ function ProfileActivityFiltersRow({
           )}
         />
       </div>
-      <div className="uu-row uu-align-end" style={{ marginLeft: "auto" }}>
+      <div className="uu-row uu-align-end" style={PROFILE_ACTIVITY_FILTER_ACTIONS_ROW_STYLE}>
         <button
           className="uu-btn-ghost"
           type="button"
@@ -137,4 +144,3 @@ function ProfileActivityFiltersRow({
 }
 
 export { ProfileActivityFiltersRow };
-export default ProfileActivityFiltersRow;

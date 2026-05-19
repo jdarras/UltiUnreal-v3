@@ -243,5 +243,3 @@ export function useResourceDetailUserActions({
     addKeywordQuick,
   };
 }
-
-export default useResourceDetailUserActions;

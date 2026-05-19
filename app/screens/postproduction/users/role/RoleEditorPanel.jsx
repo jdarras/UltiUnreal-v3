@@ -2,6 +2,9 @@ import { safeT } from "../../shared/helpers";
 import { RolePermissionFlags } from "./components/RolePermissionFlags";
 import { RoleUsersSection } from "./components/RoleUsersSection";
 
+const ROLE_EDITOR_HEADER_ROW_STYLE = { justifyContent: "space-between", alignItems: "center" };
+const ROLE_EDITOR_CREATE_ROW_STYLE = { justifyContent: "flex-end" };
+
 function RoleEditorPanel({
   t,
   isCreate = false,
@@ -25,7 +28,7 @@ function RoleEditorPanel({
   return (
     <>
       <div className="uu-card mt-12">
-        <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <div className="uu-row" style={ROLE_EDITOR_HEADER_ROW_STYLE}>
           <h4 className="uu-h3 uu-block-title">
             {isCreate
               ? safeT(t, "postprod.roles.form.createTitle", "Ajouter un profil")
@@ -69,7 +72,7 @@ function RoleEditorPanel({
         />
 
         {isCreate ? (
-          <div className="uu-row mt-12" style={{ justifyContent: "flex-end" }}>
+          <div className="uu-row mt-12" style={ROLE_EDITOR_CREATE_ROW_STYLE}>
             <button
               className="uu-btn"
               type="button"

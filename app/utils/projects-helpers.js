@@ -1,4 +1,4 @@
-import { readIdentity } from './identity';
+import { readIdentity } from './identity.js';
 
 export function getLocalIp() {
   const id = readIdentity();
@@ -90,4 +90,26 @@ export function formatFixed2(v) {
   const n = Number(s.replace(',', '.'));
   if (!Number.isFinite(n)) return s;
   return n.toFixed(2);
+}
+
+export function getProjectUsageModeLabel(t, value, options = {}) {
+  const v = String(value || '').trim();
+  const preferThumbKeys = options?.preferThumbKeys === true;
+  if (v === 'live') {
+    return preferThumbKeys
+      ? t('projects.thumb.usage.live', t('projects.detail.usageMode.live'))
+      : t('projects.detail.usageMode.live');
+  }
+  if (v === 'auto_render') {
+    return preferThumbKeys
+      ? t('projects.thumb.usage.auto_render', t('projects.detail.usageMode.auto_render'))
+      : t('projects.detail.usageMode.auto_render');
+  }
+  if (v === 'live_auto_render') {
+    return preferThumbKeys
+      ? t('projects.thumb.usage.live_auto_render', t('projects.detail.usageMode.live_auto_render'))
+      : t('projects.detail.usageMode.live_auto_render');
+  }
+  if (v === 'other') return t('projects.detail.usageMode.other');
+  return '—';
 }

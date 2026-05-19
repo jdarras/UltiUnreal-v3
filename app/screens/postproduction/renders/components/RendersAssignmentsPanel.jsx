@@ -3,6 +3,36 @@ import { RenderFormsConfirmDialog } from "../../catalogs/components/RenderFormsC
 import { formatDate, safeT } from "../../shared/helpers";
 import { taskVisualStatusClass, taskVisualStatusLabel } from "../../renderEditor/helpers";
 
+const ASSIGNMENTS_HEADER_ROW_STYLE = {
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "8px",
+  flexWrap: "wrap",
+  marginBottom: "8px",
+};
+const ASSIGNMENTS_TITLE_STYLE = { margin: 0 };
+const ASSIGNMENTS_TABLE_SCROLL_STYLE = { overflowX: "auto" };
+const ASSIGNMENTS_TABLE_STYLE = { width: "100%", tableLayout: "fixed" };
+const ASSIGNMENTS_COL_TASK_STYLE = { width: "34%" };
+const ASSIGNMENTS_COL_SECONDARY_STYLE = { width: "22%" };
+const ASSIGNMENTS_COL_STATUS_STYLE = { width: "14%" };
+const ASSIGNMENTS_COL_UPDATED_AT_STYLE = { width: "14%" };
+const ASSIGNMENTS_COL_ACTIONS_STYLE = { width: "16%" };
+const ASSIGNMENTS_TH_LEFT_STYLE = { textAlign: "left" };
+const ASSIGNMENTS_TH_RIGHT_STYLE = { textAlign: "right" };
+const ASSIGNMENTS_CELL_WRAP_STYLE = { overflowWrap: "anywhere" };
+const ASSIGNMENTS_TASK_LINE_STYLE = {
+  display: "flex",
+  alignItems: "baseline",
+  gap: "8px",
+  minWidth: 0,
+  flexWrap: "nowrap",
+};
+const ASSIGNMENTS_TASK_TITLE_STYLE = { fontWeight: 600, overflowWrap: "anywhere" };
+const ASSIGNMENTS_ID_STYLE = { whiteSpace: "nowrap" };
+const ASSIGNMENTS_ACTIONS_CELL_STYLE = { textAlign: "right" };
+const ASSIGNMENTS_ACTIONS_ROW_STYLE = { justifyContent: "flex-end", flexWrap: "nowrap" };
+
 function RendersAssignmentsPanel({
   t,
   title = "",
@@ -74,44 +104,35 @@ function RendersAssignmentsPanel({
         onConfirm={() => { void confirmDeleteTask(); }}
       />
       <div className="uu-card mt-12">
-        <div
-          className="uu-row"
-          style={{
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "8px",
-            flexWrap: "wrap",
-            marginBottom: "8px",
-          }}
-        >
-          <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
+        <div className="uu-row" style={ASSIGNMENTS_HEADER_ROW_STYLE}>
+          <h4 className="uu-h3 uu-block-title" style={ASSIGNMENTS_TITLE_STYLE}>
             {title}
           </h4>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table className="uu-table" style={{ width: "100%", tableLayout: "fixed" }}>
+        <div style={ASSIGNMENTS_TABLE_SCROLL_STYLE}>
+          <table className="uu-table" style={ASSIGNMENTS_TABLE_STYLE}>
             <colgroup>
-              <col style={{ width: "34%" }} />
-              <col style={{ width: "22%" }} />
-              <col style={{ width: "14%" }} />
-              <col style={{ width: "14%" }} />
-              <col style={{ width: "16%" }} />
+              <col style={ASSIGNMENTS_COL_TASK_STYLE} />
+              <col style={ASSIGNMENTS_COL_SECONDARY_STYLE} />
+              <col style={ASSIGNMENTS_COL_STATUS_STYLE} />
+              <col style={ASSIGNMENTS_COL_UPDATED_AT_STYLE} />
+              <col style={ASSIGNMENTS_COL_ACTIONS_STYLE} />
             </colgroup>
             <thead>
               <tr>
-                <th style={{ textAlign: "left" }}>
+                <th style={ASSIGNMENTS_TH_LEFT_STYLE}>
                   {safeT(t, "postprod.renders.assignments.table.task", "Rendu")}
                 </th>
-                <th style={{ textAlign: "left" }}>
+                <th style={ASSIGNMENTS_TH_LEFT_STYLE}>
                   {secondaryColumnLabel}
                 </th>
-                <th style={{ textAlign: "left" }}>
+                <th style={ASSIGNMENTS_TH_LEFT_STYLE}>
                   {safeT(t, "postprod.renders.assignments.table.status", "Statut")}
                 </th>
-                <th style={{ textAlign: "left" }}>
+                <th style={ASSIGNMENTS_TH_LEFT_STYLE}>
                   {safeT(t, "postprod.renders.assignments.table.updatedAt", "MàJ")}
                 </th>
-                <th style={{ textAlign: "right" }}>
+                <th style={ASSIGNMENTS_TH_RIGHT_STYLE}>
                   {actionsLabel || safeT(t, "postprod.renders.table.actions", "Actions")}
                 </th>
               </tr>
@@ -139,35 +160,27 @@ function RendersAssignmentsPanel({
 
                 return (
                   <tr key={`render-assignment-row-${taskId || secondaryLabel}-${index}`}>
-                    <td style={{ overflowWrap: "anywhere" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "baseline",
-                          gap: "8px",
-                          minWidth: 0,
-                          flexWrap: "nowrap",
-                        }}
-                      >
-                        <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+                    <td style={ASSIGNMENTS_CELL_WRAP_STYLE}>
+                      <div style={ASSIGNMENTS_TASK_LINE_STYLE}>
+                        <span style={ASSIGNMENTS_TASK_TITLE_STYLE}>
                           {String(task?.title || "-")}
                         </span>
                         {taskIdLabel ? (
-                          <span className="uu-muted" style={{ whiteSpace: "nowrap" }}>
+                          <span className="uu-muted" style={ASSIGNMENTS_ID_STYLE}>
                             {taskIdLabel}
                           </span>
                         ) : null}
                       </div>
                     </td>
-                    <td style={{ overflowWrap: "anywhere" }}>{secondaryLabel}</td>
-                    <td style={{ overflowWrap: "anywhere" }}>
+                    <td style={ASSIGNMENTS_CELL_WRAP_STYLE}>{secondaryLabel}</td>
+                    <td style={ASSIGNMENTS_CELL_WRAP_STYLE}>
                       <span className={`uu-chip chip-on ${statusClass}`}>
                         {statusLabel}
                       </span>
                     </td>
-                    <td style={{ overflowWrap: "anywhere" }}>{updatedAt}</td>
-                    <td style={{ textAlign: "right" }}>
-                      <div className="uu-row uu-gap-4" style={{ justifyContent: "flex-end", flexWrap: "nowrap" }}>
+                    <td style={ASSIGNMENTS_CELL_WRAP_STYLE}>{updatedAt}</td>
+                    <td style={ASSIGNMENTS_ACTIONS_CELL_STYLE}>
+                      <div className="uu-row uu-gap-4" style={ASSIGNMENTS_ACTIONS_ROW_STYLE}>
                         <button
                           className="uu-btn-ghost"
                           type="button"
@@ -200,4 +213,3 @@ function RendersAssignmentsPanel({
 }
 
 export { RendersAssignmentsPanel };
-export default RendersAssignmentsPanel;

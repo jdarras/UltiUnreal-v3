@@ -31,9 +31,6 @@ export function useResourceDetail({
     setDetailLoading,
     detailDraft,
     setDetailDraft,
-    detailMsg,
-    setDetailMsg,
-    setDetailMsgType,
     detailBusy,
     setDetailBusy,
     detailDeleteBusy,
@@ -120,8 +117,6 @@ export function useResourceDetail({
     detailNoteDirtyRef,
     setDetailUid,
     setDetailDraft,
-    setDetailMsg,
-    setDetailMsgType,
   });
 
   useResourceDetailUiEffects({
@@ -160,7 +155,6 @@ export function useResourceDetail({
       detailItem,
       detailDraft,
       detailDeleteBusy,
-      detailMsg,
       deleteConfirmOpen,
       lightboxOpen,
       lightboxIndex,
@@ -179,8 +173,6 @@ export function useResourceDetail({
       setDetailDraft,
       setDetailUid,
       setDetailBusy,
-      setDetailMsg,
-      setDetailMsgType,
       setDetailDeleteBusy,
       setDeleteConfirmOpen,
       setLightboxIndex,
@@ -211,9 +203,6 @@ export function useResourceDetail({
     detailLoading,
     detailDraft,
     setDetailDraft,
-    detailMsg,
-    setDetailMsg,
-    setDetailMsgType,
     detailBusy,
     detailDeleteBusy,
     deleteConfirmOpen,
@@ -269,5 +258,3 @@ export function useResourceDetail({
     addKeywordQuick,
   };
 }
-
-export default useResourceDetail;

@@ -1,12 +1,22 @@
 import React, { useState } from "react";
-import { readIdentity } from "../utils/identity";
-import { createT } from "../i18n";
 import { ColorWheelPopover } from "./colorwidget.jsx";
+import { getWidgetT } from "./widgetTranslator.js";
 
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
+const BINDING_ROW_NOWRAP_GAP_8_STYLE = { gap: 8 };
+const BINDING_FIXED_WIDTH_INPUT_STYLE = { width: 140, flex: '0 0 auto' };
+const BINDING_NUMERIC_INPUT_STYLE = { width: 140, maxWidth: 200, flex: '0 0 auto' };
+const BINDING_COLOR_ROW_STYLE = { gap: 10, position: 'relative', alignItems: 'center' };
+const BINDING_COLOR_POPOVER_STYLE = { top: 30, left: 180, zIndex: 60 };
+const BINDING_TRANSFORM_GROUP_STYLE = { gap: 6 };
+const BINDING_TRANSFORM_LABEL_STYLE = { marginLeft: '8px' };
+const BINDING_TEXTAREA_MIN_HEIGHT_STYLE = { minHeight: '32px' };
+
+function buildBindingEnumSelectStyle(px) {
+  return { width: px, maxWidth: 320, flex: '0 0 auto' };
+}
+
+function buildBindingSwatchStyle(hex) {
+  return { background: hex };
 }
 
 export default function BindingPicker({
@@ -20,7 +30,7 @@ export default function BindingPicker({
   argsValueKey = 'argValues',
   argsHeaderLabel = ''
 }) {
-  const t = getT();
+  const t = getWidgetT();
   const v = value || {};
   const effectiveKind =
     kind || (v.kind === 'function' ? 'function' : 'property');
@@ -662,7 +672,7 @@ export default function BindingPicker({
                                 className="uu-input"
                                 value={current ?? ''}
                                 onChange={(e) => handleArgChange(key, e.target.value)}
-                                style={{ width: px, maxWidth: 320, flex: '0 0 auto' }}
+                                style={buildBindingEnumSelectStyle(px)}
                               >
                                 {opts.map((opt, i) => (
                                   <option key={`${key}-opt-${i}`} value={opt}>
@@ -685,7 +695,7 @@ export default function BindingPicker({
                         const y = cur.Y ?? '';
 
                         return (
-                          <div key={key} className="uu-row uu-row-nowrap" style={{ gap: 8 }}>
+                          <div key={key} className="uu-row uu-row-nowrap" style={BINDING_ROW_NOWRAP_GAP_8_STYLE}>
                             <label className="uu-label w-160">
                               {labelNode}
                             </label>
@@ -693,7 +703,7 @@ export default function BindingPicker({
                               className="uu-input uu-input-arg"
                               type="number"
                               placeholder="X"
-                              style={{ width: 140, flex: '0 0 auto' }}
+                              style={BINDING_FIXED_WIDTH_INPUT_STYLE}
                               value={x === '' ? '' : String(x)}
                               onChange={(e) => {
                                 const v = e.target.value;
@@ -707,7 +717,7 @@ export default function BindingPicker({
                               className="uu-input uu-input-arg"
                               type="number"
                               placeholder="Y"
-                              style={{ width: 140, flex: '0 0 auto' }}
+                              style={BINDING_FIXED_WIDTH_INPUT_STYLE}
                               value={y === '' ? '' : String(y)}
                               onChange={(e) => {
                                 const v = e.target.value;
@@ -732,7 +742,7 @@ export default function BindingPicker({
                         const z = cur.Z ?? '';
 
                         return (
-                          <div key={key} className="uu-row uu-row-nowrap" style={{ gap: 8 }}>
+                          <div key={key} className="uu-row uu-row-nowrap" style={BINDING_ROW_NOWRAP_GAP_8_STYLE}>
                             <label className="uu-label w-160">
                               {labelNode}
                             </label>
@@ -740,7 +750,7 @@ export default function BindingPicker({
                               className="uu-input uu-input-arg"
                               type="number"
                               placeholder="X"
-                              style={{ width: 140, flex: '0 0 auto' }}
+                              style={BINDING_FIXED_WIDTH_INPUT_STYLE}
                               value={x === '' ? '' : String(x)}
                               onChange={(e) => {
                                 const v = e.target.value;
@@ -754,7 +764,7 @@ export default function BindingPicker({
                               className="uu-input uu-input-arg"
                               type="number"
                               placeholder="Y"
-                              style={{ width: 140, flex: '0 0 auto' }}
+                              style={BINDING_FIXED_WIDTH_INPUT_STYLE}
                               value={y === '' ? '' : String(y)}
                               onChange={(e) => {
                                 const v = e.target.value;
@@ -768,7 +778,7 @@ export default function BindingPicker({
                               className="uu-input uu-input-arg"
                               type="number"
                               placeholder="Z"
-                              style={{ width: 140, flex: '0 0 auto' }}
+                              style={BINDING_FIXED_WIDTH_INPUT_STYLE}
                               value={z === '' ? '' : String(z)}
                               onChange={(e) => {
                                 const v = e.target.value;
@@ -790,7 +800,7 @@ export default function BindingPicker({
                             : {};
 
                         return (
-                          <div key={key} className="uu-row uu-row-nowrap" style={{ gap: 8 }}>
+                          <div key={key} className="uu-row uu-row-nowrap" style={BINDING_ROW_NOWRAP_GAP_8_STYLE}>
                             <label className="uu-label w-160">
                               {labelNode}
                             </label>
@@ -798,7 +808,7 @@ export default function BindingPicker({
                               className="uu-input uu-input-arg"
                               type="number"
                               placeholder="Pitch"
-                              style={{ width: 140, flex: '0 0 auto' }}
+                              style={BINDING_FIXED_WIDTH_INPUT_STYLE}
                               value={cur.Pitch ?? ''}
                               onChange={(e) => {
                                 const v = e.target.value;
@@ -812,7 +822,7 @@ export default function BindingPicker({
                               className="uu-input uu-input-arg"
                               type="number"
                               placeholder="Yaw"
-                              style={{ width: 140, flex: '0 0 auto' }}
+                              style={BINDING_FIXED_WIDTH_INPUT_STYLE}
                               value={cur.Yaw ?? ''}
                               onChange={(e) => {
                                 const v = e.target.value;
@@ -826,7 +836,7 @@ export default function BindingPicker({
                               className="uu-input uu-input-arg"
                               type="number"
                               placeholder="Roll"
-                              style={{ width: 140, flex: '0 0 auto' }}
+                              style={BINDING_FIXED_WIDTH_INPUT_STYLE}
                               value={cur.Roll ?? ''}
                               onChange={(e) => {
                                 const v = e.target.value;
@@ -855,7 +865,7 @@ export default function BindingPicker({
                         const showPicker = argColorPicker.open && argColorPicker.name === key;
 
                         return (
-                          <div key={key} className="uu-row uu-row-nowrap" style={{ gap: 10, position: 'relative', alignItems: 'center' }}>
+                          <div key={key} className="uu-row uu-row-nowrap" style={BINDING_COLOR_ROW_STYLE}>
                             <label className="uu-label w-160">
                               {labelNode}
                             </label>
@@ -863,7 +873,7 @@ export default function BindingPicker({
                             <button
                               type="button"
                               className="uu-color-swatch"
-                              style={{ background: hex }}
+                              style={buildBindingSwatchStyle(hex)}
                               onClick={() =>
                                 setArgColorPicker({
                                   open: true,
@@ -900,7 +910,7 @@ export default function BindingPicker({
                             />
 
                             {showPicker && (
-                              <div className="uu-color-popover" style={{ top: 30, left: 180, zIndex: 60 }}>
+                              <div className="uu-color-popover" style={BINDING_COLOR_POPOVER_STYLE}>
                                 <ColorWheelPopover
                                   hex={argColorPicker.hex}
                                   alpha={argColorPicker.alpha}
@@ -955,7 +965,7 @@ export default function BindingPicker({
                           handleArgChange(key, next);
                         };
                         const block = (title, part, axes) => (
-                          <div className="uu-row uu-row-nowrap" key={`${key}-${part}`} style={{ gap: 8 }}>
+                          <div className="uu-row uu-row-nowrap" key={`${key}-${part}`} style={BINDING_ROW_NOWRAP_GAP_8_STYLE}>
                             <label className="uu-label w-160">{title}</label>
                             {axes.map((axis) => (
                               <input
@@ -963,7 +973,7 @@ export default function BindingPicker({
                                 className="uu-input uu-input-arg"
                                 type="number"
                                 placeholder={axis}
-                                style={{ width: 140, flex: '0 0 auto' }}
+                                style={BINDING_FIXED_WIDTH_INPUT_STYLE}
                                 value={
                                   part === 'Translation'
                                     ? t[axis] ?? ''
@@ -980,8 +990,8 @@ export default function BindingPicker({
                         );
 
                         return (
-                          <div key={key} className="uu-col" style={{ gap: 6 }}>
-                            <div className="uu-label" style={{ marginLeft: '8px' }}>{labelNode}</div>
+                          <div key={key} className="uu-col" style={BINDING_TRANSFORM_GROUP_STYLE}>
+                            <div className="uu-label" style={BINDING_TRANSFORM_LABEL_STYLE}>{labelNode}</div>
                             {block('Location', 'Translation', ['X', 'Y', 'Z'])}
                             {block('Rotation', 'Rotation', ['Roll', 'Pitch', 'Yaw'])}
                             {block('Scale', 'Scale3D', ['X', 'Y', 'Z'])}
@@ -1028,7 +1038,7 @@ export default function BindingPicker({
                                 el.style.height = 'auto';
                                 el.style.height = `${el.scrollHeight}px`;
                               }}
-                              style={{ minHeight: '32px' }}
+                              style={BINDING_TEXTAREA_MIN_HEIGHT_STYLE}
                             />
                           ) : (
                             <input
@@ -1045,7 +1055,7 @@ export default function BindingPicker({
                               min={isByte ? 0 : undefined}
                               max={isByte ? 255 : undefined}
                               step={isByte ? 1 : undefined}
-                              style={{ width: 140, maxWidth: 200, flex: '0 0 auto' }}
+                              style={BINDING_NUMERIC_INPUT_STYLE}
                               value={
                                 current === undefined ||
                                 current === null
@@ -1225,3 +1235,4 @@ export default function BindingPicker({
         </div>
       );
     }
+

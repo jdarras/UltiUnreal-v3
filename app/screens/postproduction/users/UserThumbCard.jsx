@@ -2,6 +2,72 @@ import { safeT } from "../shared/helpers";
 import { resolveUserDisplayName } from "./roleHelpers";
 import { isUsableAvatarSrc, resolveAvatarInitials } from "./userSharedHelpers";
 
+const USER_THUMB_CARD_GRID_STYLE = {
+  display: "grid",
+  gridTemplateColumns: "96px minmax(0, 1fr)",
+  columnGap: "12px",
+  rowGap: "8px",
+  alignItems: "center",
+};
+const USER_THUMB_CARD_AVATAR_STYLE = {
+  width: "64px",
+  height: "64px",
+  borderRadius: "50%",
+  overflow: "hidden",
+  border: "1px solid var(--uu-border, #ddd)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "var(--uu-surface-soft, #f3f3f3)",
+  fontWeight: 700,
+  userSelect: "none",
+  flex: "0 0 auto",
+};
+const USER_THUMB_CARD_AVATAR_IMAGE_STYLE = { width: "100%", height: "100%", objectFit: "cover" };
+const USER_THUMB_CARD_MIN_WIDTH_STYLE = { minWidth: 0 };
+const USER_THUMB_CARD_NAME_ROW_STYLE = { alignItems: "center", gap: "8px", minWidth: 0 };
+const USER_THUMB_CARD_DISPLAY_NAME_STYLE = {
+  fontWeight: 700,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  color: "var(--uu-fg, #fff)",
+};
+const USER_THUMB_CARD_STATUS_DOT_STYLE = {
+  width: "9px",
+  height: "9px",
+  borderRadius: "999px",
+  flex: "0 0 auto",
+};
+const USER_THUMB_CARD_STATUS_DOT_ACTIVE_STYLE = {
+  ...USER_THUMB_CARD_STATUS_DOT_STYLE,
+  background: "#22c55e",
+};
+const USER_THUMB_CARD_STATUS_DOT_INACTIVE_STYLE = {
+  ...USER_THUMB_CARD_STATUS_DOT_STYLE,
+  background: "#ef4444",
+};
+const USER_THUMB_CARD_NAME_LINE_STYLE = {
+  marginTop: "2px",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  color: "var(--uu-fg, #fff)",
+};
+const USER_THUMB_CARD_ICON_STYLE = { display: "flex", justifyContent: "center", alignItems: "center" };
+const USER_THUMB_CARD_VALUE_STYLE = { color: "var(--uu-fg, #fff)", minWidth: 0, wordBreak: "break-word" };
+const USER_THUMB_CARD_EMAIL_BUTTON_STYLE = {
+  padding: 0,
+  color: "var(--uu-fg, #fff)",
+  display: "inline-block",
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  verticalAlign: "bottom",
+};
+const USER_THUMB_CARD_TEXT_STYLE = { color: "var(--uu-fg, #fff)" };
+
 function UserThumbCard({
   t,
   entry = null,
@@ -36,52 +102,21 @@ function UserThumbCard({
 
   return (
     <div className="uu-card">
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "96px minmax(0, 1fr)",
-          columnGap: "12px",
-          rowGap: "8px",
-          alignItems: "center",
-        }}
-      >
-        <div
-          style={{
-            width: "64px",
-            height: "64px",
-            borderRadius: "50%",
-            overflow: "hidden",
-            border: "1px solid var(--uu-border, #ddd)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "var(--uu-surface-soft, #f3f3f3)",
-            fontWeight: 700,
-            userSelect: "none",
-            flex: "0 0 auto",
-          }}
-        >
+      <div style={USER_THUMB_CARD_GRID_STYLE}>
+        <div style={USER_THUMB_CARD_AVATAR_STYLE}>
           {rowAvatarSrc ? (
             <img
               src={rowAvatarSrc}
               alt={safeT(t, "postprod.profile.form.avatar.alt", "Photo utilisateur")}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              style={USER_THUMB_CARD_AVATAR_IMAGE_STYLE}
             />
           ) : (
             <span>{rowAvatarInitials}</span>
           )}
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div className="uu-row" style={{ alignItems: "center", gap: "8px", minWidth: 0 }}>
-            <div
-              style={{
-                fontWeight: 700,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                color: "var(--uu-fg, #fff)",
-              }}
-            >
+        <div style={USER_THUMB_CARD_MIN_WIDTH_STYLE}>
+          <div className="uu-row" style={USER_THUMB_CARD_NAME_ROW_STYLE}>
+            <div style={USER_THUMB_CARD_DISPLAY_NAME_STYLE}>
               {rowDisplayName}
             </div>
             <span
@@ -91,24 +126,10 @@ function UserThumbCard({
               aria-label={isActive
                 ? safeT(t, "postprod.users.status.active", "Disponible")
                 : safeT(t, "postprod.users.status.inactive", "Indisponible")}
-              style={{
-                width: "9px",
-                height: "9px",
-                borderRadius: "999px",
-                background: isActive ? "#22c55e" : "#ef4444",
-                flex: "0 0 auto",
-              }}
+              style={isActive ? USER_THUMB_CARD_STATUS_DOT_ACTIVE_STYLE : USER_THUMB_CARD_STATUS_DOT_INACTIVE_STYLE}
             />
           </div>
-          <div
-            style={{
-              marginTop: "2px",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              color: "var(--uu-fg, #fff)",
-            }}
-          >
+          <div style={USER_THUMB_CARD_NAME_LINE_STYLE}>
             {rowNameLine}
           </div>
         </div>
@@ -117,11 +138,11 @@ function UserThumbCard({
           className="uu-muted"
           title={safeT(t, "postprod.users.form.phone1", "Telephone 1")}
           aria-label={safeT(t, "postprod.users.form.phone1", "Telephone 1")}
-          style={{ display: "flex", justifyContent: "center", alignItems: "center" }}
+          style={USER_THUMB_CARD_ICON_STYLE}
         >
           ☎
         </div>
-        <div style={{ color: "var(--uu-fg, #fff)", minWidth: 0, wordBreak: "break-word" }}>
+        <div style={USER_THUMB_CARD_VALUE_STYLE}>
           {rowPhone1 || "-"}
         </div>
 
@@ -129,32 +150,23 @@ function UserThumbCard({
           className="uu-muted"
           title={safeT(t, "postprod.users.form.email1", "Email 1")}
           aria-label={safeT(t, "postprod.users.form.email1", "Email 1")}
-          style={{ display: "flex", justifyContent: "center", alignItems: "center" }}
+          style={USER_THUMB_CARD_ICON_STYLE}
         >
           ✉
         </div>
-        <div style={{ minWidth: 0 }}>
+        <div style={USER_THUMB_CARD_MIN_WIDTH_STYLE}>
           {rowEmail1 ? (
             <button
               type="button"
               className="uu-link"
-              style={{
-                padding: 0,
-                color: "var(--uu-fg, #fff)",
-                display: "inline-block",
-                maxWidth: "100%",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                verticalAlign: "bottom",
-              }}
+              style={USER_THUMB_CARD_EMAIL_BUTTON_STYLE}
               onClick={openMailCompose}
               title={safeT(t, "postprod.users.action.writeMail", "Ecrire un email")}
             >
               {rowEmail1}
             </button>
           ) : (
-            <span style={{ color: "var(--uu-fg, #fff)" }}>-</span>
+            <span style={USER_THUMB_CARD_TEXT_STYLE}>-</span>
           )}
         </div>
 

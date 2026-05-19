@@ -24,5 +24,3 @@ export function buildRendersCardDataOutput({
     ...buildToolbarOutput({ toolbar }),
   };
 }
-
-export default buildRendersCardDataOutput;

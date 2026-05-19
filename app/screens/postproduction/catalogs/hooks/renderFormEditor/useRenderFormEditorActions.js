@@ -86,5 +86,3 @@ export function useRenderFormEditorActions({
     handleDeleteForm,
   };
 }
-
-export default useRenderFormEditorActions;

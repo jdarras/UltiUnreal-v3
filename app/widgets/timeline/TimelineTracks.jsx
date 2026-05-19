@@ -1,4 +1,27 @@
 import React from 'react';
+import { hasMissingBinding } from './timelineTrackBindingHelpers.js';
+
+function buildTimelineStrokeStyle(stroke) {
+  return { stroke };
+}
+
+function buildTimelinePointStyle(stroke, fill, strokeWidth) {
+  return { stroke, fill, strokeWidth };
+}
+
+const TRANSFORM_GROUP_MAP = {
+  tx: 'location',
+  ty: 'location',
+  tz: 'location',
+  rroll: 'rotation',
+  rpitch: 'rotation',
+  ryaw: 'rotation',
+  sx: 'scale',
+  sy: 'scale',
+  sz: 'scale'
+};
+
+const COLOR_GROUP_MAP = { r: 'rgb', g: 'rgb', b: 'rgb', a: 'alpha' };
 
 export function TimelineTracks({
   // refs
@@ -12,12 +35,9 @@ export function TimelineTracks({
   xTicks,
   clampedMaxFrame,
   playheadFrame,
-  keyframeType: _keyframeType,
   // selection
   selectedTrackId,
-  selectedChannelId: _selectedChannelId,
   selectedKey,
-  selectedMeta: _selectedMeta,
   // helpers
   frameToX,
   toGlobalFrame,
@@ -26,8 +46,6 @@ export function TimelineTracks({
   getTrackValueSummary,
   getInlineDraftValue,
   getInlineDraftKey,
-  getInlineDraftChannelKey: _getInlineDraftChannelKey,
-  getInlineChannelValue: _getInlineChannelValue,
   getNumericRange,
   formatNumber,
   shouldRenderSquare,
@@ -47,18 +65,10 @@ export function TimelineTracks({
   setSelectedTrackId,
   setSelectedChannelId,
   setSelectedKey,
-  setSelectedKeyframeValueDraft: _setSelectedKeyframeValueDraft,
-  setMultiSelection: _setMultiSelection,
-  setSelectionBox: _setSelectionBox,
-  setColorPickerState: _setColorPickerState,
-  setArgColorPicker: _setArgColorPicker,
-  updateTrack: _updateTrack,
   handleInlineChannelValueChange,
   // data
   inlineDrafts,
   setInlineDrafts,
-  selectedTrack: _selectedTrack,
-  timelineDraft: _timelineDraft,
   multiSelection,
   SQUARE_POINT_KINDS,
   lassoBox,
@@ -69,13 +79,11 @@ export function TimelineTracks({
   CHANNEL_ROW_HEIGHT,
   GRAPH_LEFT,
   GRAPH_TOP,
-  GRAPH_RIGHT: _GRAPH_RIGHT,
   GRAPH_WIDTH,
   MIN_CLIP_PX,
   LABEL_RIGHT_X,
   // i18n / others
-  getWidgetLabel,
-  t: _t
+  getWidgetLabel
 }) {
   const playheadRatio = clampedMaxFrame
     ? Math.max(0, Math.min(1, (playheadFrame - (viewStart || 0)) / (viewFrames || clampedMaxFrame || 1)))
@@ -91,42 +99,6 @@ export function TimelineTracks({
     () => `uu-timeline-clip-${Math.random().toString(36).slice(2)}`,
     []
   );
-
-  const isEmpty = (value) => !String(value || '').trim();
-
-  const hasMissingBinding = (widget) => {
-    if (!widget || typeof widget !== 'object') return false;
-    const type = String(widget.type || '').toLowerCase();
-    const binding = widget.binding && typeof widget.binding === 'object'
-      ? widget.binding
-      : {};
-    const kind = String(binding.kind || '').toLowerCase();
-
-    if (type === 'button' || kind === 'function') {
-      const hasPath = !isEmpty(binding.path);
-      const hasName = !isEmpty(binding.displayName);
-      const isBrowse = type === 'browse';
-      const hasBrowseArg = !isEmpty(binding.browseArgName);
-      if (isBrowse) return !(hasPath || hasName) || !hasBrowseArg;
-      return !(hasPath || hasName);
-    }
-
-    if (type === 'joystick') {
-      const linkType = String(widget.ui?.linkType || 'vector2d').toLowerCase();
-      if (linkType === 'manual') {
-        const bx = widget.joystickBindings?.x || {};
-        const by = widget.joystickBindings?.y || {};
-        return isEmpty(bx.path) || isEmpty(by.path);
-      }
-      return isEmpty(binding.path);
-    }
-
-    if (kind === 'property' || !kind) {
-      return isEmpty(binding.path);
-    }
-
-    return false;
-  };
 
   return (
     <svg
@@ -237,18 +209,6 @@ export function TimelineTracks({
               ) : (
                 (() => {
                   const drawnZero = new Set();
-                  const groupMapTransform = {
-                    tx: 'location',
-                    ty: 'location',
-                    tz: 'location',
-                    rroll: 'rotation',
-                    rpitch: 'rotation',
-                    ryaw: 'rotation',
-                    sx: 'scale',
-                    sy: 'scale',
-                    sz: 'scale'
-                  };
-                  const groupMapColor = { r: 'rgb', g: 'rgb', b: 'rgb', a: 'alpha' };
                   return rowLines.map((row) => {
                     const channelId = row.channel?.id;
                     const range =
@@ -258,9 +218,9 @@ export function TimelineTracks({
                     const channelShape = String(entry.meta?.shape || '').toLowerCase();
                     let groupKey = channelId;
                     if (channelShape === 'transform') {
-                      groupKey = groupMapTransform[channelId] || channelId;
+                      groupKey = TRANSFORM_GROUP_MAP[channelId] || channelId;
                     } else if (channelShape === 'color') {
-                      groupKey = groupMapColor[channelId] || channelId;
+                      groupKey = COLOR_GROUP_MAP[channelId] || channelId;
                     }
                     if (
                       Number.isFinite(range.min) &&
@@ -761,7 +721,7 @@ export function TimelineTracks({
                     }
                     d += ` L ${b.x} ${b.y}`;
                   }
-                  pathEl = <path className="uu-timeline-line" d={d} style={{ stroke: color }} />;
+                  pathEl = <path className="uu-timeline-line" d={d} style={buildTimelineStrokeStyle(color)} />;
                 }
 
                 return (
@@ -803,7 +763,7 @@ export function TimelineTracks({
                               y={p.y - 6}
                               width={12}
                               height={12}
-                              style={{ stroke: color, fill: fillColor, strokeWidth }}
+                              style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
                               onPointerDown={(evt) =>
                                 handlePointerDown(entry.track.widgetId, p.idx, evt, channel.id)
                               }
@@ -812,7 +772,7 @@ export function TimelineTracks({
                             <polygon
                               className="uu-timeline-point"
                               points={`${p.x},${p.y - 7} ${p.x + 7},${p.y} ${p.x},${p.y + 7} ${p.x - 7},${p.y}`}
-                              style={{ stroke: color, fill: fillColor, strokeWidth }}
+                              style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
                               onPointerDown={(evt) =>
                                 handlePointerDown(entry.track.widgetId, p.idx, evt, channel.id)
                               }
@@ -823,7 +783,7 @@ export function TimelineTracks({
                               cx={p.x}
                               cy={p.y}
                               r={active ? 7 : 6}
-                              style={{ stroke: color, fill: fillColor, strokeWidth }}
+                              style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
                               onPointerDown={(evt) =>
                                 handlePointerDown(entry.track.widgetId, p.idx, evt, channel.id)
                               }
@@ -946,7 +906,7 @@ export function TimelineTracks({
             }
             d += ` L ${b.x} ${b.y}`;
           }
-          pathEl = <path className="uu-timeline-line" d={d} style={{ stroke: color }} />;
+          pathEl = <path className="uu-timeline-line" d={d} style={buildTimelineStrokeStyle(color)} />;
         }
 
         return (
@@ -988,14 +948,14 @@ export function TimelineTracks({
                       y={p.y - 6}
                       width={12}
                       height={12}
-                      style={{ stroke: color, fill: fillColor, strokeWidth }}
+                      style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
                       onPointerDown={(evt) => handlePointerDown(entry.track.widgetId, p.idx, evt, null)}
                     />
                   ) : shape === 'diamond' ? (
                     <polygon
                       className="uu-timeline-point"
                       points={`${p.x},${p.y - 7} ${p.x + 7},${p.y} ${p.x},${p.y + 7} ${p.x - 7},${p.y}`}
-                      style={{ stroke: color, fill: fillColor, strokeWidth }}
+                      style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
                       onPointerDown={(evt) =>
                         handlePointerDown(entry.track.widgetId, p.idx, evt, null)
                       }
@@ -1006,7 +966,7 @@ export function TimelineTracks({
                       cx={p.x}
                       cy={p.y}
                       r={active ? 7 : 6}
-                      style={{ stroke: color, fill: fillColor, strokeWidth }}
+                      style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
                       onPointerDown={(evt) => handlePointerDown(entry.track.widgetId, p.idx, evt, null)}
                     />
                   )}

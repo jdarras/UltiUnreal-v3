@@ -88,5 +88,3 @@ export function useRenderEditorController({
     deleteDialogProps,
   };
 }
-
-export default useRenderEditorController;

@@ -1,3 +1,5 @@
+const PROJECT_FORM_ERROR_STYLE = { marginBottom: '8px' };
+
 export default function ProjectForm({
   t,
   form,
@@ -14,7 +16,7 @@ export default function ProjectForm({
   return (
     <form className="uu-form mt-12" onSubmit={onSubmit}>
       {formError ? (
-        <div className="uu-msg error" style={{ marginBottom: '8px' }}>
+        <div className="uu-msg error" style={PROJECT_FORM_ERROR_STYLE}>
           {formError}
         </div>
       ) : null}

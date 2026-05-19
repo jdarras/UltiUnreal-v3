@@ -106,5 +106,3 @@ export function useRendersCardData({
     toolbar,
   });
 }
-
-export default useRendersCardData;

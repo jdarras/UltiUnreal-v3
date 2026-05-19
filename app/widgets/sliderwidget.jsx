@@ -3,14 +3,7 @@
 import { useRef } from 'react';
 import './sliderwidget.css';
 import { getCompanionBaseUrl } from '../utils/agent';
-import { readIdentity } from '../utils/identity';
-import { createT } from '../i18n';
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
-}
+import { getWidgetT } from './widgetTranslator.js';
 
 export default function SliderWidget({
   widget,
@@ -26,7 +19,7 @@ export default function SliderWidget({
 }) {
   if (!widget) return null;
 
-  const t = getT();
+  const t = getWidgetT();
 
   const lastCommitRef = useRef(0);
   const LIVE_THROTTLE_MS = 50; // tempo d'envoi en mode live (ms)
@@ -343,7 +336,7 @@ export default function SliderWidget({
 export function SliderEditorRight({ selected, updateSelected }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
   const ui = selected.ui || {};
   const currentDefaultDisplay =
     ui.default !== undefined ? ui.default : selected.defaultValue ?? '';
@@ -499,7 +492,7 @@ export function SliderEditorRight({ selected, updateSelected }) {
 export function SliderEditorLeftExtras({ selected, updateSelected, layoutId = '' }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
   const ui = selected.ui || {};
   const widgetId = selected.id;
 
@@ -692,7 +685,7 @@ export function SliderEditorLeftExtras({ selected, updateSelected, layoutId = ''
 export function SliderLabelEditor({ selected, updateSelected }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
 
   const label = selected.label ?? '';
   const hasError = !label.trim();
@@ -740,3 +733,4 @@ export function SliderLabelEditor({ selected, updateSelected }) {
     </>
   );
 }
+

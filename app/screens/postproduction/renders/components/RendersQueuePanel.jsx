@@ -3,6 +3,15 @@ import { safeT } from "../../shared/helpers";
 import { RendersQueueHeader } from "./queue/RendersQueueHeader";
 import { RendersQueueTable } from "./queue/RendersQueueTable";
 
+const RENDERS_QUEUE_PANEL_HEADER_STYLE = {
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "8px",
+  flexWrap: "wrap",
+  marginBottom: "8px",
+};
+const RENDERS_QUEUE_PANEL_TITLE_STYLE = { margin: 0 };
+
 function normalizeRenderStatus(value = "") {
   return String(value || "").trim().toLowerCase();
 }
@@ -178,17 +187,8 @@ function RendersQueuePanel({
 
   return (
     <div className="uu-card mt-12">
-      <div
-        className="uu-row"
-        style={{
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "8px",
-          flexWrap: "wrap",
-          marginBottom: "8px",
-        }}
-      >
-        <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
+      <div className="uu-row" style={RENDERS_QUEUE_PANEL_HEADER_STYLE}>
+        <h4 className="uu-h3 uu-block-title" style={RENDERS_QUEUE_PANEL_TITLE_STYLE}>
           {safeT(t, "postprod.renders.queue.title", "File d'attente de rendu")}
         </h4>
       </div>

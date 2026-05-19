@@ -31,5 +31,3 @@ function buildTaskAutoRenderStateSetters({
 export {
   buildTaskAutoRenderStateSetters,
 };
-
-export default buildTaskAutoRenderStateSetters;

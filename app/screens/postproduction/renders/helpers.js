@@ -12,13 +12,13 @@ function isRenderQueuedWithError(render) {
 function renderReviewStatusKey(render) {
   const explicit = String(render?.reviewStatus || "").trim().toLowerCase();
   if (explicit === "validated") return "validated";
-  if (explicit === "to_modify" || explicit === "canceled" || explicit === "rejected") {
-    return "rejected";
-  }
+  if (explicit === "to_modify") return "to_modify";
+  if (explicit === "canceled") return "canceled";
+  if (explicit === "rejected") return "to_modify";
   const status = String(render?.status || "").trim().toLowerCase();
-  if (status === "canceled" || status === "cancelled") return "rejected";
-  if (status === "failed") return "rejected";
-  if (isRenderQueuedWithError(render)) return "rejected";
+  if (status === "canceled" || status === "cancelled") return "canceled";
+  if (status === "failed") return "to_modify";
+  if (isRenderQueuedWithError(render)) return "to_modify";
   if (explicit === "to_validate") return "to_validate";
   const validatedByUserId = Number(render?.validatedByUserId || 0);
   if (status === "done" && Number.isFinite(validatedByUserId) && validatedByUserId > 0) {
@@ -32,8 +32,11 @@ function renderReviewStatusLabel(t, reviewStatus) {
   if (key === "validated") {
     return safeT(t, "postprod.renders.review.validated", "Validee");
   }
-  if (key === "rejected" || key === "to_modify" || key === "canceled") {
-    return safeT(t, "postprod.renders.review.rejected", "Rejetee");
+  if (key === "to_modify" || key === "rejected") {
+    return safeT(t, "postprod.renders.review.toModify", "A modifier");
+  }
+  if (key === "canceled") {
+    return safeT(t, "postprod.renders.review.canceled", "Annulee");
   }
   return safeT(t, "postprod.renders.review.toValidate", "A valider");
 }
@@ -126,12 +129,10 @@ function buildRenderPreviewCandidates(render) {
 export {
   buildRenderPreviewCandidates,
   isImagePath,
-  isRenderQueuedWithError,
   isVideoPath,
   queueRenderStateShortLabel,
   renderLinkedTaskValue,
   renderOutputFilename,
   renderReviewStatusKey,
   renderReviewStatusLabel,
-  swapPathExtension,
 };

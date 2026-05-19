@@ -26,7 +26,6 @@ function toggleFormFavorite(form, setFormsFavorites, selectedProjectRef = "") {
 }
 
 export {
-  formFavoriteKey,
   isFormFavorite,
   toggleFormFavorite,
 };

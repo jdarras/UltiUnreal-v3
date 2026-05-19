@@ -51,5 +51,3 @@ export function useResourceDetailNavigation({
     stepLightbox,
   };
 }
-
-export default useResourceDetailNavigation;

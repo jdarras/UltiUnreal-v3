@@ -1,0 +1,31 @@
+export function buildTimelineHeaderControlsProps({
+  t,
+  addMenuRef,
+  showAddMenu,
+  setShowAddMenu,
+  typeOptions,
+  onAddTrackType,
+  label,
+  onLabelChange,
+  zoomFactor,
+  onZoomOut,
+  onZoomIn,
+  mode,
+  onModeChange,
+}) {
+  return {
+    t,
+    addMenuRef,
+    showAddMenu,
+    setShowAddMenu,
+    typeOptions,
+    onAddTrackType,
+    label,
+    onLabelChange,
+    zoomFactor,
+    onZoomOut,
+    onZoomIn,
+    mode,
+    onModeChange,
+  };
+}

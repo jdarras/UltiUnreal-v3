@@ -8,7 +8,6 @@ export function useProjectDetailState() {
   const [detailMeta, setDetailMeta] = useState(null);
   const [detailInsights, setDetailInsights] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailMsg, setDetailMsg] = useState('');
   const [detailIsNew, setDetailIsNew] = useState(false);
   const [projectVersion, setProjectVersion] = useState('');
   const [projectVersionMsg, setProjectVersionMsg] = useState('');
@@ -42,8 +41,6 @@ export function useProjectDetailState() {
     setDetailInsights,
     detailLoading,
     setDetailLoading,
-    detailMsg,
-    setDetailMsg,
     detailIsNew,
     setDetailIsNew,
     projectVersion,
@@ -80,5 +77,3 @@ export function useProjectDetailState() {
     setKeywordsInput,
   };
 }
-
-export default useProjectDetailState;

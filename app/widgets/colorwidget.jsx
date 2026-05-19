@@ -3,13 +3,14 @@ import React from 'react';
 import './colorwidget.css';
 import BindingPicker from './bindingpicker.jsx';
 import { getCompanionBaseUrl } from '../utils/agent';
-import { readIdentity } from '../utils/identity';
-import { createT } from '../i18n';
+import { getWidgetT } from './widgetTranslator.js';
 
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
+function buildColorWidgetBackgroundStyle(background) {
+  return { background };
+}
+
+function buildColorWheelKnobStyle(knobX, knobY) {
+  return { left: knobX, top: knobY };
 }
 
 /* ===== Helpers de couleur ===== */
@@ -373,7 +374,7 @@ export function ColorWheelPopover({ hex, alpha: _alpha, onChange, onClose }) {
                   />
                   <div
                     className="uu-color-wheel-knob"
-                    style={{ left: knobX, top: knobY }}
+                    style={buildColorWheelKnobStyle(knobX, knobY)}
                   />
                 </div>
 
@@ -482,7 +483,7 @@ export default function ColorWidget({
   rightSlot,
   editMode
 }) {
-  const t = getT();
+  const t = getWidgetT();
   const parsed = React.useMemo(
     () => parseColorValue(value),
     [value]
@@ -636,7 +637,7 @@ export default function ColorWidget({
         >
           <span
             className="uu-color-swatch"
-            style={{ background: swatchCss }}
+            style={buildColorWidgetBackgroundStyle(swatchCss)}
           />
         </button>
 
@@ -788,7 +789,7 @@ export function ColorEditorRight({
 export function ColorLabelEditor({ selected, updateSelected }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
 
   return (
     <div className="uu-row">
@@ -815,7 +816,7 @@ export function ColorLabelEditor({ selected, updateSelected }) {
  */
 export function ColorEditorLeftExtras({ selected, layoutId = '' }) {
   if (!selected) return null;
-  const t = getT();
+  const t = getWidgetT();
   const widgetId = selected.id;
 
   // Base URL pour Companion (IP du HUB si dispo)
@@ -903,3 +904,4 @@ export function ColorEditorLeftExtras({ selected, layoutId = '' }) {
     </>
   );
 }
+

@@ -9,6 +9,10 @@ import {
 } from "../../userSharedHelpers";
 
 const PAGE_SIZES = [25, 50, 100, 200];
+const PROFILE_ACTIVITY_CHIP_GROUP_STYLE = { marginTop: "6px", flexWrap: "wrap" };
+const PROFILE_ACTIVITY_CHIP_BUTTON_STYLE = { cursor: "pointer" };
+const PROFILE_ACTIVITY_PAGINATION_ROW_STYLE = { marginTop: "8px", marginBottom: "4px", flexWrap: "wrap" };
+const PROFILE_ACTIVITY_PAGE_SIZE_STYLE = { width: "80px" };
 
 function ProfileActivitySummaryPanel({
   t,
@@ -60,7 +64,7 @@ function ProfileActivitySummaryPanel({
           }
         )}
       </div>
-      <div className="uu-chip-group" style={{ marginTop: "6px", flexWrap: "wrap" }}>
+      <div className="uu-chip-group" style={PROFILE_ACTIVITY_CHIP_GROUP_STYLE}>
         {ACTIVITY_TYPE_FILTERS.map((type) => {
           const normalizedType = String(type || "").trim().toLowerCase() || "all";
           const isActive = activityActionType === normalizedType;
@@ -81,7 +85,7 @@ function ProfileActivitySummaryPanel({
               className={`uu-chip ${activityTypeChipLevel(normalizedType)} ${isActive ? "chip-on" : "chip-off"}`}
               type="button"
               disabled={saving || activityLoading}
-              style={{ cursor: "pointer" }}
+              style={PROFILE_ACTIVITY_CHIP_BUTTON_STYLE}
               onClick={() => {
                 setActivityActionType?.(normalizedType);
                 onRefreshActivity?.(buildActivityFilters?.({ actionType: normalizedType }));
@@ -92,12 +96,12 @@ function ProfileActivitySummaryPanel({
           );
         })}
       </div>
-      <div className="uu-chip-group" style={{ marginTop: "6px", flexWrap: "wrap" }}>
+      <div className="uu-chip-group" style={PROFILE_ACTIVITY_CHIP_GROUP_STYLE}>
         <button
           className={`uu-chip lvl-info ${!activityProjectRef ? "chip-on" : "chip-off"}`}
           type="button"
           disabled={saving || activityLoading}
-          style={{ cursor: "pointer" }}
+          style={PROFILE_ACTIVITY_CHIP_BUTTON_STYLE}
           onClick={() => {
             setActivityProjectRef?.("");
             onRefreshActivity?.(buildActivityFilters?.({ projectRef: "" }));
@@ -115,7 +119,7 @@ function ProfileActivitySummaryPanel({
               className={`uu-chip lvl-success ${isActive ? "chip-on" : "chip-off"}`}
               type="button"
               disabled={saving || activityLoading}
-              style={{ cursor: "pointer" }}
+              style={PROFILE_ACTIVITY_CHIP_BUTTON_STYLE}
               onClick={() => {
                 setActivityProjectRef?.(normalizedRef);
                 onRefreshActivity?.(buildActivityFilters?.({ projectRef: normalizedRef }));
@@ -127,7 +131,7 @@ function ProfileActivitySummaryPanel({
         })}
       </div>
 
-      <div className="uu-row uu-gap-8 uu-align-center" style={{ marginTop: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
+      <div className="uu-row uu-gap-8 uu-align-center" style={PROFILE_ACTIVITY_PAGINATION_ROW_STYLE}>
         <div className="uu-row uu-gap-6 uu-align-center">
           {canPrev ? (
             <button type="button" className="uu-btn" onClick={() => setPage((p) => Math.max(0, p - 1))}>‹</button>
@@ -140,7 +144,7 @@ function ProfileActivitySummaryPanel({
             className="uu-select"
             value={pageSize}
             onChange={(e) => { setPageSize(Number(e.target.value) || 100); setPage(0); }}
-            style={{ width: "80px" }}
+            style={PROFILE_ACTIVITY_PAGE_SIZE_STYLE}
           >
             {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
@@ -183,4 +187,3 @@ function ProfileActivitySummaryPanel({
 }
 
 export { ProfileActivitySummaryPanel };
-export default ProfileActivitySummaryPanel;

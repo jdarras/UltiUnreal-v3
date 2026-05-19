@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { setProjectVersion as agentSetPV } from '../../utils/agent';
+import { useTransientClearTimer } from './useTransientClearTimer';
 
 export function useProjectDetailProjectVersion({
   t,
@@ -18,12 +19,18 @@ export function useProjectDetailProjectVersion({
   setProjects,
   projectVersionTimer,
 } = {}) {
+  const { scheduleClear } = useTransientClearTimer();
+
+  const clearProjectVersionFeedback = useCallback(() => {
+    setProjectVersionMsg('');
+    setProjectVersionMsgType('');
+  }, [setProjectVersionMsg, setProjectVersionMsgType]);
+
   useEffect(() => {
     if (!detailId || detailIsNew) {
       if (projectVersionTimer.current) clearTimeout(projectVersionTimer.current);
       setProjectVersion('');
-      setProjectVersionMsg('');
-      setProjectVersionMsgType('');
+      clearProjectVersionFeedback();
       setProjectVersionBusy(false);
       return;
     }
@@ -36,8 +43,7 @@ export function useProjectDetailProjectVersion({
     detailMeta?.fileVersion,
     projectVersionTimer,
     setProjectVersion,
-    setProjectVersionMsg,
-    setProjectVersionMsgType,
+    clearProjectVersionFeedback,
     setProjectVersionBusy,
   ]);
 
@@ -49,19 +55,16 @@ export function useProjectDetailProjectVersion({
     const pv = String(value ?? '').trim();
     if (!pv) {
       setProjectVersion('');
-      setProjectVersionMsg('');
-      setProjectVersionMsgType('');
+      clearProjectVersionFeedback();
       return;
     }
     const currentSaved = String(detailInsights?.projectVersion ?? '').trim();
     if (pv === currentSaved) {
-      setProjectVersionMsg('');
-      setProjectVersionMsgType('');
+      clearProjectVersionFeedback();
       return;
     }
     setProjectVersionBusy(true);
-    setProjectVersionMsg('');
-    setProjectVersionMsgType('');
+    clearProjectVersionFeedback();
     try {
       const res = await agentSetPV(pid, pv);
       if (!res || res.ok === false) throw new Error(res?.error || 'save_failed');
@@ -76,10 +79,7 @@ export function useProjectDetailProjectVersion({
             : p
         )
       );
-      setTimeout(() => {
-        setProjectVersionMsg('');
-        setProjectVersionMsgType('');
-      }, 2000);
+      scheduleClear(clearProjectVersionFeedback, 2000);
     } catch {
       setProjectVersionMsg(t('projects.detail.projectVersion.updateError'));
       setProjectVersionMsgType('error');
@@ -95,9 +95,9 @@ export function useProjectDetailProjectVersion({
     setDetailMeta,
     setProjectVersion,
     setProjectVersionBusy,
-    setProjectVersionMsg,
-    setProjectVersionMsgType,
     setProjects,
+    clearProjectVersionFeedback,
+    scheduleClear,
     t,
   ]);
 
@@ -116,5 +116,3 @@ export function useProjectDetailProjectVersion({
     scheduleProjectVersionSave,
   };
 }
-
-export default useProjectDetailProjectVersion;

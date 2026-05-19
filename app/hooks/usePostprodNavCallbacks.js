@@ -202,7 +202,7 @@ function usePostprodNavCallbacks({
         await postCommon({ launchMode: 'integration' });
         const launchRes = await postLaunch(hostIp, { uproject, engineVersion: requiredVersion });
         if (launchRes?.localFallback?.used) {
-          showNotice(t('launch.msg.localFallback') || 'Reseau Ethernet inactif, bascule locale sur 127.0.0.1.', 'warn');
+          showNotice(t('launch.msg.localFallback'), 'warn');
         }
         const postprodToken = String(postprodAuth.token || '').trim();
         const projectRefForRefresh = String(

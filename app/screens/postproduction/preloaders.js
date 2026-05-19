@@ -38,13 +38,6 @@ function preloadPostproductionTab(tabKey = "") {
   ]).then(() => undefined);
 }
 
-function preloadPostproductionTabs(tabKeys = []) {
-  const keys = Array.isArray(tabKeys) ? tabKeys : [];
-  return Promise.allSettled(keys.map((key) => preloadPostproductionTab(key))).then(() => undefined);
-}
-
 export {
-  preloadPostproductionShell,
   preloadPostproductionTab,
-  preloadPostproductionTabs,
 };

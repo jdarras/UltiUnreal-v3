@@ -96,5 +96,3 @@ export function useRendersCardControllers({
     toolbar,
   };
 }
-
-export default useRendersCardControllers;

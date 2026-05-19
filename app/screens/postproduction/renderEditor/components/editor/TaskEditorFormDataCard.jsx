@@ -1,6 +1,8 @@
 import { safeT } from "../../../shared/helpers";
 import { TaskFormFieldsPanel } from "../TaskFormFieldsPanel";
 
+const TASK_EDITOR_FORM_DATA_TITLE_STYLE = { margin: "0 0 8px 0" };
+
 function TaskEditorFormDataCard({
   t,
   selectedAutoRenderForm = null,
@@ -14,7 +16,7 @@ function TaskEditorFormDataCard({
   if (!selectedAutoRenderForm) return null;
   return (
     <div className="uu-card mt-12">
-      <h4 className="uu-h3 uu-block-title" style={{ margin: "0 0 8px 0" }}>
+      <h4 className="uu-h3 uu-block-title" style={TASK_EDITOR_FORM_DATA_TITLE_STYLE}>
         {safeT(t, "postprod.tasks.form.autoRenderForm.live.simple", "Saisie formulaire")}
       </h4>
       {autoRenderFormFieldsLoading ? (

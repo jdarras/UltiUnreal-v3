@@ -31,5 +31,3 @@ export function useRenderFormSelectionSync({
 
   return { selectedForm };
 }
-
-export default useRenderFormSelectionSync;

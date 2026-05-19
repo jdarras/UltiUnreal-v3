@@ -73,6 +73,3 @@ export function useRenderListSorting({
     setListSortFromSelect,
   };
 }
-
-export default useRenderListSorting;
-

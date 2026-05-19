@@ -99,5 +99,3 @@ export function useSaveRenderFormMetaAction({
 
   return { saveRenderFormMeta };
 }
-
-export default useSaveRenderFormMetaAction;

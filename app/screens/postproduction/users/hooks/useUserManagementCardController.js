@@ -63,5 +63,3 @@ export function useUserManagementCardController({
     browsePanelProps,
   };
 }
-
-export default useUserManagementCardController;

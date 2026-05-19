@@ -94,5 +94,3 @@ export function useRenderQueueSelection({
     toggleSelectAllQueueEntries,
   };
 }
-
-export default useRenderQueueSelection;

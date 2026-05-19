@@ -1,6 +1,14 @@
 import { safeT } from "../../shared/helpers";
 import { RenderFormsFieldRow } from "./RenderFormsFieldRow";
 
+const RENDER_FORMS_FIELDS_TABLE_WRAPPER_STYLE = { overflowX: "auto" };
+const RENDER_FORMS_FIELDS_TABLE_STYLE = { width: "100%", tableLayout: "fixed" };
+const RENDER_FORMS_FIELDS_COL_WIDTHS = ["6%", "14%", "12.5%", "12%", "10%", "31.5%", "14%"];
+
+function buildRenderFormsFieldColStyle(width) {
+  return { width };
+}
+
 function RenderFormsFieldsTable({
   t,
   selectedForm = null,
@@ -28,16 +36,12 @@ function RenderFormsFieldsTable({
     );
   }
   return (
-    <div style={{ overflowX: "auto" }} className="mt-12">
-      <table className="uu-table" style={{ width: "100%", tableLayout: "fixed" }}>
+    <div style={RENDER_FORMS_FIELDS_TABLE_WRAPPER_STYLE} className="mt-12">
+      <table className="uu-table" style={RENDER_FORMS_FIELDS_TABLE_STYLE}>
         <colgroup>
-          <col style={{ width: "6%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "12.5%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "10%" }} />
-          <col style={{ width: "31.5%" }} />
-          <col style={{ width: "14%" }} />
+          {RENDER_FORMS_FIELDS_COL_WIDTHS.map((width, index) => (
+            <col key={`render-forms-field-col-${index}`} style={buildRenderFormsFieldColStyle(width)} />
+          ))}
         </colgroup>
         <thead>
           <tr>

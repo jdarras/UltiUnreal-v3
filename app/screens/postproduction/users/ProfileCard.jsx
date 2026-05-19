@@ -183,5 +183,4 @@ function ProfileCard({
 }
 
 
-export { ProfileCard };
-export default ProfileCard;
+export { ProfileCard };

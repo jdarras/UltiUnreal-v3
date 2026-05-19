@@ -3,6 +3,7 @@ import { safeT } from "../../shared/helpers";
 
 const DROPDOWN_STYLE = { flex: "none", minWidth: 0, width: "100%" };
 const FIELD_GRID = { display: "grid", gridTemplateColumns: "150px 1fr", gap: "8px", alignItems: "center" };
+const ADVANCED_SEARCH_COLUMNS_STYLE = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", alignItems: "start" };
 
 function normalizeMultiSelectOptions(options = []) {
   return (Array.isArray(options) ? options : [])
@@ -101,7 +102,7 @@ function RenderEditorAdvancedSearchPanel({
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", alignItems: "start" }}>
+      <div style={ADVANCED_SEARCH_COLUMNS_STYLE}>
         <div style={FIELD_GRID}>
           <label className="uu-label">{safeT(t, "postprod.tasks.search.advanced.status", "Statut")}</label>
           <MultiSelectDropdown

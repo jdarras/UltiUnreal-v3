@@ -2,6 +2,42 @@ import { formatDate, safeT } from "../../../shared/helpers";
 import { taskVisualStatusClass } from "../../../renderEditor/helpers";
 import { queueRenderStateShortLabel } from "../../helpers";
 
+const RENDERS_QUEUE_ORDER_CELL_STYLE = { textAlign: "left", whiteSpace: "nowrap" };
+const RENDERS_QUEUE_ORDER_ROW_STYLE = { gap: "4px", justifyContent: "flex-start", flexWrap: "nowrap" };
+const RENDERS_QUEUE_ORDER_BUTTON_STYLE = { padding: "2px 6px", minWidth: "28px" };
+const RENDERS_QUEUE_CELL_WRAP_STYLE = { overflowWrap: "anywhere" };
+const RENDERS_QUEUE_TASK_ROW_STYLE = {
+  display: "flex",
+  alignItems: "baseline",
+  gap: "8px",
+  flexWrap: "nowrap",
+  minWidth: 0,
+};
+const RENDERS_QUEUE_TASK_TITLE_STYLE = { fontWeight: 600, overflowWrap: "anywhere" };
+const RENDERS_QUEUE_TASK_TITLE_CLICKABLE_STYLE = { fontWeight: 600, overflowWrap: "anywhere", cursor: "pointer" };
+const RENDERS_QUEUE_TASK_ID_STYLE = { whiteSpace: "nowrap" };
+const RENDERS_QUEUE_LAUNCH_CELL_STYLE = { overflowWrap: "anywhere", textAlign: "center" };
+const RENDERS_QUEUE_STATUS_CELL_STYLE = { overflowWrap: "anywhere", textAlign: "right" };
+const RENDERS_QUEUE_ACTIONS_CELL_STYLE = { overflowWrap: "anywhere", textAlign: "right" };
+const RENDERS_QUEUE_ACTIONS_ROW_BASE_STYLE = {
+  gap: "6px",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  flexWrap: "nowrap",
+  maxWidth: "100%",
+  marginLeft: "auto",
+};
+const RENDERS_QUEUE_ACTION_BUTTON_FULL_STYLE = { width: "100%" };
+const RENDERS_QUEUE_DELETE_BUTTON_STYLE = {
+  width: "32px",
+  minWidth: "32px",
+  height: "32px",
+  padding: "0",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
 function RendersQueueTableRow({
   t,
   queueEntry,
@@ -73,6 +109,8 @@ function RendersQueueTableRow({
     display: "inline-flex",
     justifyContent: "center",
   };
+  const queueWorkerCellStyle = { overflowWrap: "anywhere", paddingLeft: `${stationOffsetPx}px` };
+  const queueActionsRowStyle = { ...RENDERS_QUEUE_ACTIONS_ROW_BASE_STYLE, width: `${actionsGroupWidth}px` };
 
   const handleLaunch = () => {
     onLaunchScheduledTaskRender?.(task, queueEntry, {
@@ -110,8 +148,8 @@ function RendersQueueTableRow({
 
   return (
     <tr>
-      <td style={{ textAlign: "left", whiteSpace: "nowrap" }}>
-        <div className="uu-row" style={{ gap: "4px", justifyContent: "flex-start", flexWrap: "nowrap" }}>
+      <td style={RENDERS_QUEUE_ORDER_CELL_STYLE}>
+        <div className="uu-row" style={RENDERS_QUEUE_ORDER_ROW_STYLE}>
           <button
             className="uu-btn-ghost"
             type="button"
@@ -119,7 +157,7 @@ function RendersQueueTableRow({
             title={safeT(t, "postprod.renders.queue.moveUp", "Monter")}
             aria-label={safeT(t, "postprod.renders.queue.moveUp", "Monter")}
             onClick={handleMoveUp}
-            style={{ padding: "2px 6px", minWidth: "28px" }}
+            style={RENDERS_QUEUE_ORDER_BUTTON_STYLE}
           >
             ↑
           </button>
@@ -130,66 +168,47 @@ function RendersQueueTableRow({
             title={safeT(t, "postprod.renders.queue.moveDown", "Descendre")}
             aria-label={safeT(t, "postprod.renders.queue.moveDown", "Descendre")}
             onClick={handleMoveDown}
-            style={{ padding: "2px 6px", minWidth: "28px" }}
+            style={RENDERS_QUEUE_ORDER_BUTTON_STYLE}
           >
             ↓
           </button>
         </div>
       </td>
-      <td style={{ overflowWrap: "anywhere" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: "8px",
-            flexWrap: "nowrap",
-            minWidth: 0,
-          }}
-        >
+      <td style={RENDERS_QUEUE_CELL_WRAP_STYLE}>
+        <div style={RENDERS_QUEUE_TASK_ROW_STYLE}>
           <span
             onClick={canOpenTaskLink ? handleOpenTask : undefined}
             style={canOpenTaskLink
-              ? { fontWeight: 600, overflowWrap: "anywhere", cursor: "pointer" }
-              : { fontWeight: 600, overflowWrap: "anywhere" }}
+              ? RENDERS_QUEUE_TASK_TITLE_CLICKABLE_STYLE
+              : RENDERS_QUEUE_TASK_TITLE_STYLE}
           >
             {String(task?.title || "-")}
           </span>
           {taskIdLabel ? (
-            <span className="uu-muted" style={{ whiteSpace: "nowrap" }}>
+            <span className="uu-muted" style={RENDERS_QUEUE_TASK_ID_STYLE}>
               {taskIdLabel}
             </span>
           ) : null}
         </div>
       </td>
-      <td style={{ overflowWrap: "anywhere", textAlign: "center" }}>{queueLaunchLabel}</td>
-      <td style={{ overflowWrap: "anywhere", paddingLeft: `${stationOffsetPx}px` }}>{queueWorker || "-"}</td>
-      <td style={{ overflowWrap: "anywhere", textAlign: "right" }}>
+      <td style={RENDERS_QUEUE_LAUNCH_CELL_STYLE}>{queueLaunchLabel}</td>
+      <td style={queueWorkerCellStyle}>{queueWorker || "-"}</td>
+      <td style={RENDERS_QUEUE_STATUS_CELL_STYLE}>
         <span className={`uu-chip chip-on ${taskVisualStatusClass(renderState)}`}>
           {queueRenderStateShortLabel(t, renderState)}
         </span>
       </td>
-      <td style={{ overflowWrap: "anywhere", textAlign: "right" }}>
+      <td style={RENDERS_QUEUE_ACTIONS_CELL_STYLE}>
         {!canLaunchFromQueue && !canEditQueueTask && !canDeleteQueueTask ? (
           <span className="uu-muted">-</span>
         ) : (
-          <div
-            className="uu-row"
-            style={{
-              gap: "6px",
-              alignItems: "center",
-              justifyContent: "flex-end",
-              flexWrap: "nowrap",
-              width: `${actionsGroupWidth}px`,
-              maxWidth: "100%",
-              marginLeft: "auto",
-            }}
-          >
+          <div className="uu-row" style={queueActionsRowStyle}>
             <span style={actionSlotStyle}>
               {canLaunchFromQueue ? (
                 <button
                   className="uu-btn"
                   type="button"
-                  style={{ width: "100%" }}
+                  style={RENDERS_QUEUE_ACTION_BUTTON_FULL_STYLE}
                   disabled={rendersLoading || isBusy || deleteBusy || !canLaunchRenders}
                   onClick={handleLaunch}
                 >
@@ -202,7 +221,7 @@ function RendersQueueTableRow({
                 <button
                   className="uu-btn-ghost"
                   type="button"
-                  style={{ width: "100%" }}
+                  style={RENDERS_QUEUE_ACTION_BUTTON_FULL_STYLE}
                   disabled={rendersLoading || isBusy || deleteBusy}
                   onClick={() => onEditQueueTask?.(task, queueEntry)}
                 >
@@ -217,15 +236,7 @@ function RendersQueueTableRow({
               onClick={handleRequestDelete}
               title={safeT(t, "postprod.renders.queue.deleteTask.button", "Supprimer tache")}
               aria-label={safeT(t, "postprod.renders.queue.deleteTask.button", "Supprimer tache")}
-              style={{
-                width: "32px",
-                minWidth: "32px",
-                height: "32px",
-                padding: "0",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+              style={RENDERS_QUEUE_DELETE_BUTTON_STYLE}
             >
               {deleteBusy ? "..." : "X"}
             </button>
@@ -237,4 +248,3 @@ function RendersQueueTableRow({
 }
 
 export { RendersQueueTableRow };
-export default RendersQueueTableRow;

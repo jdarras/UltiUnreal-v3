@@ -25,4 +25,3 @@ function useLayoutErrorReporter({
 }
 
 export { useLayoutErrorReporter };
-export default useLayoutErrorReporter;

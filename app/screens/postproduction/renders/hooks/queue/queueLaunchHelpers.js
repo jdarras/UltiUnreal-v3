@@ -2,6 +2,7 @@ import {
   resolveAutoRenderConfig,
   resolveAutoRenderPayload,
   resolveAutoRenderTargetWorkerKey,
+  withRenderOffscreenExecution,
 } from "../../../shared/autoRenderHelpers";
 
 function toPositiveInt(value, fallback = 0) {
@@ -12,27 +13,6 @@ function toPositiveInt(value, fallback = 0) {
 
 function toTrimmedString(value) {
   return String(value || "").trim();
-}
-
-function withRenderOffscreenExecution(execution = null, renderOffscreen = false) {
-  if (!execution || typeof execution !== "object" || Array.isArray(execution)) return null;
-  const offscreen = renderOffscreen === true;
-  const cloned = {
-    ...execution,
-    renderOffscreen: offscreen,
-  };
-  const args = Array.isArray(execution?.args) ? execution.args : [];
-  if (args.length <= 0) {
-    if (offscreen) cloned.args = ["-RenderOffscreen"];
-    return cloned;
-  }
-  const nextArgs = args
-    .map((arg) => String(arg || "").trim())
-    .filter(Boolean)
-    .filter((arg) => String(arg || "").trim().toLowerCase() !== "-renderoffscreen");
-  if (offscreen) nextArgs.push("-RenderOffscreen");
-  cloned.args = nextArgs;
-  return cloned;
 }
 
 function resolveLinkedQueuedRender(queueEntry = null) {

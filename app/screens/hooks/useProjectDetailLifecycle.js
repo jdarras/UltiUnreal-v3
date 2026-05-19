@@ -169,5 +169,3 @@ export function useProjectDetailLifecycle({
     closeDetailAndSave,
   };
 }
-
-export default useProjectDetailLifecycle;

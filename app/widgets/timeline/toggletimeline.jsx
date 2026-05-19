@@ -1,12 +1,5 @@
 import BindingPicker from '../bindingpicker.jsx';
-import { readIdentity } from '../../utils/identity';
-import { createT } from '../../i18n';
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
-}
+import { getWidgetT } from '../widgetTranslator.js';
 
 export function ToggleTimelineEditor({
   selected,
@@ -16,7 +9,7 @@ export function ToggleTimelineEditor({
 }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
   const binding = selected.binding || {};
   const bindingKind = binding.kind === 'function' ? 'function' : 'property';
 

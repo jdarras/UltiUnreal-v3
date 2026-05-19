@@ -88,5 +88,3 @@ export function buildRenderEditorSectionPropsInputEditor({
     ...pickKeys(dialog, DIALOG_KEYS),
   };
 }
-
-export default buildRenderEditorSectionPropsInputEditor;

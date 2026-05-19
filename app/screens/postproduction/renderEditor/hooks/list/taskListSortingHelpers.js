@@ -9,7 +9,7 @@ export const TASK_LIST_ALLOWED_SORT_KEYS = new Set([
   "updatedAt",
 ]);
 
-export function taskStatusRank(task, taskRenderStateByTaskId, resolveTaskVisualStatus) {
+function taskStatusRank(task, taskRenderStateByTaskId, resolveTaskVisualStatus) {
   const visualStatus = String(resolveTaskVisualStatus(task, taskRenderStateByTaskId) || "").trim().toLowerCase();
   const idx = TASK_VISUAL_STATUS_FLOW.indexOf(visualStatus);
   return idx >= 0 ? idx : TASK_VISUAL_STATUS_FLOW.length + 1;
@@ -50,6 +50,5 @@ export function compareTasksBySortKey({
 
 export default {
   TASK_LIST_ALLOWED_SORT_KEYS,
-  taskStatusRank,
   compareTasksBySortKey,
 };

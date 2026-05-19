@@ -2,14 +2,7 @@ import React from 'react';
 import './transformwidget.css';
 import BindingPicker from './bindingpicker.jsx';
 import { getCompanionBaseUrl } from '../utils/agent';
-import { readIdentity } from '../utils/identity';
-import { createT } from '../i18n';
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
-}
+import { getWidgetT } from './widgetTranslator.js';
 
 export default function TransformWidget({
   widget,
@@ -24,7 +17,7 @@ export default function TransformWidget({
   onDuplicate,
   targetsSlot
 }) {
-  const t = getT();
+  const t = getWidgetT();
   const w = widget || {};
   const label = w.label || 'Transform';
   const ui = w.ui || {};
@@ -604,7 +597,7 @@ export function TransformWidgetEditorRight({
 }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
 
   // Valeurs par défaut brutes (peuvent être vides)
   const rawDefaults =
@@ -750,7 +743,7 @@ export function TransformWidgetEditorRight({
 export function TransformEditorLeftExtras({ selected, layoutId = '' }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
   const widgetId = selected.id;
 
   let baseUrl = '';
@@ -1056,7 +1049,7 @@ export function TransformEditorLeftExtras({ selected, layoutId = '' }) {
 export function TransformLabelEditor({ selected, updateSelected }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
   const label = selected.label ?? '';
   const hasError = !label.trim();
 
@@ -1103,4 +1096,5 @@ export function TransformLabelEditor({ selected, updateSelected }) {
     </>
   );
 }
+
 

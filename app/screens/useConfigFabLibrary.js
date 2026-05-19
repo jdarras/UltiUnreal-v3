@@ -369,4 +369,3 @@ function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavi
 }
 
 export { useConfigFabLibrary };
-export default useConfigFabLibrary;

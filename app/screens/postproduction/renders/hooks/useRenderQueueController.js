@@ -77,5 +77,3 @@ export function useRenderQueueController({
     launch,
   });
 }
-
-export default useRenderQueueController;

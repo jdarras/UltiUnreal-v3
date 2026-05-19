@@ -1,5 +1,12 @@
 import { FixedSizeList as List } from 'react-window';
-import { formatDateTime, normalizeThumbnailPath } from '../utils/projects-helpers';
+import { formatDateTime, getProjectUsageModeLabel, normalizeThumbnailPath } from '../utils/projects-helpers';
+import { getFavoriteLabel } from './componentI18n';
+
+const PROJECTS_CARDS_INFO_ROW_STYLE = { flex: '1 1 45%', minWidth: '240px' };
+
+function buildProjectsCardsVirtualItemStyle(style) {
+  return { ...style, padding: '6px 0' };
+}
 
 export default function ProjectsCardsView({
   t,
@@ -15,7 +22,6 @@ export default function ProjectsCardsView({
   serverRunning,
   integrationBusy,
   integrationMsg,
-  integrationMsgType,
   removeOne,
   canManageUnrealProjects = true,
   canEditProjectFields = null,
@@ -23,19 +29,11 @@ export default function ProjectsCardsView({
   isAutoRenderUsage = null,
   showActivationControls = true,
 }) {
+  const favoriteLabel = getFavoriteLabel(t);
   const canEditFields = canEditProjectFields !== null
     ? canEditProjectFields === true
     : canManageUnrealProjects;
   const canOpenProjectDetails = canManageUnrealProjects || canEditFields;
-  const usageModeLabel = (value) => {
-    const v = String(value || '').trim();
-    if (v === 'live') return t('projects.detail.usageMode.live');
-    if (v === 'auto_render') return t('projects.detail.usageMode.auto_render');
-    if (v === 'live_auto_render') return t('projects.detail.usageMode.live_auto_render');
-    if (v === 'other') return t('projects.detail.usageMode.other');
-    return '—';
-  };
-
   const renderCard = (p, key, style) => {
     const isActive = !!p.isActive;
     const isFav = p?.favorite === true;
@@ -120,13 +118,13 @@ export default function ProjectsCardsView({
             </div>
 
             <div className="uu-row wrap mt-8 uu-gap-12">
-              <div className="uu-row" style={{ flex: '1 1 45%', minWidth: '240px' }}>
+              <div className="uu-row" style={PROJECTS_CARDS_INFO_ROW_STYLE}>
                 <div className="uu-label w-160">{t('projects.server.card.statusLabel')}</div>
                 <div className="uu-value uu-muted">
                   {p.metaStatus || '—'}
                 </div>
               </div>
-              <div className="uu-row" style={{ flex: '1 1 45%', minWidth: '240px' }}>
+              <div className="uu-row" style={PROJECTS_CARDS_INFO_ROW_STYLE}>
                 <div className="uu-label w-160">{t('projects.server.card.typeLabel')}</div>
                 <div className="uu-value uu-muted">
                   {p.metaType || '—'}
@@ -137,7 +135,7 @@ export default function ProjectsCardsView({
             <div className="uu-row wrap mt-8">
               <div className="uu-label w-160">{t('projects.server.card.usageModeLabel')}</div>
               <div className="uu-value uu-muted">
-                {usageModeLabel(p.metaUsageMode)}
+                {getProjectUsageModeLabel(t, p.metaUsageMode)}
               </div>
             </div>
 
@@ -149,13 +147,13 @@ export default function ProjectsCardsView({
             </div>
 
             <div className="uu-row wrap mt-8 uu-gap-12">
-              <div className="uu-row" style={{ flex: '1 1 45%', minWidth: '240px' }}>
+              <div className="uu-row" style={PROJECTS_CARDS_INFO_ROW_STYLE}>
                 <div className="uu-label w-160">{t('projects.server.card.createdAtLabel')}</div>
                 <div className="uu-value uu-muted">
                   {formatDateTime(p.createdAt)}
                 </div>
               </div>
-              <div className="uu-row" style={{ flex: '1 1 45%', minWidth: '240px' }}>
+              <div className="uu-row" style={PROJECTS_CARDS_INFO_ROW_STYLE}>
                 <div className="uu-label w-160">{t('projects.server.card.lastModifiedLabel')}</div>
                 <div className="uu-value uu-muted">
                   {formatDateTime(p.lastModified)}
@@ -223,7 +221,7 @@ export default function ProjectsCardsView({
                   className="uu-btn"
                   onClick={() => onCreateTaskFromProject?.(p.id)}
                 >
-                  {t('projects.actions.createTask', 'Rendu')}
+                  {t('projects.actions.createTask')}
                 </button>
               ) : null}
 
@@ -233,7 +231,7 @@ export default function ProjectsCardsView({
                   className={`uu-fav-btn ${isFav ? 'active' : ''}`}
                   onClick={() => onToggleFavorite(p)}
                   aria-pressed={isFav ? 'true' : 'false'}
-                  title={t('resources.detail.labels.favorite') || 'Favoris'}
+                  title={favoriteLabel}
                 >
                   ★
                 </button>
@@ -245,7 +243,7 @@ export default function ProjectsCardsView({
                   className="uu-btn"
                   onClick={() => onCreateTaskFromProject?.(p.id)}
                 >
-                  {t('projects.actions.createTask', 'Rendu')}
+                  {t('projects.actions.createTask')}
                 </button>
               ) : null}
 
@@ -261,7 +259,7 @@ export default function ProjectsCardsView({
             </div>
 
             {isActive && integrationMsg ? (
-              <div className={`uu-msg ${integrationMsgType || ''} mt-8`}>
+              <div className="uu-msg error mt-8">
                 {integrationMsg}
               </div>
             ) : null}
@@ -289,7 +287,7 @@ export default function ProjectsCardsView({
           renderCard(
             projects[index],
             projects[index]?.id || projects[index]?.name || index,
-            { ...style, padding: '6px 0' }
+            buildProjectsCardsVirtualItemStyle(style)
           )
         )}
       </List>

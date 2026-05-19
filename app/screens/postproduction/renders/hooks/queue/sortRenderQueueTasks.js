@@ -114,5 +114,3 @@ export function sortRenderQueueTasks({
   });
   return list;
 }
-
-export default sortRenderQueueTasks;

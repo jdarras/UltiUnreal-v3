@@ -3,12 +3,18 @@ import '../widgets/textwidget.css'; // reuse basic input styles
 import './browsewidget.css';
 import BindingPicker from './bindingpicker.jsx';
 import { getCompanionBaseUrl } from '../utils/agent';
-import { readIdentity } from '../utils/identity';
-import { createT } from '../i18n';
+import { getWidgetT } from './widgetTranslator.js';
+import {
+  getBrowseActionLabel,
+  getBrowsePathPlaceholder,
+  getBrowsePlaceholderLabel,
+  getSendActionLabel
+} from './widgetI18n.js';
 
 const ACCEPT = '.jpg,.jpeg,.png,.tga,.mp4,.mov,.hap';
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'tga'];
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'hap'];
+const BROWSE_HIDDEN_FILE_INPUT_STYLE = { display: 'none' };
 
 function buildBrowseFilters(preferType = '') {
   const imageFilter = { name: 'Images', extensions: IMAGE_EXTENSIONS };
@@ -17,12 +23,6 @@ function buildBrowseFilters(preferType = '') {
   if (kind === 'video') return [videoFilter, imageFilter];
   if (kind === 'image') return [imageFilter, videoFilter];
   return [imageFilter, videoFilter];
-}
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
 }
 
 function extToType(path = '') {
@@ -106,7 +106,11 @@ export function BrowseWidget({
   thumb,
   live,
 }) {
-  const tt = t || getT();
+  const tt = t || getWidgetT();
+  const browsePlaceholder = getBrowsePlaceholderLabel(tt);
+  const browsePathPlaceholder = getBrowsePathPlaceholder(tt);
+  const browseActionLabel = getBrowseActionLabel(tt);
+  const sendActionLabel = getSendActionLabel(tt);
   const fileInputRef = React.useRef(null);
   const [preview, setPreview] = React.useState('');
   const [mediaType, setMediaType] = React.useState(extToType(value));
@@ -326,13 +330,13 @@ export function BrowseWidget({
             <path className="uu-browse-preview-video-play" d="M10 9.2l4 2.8-4 2.8z" />
           </svg>
           <div className="uu-browse-preview-video-name" title={videoLabel}>
-            {videoLabel || (tt('production.widgets.browsePlaceholder') || 'Aucun aperçu')}
+            {videoLabel || browsePlaceholder}
           </div>
         </div>
       ) : (
         <div className="uu-browse-preview uu-browse-preview-empty">
           <span className="uu-muted">
-            {tt('production.widgets.browsePlaceholder') || 'Aucun aperçu'}
+            {browsePlaceholder}
           </span>
         </div>
       )}
@@ -343,7 +347,7 @@ export function BrowseWidget({
           value={rawValue}
           onChange={(e) => onChange?.(e.target.value)}
           onBlur={(e) => commitNormalized(e.target.value)}
-          placeholder={tt('production.widgets.browsePath') || "Chemin d'un média"}
+          placeholder={browsePathPlaceholder}
           disabled={disabled}
         />
       </div>
@@ -355,7 +359,7 @@ export function BrowseWidget({
           onClick={triggerBrowse}
           disabled={disabled}
         >
-          {tt('common.browse') || 'Parcourir'}
+          {browseActionLabel}
         </button>
 
         {!isLive && (
@@ -365,7 +369,7 @@ export function BrowseWidget({
             onClick={handleSend}
             disabled={disabled}
           >
-            {tt('widgets.common.send') || 'Envoyer'}
+            {sendActionLabel}
           </button>
         )}
 
@@ -416,7 +420,7 @@ export function BrowseWidget({
         ref={fileInputRef}
         type="file"
         accept={ACCEPT}
-        style={{ display: 'none' }}
+        style={BROWSE_HIDDEN_FILE_INPUT_STYLE}
         onChange={(e) => {
           const file = e.target.files && e.target.files[0];
           const p = file && file.path ? file.path : '';
@@ -448,7 +452,7 @@ export function BrowseWidget({
 
 export function BrowseEditorLeftExtras({ selected, layoutId = '' }) {
   if (!selected) return null;
-  const t = getT();
+  const t = getWidgetT();
   const widgetId = selected?.id;
 
   let baseUrl = '';
@@ -535,7 +539,7 @@ export function BrowseEditorLeftExtras({ selected, layoutId = '' }) {
 
 export function BrowseLabelEditor({ selected, updateSelected }) {
   if (!selected) return null;
-  const t = getT();
+  const t = getWidgetT();
   const label = selected.label ?? '';
   const hasError = !label.trim();
   const ui = selected.ui || {};
@@ -577,7 +581,9 @@ export function BrowseLabelEditor({ selected, updateSelected }) {
 
 export function BrowseEditorRight({ selected, updateSelected, updateBinding, presetData }) {
   if (!selected) return null;
-  const t = getT();
+  const t = getWidgetT();
+  const browsePlaceholder = getBrowsePlaceholderLabel(t);
+  const browseActionLabel = getBrowseActionLabel(t);
   const bindingKind =
     selected?.binding?.kind === 'function' ? 'function' : 'property';
   const fileInputRef = React.useRef(null);
@@ -733,7 +739,7 @@ export function BrowseEditorRight({ selected, updateSelected, updateBinding, pre
       <div className="uu-row mt-8 uu-browse-default-row">
         <label className="uu-label w-160">{t('widgets.common.defaultValueLabel')}</label>
         <button type="button" className="uu-btn" onClick={pickDefault}>
-          {t('common.browse')}
+          {browseActionLabel}
         </button>
       </div>
 
@@ -784,13 +790,13 @@ export function BrowseEditorRight({ selected, updateSelected, updateBinding, pre
               <path className="uu-browse-preview-video-play" d="M10 9.2l4 2.8-4 2.8z" />
             </svg>
             <div className="uu-browse-preview-video-name" title={defaultLabel}>
-              {defaultLabel || (t('production.widgets.browsePlaceholder') || 'Aucun aperçu')}
+              {defaultLabel || browsePlaceholder}
             </div>
           </div>
         ) : (
           <div className="uu-browse-preview uu-browse-default-preview uu-browse-preview-empty">
             <span className="uu-muted">
-              {t('production.widgets.browsePlaceholder') || 'Aucun aperçu'}
+              {browsePlaceholder}
             </span>
           </div>
         )}
@@ -800,7 +806,7 @@ export function BrowseEditorRight({ selected, updateSelected, updateBinding, pre
         ref={fileInputRef}
         type="file"
         accept={ACCEPT}
-        style={{ display: 'none' }}
+        style={BROWSE_HIDDEN_FILE_INPUT_STYLE}
           onChange={(e) => {
             const file = e.target.files && e.target.files[0];
             const p = file && file.path ? file.path : '';
@@ -818,3 +824,4 @@ export function BrowseEditorRight({ selected, updateSelected, updateBinding, pre
       </div>
   );
 }
+

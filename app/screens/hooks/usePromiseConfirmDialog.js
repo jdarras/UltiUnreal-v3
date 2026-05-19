@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  captureActiveFocusableElement,
+  focusRefNextTick,
+  restoreFocusRefNextTick,
+} from "./dialogFocusHelpers";
 
 function usePromiseConfirmDialog() {
   const [confirmDialog, setConfirmDialog] = useState({ open: false, message: "" });
@@ -11,23 +16,10 @@ function usePromiseConfirmDialog() {
     confirmResolveRef.current = null;
     setConfirmDialog((prev) => (prev.open ? { ...prev, open: false } : prev));
     if (resolve) resolve(!!ok);
-
-    setTimeout(() => {
-      try {
-        window.focus();
-      } catch {}
-      const el = confirmPrevFocusRef.current;
-      confirmPrevFocusRef.current = null;
-      if (el && typeof el.focus === "function" && el.isConnected !== false) {
-        try {
-          el.focus({ preventScroll: true });
-        } catch {
-          try {
-            el.focus();
-          } catch {}
-        }
-      }
-    }, 0);
+    restoreFocusRefNextTick(confirmPrevFocusRef, {
+      focusWindow: true,
+      preventScroll: true,
+    });
   }, []);
 
   const requestConfirm = useCallback((message) => {
@@ -38,12 +30,7 @@ function usePromiseConfirmDialog() {
           confirmResolveRef.current(false);
         } catch {}
       }
-      const activeEl =
-        typeof document !== "undefined" && document?.activeElement
-          ? document.activeElement
-          : null;
-      confirmPrevFocusRef.current =
-        activeEl && typeof activeEl.focus === "function" ? activeEl : null;
+      confirmPrevFocusRef.current = captureActiveFocusableElement();
       confirmResolveRef.current = resolve;
       setConfirmDialog({ open: true, message: msg });
     });
@@ -65,9 +52,7 @@ function usePromiseConfirmDialog() {
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
-    const timer = setTimeout(() => {
-      confirmOkBtnRef.current?.focus?.();
-    }, 0);
+    const timer = focusRefNextTick(confirmOkBtnRef);
     return () => {
       clearTimeout(timer);
       window.removeEventListener("keydown", onKeyDown, true);
@@ -94,4 +79,3 @@ function usePromiseConfirmDialog() {
 }
 
 export { usePromiseConfirmDialog };
-export default usePromiseConfirmDialog;

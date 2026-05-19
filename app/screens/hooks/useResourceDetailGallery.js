@@ -68,5 +68,3 @@ export function useResourceDetailGallery({
     stepHero,
   };
 }
-
-export default useResourceDetailGallery;

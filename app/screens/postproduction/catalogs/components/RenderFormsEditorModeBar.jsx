@@ -1,5 +1,15 @@
 import { safeT } from "../../shared/helpers";
 
+const FORMS_EDITOR_MODE_BAR_LAYOUT_STYLE = {
+  justifyContent: "space-between",
+  gap: "10px",
+  flexWrap: "wrap",
+};
+const FORMS_EDITOR_MODE_BAR_LEFT_STYLE = { display: "flex", alignItems: "center", minHeight: 32 };
+const FORMS_EDITOR_MODE_BAR_BLOCKED_STYLE = { opacity: 0.45, cursor: "not-allowed" };
+const FORMS_EDITOR_MODE_BAR_RIGHT_STYLE = { gap: "8px", alignItems: "center", flexWrap: "wrap" };
+const FORMS_EDITOR_MODE_BAR_GROUP_STYLE = { gap: "8px" };
+
 function RenderFormsEditorModeBar({
   t,
   mode = "edit",
@@ -13,19 +23,12 @@ function RenderFormsEditorModeBar({
 }) {
   return (
     <div className="uu-card">
-      <div
-        className="uu-row"
-        style={{
-          justifyContent: "space-between",
-          gap: "10px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", minHeight: 32 }}>
+      <div className="uu-row" style={FORMS_EDITOR_MODE_BAR_LAYOUT_STYLE}>
+        <div style={FORMS_EDITOR_MODE_BAR_LEFT_STYLE}>
           {selectedForm ? (
             <label
               className="uu-check"
-              style={isAvailabilityBlocked ? { opacity: 0.45, cursor: "not-allowed" } : undefined}
+              style={isAvailabilityBlocked ? FORMS_EDITOR_MODE_BAR_BLOCKED_STYLE : undefined}
             >
               <input
                 type="checkbox"
@@ -42,8 +45,8 @@ function RenderFormsEditorModeBar({
             </label>
           ) : null}
         </div>
-        <div className="uu-row" style={{ gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-          <div className="uu-row" role="group" aria-label={safeT(t, "postprod.data.forms.mode", "Mode formulaire")} style={{ gap: "8px" }}>
+        <div className="uu-row" style={FORMS_EDITOR_MODE_BAR_RIGHT_STYLE}>
+          <div className="uu-row" role="group" aria-label={safeT(t, "postprod.data.forms.mode", "Mode formulaire")} style={FORMS_EDITOR_MODE_BAR_GROUP_STYLE}>
             <button
               type="button"
               className={`uu-btn ${mode === "edit" ? "prod-toggle-active" : ""}`}

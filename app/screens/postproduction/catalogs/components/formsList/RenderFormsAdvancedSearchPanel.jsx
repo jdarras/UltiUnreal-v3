@@ -21,6 +21,9 @@ function buildSimplifiedOpts(forms, getValues) {
 const DROPDOWN_STYLE = { flex: "none", minWidth: 0, width: "100%" };
 const FIELD_GRID = { display: "grid", gridTemplateColumns: "150px 1fr", gap: "8px", alignItems: "center" };
 const LABEL_STYLE = {};
+const ADVANCED_SEARCH_PANEL_STYLE = { marginBottom: "12px" };
+const ADVANCED_SEARCH_COLUMNS_STYLE = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", alignItems: "start" };
+const ADVANCED_SEARCH_SELECT_STYLE = { width: "100%", height: "36px" };
 
 function RenderFormsAdvancedSearchPanel({
   t,
@@ -52,7 +55,7 @@ function RenderFormsAdvancedSearchPanel({
   const wrcOpts = useMemo(() => buildSimplifiedOpts(visibleForms, (f) => Array.isArray(f?.wrcFiles) ? f.wrcFiles : []), [visibleForms]);
 
   return (
-    <div className="uu-col uu-gap-12" style={{ marginBottom: "12px" }}>
+    <div className="uu-col uu-gap-12" style={ADVANCED_SEARCH_PANEL_STYLE}>
       <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
         <strong className="uu-block-title">
           {safeT(t, "postprod.data.forms.search.advancedTitle", "Résultats de recherche")}
@@ -60,11 +63,11 @@ function RenderFormsAdvancedSearchPanel({
         <div className="uu-muted">
           {sortedForms.length
             ? `(${sortedForms.length} ${safeT(t, "postprod.data.forms.search.resultsLabel", "résultats")})`
-            : ""}
+          : ""}
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", alignItems: "start" }}>
+      <div style={ADVANCED_SEARCH_COLUMNS_STYLE}>
         {/* Colonne gauche */}
         <div style={FIELD_GRID}>
           <label className="uu-label" style={LABEL_STYLE}>
@@ -108,7 +111,7 @@ function RenderFormsAdvancedSearchPanel({
           </label>
           <select
             className="uu-select"
-            style={{ width: "100%", height: "36px" }}
+            style={ADVANCED_SEARCH_SELECT_STYLE}
             value={String(formsSearchAdvanced?.active || "all")}
             onChange={(e) => onFormsSearchAdvancedChange?.({ active: String(e.target.value || "all") })}
           >

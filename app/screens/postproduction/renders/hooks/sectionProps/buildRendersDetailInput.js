@@ -45,5 +45,3 @@ export function buildRendersDetailInput({
     detailTransitions,
   };
 }
-
-export default buildRendersDetailInput;

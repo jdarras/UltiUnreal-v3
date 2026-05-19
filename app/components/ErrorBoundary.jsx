@@ -1,6 +1,5 @@
 import React from "react";
-import { createT } from "../i18n";
-import { readIdentity } from "../utils/identity";
+import { getComponentT } from "./componentTranslator";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -15,10 +14,11 @@ class ErrorBoundary extends React.Component {
   }
   render() {
     if (this.state.error) {
+      const t = getComponentT();
       return (
         <div className="uu-error">
           <h2 className="uu-error-title">
-            {createT(String((readIdentity()?.lang || 'fr')).trim())('errorBoundary.title')}
+            {t('errorBoundary.title')}
           </h2>
           <pre className="uu-error-pre">
             {String(
@@ -28,7 +28,7 @@ class ErrorBoundary extends React.Component {
           {this.state.info?.componentStack && (
             <details className="uu-error-details" open>
               <summary>
-                {createT(String((readIdentity()?.lang || 'fr')).trim())('errorBoundary.stackSummary')}
+                {t('errorBoundary.stackSummary')}
               </summary>
               <pre className="uu-error-pre">
                 {this.state.info.componentStack}

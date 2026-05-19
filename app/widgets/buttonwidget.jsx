@@ -2,14 +2,12 @@
 import React from "react";
 import "./buttonwidget.css";
 import { getCompanionBaseUrl } from "../utils/agent";
-import { readIdentity } from "../utils/identity";
-import { createT } from "../i18n";
 import { ColorWheelPopover } from "./colorwidget.jsx";
+import { getColorPickLabel } from "./widgetI18n.js";
+import { getWidgetT } from "./widgetTranslator.js";
 
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
+function buildButtonWidgetBackgroundStyle(background) {
+  return { background };
 }
 
 function clampByte(value) {
@@ -135,7 +133,8 @@ export default function ButtonWidget({
   rightSlot,
   editMode
 }) {
-  const t = getT();
+  const t = getWidgetT();
+  const colorPickLabel = getColorPickLabel(t);
   const buttonText = (label || '').trim() || t('production.widgets.buttonLabel');
   const [argColorPicker, setArgColorPicker] = React.useState({
     open: false,
@@ -480,7 +479,7 @@ export default function ButtonWidget({
                   <button
                     type="button"
                     className="uu-color-swatch uu-button-widget-arg-color-swatch"
-                    style={{ background: activeHex }}
+                    style={buildButtonWidgetBackgroundStyle(activeHex)}
                     onClick={() =>
                       setArgColorPicker({
                         open: true,
@@ -490,7 +489,7 @@ export default function ButtonWidget({
                         useByteScale: uiState.useByteScale,
                       })
                     }
-                    title={t('widgets.color.pick') || 'Choisir une couleur'}
+                    title={colorPickLabel}
                   />
                   <span className="uu-muted">{t('widgets.common.alpha')}</span>
                   <input
@@ -697,7 +696,7 @@ export default function ButtonWidget({
 export function ButtonEditorLeft({ selected, updateSelected, layoutId = '' }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
 
   const buttonColor =
     selected.ui?.buttonColor ||
@@ -821,7 +820,7 @@ export function ButtonEditorLeft({ selected, updateSelected, layoutId = '' }) {
 export function ButtonLabelEditor({ selected, updateSelected }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
 
   return (
     <div className="uu-row">
@@ -841,3 +840,4 @@ export function ButtonLabelEditor({ selected, updateSelected }) {
     </div>
   );
 }
+

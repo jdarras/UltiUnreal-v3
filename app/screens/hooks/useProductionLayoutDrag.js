@@ -217,4 +217,3 @@ function useProductionLayoutDrag({
 }
 
 export { useProductionLayoutDrag };
-export default useProductionLayoutDrag;

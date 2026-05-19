@@ -1,6 +1,36 @@
 import { useEffect, useState } from "react";
 import { safeT } from "../../../shared/helpers";
 
+const RENDERS_LIST_ROW_CLICKABLE_STYLE = { cursor: "pointer" };
+const RENDERS_LIST_FILE_ROW_STYLE = { display: "flex", alignItems: "baseline", gap: "8px" };
+const RENDERS_LIST_FILE_NAME_STYLE = { fontWeight: 600, overflowWrap: "anywhere", minWidth: 0 };
+const RENDERS_LIST_ID_BADGE_STYLE = { whiteSpace: "nowrap", opacity: 0.4, fontSize: "0.85em", flexShrink: 0 };
+const RENDERS_LIST_CELL_WRAP_STYLE = { overflowWrap: "anywhere" };
+const RENDERS_LIST_TASK_ROW_STYLE = { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" };
+const RENDERS_LIST_TASK_LINK_BASE_STYLE = { color: "#fff", overflowWrap: "anywhere" };
+const RENDERS_LIST_TASK_LINK_CLICKABLE_STYLE = { color: "#fff", overflowWrap: "anywhere", cursor: "pointer" };
+const RENDERS_LIST_TASK_ID_STYLE = { whiteSpace: "nowrap", opacity: 0.4 };
+const RENDERS_LIST_STATION_STYLE = { overflowWrap: "anywhere", fontWeight: 600 };
+const RENDERS_LIST_REVIEW_SELECT_STYLE = { width: "75%" };
+const RENDERS_LIST_ACTIONS_CELL_STYLE = { textAlign: "right" };
+const RENDERS_LIST_ACTIONS_ROW_STYLE = {
+  gap: "6px",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  flexWrap: "nowrap",
+  width: "100%",
+};
+const RENDERS_LIST_ACTION_BUTTON_FULL_STYLE = { width: "100%" };
+const RENDERS_LIST_DELETE_BUTTON_STYLE = {
+  width: "32px",
+  minWidth: "32px",
+  height: "32px",
+  padding: "0",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
 function firstNonEmptyString(values = []) {
   for (const value of Array.isArray(values) ? values : []) {
     const normalized = String(value || "").trim();
@@ -106,7 +136,7 @@ function RendersListTableRow({
   return (
     <tr
       className="uu-render-item-clickable"
-      style={{ cursor: "pointer" }}
+      style={RENDERS_LIST_ROW_CLICKABLE_STYLE}
       onClick={() => onOpenRenderDetail?.(render)}
     >
       <td>
@@ -129,44 +159,40 @@ function RendersListTableRow({
         )}
       </td>
       <td>
-        <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
-          <div style={{ fontWeight: 600, overflowWrap: "anywhere", minWidth: 0 }}>
+        <div style={RENDERS_LIST_FILE_ROW_STYLE}>
+          <div style={RENDERS_LIST_FILE_NAME_STYLE}>
             {typeof renderOutputFilename === "function" ? renderOutputFilename(render) : "-"}
           </div>
           {renderIdLabel ? (
-            <span style={{ whiteSpace: "nowrap", opacity: 0.4, fontSize: "0.85em", flexShrink: 0 }}>
+            <span style={RENDERS_LIST_ID_BADGE_STYLE}>
               {renderIdLabel}
             </span>
           ) : null}
         </div>
       </td>
-      <td style={{ overflowWrap: "anywhere" }}>
+      <td style={RENDERS_LIST_CELL_WRAP_STYLE}>
         {linkedTaskId > 0 ? (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+          <div style={RENDERS_LIST_TASK_ROW_STYLE}>
             {linkedTaskLabel ? (
               <span
                 onClick={canOpenTaskLink ? handleOpenTask : undefined}
-                style={{
-                  color: "#fff",
-                  overflowWrap: "anywhere",
-                  ...(canOpenTaskLink ? { cursor: "pointer" } : {}),
-                }}
+                style={canOpenTaskLink ? RENDERS_LIST_TASK_LINK_CLICKABLE_STYLE : RENDERS_LIST_TASK_LINK_BASE_STYLE}
               >
                 {linkedTaskLabel}
               </span>
             ) : null}
-            <span style={{ whiteSpace: "nowrap", opacity: 0.4 }}>{linkedTaskIdText}</span>
+            <span style={RENDERS_LIST_TASK_ID_STYLE}>{linkedTaskIdText}</span>
           </div>
         ) : (
           linkedTaskTitle || linkedTaskFallback || "-"
         )}
       </td>
-      <td style={{ overflowWrap: "anywhere" }}>{String(render?.requestedByUsername || "-")}</td>
-      <td style={{ overflowWrap: "anywhere", fontWeight: 600 }}>{stationName || "-"}</td>
+      <td style={RENDERS_LIST_CELL_WRAP_STYLE}>{String(render?.requestedByUsername || "-")}</td>
+      <td style={RENDERS_LIST_STATION_STYLE}>{stationName || "-"}</td>
       <td onClick={(e) => e.stopPropagation()}>
         <select
           className={`uu-input uu-status-select ${reviewStatusClassName(reviewStatus)}`}
-          style={{ width: "75%" }}
+          style={RENDERS_LIST_REVIEW_SELECT_STYLE}
           value={reviewStatus}
           disabled={rendersLoading || isBusy || !onTransitionRender || !canReviewRenders}
           onChange={async (e) => {
@@ -182,13 +208,13 @@ function RendersListTableRow({
           ))}
         </select>
       </td>
-      <td onClick={(e) => e.stopPropagation()} style={{ textAlign: "right" }}>
-        <div className="uu-row" style={{ gap: "6px", alignItems: "center", justifyContent: "flex-end", flexWrap: "nowrap", width: "100%" }}>
+      <td onClick={(e) => e.stopPropagation()} style={RENDERS_LIST_ACTIONS_CELL_STYLE}>
+        <div className="uu-row" style={RENDERS_LIST_ACTIONS_ROW_STYLE}>
           <span style={actionSlotStyle}>
             <button
               className="uu-btn-ghost"
               type="button"
-              style={{ width: "100%" }}
+              style={RENDERS_LIST_ACTION_BUTTON_FULL_STYLE}
               onClick={() => onOpenRenderDetail?.(render)}
             >
               {safeT(t, "postprod.renders.detail.view", "Voir")}
@@ -201,15 +227,7 @@ function RendersListTableRow({
             onClick={handleDeleteRender}
             title={safeT(t, "postprod.renders.delete.button", "Supprimer")}
             aria-label={safeT(t, "postprod.renders.delete.button", "Supprimer")}
-            style={{
-              width: "32px",
-              minWidth: "32px",
-              height: "32px",
-              padding: "0",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            style={RENDERS_LIST_DELETE_BUTTON_STYLE}
           >
             {"X"}
           </button>
@@ -220,4 +238,3 @@ function RendersListTableRow({
 }
 
 export { RendersListTableRow };
-export default RendersListTableRow;

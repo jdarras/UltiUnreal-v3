@@ -2,6 +2,14 @@ import DateTimeConfirmPicker from "../../../../../components/DateTimeConfirmPick
 import { safeT } from "../../../shared/helpers";
 import { normalizeActivityProjectRef } from "../../userSharedHelpers";
 
+const USER_ACTIVITY_FILTERS_ROW_STYLE = { gap: "8px", flexWrap: "wrap" };
+const USER_ACTIVITY_FILTER_COL_DATE_STYLE = { minWidth: "200px" };
+const USER_ACTIVITY_FILTER_COL_ACTION_STYLE = { minWidth: "180px" };
+const USER_ACTIVITY_FILTER_COL_PROJECT_STYLE = { minWidth: "220px", flex: 1 };
+const USER_ACTIVITY_FILTER_COL_SEARCH_STYLE = { minWidth: "240px", flex: 1 };
+const USER_ACTIVITY_FILTER_COL_ACTIONS_STYLE = { minWidth: "140px", marginLeft: "auto" };
+const USER_ACTIVITY_FILTER_HIDDEN_LABEL_STYLE = { visibility: "hidden" };
+
 function UserActivityFilters({
   t,
   disabled = false,
@@ -21,8 +29,8 @@ function UserActivityFilters({
   onClearFilters,
 }) {
   return (
-    <div className="uu-row mt-8" style={{ gap: "8px", flexWrap: "wrap" }}>
-      <div className="uu-col" style={{ minWidth: "200px" }}>
+    <div className="uu-row mt-8" style={USER_ACTIVITY_FILTERS_ROW_STYLE}>
+      <div className="uu-col" style={USER_ACTIVITY_FILTER_COL_DATE_STYLE}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.fromAt", "Du")}</label>
         <DateTimeConfirmPicker
           value={activityFromAtLocal}
@@ -34,7 +42,7 @@ function UserActivityFilters({
           clearLabel={safeT(t, "common.datePicker.clear", "Effacer")}
         />
       </div>
-      <div className="uu-col" style={{ minWidth: "200px" }}>
+      <div className="uu-col" style={USER_ACTIVITY_FILTER_COL_DATE_STYLE}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.toAt", "Au")}</label>
         <DateTimeConfirmPicker
           value={activityToAtLocal}
@@ -46,7 +54,7 @@ function UserActivityFilters({
           clearLabel={safeT(t, "common.datePicker.clear", "Effacer")}
         />
       </div>
-      <div className="uu-col" style={{ minWidth: "180px" }}>
+      <div className="uu-col" style={USER_ACTIVITY_FILTER_COL_ACTION_STYLE}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.actionType", "Type d'action")}</label>
         <select
           className="uu-input"
@@ -61,7 +69,7 @@ function UserActivityFilters({
           <option value="validation">{safeT(t, "postprod.users.activity.filter.actionType.validation", "Validation")}</option>
         </select>
       </div>
-      <div className="uu-col" style={{ minWidth: "220px", flex: 1 }}>
+      <div className="uu-col" style={USER_ACTIVITY_FILTER_COL_PROJECT_STYLE}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.project", "Projet")}</label>
         <select
           className="uu-input"
@@ -97,7 +105,7 @@ function UserActivityFilters({
           })}
         </select>
       </div>
-      <div className="uu-col" style={{ minWidth: "240px", flex: 1 }}>
+      <div className="uu-col" style={USER_ACTIVITY_FILTER_COL_SEARCH_STYLE}>
         <label className="uu-label">{safeT(t, "postprod.users.activity.filter.search", "Recherche locale")}</label>
         <input
           className="uu-input"
@@ -112,8 +120,8 @@ function UserActivityFilters({
           )}
         />
       </div>
-      <div className="uu-col" style={{ minWidth: "140px", marginLeft: "auto" }}>
-        <label className="uu-label" style={{ visibility: "hidden" }}>
+      <div className="uu-col" style={USER_ACTIVITY_FILTER_COL_ACTIONS_STYLE}>
+        <label className="uu-label" style={USER_ACTIVITY_FILTER_HIDDEN_LABEL_STYLE}>
           _
         </label>
         <button

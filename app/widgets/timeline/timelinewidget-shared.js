@@ -1,5 +1,6 @@
-import { readIdentity } from '../../utils/identity';
-import { createT } from '../../i18n';
+import { readIdentity } from '../../utils/identity.js';
+import { createT } from '../../i18n/index.js';
+import { getTimelineLabel, getWidgetLabel } from './timelineWidgetLabels.js';
 
 export function getT() {
   const id = readIdentity() || {};
@@ -28,14 +29,4 @@ export function formatInputNumber(value, kind = 'float') {
   return num.toFixed(2).replace('.', ',');
 }
 
-export function getWidgetLabel(widget) {
-  if (!widget) return 'Widget manquant';
-  const label = String(widget.label || '').trim();
-  if (label) return label;
-  return String(widget.type || 'Widget');
-}
-
-export function getTimelineLabel(widget) {
-  const label = String(widget?.label || '').trim();
-  return label || 'Timeline';
-}
+export { getWidgetLabel, getTimelineLabel };

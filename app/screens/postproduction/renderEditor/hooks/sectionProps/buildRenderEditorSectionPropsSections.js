@@ -11,5 +11,3 @@ export function buildRenderEditorSectionPropsSections(input = {}) {
     deleteDialogInput: buildRenderEditorDeleteDialogInput(input),
   };
 }
-
-export default buildRenderEditorSectionPropsSections;

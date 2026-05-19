@@ -1,3 +1,5 @@
+const HTTP_BIND_INPUT_STYLE = { minWidth: '180px', flex: '0 1 240px' };
+
 export default function HttpBindBlock({
   t,
   visible,
@@ -25,7 +27,7 @@ export default function HttpBindBlock({
             <>
               <input
                 className="uu-input"
-                style={{ minWidth: '180px', flex: '0 1 240px' }}
+                style={HTTP_BIND_INPUT_STYLE}
                 value={httpBindDraft}
                 placeholder="0.0.0.0"
                 onChange={(e) => {

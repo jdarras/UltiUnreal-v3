@@ -212,5 +212,3 @@ export function useRenderFormFieldsController({
     resetEditorDraftForCreate,
   };
 }
-
-export default useRenderFormFieldsController;

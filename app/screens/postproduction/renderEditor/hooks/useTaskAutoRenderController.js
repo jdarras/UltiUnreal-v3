@@ -222,5 +222,3 @@ export function useTaskAutoRenderController({
     hydrateAutoRenderFromTask,
   });
 }
-
-export default useTaskAutoRenderController;

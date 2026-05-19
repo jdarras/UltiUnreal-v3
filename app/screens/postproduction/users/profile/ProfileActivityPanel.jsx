@@ -2,6 +2,8 @@ import { safeT } from "../../shared/helpers";
 import { ProfileActivityFiltersRow } from "./components/ProfileActivityFiltersRow";
 import { ProfileActivitySummaryPanel } from "./components/ProfileActivitySummaryPanel";
 
+const PROFILE_ACTIVITY_HEADER_STYLE = { justifyContent: "space-between" };
+
 function ProfileActivityPanel({
   t,
   saving = false,
@@ -29,7 +31,7 @@ function ProfileActivityPanel({
 }) {
   return (
     <div className="mt-12">
-      <div className="uu-row uu-align-center" style={{ justifyContent: "space-between" }}>
+      <div className="uu-row uu-align-center" style={PROFILE_ACTIVITY_HEADER_STYLE}>
         <h4 className="uu-h3 uu-block-title">
           {safeT(t, "postprod.profile.activity.title", "Mon activite recente")}
         </h4>

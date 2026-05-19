@@ -358,12 +358,6 @@ export async function __requestAbsoluteJson(url, {
   }
 }
 
-export function __joinBaseAndPath(base, path) {
-  const baseStr = String(base || '').replace(/\/+$/g, '');
-  const p = String(path || '').startsWith('/') ? String(path) : `/${String(path || '')}`;
-  return `${baseStr}${p}`;
-}
-
 export function __parseAgentError(res) {
   let data = res?.data || null;
   if (!data && typeof res?.text === 'string' && res.text) {

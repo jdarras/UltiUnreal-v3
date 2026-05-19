@@ -1,3 +1,5 @@
+export { safeT } from "../../../utils/i18nSafe";
+
 const TAB_TO_NAV_KEY = {
   Dashboard: "users",
   Utilisateurs: "users",
@@ -11,13 +13,6 @@ const TAB_TO_NAV_KEY = {
   Profils: "profiles",
 };
 
-export function safeT(t, key, fallback, params) {
-  if (typeof t !== "function") return fallback;
-  const value = t(key, params);
-  if (!value || value === key) return fallback;
-  return value;
-}
-
 export function resolveTitle(tabKey, t) {
   const key = TAB_TO_NAV_KEY[tabKey] || "users";
   if (typeof t === "function") {
@@ -30,85 +25,6 @@ export function resolveTitle(tabKey, t) {
 export function canEditRenderReviewStatus(user) {
   if (!user) return false;
   return user?.permissions?.canValidate === true;
-}
-
-export function canManageRenderDispatchPolicy(user) {
-  if (!user || typeof user !== "object") return false;
-  return user?.permissions?.canManageProjectPermissions === true;
-}
-
-export function clampInteger(value, fallback, min, max) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(n)));
-}
-
-export function normalizeDispatchProjectRuleMap(value) {
-  const out = {};
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    for (const [projectNameRaw, ruleValueRaw] of Object.entries(value)) {
-      const projectName = String(projectNameRaw || "").trim();
-      if (!projectName) continue;
-      const ruleValue = Number(ruleValueRaw);
-      if (!Number.isFinite(ruleValue)) continue;
-      out[projectName] = Math.trunc(ruleValue);
-    }
-  }
-  return out;
-}
-
-function stringifyDispatchProjectRuleMap(value) {
-  const normalized = normalizeDispatchProjectRuleMap(value);
-  return Object.entries(normalized)
-    .sort((a, b) => String(a[0] || "").localeCompare(String(b[0] || ""), undefined, { sensitivity: "base" }))
-    .map(([projectName, ruleValue]) => `${projectName}=${ruleValue}`)
-    .join("\n");
-}
-
-export function parseDispatchProjectRulesText(rawText) {
-  const map = {};
-  const invalidLines = [];
-  const lines = String(rawText || "").split(/\r?\n/g);
-  for (const line of lines) {
-    const trimmed = String(line || "").trim();
-    if (!trimmed) continue;
-    const separatorIndex = trimmed.indexOf("=");
-    if (separatorIndex <= 0) {
-      invalidLines.push(trimmed);
-      continue;
-    }
-    const projectName = String(trimmed.slice(0, separatorIndex) || "").trim();
-    const rawValue = String(trimmed.slice(separatorIndex + 1) || "").trim();
-    const value = Number(rawValue);
-    if (!projectName || !Number.isFinite(value)) {
-      invalidLines.push(trimmed);
-      continue;
-    }
-    map[projectName] = Math.trunc(value);
-  }
-  return { map, invalidLines };
-}
-
-export function buildDispatchPolicyFormFromPayload(payload) {
-  const source = payload && typeof payload === "object" && !Array.isArray(payload)
-    ? payload
-    : {};
-  const projectPriorities = normalizeDispatchProjectRuleMap(source.projectPriorities);
-  const projectQuotas = normalizeDispatchProjectRuleMap(source.projectQuotas);
-  const maxJobs = clampInteger(source.maxJobs, 5, 1, 50);
-  const defaultPriority = clampInteger(source.defaultPriority, 100, 1, 1000);
-  const defaultQuotaRaw = source.defaultQuota;
-  const defaultQuota = defaultQuotaRaw == null || String(defaultQuotaRaw).trim() === ""
-    ? ""
-    : String(clampInteger(defaultQuotaRaw, 0, 0, 500));
-
-  return {
-    maxJobs: String(maxJobs),
-    defaultPriority: String(defaultPriority),
-    defaultQuota,
-    projectPrioritiesText: stringifyDispatchProjectRuleMap(projectPriorities),
-    projectQuotasText: stringifyDispatchProjectRuleMap(projectQuotas),
-  };
 }
 
 const ACTIVITY_ACTION_LABELS = {
@@ -205,20 +121,6 @@ export function activityActionLabel(entry) {
   if (patternLabel) return patternLabel;
   const value = raw.replace(/_/g, " ");
   return sentenceCase(value);
-}
-
-export function toDateTimeLocalValue(iso) {
-  const raw = String(iso || "").trim();
-  if (!raw) return "";
-  const d = new Date(raw);
-  if (!Number.isFinite(d.getTime())) return "";
-  const pad = (n) => String(n).padStart(2, "0");
-  const year = d.getFullYear();
-  const month = pad(d.getMonth() + 1);
-  const day = pad(d.getDate());
-  const hours = pad(d.getHours());
-  const minutes = pad(d.getMinutes());
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 export function fromDateTimeLocalToIso(value) {

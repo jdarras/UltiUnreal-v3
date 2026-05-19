@@ -42,5 +42,3 @@ export function filterRenderQueueTasks({
     return haystack.includes(query);
   });
 }
-
-export default filterRenderQueueTasks;

@@ -8,6 +8,8 @@ import { RenderFormsFieldsEditorCard } from "../RenderFormsFieldsEditorCard";
 import { RenderFormsLivePreviewCard } from "../RenderFormsLivePreviewCard";
 import { RenderFormsMetaCard } from "../RenderFormsMetaCard";
 
+const FORMS_EDITOR_NOTE_INPUT_STYLE = { resize: "vertical", width: "100%" };
+
 function RenderFormsEditorView({
   t,
   selectedProjectRef = "",
@@ -213,7 +215,7 @@ function RenderFormsEditorView({
               <textarea
                 className="uu-input"
                 rows={10}
-                style={{ resize: "vertical", width: "100%" }}
+                style={FORMS_EDITOR_NOTE_INPUT_STYLE}
                 value={metaNote}
                 onChange={(e) => setMetaNote?.(e.target.value)}
                 onBlur={(e) => {

@@ -11,5 +11,3 @@ export function buildRendersSectionPropsSections(input = {}) {
     detailInput: buildRendersDetailInput(input),
   };
 }
-
-export default buildRendersSectionPropsSections;

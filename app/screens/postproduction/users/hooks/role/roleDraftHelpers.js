@@ -1,4 +1,4 @@
-export const DEFAULT_ROLE_DRAFT = Object.freeze({
+const DEFAULT_ROLE_DRAFT = Object.freeze({
   key: "",
   displayName: "",
   note: "",
@@ -101,11 +101,3 @@ export function computeRoleUsersKey({
   if (isCreate) return String(draft?.key || draft?.displayName || "").replace(/\s+/g, " ").trim();
   return String(editingRoleKey || "").trim();
 }
-
-export default {
-  DEFAULT_ROLE_DRAFT,
-  createEmptyRoleDraft,
-  buildRoleDraftFromRole,
-  buildRolePayloadFromDraft,
-  computeRoleUsersKey,
-};

@@ -102,26 +102,7 @@ export function applyFavoritesToProjects(list = [], favoritesMap = {}) {
 
 export function normalizeProjectsPayload(parsed) {
   const list = Array.isArray(parsed?.projects)
-    ? parsed.projects.map((x) => ({
-        id: String(x.id || '').trim(),
-        name: String(x.name || ''),
-        uproject: normPath(x.uproject || x.projectPath || ''),
-        wrcNames: Array.isArray(x.wrcNames) ? x.wrcNames : (x.wrcName ? [String(x.wrcName)] : []),
-        note: String(x.note || ''),
-        createdAt: String(x.createdAt || ''),
-        lastModified: String(x.lastModified || ''),
-        thumbnail: normalizeThumbnailPath(x.thumbnail || x.thumbnailPath || ''),
-        engineVersion: String(x.engineVersion || ''),
-        metaStatus: String(x.metaStatus || ''),
-        metaType: String(x.metaType || ''),
-        metaUsageMode: String(x.metaUsageMode || ''),
-        metaCategory: String(x.metaCategory || ''),
-        metaFileVersion: x.metaFileVersion ?? '',
-        metaReferents: (x.metaReferents && typeof x.metaReferents === 'object') ? x.metaReferents : {},
-        metaKeywords: Array.isArray(x.metaKeywords) ? x.metaKeywords : [],
-        maps: (x.maps && typeof x.maps === 'object') ? x.maps : {},
-        favorite: false,
-      }))
+    ? parsed.projects.map(normalizeProjectListItem)
     : [];
   return {
     list,
@@ -162,9 +143,6 @@ function useProjectsList({
   identity,
   canManageUnrealProjects,
   requestConfirm,
-  setHttpBindMsg,
-  setHttpBindMsgType,
-  httpBindMsg,
 }) {
   const favoritesUserScope = resolveFavoritesUserScope(identity);
   const favoritesFilterStorageKey = `${FAVORITE_STORAGE_KEY}:${favoritesUserScope}`;
@@ -189,6 +167,7 @@ function useProjectsList({
     try { return String(localStorage.getItem(LS_CLIENT_ASSOC) || ''); } catch { return ''; }
   });
   const [clientSyncEnabled, setClientSyncEnabled] = useState(false);
+  const [httpBindMsg, setHttpBindMsg] = useState('');
 
   const fullProjectsReloadAttemptedRef = useRef(false);
   const pendingDetailIdRef = useRef('');
@@ -353,10 +332,8 @@ function useProjectsList({
           ? t('projects.httpBind.iniMissing', { name: name || '—' })
           : t('projects.httpBind.updateError');
       setHttpBindMsg(msg);
-      setHttpBindMsgType('error');
     } else if (httpBindMsg) {
       setHttpBindMsg('');
-      setHttpBindMsgType('');
     }
 
     try {
@@ -371,7 +348,9 @@ function useProjectsList({
       setNextId(Number(fresh.nextId || 1));
     } catch {}
     return true;
-  }, [activeName, activeByHost, activeId, t, setHttpBindMsg, setHttpBindMsgType, httpBindMsg]);
+  }, [activeName, activeByHost, activeId, t, httpBindMsg]);
+
+  const httpBindMsgType = httpBindMsg ? 'error' : '';
 
   const removeOne = useCallback(async (projectKey) => {
     if (!canManageUnrealProjects) return;
@@ -505,6 +484,8 @@ function useProjectsList({
     clientActiveId,
     clientAssocPath,
     clientSyncEnabled,
+    httpBindMsg,
+    httpBindMsgType,
     pendingDetailIdRef,
     pendingStartRef,
     saveToServer,
@@ -517,4 +498,3 @@ function useProjectsList({
 }
 
 export { useProjectsList };
-export default useProjectsList;

@@ -55,4 +55,3 @@ function useProductionWidgetListOps({
 }
 
 export { useProductionWidgetListOps };
-export default useProductionWidgetListOps;

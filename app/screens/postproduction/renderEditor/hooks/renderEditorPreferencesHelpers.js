@@ -4,6 +4,13 @@ import {
   readStorageJsonObject,
   readStorageString,
 } from "../../shared/storage";
+import { normalizeMultiFilterValues } from "../../shared/filterValues";
+import {
+  readEnumLowerStorage,
+  readEnumStorage,
+  readMultiFilterStorage,
+  serializeMultiFilterStorage,
+} from "../../shared/preferencesStorage";
 
 const STORAGE_KEYS = Object.freeze({
   view: "uu_postprod_tasks_view",
@@ -28,19 +35,7 @@ const LIST_SORT_KEY_SET = new Set([
   "renderWorker",
   "updatedAt",
 ]);
-
-function normalizeMultiFilterValues(value = []) {
-  const source = Array.isArray(value) ? value : [value];
-  const seen = new Set();
-  const out = [];
-  for (const entry of source) {
-    const normalized = String(entry || "").trim().toLowerCase();
-    if (!normalized || normalized === "all" || seen.has(normalized)) continue;
-    seen.add(normalized);
-    out.push(normalized);
-  }
-  return out;
-}
+const SORT_DIR_SET = new Set(["asc", "desc"]);
 
 function getInitialViewMode() {
   const raw = readStorageString(STORAGE_KEYS.view).trim().toLowerCase();
@@ -53,15 +48,11 @@ function getInitialShowHistory() {
 }
 
 function getInitialListSortKey() {
-  const raw = readStorageString(STORAGE_KEYS.listSortKey).trim();
-  if (LIST_SORT_KEY_SET.has(raw)) return raw;
-  return "updatedAt";
+  return readEnumStorage(STORAGE_KEYS.listSortKey, LIST_SORT_KEY_SET, "updatedAt");
 }
 
 function getInitialListSortDir() {
-  const raw = readStorageString(STORAGE_KEYS.listSortDir).trim().toLowerCase();
-  if (raw === "asc" || raw === "desc") return raw;
-  return "desc";
+  return readEnumLowerStorage(STORAGE_KEYS.listSortDir, SORT_DIR_SET, "desc");
 }
 
 function getInitialSearchQuery() {
@@ -106,43 +97,19 @@ function getInitialListStatusFilter(taskStatusFlow = []) {
 }
 
 function getInitialListRenderWorkerFilter() {
-  const raw = readStorageString(STORAGE_KEYS.filterRenderWorker).trim();
-  if (!raw || raw.toLowerCase() === "all") return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return normalizeMultiFilterValues(Array.isArray(parsed) ? parsed : []);
-  } catch {}
-  return normalizeMultiFilterValues([raw]);
+  return readMultiFilterStorage(STORAGE_KEYS.filterRenderWorker);
 }
 
 function getInitialProjectFilter() {
-  const raw = readStorageString(STORAGE_KEYS.filterProject).trim();
-  if (!raw || raw.toLowerCase() === "all") return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return normalizeMultiFilterValues(Array.isArray(parsed) ? parsed : []);
-  } catch {}
-  return normalizeMultiFilterValues([raw]);
+  return readMultiFilterStorage(STORAGE_KEYS.filterProject);
 }
 
 function getInitialFormFilter() {
-  const raw = readStorageString(STORAGE_KEYS.filterForm).trim();
-  if (!raw || raw.toLowerCase() === "all") return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return normalizeMultiFilterValues(Array.isArray(parsed) ? parsed : []);
-  } catch {}
-  return normalizeMultiFilterValues([raw]);
+  return readMultiFilterStorage(STORAGE_KEYS.filterForm);
 }
 
 function getInitialRenderModeFilter() {
-  const raw = readStorageString(STORAGE_KEYS.filterRenderMode).trim();
-  if (!raw || raw.toLowerCase() === "all") return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return normalizeMultiFilterValues(Array.isArray(parsed) ? parsed : []);
-  } catch {}
-  return normalizeMultiFilterValues([raw]);
+  return readMultiFilterStorage(STORAGE_KEYS.filterRenderMode);
 }
 
 function getInitialResourceFilter() {
@@ -171,16 +138,15 @@ function usePersistRenderEditorPreferences({
   useDebouncedLocalStorage(STORAGE_KEYS.favorites, JSON.stringify(taskFavorites || {}), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.listSortKey, String(listSortKey || "updatedAt"), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.listSortDir, String(listSortDir || "desc"), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.filterStatus, JSON.stringify(normalizeMultiFilterValues(listStatusFilter)), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.filterRenderWorker, JSON.stringify(normalizeMultiFilterValues(listRenderWorkerFilter)), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.filterProject, JSON.stringify(normalizeMultiFilterValues(listProjectFilter)), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.filterForm, JSON.stringify(normalizeMultiFilterValues(listFormFilter)), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.filterRenderMode, JSON.stringify(normalizeMultiFilterValues(listRenderModeFilter)), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.filterStatus, serializeMultiFilterStorage(listStatusFilter), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.filterRenderWorker, serializeMultiFilterStorage(listRenderWorkerFilter), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.filterProject, serializeMultiFilterStorage(listProjectFilter), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.filterForm, serializeMultiFilterStorage(listFormFilter), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.filterRenderMode, serializeMultiFilterStorage(listRenderModeFilter), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.filterResource, String(listResourceFilter || "all"), 180);
 }
 
 export {
-  STORAGE_KEYS,
   getInitialViewMode,
   getInitialShowHistory,
   getInitialListSortKey,
@@ -194,8 +160,5 @@ export {
   getInitialFormFilter,
   getInitialRenderModeFilter,
   getInitialResourceFilter,
-  normalizeMultiFilterValues,
   usePersistRenderEditorPreferences,
 };
-
-export default usePersistRenderEditorPreferences;

@@ -54,5 +54,3 @@ export function useRenderEditorCardAutoRenderData({
     buildTaskPayloadFromCurrentForm,
   });
 }
-
-export default useRenderEditorCardAutoRenderData;

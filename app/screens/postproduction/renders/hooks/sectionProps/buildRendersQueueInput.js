@@ -59,5 +59,3 @@ export function buildRendersQueueInput({
     openRenderDetail,
   };
 }
-
-export default buildRendersQueueInput;

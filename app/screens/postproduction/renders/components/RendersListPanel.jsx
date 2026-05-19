@@ -4,6 +4,15 @@ import { RenderFormsConfirmDialog } from "../../catalogs/components/RenderFormsC
 import { RendersListTableView } from "./list/RendersListTableView";
 import { RendersThumbsView } from "./list/RendersThumbsView";
 
+const RENDERS_LIST_HEADER_STYLE = {
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "8px",
+  flexWrap: "wrap",
+  marginBottom: "8px",
+};
+const RENDERS_LIST_TITLE_STYLE = { margin: 0 };
+
 function RendersListPanel({
   t,
   sortedDisplayedRenders = [],
@@ -90,8 +99,8 @@ function RendersListPanel({
         onConfirm={() => { void confirmDeleteRender(); }}
       />
       <div className="uu-card mt-12">
-        <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
-          <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
+        <div className="uu-row" style={RENDERS_LIST_HEADER_STYLE}>
+          <h4 className="uu-h3 uu-block-title" style={RENDERS_LIST_TITLE_STYLE}>
             {String(title || "").trim() || safeT(t, "postprod.renders.list.title", "Rendus à valider")}
           </h4>
         </div>

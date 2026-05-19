@@ -1,6 +1,10 @@
 import { safeT } from "../../shared/helpers";
 import { roleLabel } from "../roleHelpers";
 
+const IDENTITY_BLOCK_TITLE_STYLE = { margin: 0 };
+const IDENTITY_INLINE_FIELD_STYLE = { display: "flex", alignItems: "center", gap: "10px" };
+const IDENTITY_INPUT_FLEX_STYLE = { flex: 1 };
+
 function UserIdentityBlock({
   t,
   draft = {},
@@ -14,34 +18,36 @@ function UserIdentityBlock({
   if (currentRole && !effectiveRoleOptions.includes(currentRole)) {
     effectiveRoleOptions.push(currentRole);
   }
+  const updateDraftField = (fieldName) => (e) =>
+    setDraft((prev) => ({ ...(prev || {}), [fieldName]: e.target.value }));
 
   return (
     <div className="uu-card mt-12">
-      <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
+      <h3 className="uu-h3 uu-block-title" style={IDENTITY_BLOCK_TITLE_STYLE}>
         {safeT(t, "postprod.users.blocks.identity", "Informations utilisateur")}
       </h3>
       <div className="uu-grid-2 mt-8">
-        <div className="uu-grid-field" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+        <div className="uu-grid-field" style={IDENTITY_INLINE_FIELD_STYLE}>
+          <label className="uu-label uu-label-fixed-120">
             {safeT(t, "postprod.users.form.displayName", "Nom affiché")}
           </label>
           <input
             className="uu-input"
-            style={{ flex: 1 }}
+            style={IDENTITY_INPUT_FLEX_STYLE}
             type="text"
             value={String(draft?.displayName || "")}
-            onChange={(e) => setDraft((prev) => ({ ...(prev || {}), displayName: e.target.value }))}
+            onChange={updateDraftField("displayName")}
           />
         </div>
-        <div className="uu-grid-field" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+        <div className="uu-grid-field" style={IDENTITY_INLINE_FIELD_STYLE}>
+          <label className="uu-label uu-label-fixed-120">
             {safeT(t, "postprod.users.form.role", "Role")}
           </label>
           <select
             className="uu-input"
-            style={{ flex: 1 }}
+            style={IDENTITY_INPUT_FLEX_STYLE}
             value={currentRole}
-            onChange={(e) => setDraft((prev) => ({ ...(prev || {}), role: e.target.value }))}
+            onChange={updateDraftField("role")}
             disabled={effectiveRoleOptions.length === 0 || readOnlyFields}
           >
             {effectiveRoleOptions.map((roleName) => (
@@ -53,80 +59,80 @@ function UserIdentityBlock({
         </div>
       </div>
       <div className="uu-grid-2 mt-12">
-        <div className="uu-grid-field" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+        <div className="uu-grid-field" style={IDENTITY_INLINE_FIELD_STYLE}>
+          <label className="uu-label uu-label-fixed-120">
             {safeT(t, "postprod.users.form.firstName", "Prenom")}
           </label>
           <input
             className="uu-input"
-            style={{ flex: 1 }}
+            style={IDENTITY_INPUT_FLEX_STYLE}
             type="text"
             value={String(draft?.firstName || "")}
-            onChange={(e) => setDraft((prev) => ({ ...(prev || {}), firstName: e.target.value }))}
+            onChange={updateDraftField("firstName")}
           />
         </div>
-        <div className="uu-grid-field" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+        <div className="uu-grid-field" style={IDENTITY_INLINE_FIELD_STYLE}>
+          <label className="uu-label uu-label-fixed-120">
             {safeT(t, "postprod.users.form.lastName", "Nom")}
           </label>
           <input
             className="uu-input"
-            style={{ flex: 1 }}
+            style={IDENTITY_INPUT_FLEX_STYLE}
             type="text"
             value={String(draft?.lastName || "")}
-            onChange={(e) => setDraft((prev) => ({ ...(prev || {}), lastName: e.target.value }))}
+            onChange={updateDraftField("lastName")}
           />
         </div>
       </div>
       <div className="uu-grid-2 mt-12">
-        <div className="uu-grid-field" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+        <div className="uu-grid-field" style={IDENTITY_INLINE_FIELD_STYLE}>
+          <label className="uu-label uu-label-fixed-120">
             {safeT(t, "postprod.users.form.email1", "Email 1")}
           </label>
           <input
             className="uu-input"
-            style={{ flex: 1 }}
+            style={IDENTITY_INPUT_FLEX_STYLE}
             type="email"
             value={String(draft?.email || "")}
-            onChange={(e) => setDraft((prev) => ({ ...(prev || {}), email: e.target.value }))}
+            onChange={updateDraftField("email")}
           />
         </div>
-        <div className="uu-grid-field" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+        <div className="uu-grid-field" style={IDENTITY_INLINE_FIELD_STYLE}>
+          <label className="uu-label uu-label-fixed-120">
             {safeT(t, "postprod.users.form.email2", "Email 2")}
           </label>
           <input
             className="uu-input"
-            style={{ flex: 1 }}
+            style={IDENTITY_INPUT_FLEX_STYLE}
             type="email"
             value={String(draft?.email2 || "")}
-            onChange={(e) => setDraft((prev) => ({ ...(prev || {}), email2: e.target.value }))}
+            onChange={updateDraftField("email2")}
           />
         </div>
       </div>
       <div className="uu-grid-2 mt-12">
-        <div className="uu-grid-field" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+        <div className="uu-grid-field" style={IDENTITY_INLINE_FIELD_STYLE}>
+          <label className="uu-label uu-label-fixed-120">
             {safeT(t, "postprod.users.form.phone1", "Telephone 1")}
           </label>
           <input
             className="uu-input"
-            style={{ flex: 1 }}
+            style={IDENTITY_INPUT_FLEX_STYLE}
             type="text"
             value={String(draft?.phone || "")}
-            onChange={(e) => setDraft((prev) => ({ ...(prev || {}), phone: e.target.value }))}
+            onChange={updateDraftField("phone")}
           />
         </div>
-        <div className="uu-grid-field" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+        <div className="uu-grid-field" style={IDENTITY_INLINE_FIELD_STYLE}>
+          <label className="uu-label uu-label-fixed-120">
             {safeT(t, "postprod.users.form.phone2", "Telephone 2")}
           </label>
           <input
             className="uu-input"
-            style={{ flex: 1 }}
+            style={IDENTITY_INPUT_FLEX_STYLE}
             type="text"
             value={String(draft?.phone2 || "")}
-            onChange={(e) => setDraft((prev) => ({ ...(prev || {}), phone2: e.target.value }))}
+            onChange={updateDraftField("phone2")}
           />
         </div>
       </div>
@@ -136,7 +142,7 @@ function UserIdentityBlock({
           className="uu-input"
           rows={3}
           value={String(draft?.note || "")}
-          onChange={(e) => setDraft((prev) => ({ ...(prev || {}), note: e.target.value }))}
+          onChange={updateDraftField("note")}
           placeholder={safeT(t, "postprod.users.form.notePlaceholder", "Informations utiles partagees")}
         />
       </div>
@@ -145,3 +151,4 @@ function UserIdentityBlock({
 }
 
 export { UserIdentityBlock };
+

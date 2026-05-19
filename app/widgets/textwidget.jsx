@@ -3,14 +3,7 @@ import { useEffect, useRef } from 'react';
 import './textwidget.css';
 import BindingPicker from './bindingpicker.jsx';
 import { getCompanionBaseUrl } from '../utils/agent';
-import { readIdentity } from '../utils/identity';
-import { createT } from '../i18n';
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
-}
+import { getWidgetT } from './widgetTranslator.js';
 
 /**
  * TextWidget
@@ -33,7 +26,7 @@ export default function TextWidget({
   editMode,
 }) {
   
-  const t = getT();
+  const t = getWidgetT();
 
   const rawValue = value ?? '';
 
@@ -303,7 +296,7 @@ export function TextEditorRight({
   const defaultValue = selected.defaultValue ?? '';
   const defaultRef = useRef(null);
   
-  const t = getT();
+  const t = getWidgetT();
   const valueType = String(selected.binding?.valueType || '').toLowerCase();
   const isByte =
     valueType === 'byte' ||
@@ -418,7 +411,7 @@ export function TextLabelEditor({ selected, updateSelected }) {
   const label = selected.label ?? '';
   const hasError = !label.trim();
 
-  const t = getT();
+  const t = getWidgetT();
 
   return (
     <div className="uu-row">
@@ -444,7 +437,7 @@ export function TextLabelEditor({ selected, updateSelected }) {
 // Options spécifiques colonne gauche pour Text : snippets Companion
 export function TextEditorLeftExtras({ selected /*, updateSelected */, layoutId = '' }) {
   if (!selected) return null;
-  const t = getT();
+  const t = getWidgetT();
 
   const widgetId = selected?.id;
 
@@ -530,3 +523,4 @@ export function TextEditorLeftExtras({ selected /*, updateSelected */, layoutId 
     </>
   );
 }
+

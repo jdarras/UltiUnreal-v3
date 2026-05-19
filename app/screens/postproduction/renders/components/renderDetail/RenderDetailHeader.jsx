@@ -1,4 +1,10 @@
-﻿import { safeT } from "../../../shared/helpers";
+import { safeT } from "../../../shared/helpers";
+
+
+const RENDER_DETAIL_HEADER_STYLE = { justifyContent: "space-between", alignItems: "flex-start" };
+const RENDER_DETAIL_TITLE_WRAP_STYLE = { minWidth: 0 };
+const RENDER_DETAIL_TITLE_STYLE = { margin: 0 };
+const RENDER_DETAIL_PATH_STYLE = { wordBreak: "break-all" };
 
 function RenderDetailHeader({
   t,
@@ -12,10 +18,10 @@ function RenderDetailHeader({
   const outputPath = !rawOutputPath || isTemplateToken ? "-" : rawOutputPath;
 
   return (
-    <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
-      <div style={{ minWidth: 0 }}>
-        <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>{renderOutputName}</h4>
-        <div className="uu-muted mt-8" style={{ wordBreak: "break-all" }}>
+    <div className="uu-row" style={RENDER_DETAIL_HEADER_STYLE}>
+      <div style={RENDER_DETAIL_TITLE_WRAP_STYLE}>
+        <h4 className="uu-h3 uu-block-title" style={RENDER_DETAIL_TITLE_STYLE}>{renderOutputName}</h4>
+        <div className="uu-muted mt-8" style={RENDER_DETAIL_PATH_STYLE}>
           {outputPath}
         </div>
       </div>
@@ -37,5 +43,3 @@ function RenderDetailHeader({
 }
 
 export { RenderDetailHeader };
-export default RenderDetailHeader;
-

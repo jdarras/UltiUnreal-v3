@@ -52,6 +52,3 @@ export function useDeleteRenderFormAction({
 
   return { deleteRenderForm };
 }
-
-export default useDeleteRenderFormAction;
-

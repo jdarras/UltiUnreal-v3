@@ -262,4 +262,3 @@ function useProductionWidgetActions({
 }
 
 export { useProductionWidgetActions };
-export default useProductionWidgetActions;

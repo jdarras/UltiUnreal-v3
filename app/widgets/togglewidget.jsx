@@ -1,14 +1,7 @@
 // app/widgets/togglewidget.jsx
 import './togglewidget.css';
 import { getCompanionBaseUrl } from '../utils/agent';
-import { readIdentity } from '../utils/identity';
-import { createT } from '../i18n';
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
-}
+import { getWidgetT } from './widgetTranslator.js';
 
 export default function ToggleWidget({
   widget,
@@ -23,7 +16,7 @@ export default function ToggleWidget({
   onDuplicate,
   targetsSlot
 }) {
-  const t = getT();
+  const t = getWidgetT();
   const w = widget || {};
   const ui = w.ui || {};
 
@@ -212,7 +205,7 @@ const onLabel =
 /* ----- Éditeur colonne GAUCHE : couleur du bouton + Companion ----- */
 export function ToggleEditorLeftExtras({ selected, updateSelected, updateBinding, layoutId = '' }) {
   if (!selected) return null;
-  const t = getT();
+  const t = getWidgetT();
   const ui = selected.ui || {};
   const widgetId = selected.id;
   const binding = selected.binding || {};
@@ -358,7 +351,7 @@ export function ToggleEditorLeftExtras({ selected, updateSelected, updateBinding
 /* ----- Éditeur colonne DROITE : textes ON / OFF ----- */
 export function ToggleEditorRight({ selected, updateSelected, updateBinding, presetData }) {
   if (!selected) return null;
-  const t = getT();
+  const t = getWidgetT();
   const ui = selected.ui || {};
   const defaultToggleValue =
     typeof selected.defaultValue === 'boolean'
@@ -520,7 +513,7 @@ function ToggleLabelVisibilityButton({ selected, updateSelected }) {
 export function ToggleLabelEditor({ selected, updateSelected }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
 
   return (
     <div className="uu-row">
@@ -546,4 +539,5 @@ export function ToggleLabelEditor({ selected, updateSelected }) {
     </div>
   );
 }
+
 

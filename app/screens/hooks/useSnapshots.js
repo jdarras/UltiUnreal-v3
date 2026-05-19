@@ -8,6 +8,22 @@ export function useSnapshots({ t, detailId, setDetailMeta, setProjects }) {
   const [snapshotMsg, setSnapshotMsg] = useState('');
   const [snapshotMsgType, setSnapshotMsgType] = useState(''); // ok | error
 
+  const clearSnapshotFeedback = useCallback(() => {
+    setSnapshotMsg('');
+    setSnapshotMsgType('');
+  }, []);
+
+  const openSnapshotViewer = useCallback((payload) => {
+    clearSnapshotFeedback();
+    setSnapshotOpen(payload);
+  }, [clearSnapshotFeedback]);
+
+  const closeSnapshotViewer = useCallback(() => {
+    if (snapshotBusy) return;
+    setSnapshotOpen(null);
+    clearSnapshotFeedback();
+  }, [snapshotBusy, clearSnapshotFeedback]);
+
   const snapshotSrc = useCallback((projectId, relPath, mtime = '') => {
     const base = getAgentBaseUrl();
     if (!base || !projectId || !relPath) return '';
@@ -53,8 +69,7 @@ export function useSnapshots({ t, detailId, setDetailMeta, setProjects }) {
 
       let stage = 'fetch';
       setSnapshotBusy(true);
-      setSnapshotMsg('');
-      setSnapshotMsgType('');
+      clearSnapshotFeedback();
       try {
         const url = snapshotSrc(pid, rel, String(mtime || '').trim());
         if (!url) throw new Error('snapshot_url_missing');
@@ -130,7 +145,7 @@ export function useSnapshots({ t, detailId, setDetailMeta, setProjects }) {
         setSnapshotBusy(false);
       }
     },
-    [detailId, getSnapshotErrorMessage, setDetailMeta, snapshotSrc, setProjects, t]
+    [clearSnapshotFeedback, detailId, getSnapshotErrorMessage, setDetailMeta, snapshotSrc, setProjects, t]
   );
 
   return {
@@ -143,6 +158,9 @@ export function useSnapshots({ t, detailId, setDetailMeta, setProjects }) {
     setSnapshotMsg,
     setSnapshotMsgType,
     snapshotSrc,
+    clearSnapshotFeedback,
+    openSnapshotViewer,
+    closeSnapshotViewer,
     setAutoScreenshotFromSnapshot,
     getSnapshotErrorMessage
   };

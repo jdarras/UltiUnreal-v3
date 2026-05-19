@@ -1,6 +1,8 @@
 ﻿import { useEffect, useState } from "react";
 import { safeT } from "../shared/helpers";
 
+const AUTH_CARD_SUBTITLE_STYLE = { marginTop: "8px", marginBottom: "14px" };
+
 export function AuthCard({ t, busy = false, error = "", onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -15,7 +17,7 @@ export function AuthCard({ t, busy = false, error = "", onLogin }) {
       <h2 className="uu-h3 uu-block-title">
         {safeT(t, "postprod.auth.title", "Connexion Post-production")}
       </h2>
-      <p className="uu-muted" style={{ marginTop: "8px", marginBottom: "14px" }}>
+      <p className="uu-muted" style={AUTH_CARD_SUBTITLE_STYLE}>
         {safeT(t, "postprod.auth.subtitle", "Connecte-toi pour acceder aux onglets post-production.")}
       </p>
 

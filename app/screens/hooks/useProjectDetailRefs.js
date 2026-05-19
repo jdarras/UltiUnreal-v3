@@ -23,5 +23,3 @@ export function useProjectDetailRefs() {
     projectVersionTimer,
   };
 }
-
-export default useProjectDetailRefs;

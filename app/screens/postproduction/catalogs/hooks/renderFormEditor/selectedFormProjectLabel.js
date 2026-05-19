@@ -8,5 +8,3 @@ export function resolveSelectedFormProjectDisplayLabel({
   const direct = projectLabelByAnyKey.get(raw.toLowerCase());
   return String(direct || raw);
 }
-
-export default resolveSelectedFormProjectDisplayLabel;

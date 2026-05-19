@@ -6,19 +6,7 @@ import {
   buildTaskRenderWorkerFilterOptions,
   buildTaskRenderWorkerLabelByKey,
 } from "./taskFilterOptionBuilders";
-
-function normalizeFilterValues(values = []) {
-  const source = Array.isArray(values) ? values : [values];
-  const out = [];
-  const seen = new Set();
-  for (const value of source) {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (!normalized || normalized === "all" || seen.has(normalized)) continue;
-    seen.add(normalized);
-    out.push(normalized);
-  }
-  return out;
-}
+import { normalizeMultiFilterValues } from "../../../shared/filterValues";
 
 function hasSameValues(a = [], b = []) {
   if (a.length !== b.length) return false;
@@ -65,7 +53,7 @@ export function useTaskFilterOptions({
   }, [orderedTasks]);
 
   useEffect(() => {
-    const current = normalizeFilterValues(listProjectFilter);
+    const current = normalizeMultiFilterValues(listProjectFilter);
     if (current.length <= 0) return;
     const allowed = new Set(
       (Array.isArray(normalizedProjectOptions) ? normalizedProjectOptions : [])
@@ -77,7 +65,7 @@ export function useTaskFilterOptions({
   }, [listProjectFilter, normalizedProjectOptions, setListProjectFilter]);
 
   useEffect(() => {
-    const current = normalizeFilterValues(listRenderWorkerFilter);
+    const current = normalizeMultiFilterValues(listRenderWorkerFilter);
     if (current.length <= 0) return;
     const allowed = new Set(
       (Array.isArray(taskRenderWorkerFilterOptions) ? taskRenderWorkerFilterOptions : [])
@@ -90,7 +78,7 @@ export function useTaskFilterOptions({
   }, [listRenderWorkerFilter, taskRenderWorkerFilterOptions, setListRenderWorkerFilter]);
 
   useEffect(() => {
-    const current = normalizeFilterValues(listFormFilter);
+    const current = normalizeMultiFilterValues(listFormFilter);
     if (current.length <= 0) return;
     const allowed = new Set(
       (Array.isArray(taskFormFilterOptions) ? taskFormFilterOptions : [])
@@ -102,7 +90,7 @@ export function useTaskFilterOptions({
   }, [listFormFilter, taskFormFilterOptions, setListFormFilter]);
 
   useEffect(() => {
-    const current = normalizeFilterValues(listRenderModeFilter);
+    const current = normalizeMultiFilterValues(listRenderModeFilter);
     if (current.length <= 0) return;
     const allowed = new Set(
       (Array.isArray(taskRenderModeFilterOptions) ? taskRenderModeFilterOptions : [])
@@ -125,5 +113,3 @@ export function useTaskFilterOptions({
     taskRenderWorkerLabelByKey,
   };
 }
-
-export default useTaskFilterOptions;

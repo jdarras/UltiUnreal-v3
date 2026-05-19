@@ -127,5 +127,3 @@ export function useRenderFormMetaController({
     deleteRenderForm,
   };
 }
-
-export default useRenderFormMetaController;

@@ -7,6 +7,8 @@ import { UserActivityList } from "./activity/UserActivityList";
 import { useUserActivityActions } from "./activity/useUserActivityActions";
 
 const ACTIVITY_PAGE_SIZES = [25, 50, 100, 200];
+const USER_ACTIVITY_HEADER_ROW_STYLE = { justifyContent: "space-between", marginBottom: "6px" };
+const USER_ACTIVITY_TITLE_STYLE = { margin: 0 };
 
 function UserActivityBlock({
   t,
@@ -103,8 +105,8 @@ function UserActivityBlock({
 
   return (
     <div className="uu-card mt-12">
-      <div className="uu-row uu-align-center" style={{ justifyContent: "space-between", marginBottom: "6px" }}>
-        <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
+      <div className="uu-row uu-align-center" style={USER_ACTIVITY_HEADER_ROW_STYLE}>
+        <h3 className="uu-h3 uu-block-title" style={USER_ACTIVITY_TITLE_STYLE}>
           {safeT(t, "postprod.users.activity.title", "Activite recente")}
         </h3>
       </div>

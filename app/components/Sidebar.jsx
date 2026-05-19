@@ -8,6 +8,7 @@ import {
   POSTPROD_TABS_BASE,
 } from "../utils/appConstants";
 import { preloadPostproductionTab } from "../screens/postproduction/preloaders";
+import { getConfigGearMissingTooltipLabel } from "./componentI18n";
 
 const preloaders = {
   Projets: () => import("../screens/projects.jsx"),
@@ -101,6 +102,7 @@ function Sidebar({
   postprodUser = null,
   onUserClick = null,
 }) {
+  const configGearMissingTooltip = getConfigGearMissingTooltipLabel(t);
   const items = useMemo(() => getSidebarItems({
     role,
     appMode,
@@ -252,7 +254,7 @@ function Sidebar({
                 onClick={() => setCurrent("Configuration")}
                 onMouseEnter={() => preloadNavItem("Configuration")}
                 onFocus={() => preloadNavItem("Configuration")}
-                title={configMissing ? t('config.gearMissingTooltip') || 'Configuration incomplète' : undefined}
+                title={configMissing ? configGearMissingTooltip : undefined}
               >
                 <span className="uu-gear-icon" aria-hidden="true">
                   ⚙

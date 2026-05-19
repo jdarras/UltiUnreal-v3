@@ -173,7 +173,6 @@ function collectRenderThumbCandidates(render = null) {
 }
 
 export {
-  EMPTY_PREVIEW_STATE,
   EMPTY_TRANSITIONS_STATE,
   buildPreviewStateAfterAdvance,
   buildPreviewStateOnOpen,

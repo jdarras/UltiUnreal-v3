@@ -12,6 +12,26 @@ const RED_INPUT_STYLE = {
 const RED_SELECT_STYLE = {
   borderColor: "var(--uu-color-red)",
 };
+const META_FIELD_ROW_STYLE = { display: "flex", alignItems: "center", gap: "10px" };
+const META_FIELD_LABEL_STYLE = { width: "150px", minWidth: "150px" };
+const META_ACTION_BUTTON_STYLE = { flexShrink: 0 };
+const META_HELP_TEXT_STYLE = { fontSize: "0.82em" };
+const META_WRC_ROW_STYLE = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  marginBottom: 4,
+};
+const META_WRC_LABEL_STYLE = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  flex: "1 1 auto",
+  minWidth: 0,
+};
+const META_OPTION_LABEL_STYLE = { fontSize: "0.88em" };
+const META_CHECKBOX_ROW_STYLE = { display: "flex", alignItems: "center", gap: 6, marginBottom: 4 };
 
 export function RenderFormsMetaCard({
   t,
@@ -42,9 +62,6 @@ export function RenderFormsMetaCard({
   onNavigateToProject = null,
   onAvailabilityBlockedChange = null,
 }) {
-  const fieldRowStyle = { display: "flex", alignItems: "center", gap: "10px" };
-  const fieldLabelStyle = { width: "150px", minWidth: "150px" };
-
   // Local flags: true = user explicitly unchecked ALL checkboxes in that block
   const [seqAllUnchecked, setSeqAllUnchecked] = useState(false);
   const [presetAllUnchecked, setPresetAllUnchecked] = useState(false);
@@ -95,8 +112,8 @@ export function RenderFormsMetaCard({
     <>
       {/* ---- Bloc 1 : champs principaux ---- */}
       <div className="uu-card">
-        <div className="uu-grid-field" style={fieldRowStyle}>
-          <label className="uu-label" style={fieldLabelStyle}>{safeT(t, "postprod.data.project", "Projet")}</label>
+        <div className="uu-grid-field" style={META_FIELD_ROW_STYLE}>
+          <label className="uu-label" style={META_FIELD_LABEL_STYLE}>{safeT(t, "postprod.data.project", "Projet")}</label>
           <input
             className="uu-input"
             type="text"
@@ -108,7 +125,7 @@ export function RenderFormsMetaCard({
           <button
             type="button"
             className="uu-btn"
-            style={{ flexShrink: 0 }}
+            style={META_ACTION_BUTTON_STYLE}
             onClick={() => onNavigateToProject?.(selectedForm?.projectName)}
           >
             {safeT(t, "common.edit", "Éditer")}
@@ -116,14 +133,14 @@ export function RenderFormsMetaCard({
           <button
             type="button"
             className="uu-btn prod-toggle-active"
-            style={{ flexShrink: 0 }}
+            style={META_ACTION_BUTTON_STYLE}
             onClick={() => onNavigateToProject?.(selectedForm?.projectName, { start: true })}
           >
             {safeT(t, "common.start", "Start")}
           </button>
         </div>
-        <div className="uu-grid-field mt-8" style={fieldRowStyle}>
-          <label className="uu-label" style={fieldLabelStyle}>{safeT(t, "common.name", "Nom")}</label>
+        <div className="uu-grid-field mt-8" style={META_FIELD_ROW_STYLE}>
+          <label className="uu-label" style={META_FIELD_LABEL_STYLE}>{safeT(t, "common.name", "Nom")}</label>
           <input
             className="uu-input"
             type="text"
@@ -135,8 +152,8 @@ export function RenderFormsMetaCard({
             style={nameRed ? RED_INPUT_STYLE : undefined}
           />
         </div>
-        <div className="uu-grid-field mt-8" style={fieldRowStyle}>
-          <label className="uu-label" style={fieldLabelStyle}>{safeT(t, "postprod.tasks.form.autoRenderMap", "Level")}</label>
+        <div className="uu-grid-field mt-8" style={META_FIELD_ROW_STYLE}>
+          <label className="uu-label" style={META_FIELD_LABEL_STYLE}>{safeT(t, "postprod.tasks.form.autoRenderMap", "Level")}</label>
           <select
             className="uu-input"
             value={metaMapName}
@@ -164,7 +181,7 @@ export function RenderFormsMetaCard({
             {safeT(t, "postprod.data.forms.wrcFiles", "Fichiers WRC")}
           </div>
           {projectCatalogWrcPresetOptions.length === 0 ? (
-            <div className="uu-muted" style={{ fontSize: "0.82em" }}>
+            <div className="uu-muted" style={META_HELP_TEXT_STYLE}>
               {safeT(t, "postprod.data.forms.wrc.none", "Aucun preset WRC detecte pour ce projet.")}
             </div>
           ) : (
@@ -176,11 +193,11 @@ export function RenderFormsMetaCard({
               return (
                 <div
                   key={`wrc-${entry.value}`}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}
+                  style={META_WRC_ROW_STYLE}
                 >
                   <label
                     className="uu-check"
-                    style={{ display: "flex", alignItems: "center", gap: 6, flex: "1 1 auto", minWidth: 0 }}
+                    style={META_WRC_LABEL_STYLE}
                   >
                     <input
                       type="checkbox"
@@ -194,7 +211,7 @@ export function RenderFormsMetaCard({
                         void onSaveMeta?.({ wrcFiles: next }, { importIfEmpty: false });
                       }}
                     />
-                    <span style={{ fontSize: "0.88em" }}>
+                    <span style={META_OPTION_LABEL_STYLE}>
                       <span>{displayName || String(entry?.label || "")}</span>
                       {showPath ? <span className="uu-muted"> {`(${displayPath})`}</span> : null}
                     </span>
@@ -223,7 +240,7 @@ export function RenderFormsMetaCard({
             {safeT(t, "postprod.data.forms.allowedSequences", "Level Sequences autorisées")}
           </div>
           {projectCatalogSequenceOptions.length === 0 ? (
-            <div className="uu-muted" style={{ fontSize: "0.82em" }}>
+            <div className="uu-muted" style={META_HELP_TEXT_STYLE}>
               {safeT(t, "postprod.data.forms.sequences.none", "Aucune Level Sequence détectée dans ce projet.")}
             </div>
           ) : (
@@ -233,7 +250,7 @@ export function RenderFormsMetaCard({
                 <label
                   key={`seq-${entry.value}`}
                   className="uu-check"
-                  style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}
+                  style={META_CHECKBOX_ROW_STYLE}
                 >
                   <input
                     type="checkbox"
@@ -250,7 +267,7 @@ export function RenderFormsMetaCard({
                       void onSaveMeta?.({ allowedSequences: next }, { importIfEmpty: false });
                     }}
                   />
-                  <span style={{ fontSize: "0.88em" }}>{entry.label}</span>
+                  <span style={META_OPTION_LABEL_STYLE}>{entry.label}</span>
                 </label>
               );
             })
@@ -265,7 +282,7 @@ export function RenderFormsMetaCard({
             {safeT(t, "postprod.data.forms.allowedPresets", "Presets de rendu autorisés")}
           </div>
           {projectCatalogPresetOptions.length === 0 ? (
-            <div className="uu-muted" style={{ fontSize: "0.82em" }}>
+            <div className="uu-muted" style={META_HELP_TEXT_STYLE}>
               {safeT(t, "postprod.data.forms.presets.none", "Aucun preset de rendu détecté dans ce projet.")}
             </div>
           ) : (
@@ -275,7 +292,7 @@ export function RenderFormsMetaCard({
                 <label
                   key={`preset-${entry.value}`}
                   className="uu-check"
-                  style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}
+                  style={META_CHECKBOX_ROW_STYLE}
                 >
                   <input
                     type="checkbox"
@@ -292,7 +309,7 @@ export function RenderFormsMetaCard({
                       void onSaveMeta?.({ allowedPresets: next }, { importIfEmpty: false });
                     }}
                   />
-                  <span style={{ fontSize: "0.88em" }}>{entry.label}</span>
+                  <span style={META_OPTION_LABEL_STYLE}>{entry.label}</span>
                 </label>
               );
             })
@@ -303,5 +320,3 @@ export function RenderFormsMetaCard({
     </>
   );
 }
-
-export default RenderFormsMetaCard;

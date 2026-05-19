@@ -206,5 +206,3 @@ export function useUserManagementActions({
     onChangePassword,
   };
 }
-
-export default useUserManagementActions;

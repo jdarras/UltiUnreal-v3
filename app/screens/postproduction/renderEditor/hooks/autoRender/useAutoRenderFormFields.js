@@ -101,5 +101,3 @@ export function useAutoRenderFormFields({
     autoRenderFormFieldsError,
   };
 }
-
-export default useAutoRenderFormFields;

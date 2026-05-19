@@ -376,4 +376,3 @@ function useProductionPresetSync({
 }
 
 export { useProductionPresetSync };
-export default useProductionPresetSync;

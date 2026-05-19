@@ -177,5 +177,3 @@ export function useRoleManagementCardController({
     roleListPanelProps,
   };
 }
-
-export default useRoleManagementCardController;

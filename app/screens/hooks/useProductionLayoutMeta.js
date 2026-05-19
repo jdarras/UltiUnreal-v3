@@ -169,4 +169,3 @@ function useProductionLayoutMeta({
 }
 
 export { useProductionLayoutMeta };
-export default useProductionLayoutMeta;

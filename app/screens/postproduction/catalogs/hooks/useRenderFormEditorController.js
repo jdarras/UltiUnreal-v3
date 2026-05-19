@@ -90,5 +90,3 @@ export function useRenderFormEditorController({
     },
   });
 }
-
-export default useRenderFormEditorController;

@@ -229,5 +229,3 @@ export function useTaskEditorController({
     reservedRenderId,
   };
 }
-
-export default useTaskEditorController;

@@ -66,5 +66,3 @@ function buildTaskListLabelResolvers({
 export {
   buildTaskListLabelResolvers,
 };
-
-export default buildTaskListLabelResolvers;

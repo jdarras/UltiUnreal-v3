@@ -4,6 +4,8 @@ import { ProfileAvatarSection } from "./components/ProfileAvatarSection";
 import { ProfileGeneralSection } from "./components/ProfileGeneralSection";
 import { ProfileMetaAndSubmitSection } from "./components/ProfileMetaAndSubmitSection";
 
+const PROFILE_DETAILS_SUBTITLE_STYLE = { marginTop: "8px", marginBottom: "12px" };
+
 function ProfileDetailsForm({
   t,
   user = null,
@@ -39,7 +41,7 @@ function ProfileDetailsForm({
   return (
     <>
       <h3 className="uu-h3 uu-block-title">{safeT(t, "postprod.profile.title", "Mon profil")}</h3>
-      <p className="uu-muted" style={{ marginTop: "8px", marginBottom: "12px" }}>
+      <p className="uu-muted" style={PROFILE_DETAILS_SUBTITLE_STYLE}>
         {safeT(t, "postprod.profile.subtitle", "Modifie ton profil, mot de passe et tes informations de contact.")}
       </p>
 
@@ -104,4 +106,3 @@ function ProfileDetailsForm({
 }
 
 export { ProfileDetailsForm };
-

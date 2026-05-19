@@ -21,4 +21,3 @@ function useProductionWrcStatus({ defaultType = "error" } = {}) {
 }
 
 export { useProductionWrcStatus };
-export default useProductionWrcStatus;

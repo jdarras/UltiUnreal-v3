@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useSnapshots } from './useSnapshots';
 import { useHttpBind } from './useHttpBind';
 import { useVideoProduction } from './useVideoProduction';
@@ -12,6 +11,8 @@ import { useProjectDetailLifecycle } from './useProjectDetailLifecycle';
 import { useProjectDetailResetState } from './useProjectDetailResetState';
 import { useProjectDetailEditor } from './useProjectDetailEditor';
 import { useProjectDetailPersistence } from './useProjectDetailPersistence';
+import { useProjectDetailUiEffects } from './useProjectDetailUiEffects';
+import { buildProjectDetailPublicApi } from './buildProjectDetailPublicApi';
 
 function useProjectDetail({
   t,
@@ -39,8 +40,6 @@ function useProjectDetail({
     setDetailInsights,
     detailLoading,
     setDetailLoading,
-    detailMsg,
-    setDetailMsg,
     detailIsNew,
     setDetailIsNew,
     projectVersion,
@@ -99,6 +98,9 @@ function useProjectDetail({
     setSnapshotMsg,
     setSnapshotMsgType,
     snapshotSrc,
+    clearSnapshotFeedback,
+    openSnapshotViewer,
+    closeSnapshotViewer,
     setAutoScreenshotFromSnapshot,
   } = useSnapshots({ t, detailId, setDetailMeta, setProjects });
 
@@ -130,20 +132,15 @@ function useProjectDetail({
     scheduleVpSave,
   } = useVideoProduction({ t, detailId, detailIsNew, detailInsights, setDetailInsights });
 
-  useEffect(() => {
-    detailMetaRef.current = detailMeta;
-  }, [detailMeta]);
-
-  useEffect(() => {
-    const el = detailNoteRef.current;
-    if (!el) return;
-    el.style.height = '0px';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [detailMeta?.note, detailNoteRef]);
-
-  useEffect(() => {
-    setKeywordsInput('');
-  }, [detailId, detailMeta?.keywords]);
+  useProjectDetailUiEffects({
+    detailMetaRef,
+    detailMetaValue: detailMeta,
+    detailNoteRef,
+    detailNoteValue: detailMeta?.note,
+    detailId,
+    detailKeywords: detailMeta?.keywords,
+    setKeywordsInput,
+  });
 
   const {
     isRenderBridgeUsage,
@@ -192,7 +189,6 @@ function useProjectDetail({
   const { resetDetailState } = useProjectDetailResetState({
     resetHttpBind,
     projectVersionTimer,
-    setDetailMsg,
     setIndexationMsg,
     setIndexationMsgType,
     setRenderBridgeStatus,
@@ -318,7 +314,7 @@ function useProjectDetail({
 
   const httpBindVisible = !detailIsNew && !!detailId && (httpIniExists !== null);
 
-  return {
+  return buildProjectDetailPublicApi({
     detailId,
     setDetailId,
     detailName,
@@ -333,8 +329,6 @@ function useProjectDetail({
     detailInsights,
     setDetailInsights,
     detailLoading,
-    detailMsg,
-    setDetailMsg,
     detailIsNew,
     setDetailIsNew,
     detailNoteRef,
@@ -383,6 +377,9 @@ function useProjectDetail({
     setSnapshotMsg,
     setSnapshotMsgType,
     snapshotSrc,
+    clearSnapshotFeedback,
+    openSnapshotViewer,
+    closeSnapshotViewer,
     setAutoScreenshotFromSnapshot,
     // httpBind
     httpBindBusy,
@@ -403,8 +400,7 @@ function useProjectDetail({
     setVpDraft,
     vpBusy,
     scheduleVpSave,
-  };
+  });
 }
 
 export { useProjectDetail };
-export default useProjectDetail;

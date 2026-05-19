@@ -82,5 +82,3 @@ export function useTaskFormLifecycleController({
     closeTaskForm,
   };
 }
-
-export default useTaskFormLifecycleController;

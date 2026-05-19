@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getProjectMeta, setProjectVideoProduction } from '../../utils/agent';
 import { boolFromIni, parseSmoothedRange, formatFixed2 } from '../../utils/projects-helpers';
+import { useTransientClearTimer } from './useTransientClearTimer';
 
 export function useVideoProduction({ t, detailId, detailIsNew, detailInsights, setDetailInsights }) {
   const [vpDraft, setVpDraft] = useState(null);
@@ -8,6 +9,16 @@ export function useVideoProduction({ t, detailId, detailIsNew, detailInsights, s
   const [vpMsgType, setVpMsgType] = useState(''); // ok | error
   const [vpBusy, setVpBusy] = useState(false);
   const timerRef = useRef(null);
+  const { scheduleClear } = useTransientClearTimer();
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
 
   // Charger le brouillon depuis les insights
   useEffect(() => {
@@ -57,7 +68,7 @@ export function useVideoProduction({ t, detailId, detailIsNew, detailInsights, s
 
         setVpMsgType('ok');
         setVpMsg(t('projects.detail.vp.updateOk'));
-        setTimeout(() => setVpMsg(''), 2000);
+        scheduleClear(() => setVpMsg(''), 2000);
       } catch {
         setVpMsgType('error');
         setVpMsg(t('projects.detail.vp.updateError'));
@@ -65,7 +76,7 @@ export function useVideoProduction({ t, detailId, detailIsNew, detailInsights, s
         setVpBusy(false);
       }
     },
-    [detailId, detailIsNew, setDetailInsights, t]
+    [detailId, detailIsNew, scheduleClear, setDetailInsights, t]
   );
 
   const scheduleVpSave = useCallback(

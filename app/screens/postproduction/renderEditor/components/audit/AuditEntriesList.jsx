@@ -6,6 +6,8 @@ import {
 } from "../../../users/shared/activityHelpers";
 import { entryLevel } from "./auditUiHelpers";
 
+const AUDIT_ENTRIES_LIST_STYLE = { marginTop: "8px" };
+
 function AuditEntriesList({
   t,
   loading = false,
@@ -146,7 +148,7 @@ function AuditEntriesList({
   }
 
   return (
-    <div className="log-list" style={{ marginTop: "8px" }}>
+    <div className="log-list" style={AUDIT_ENTRIES_LIST_STYLE}>
       {rows.map((entry) => {
         const rowId = Number(entry?.id || 0);
         const actionType = activityActionTypeFromAction(entry?.action, entry);

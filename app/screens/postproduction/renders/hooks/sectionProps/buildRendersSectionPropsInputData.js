@@ -85,5 +85,3 @@ const DATA_KEYS = [
 export function buildRendersSectionPropsInputData(data = {}) {
   return pickKeys(data, DATA_KEYS);
 }
-
-export default buildRendersSectionPropsInputData;

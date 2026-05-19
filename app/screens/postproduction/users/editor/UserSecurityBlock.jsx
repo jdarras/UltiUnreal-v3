@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { safeT } from "../../shared/helpers";
 
+const USER_SECURITY_TITLE_STYLE = { margin: 0 };
+const USER_SECURITY_PASSWORD_ROW_STYLE = { display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" };
+const USER_SECURITY_CREATE_PASSWORD_ROW_STYLE = { display: "flex", alignItems: "center", gap: "10px" };
+const USER_SECURITY_PASSWORD_INPUT_STYLE = { maxWidth: 260, flex: "1 1 220px" };
+const USER_SECURITY_CREATE_PASSWORD_INPUT_STYLE = { maxWidth: 260 };
+const USER_SECURITY_INLINE_LABEL_STYLE = { margin: 0 };
+
 function UserSecurityBlock({
   t,
   draft = {},
@@ -57,32 +64,32 @@ function UserSecurityBlock({
   if (selfProfile) {
     return (
       <div className="uu-card mt-12">
-        <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
+        <h3 className="uu-h3 uu-block-title" style={USER_SECURITY_TITLE_STYLE}>
           {safeT(t, "postprod.users.blocks.security", "Mot de passe et securite")}
         </h3>
         <div
           className="uu-grid-field mt-8"
-          style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}
+          style={USER_SECURITY_PASSWORD_ROW_STYLE}
         >
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+          <label className="uu-label uu-label-fixed-120">
             {safeT(t, "postprod.profile.form.password", "Nouveau mot de passe")}
           </label>
           <input
             className="uu-input"
             type="password"
-            style={{ maxWidth: 260, flex: "1 1 220px" }}
+            style={USER_SECURITY_PASSWORD_INPUT_STYLE}
             value={newPwd}
             onChange={(e) => { setNewPwd(e.target.value); resetPwdInputs(); }}
             disabled={changeBusy}
             placeholder="••••••••"
           />
-          <label className="uu-label" style={{ margin: 0 }}>
+          <label className="uu-label" style={USER_SECURITY_INLINE_LABEL_STYLE}>
             {safeT(t, "postprod.profile.form.passwordConfirm", "Confirmer")}
           </label>
           <input
             className="uu-input"
             type="password"
-            style={{ maxWidth: 260, flex: "1 1 220px" }}
+            style={USER_SECURITY_PASSWORD_INPUT_STYLE}
             value={confirmPwd}
             onChange={(e) => { setConfirmPwd(e.target.value); resetPwdInputs(); }}
             disabled={changeBusy}
@@ -111,18 +118,18 @@ function UserSecurityBlock({
 
   return (
     <div className="uu-card mt-12">
-      <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
+      <h3 className="uu-h3 uu-block-title" style={USER_SECURITY_TITLE_STYLE}>
         {safeT(t, "postprod.users.blocks.security", "Mot de passe et securite")}
       </h3>
       {isCreate ? (
-        <div className="uu-grid-field mt-8" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+        <div className="uu-grid-field mt-8" style={USER_SECURITY_CREATE_PASSWORD_ROW_STYLE}>
+          <label className="uu-label uu-label-fixed-120">
             {safeT(t, "postprod.users.form.password", "Mot de passe")}
           </label>
           <input
             className="uu-input"
             type="password"
-            style={{ maxWidth: 260 }}
+            style={USER_SECURITY_CREATE_PASSWORD_INPUT_STYLE}
             value={String(draft?.password || "")}
             onChange={(e) => setDraft((prev) => ({ ...(prev || {}), password: e.target.value }))}
           />
@@ -131,27 +138,27 @@ function UserSecurityBlock({
         <>
           <div
             className="uu-grid-field mt-8"
-            style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}
+            style={USER_SECURITY_PASSWORD_ROW_STYLE}
           >
-            <label className="uu-label" style={{ width: "120px", minWidth: "120px", margin: 0 }}>
+            <label className="uu-label uu-label-fixed-120">
               {safeT(t, "postprod.profile.form.password", "Nouveau mot de passe")}
             </label>
             <input
               className="uu-input"
               type="password"
-              style={{ maxWidth: 260, flex: "1 1 220px" }}
+              style={USER_SECURITY_PASSWORD_INPUT_STYLE}
               value={newPwd}
               onChange={(e) => { setNewPwd(e.target.value); resetPwdInputs(); }}
               disabled={changeBusy}
               placeholder="••••••••"
             />
-            <label className="uu-label" style={{ margin: 0 }}>
+            <label className="uu-label" style={USER_SECURITY_INLINE_LABEL_STYLE}>
               {safeT(t, "postprod.profile.form.passwordConfirm", "Confirmer")}
             </label>
             <input
               className="uu-input"
               type="password"
-              style={{ maxWidth: 260, flex: "1 1 220px" }}
+              style={USER_SECURITY_PASSWORD_INPUT_STYLE}
               value={confirmPwd}
               onChange={(e) => { setConfirmPwd(e.target.value); resetPwdInputs(); }}
               disabled={changeBusy}
@@ -199,3 +206,4 @@ function UserSecurityBlock({
 }
 
 export { UserSecurityBlock };
+

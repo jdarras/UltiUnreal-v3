@@ -13,5 +13,3 @@ export function buildRenderEditorDeleteDialogInput({
     closeDeleteTaskDialog,
   };
 }
-
-export default buildRenderEditorDeleteDialogInput;

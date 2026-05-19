@@ -1,12 +1,5 @@
 import BindingPicker from '../bindingpicker.jsx';
-import { readIdentity } from '../../utils/identity';
-import { createT } from '../../i18n';
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
-}
+import { getWidgetT } from '../widgetTranslator.js';
 
 export function DropdownTimelineEditor({
   selected,
@@ -15,7 +8,7 @@ export function DropdownTimelineEditor({
   updateSelected
 }) {
   if (!selected) return null;
-  const t = getT();
+  const t = getWidgetT();
   const valueType = String(selected.binding?.valueType || '').toLowerCase();
   const isByte =
     valueType === 'byte' ||

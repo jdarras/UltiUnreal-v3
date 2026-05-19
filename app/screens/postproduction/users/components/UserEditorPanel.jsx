@@ -5,6 +5,8 @@ import { UserIdentityBlock } from "../editor/UserIdentityBlock";
 import { UserSecurityBlock } from "../editor/UserSecurityBlock";
 import { UserDeleteDialog } from "./UserDeleteDialog";
 
+const USER_EDITOR_CREATE_ACTIONS_STYLE = { justifyContent: "space-between" };
+
 function UserEditorPanel({
   t,
   usersLoading = false,
@@ -173,7 +175,7 @@ function UserEditorPanel({
       ) : null}
 
       {isCreate ? (
-        <div className="uu-row mt-12" style={{ justifyContent: "space-between" }}>
+        <div className="uu-row mt-12" style={USER_EDITOR_CREATE_ACTIONS_STYLE}>
           <button className="uu-btn-ghost" type="button" onClick={closeEditor} disabled={usersLoading}>
             {safeT(t, "postprod.users.form.cancel", "Retour liste")}
           </button>

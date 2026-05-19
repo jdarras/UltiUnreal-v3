@@ -24,8 +24,6 @@ export function useResourceDetailDraftInit({
   detailNoteDirtyRef,
   setDetailUid,
   setDetailDraft,
-  setDetailMsg,
-  setDetailMsgType,
 } = {}) {
   useEffect(() => {
     if (!detailUid) return;
@@ -78,8 +76,6 @@ export function useResourceDetailDraftInit({
     });
     detailSavedNoteRef.current = String(user.note || '');
     detailNoteDirtyRef.current = false;
-    setDetailMsg('');
-    setDetailMsgType('');
   }, [
     busy,
     detailInitRef,
@@ -90,10 +86,6 @@ export function useResourceDetailDraftInit({
     detailSavedRef,
     detailUid,
     setDetailDraft,
-    setDetailMsg,
-    setDetailMsgType,
     setDetailUid,
   ]);
 }
-
-export default useResourceDetailDraftInit;

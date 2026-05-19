@@ -45,4 +45,3 @@ function useTransientInfo({
 }
 
 export { useTransientInfo };
-export default useTransientInfo;

@@ -9,6 +9,8 @@ import {
   activityTypeChipLevel,
 } from "../../userSharedHelpers";
 
+const USER_ACTIVITY_LIST_STYLE = { marginTop: "8px" };
+
 function UserActivityList({
   t,
   filteredEditingActivities = [],
@@ -134,7 +136,7 @@ function UserActivityList({
   };
 
   return (
-    <div className="log-list" style={{ marginTop: "8px" }}>
+    <div className="log-list" style={USER_ACTIVITY_LIST_STYLE}>
       {filteredEditingActivities.map((activity) => {
         const rowId = Number(activity?.id || 0);
         const actionType = activityActionTypeFromAction(activity?.action, activity);

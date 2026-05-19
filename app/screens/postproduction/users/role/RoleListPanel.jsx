@@ -2,6 +2,10 @@ import { useState } from "react";
 import { safeT } from "../../shared/helpers";
 import { RoleDeleteDialog } from "./RoleDeleteDialog";
 
+const ROLE_LIST_HEADER_ROW_STYLE = { justifyContent: "space-between", alignItems: "center" };
+const ROLE_LIST_TITLE_STYLE = { margin: 0 };
+const ROLE_LIST_ACTIONS_STYLE = { gap: "8px", alignItems: "center" };
+
 function resolveRoleModeLabel(t, role = {}) {
   const canUseLive = role?.canUseLiveMode !== false;
   const canUseRender = role?.canUsePostprodMode !== false;
@@ -60,9 +64,9 @@ function RoleListPanel({
           const noteText = String(role?.note || "").trim() || "-";
           return (
             <div key={roleKey} className="uu-card">
-              <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+              <div className="uu-row" style={ROLE_LIST_HEADER_ROW_STYLE}>
                 <div>
-                  <h4 className="uu-h3 uu-block-title" style={{ margin: 0 }}>{String(role?.displayName || roleKey || "").trim() || "-"}</h4>
+                  <h4 className="uu-h3 uu-block-title" style={ROLE_LIST_TITLE_STYLE}>{String(role?.displayName || roleKey || "").trim() || "-"}</h4>
                   <div>
                     <span className="uu-muted">{safeT(t, "postprod.roles.list.modeLabel", "Modes")}:</span>{" "}
                     {modeLabel}
@@ -76,7 +80,7 @@ function RoleListPanel({
                     {noteText}
                   </div>
                 </div>
-                <div className="uu-row" style={{ gap: "8px", alignItems: "center" }}>
+                <div className="uu-row" style={ROLE_LIST_ACTIONS_STYLE}>
                   <button
                     className="uu-btn-ghost"
                     type="button"

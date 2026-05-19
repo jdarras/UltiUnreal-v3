@@ -65,5 +65,3 @@ export function useResourceDetailControllers({
     addKeywordQuick,
   };
 }
-
-export default useResourceDetailControllers;

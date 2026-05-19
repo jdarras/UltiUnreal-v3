@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  captureActiveFocusableElement,
+  focusRefNextTick,
+  restoreFocusRefNextTick,
+} from "../../../hooks/dialogFocusHelpers";
 
 function resolveCanOpen(canOpen) {
   if (typeof canOpen === "function") {
@@ -20,12 +25,7 @@ export function useConfirmDialogState({ canOpen = true, closeBlocked = false } =
     if (!resolveCanOpen(canOpen)) return;
     setOpen((prev) => {
       if (prev) return prev;
-      const activeEl =
-        typeof document !== "undefined" && document?.activeElement
-          ? document.activeElement
-          : null;
-      prevFocusRef.current =
-        activeEl && typeof activeEl.focus === "function" ? activeEl : null;
+      prevFocusRef.current = captureActiveFocusableElement();
       return true;
     });
   }, [canOpen]);
@@ -33,15 +33,7 @@ export function useConfirmDialogState({ canOpen = true, closeBlocked = false } =
   const closeDialog = useCallback(() => {
     if (closeBlocked) return;
     setOpen(false);
-    const prev = prevFocusRef.current;
-    prevFocusRef.current = null;
-    if (prev && typeof prev.focus === "function") {
-      setTimeout(() => {
-        try {
-          prev.focus();
-        } catch {}
-      }, 0);
-    }
+    restoreFocusRefNextTick(prevFocusRef);
   }, [closeBlocked]);
 
   useEffect(() => {
@@ -54,9 +46,7 @@ export function useConfirmDialogState({ canOpen = true, closeBlocked = false } =
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
-    const timer = setTimeout(() => {
-      confirmRef.current?.focus?.();
-    }, 0);
+    const timer = focusRefNextTick(confirmRef);
     return () => {
       clearTimeout(timer);
       window.removeEventListener("keydown", onKeyDown, true);
@@ -71,5 +61,3 @@ export function useConfirmDialogState({ canOpen = true, closeBlocked = false } =
     closeDialog,
   };
 }
-
-export default useConfirmDialogState;

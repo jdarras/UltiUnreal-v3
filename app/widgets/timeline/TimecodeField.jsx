@@ -1,4 +1,19 @@
 import { getT } from './timelinewidget-shared';
+import {
+  getTimelineFpsDisplayText,
+  getTimelineToggleTimecodeTitle
+} from './timelineToolbarI18n.js';
+
+const TIMECODE_INPUT_STYLE = { width: '90px' };
+
+function buildTimecodeToggleButtonStyle(useTimecodeView) {
+  return {
+    width: 36,
+    height: 32,
+    marginLeft: 6,
+    background: useTimecodeView ? '#2ecc71' : '#2d3440'
+  };
+}
 
 export function TimecodeField({
   fps,
@@ -12,15 +27,16 @@ export function TimecodeField({
   toggleTimecodeView
 }) {
   const t = getT();
+  const fpsDisplayText = getTimelineFpsDisplayText(t, fps, fpsWarnings);
+  const toggleTimecodeTitle = getTimelineToggleTimecodeTitle(t);
   return (
     <div className="uu-timeline-timecode-left">
       <div className="uu-timeline-timecode-fps">
-        FPS: {fps}
-        {fpsWarnings.includes('missing') ? ' (non defini)' : ''}
+        {fpsDisplayText}
       </div>
       <input
         className="uu-input uu-timeline-timecode-input"
-        style={{ width: '90px' }}
+        style={TIMECODE_INPUT_STYLE}
         value={timecodeInput}
         onFocus={() => setTimecodeEditing(true)}
         onBlur={(e) => {
@@ -39,14 +55,9 @@ export function TimecodeField({
       <button
         type="button"
         className="uu-btn uu-btn-sm uu-timeline-btn"
-        style={{
-          width: 36,
-          height: 32,
-          marginLeft: 6,
-          background: useTimecodeView ? '#2ecc71' : '#2d3440'
-        }}
+        style={buildTimecodeToggleButtonStyle(useTimecodeView)}
         onClick={toggleTimecodeView}
-        title={t('timeline.toggleTimecode') || 'Basculer frames / timecode'}
+        title={toggleTimecodeTitle}
       >
         TC
       </button>

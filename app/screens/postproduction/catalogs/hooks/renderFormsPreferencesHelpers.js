@@ -108,7 +108,6 @@ function normalizeFormsSortSelect(valueRaw) {
 }
 
 export {
-  FORMS_SORT_MODE_SET,
   buildFormsScopeKey,
   buildFormsStorageKeys,
   buildInitialFormsState,

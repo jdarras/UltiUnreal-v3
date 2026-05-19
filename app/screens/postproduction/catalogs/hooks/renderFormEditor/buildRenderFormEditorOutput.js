@@ -23,5 +23,3 @@ export function buildRenderFormEditorOutput({
     handleDeleteForm: handlers.handleDeleteForm,
   };
 }
-
-export default buildRenderFormEditorOutput;

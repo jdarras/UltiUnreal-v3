@@ -56,6 +56,28 @@ const MONTH_NAMES = [
   "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
 ];
+const DATE_TIME_PICKER_HEADER_ROW_STYLE = { alignItems: "center", justifyContent: "space-between", marginBottom: "6px" };
+const DATE_TIME_PICKER_NAV_BUTTON_STYLE = { padding: "2px 10px" };
+const DATE_TIME_PICKER_MONTH_LABEL_STYLE = { fontWeight: 600 };
+const DATE_TIME_PICKER_GRID_STYLE = { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", textAlign: "center" };
+const DATE_TIME_PICKER_DAY_HEADER_STYLE = { fontSize: "11px", opacity: 0.5, padding: "2px 0", fontWeight: 600 };
+const DATE_TIME_PICKER_TIME_ROW_STYLE = { alignItems: "center", flexWrap: "nowrap", marginTop: "8px", gap: "8px" };
+const DATE_TIME_PICKER_TIME_SELECT_STYLE = { width: 88, flex: "0 0 88px" };
+const DATE_TIME_PICKER_TIME_SEPARATOR_STYLE = { fontWeight: 700, lineHeight: "36px", flex: "0 0 auto" };
+const DATE_TIME_PICKER_TODAY_BUTTON_STYLE = { marginLeft: "auto", fontSize: "12px" };
+const DATE_TIME_PICKER_ACTIONS_ROW_STYLE = { justifyContent: "flex-end", marginTop: "8px", gap: "8px" };
+
+function buildDateTimePickerDayButtonStyle({ isToday = false, isSelected = false } = {}) {
+  return {
+    padding: "4px 2px",
+    borderRadius: "4px",
+    border: isToday && !isSelected ? "1px solid var(--uu-accent, #3b82f6)" : "1px solid transparent",
+    background: isSelected ? "var(--uu-accent, #3b82f6)" : "transparent",
+    color: isSelected ? "#fff" : "inherit",
+    cursor: "pointer",
+    fontSize: "13px",
+  };
+}
 
 function buildCalendarDays(year, month) {
   const firstDay = new Date(year, month - 1, 1).getDay();
@@ -182,15 +204,15 @@ export default function DateTimeConfirmPicker({
 
       {isOpen ? (
         <div className="uu-datetime-confirm-popover uu-card" role="dialog" aria-modal="false">
-          <div className="uu-row" style={{ alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-            <button type="button" className="uu-btn-ghost" onClick={prevMonth} style={{ padding: "2px 10px" }}>‹</button>
-            <span style={{ fontWeight: 600 }}>{MONTH_NAMES[calMonth - 1]} {calYear}</span>
-            <button type="button" className="uu-btn-ghost" onClick={nextMonth} style={{ padding: "2px 10px" }}>›</button>
+          <div className="uu-row" style={DATE_TIME_PICKER_HEADER_ROW_STYLE}>
+            <button type="button" className="uu-btn-ghost" onClick={prevMonth} style={DATE_TIME_PICKER_NAV_BUTTON_STYLE}>‹</button>
+            <span style={DATE_TIME_PICKER_MONTH_LABEL_STYLE}>{MONTH_NAMES[calMonth - 1]} {calYear}</span>
+            <button type="button" className="uu-btn-ghost" onClick={nextMonth} style={DATE_TIME_PICKER_NAV_BUTTON_STYLE}>›</button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", textAlign: "center" }}>
+          <div style={DATE_TIME_PICKER_GRID_STYLE}>
             {DAY_HEADERS.map((h) => (
-              <span key={h} style={{ fontSize: "11px", opacity: 0.5, padding: "2px 0", fontWeight: 600 }}>{h}</span>
+              <span key={h} style={DATE_TIME_PICKER_DAY_HEADER_STYLE}>{h}</span>
             ))}
             {calDays.map((day, idx) => {
               if (!day) return <span key={`e-${idx}`} />;
@@ -201,15 +223,7 @@ export default function DateTimeConfirmPicker({
                   key={`d-${day}`}
                   type="button"
                   onClick={() => selectDay(day)}
-                  style={{
-                    padding: "4px 2px",
-                    borderRadius: "4px",
-                    border: isToday && !isSelected ? "1px solid var(--uu-accent, #3b82f6)" : "1px solid transparent",
-                    background: isSelected ? "var(--uu-accent, #3b82f6)" : "transparent",
-                    color: isSelected ? "#fff" : "inherit",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                  }}
+                  style={buildDateTimePickerDayButtonStyle({ isToday, isSelected })}
                 >
                   {day}
                 </button>
@@ -217,19 +231,19 @@ export default function DateTimeConfirmPicker({
             })}
           </div>
 
-          <div className="uu-row" style={{ alignItems: "center", flexWrap: "nowrap", marginTop: "8px", gap: "8px" }}>
+          <div className="uu-row" style={DATE_TIME_PICKER_TIME_ROW_STYLE}>
             <select
               className="uu-input"
-              style={{ width: 88, flex: "0 0 88px" }}
+              style={DATE_TIME_PICKER_TIME_SELECT_STYLE}
               value={draft.hour}
               onChange={(e) => setDraft((prev) => ({ ...prev, hour: e.target.value }))}
             >
               {HOURS.map((hour) => <option key={`dt-hour-${hour}`} value={hour}>{hour}</option>)}
             </select>
-            <span style={{ fontWeight: 700, lineHeight: "36px", flex: "0 0 auto" }}>:</span>
+            <span style={DATE_TIME_PICKER_TIME_SEPARATOR_STYLE}>:</span>
             <select
               className="uu-input"
-              style={{ width: 88, flex: "0 0 88px" }}
+              style={DATE_TIME_PICKER_TIME_SELECT_STYLE}
               value={draft.minute}
               onChange={(e) => setDraft((prev) => ({ ...prev, minute: e.target.value }))}
             >
@@ -238,14 +252,14 @@ export default function DateTimeConfirmPicker({
             <button
               type="button"
               className="uu-btn-ghost"
-              style={{ marginLeft: "auto", fontSize: "12px" }}
+              style={DATE_TIME_PICKER_TODAY_BUTTON_STYLE}
               onClick={goToToday}
             >
               Aujourd'hui
             </button>
           </div>
 
-          <div className="uu-row" style={{ justifyContent: "flex-end", marginTop: "8px", gap: "8px" }}>
+          <div className="uu-row" style={DATE_TIME_PICKER_ACTIONS_ROW_STYLE}>
             {allowClear && localValue ? (
               <button className="uu-btn-ghost" type="button" onClick={handleClear}>{clearLabel}</button>
             ) : null}

@@ -2,6 +2,10 @@ import { useCallback } from 'react';
 import { normalizeKeywordsList } from '../../utils/projectsScreenUtils';
 import { useProjectDetailPersistenceSave } from './useProjectDetailPersistenceSave';
 import { useProjectDetailPersistenceReload } from './useProjectDetailPersistenceReload';
+import {
+  buildProjectDetailPayload,
+  buildProjectDetailPreserved,
+} from './projectDetailPersistenceHelpers';
 
 export function useProjectDetailPersistence({
   t,
@@ -79,17 +83,7 @@ export function useProjectDetailPersistence({
       ? keywordsOverride
       : (meta.keywords ?? detailMetaRef.current?.keywords ?? detailMeta?.keywords ?? []);
     const keywords = normalizeKeywordsList(keywordsValue);
-    const payload = {
-      status: meta.status === 'PAS' ? 'PAD' : (meta.status || ''),
-      type: meta.type || '',
-      usageMode: meta.usageMode || '',
-      category: meta.category || '',
-      fileVersion: pvValue || meta.fileVersion || '',
-      referents: meta.referents || {},
-      keywords,
-      note: meta.note || '',
-      wrcNames: wrcNamesValue,
-    };
+    const payload = buildProjectDetailPayload({ meta, pvValue, wrcNamesValue, keywords });
     await saveProjectDetailMeta({
       pid,
       payload,
@@ -99,14 +93,7 @@ export function useProjectDetailPersistence({
     });
 
     if (pathOverride !== undefined && !detailIsNew) {
-      const preserved = {
-        status: meta.status,
-        type: meta.type,
-        usageMode: meta.usageMode,
-        note: meta.note,
-        keywords: meta.keywords,
-        referents: meta.referents,
-      };
+      const preserved = buildProjectDetailPreserved(meta);
       await reloadDetailAfterPathChange({
         pid,
         pathValue,
@@ -129,5 +116,3 @@ export function useProjectDetailPersistence({
 
   return { saveDetails };
 }
-
-export default useProjectDetailPersistence;

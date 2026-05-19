@@ -17,5 +17,3 @@ export function useResourceDetailUiEffects({
     setTagInput('');
   }, [detailUid, setTagInput]);
 }
-
-export default useResourceDetailUiEffects;

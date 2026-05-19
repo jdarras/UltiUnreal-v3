@@ -117,5 +117,3 @@ export function useRoleAutosave({
     saveNow,
   };
 }
-
-export default useRoleAutosave;

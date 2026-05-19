@@ -1,5 +1,22 @@
 import { safeT } from "../../shared/helpers";
 
+const RENDER_REJECT_OVERLAY_STYLE = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0, 0, 0, 0.45)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 2000,
+};
+const RENDER_REJECT_DIALOG_STYLE = {
+  width: "min(560px, calc(100vw - 32px))",
+  padding: "16px",
+};
+const RENDER_REJECT_TITLE_STYLE = { fontWeight: 600, marginBottom: "10px" };
+const RENDER_REJECT_MESSAGE_STYLE = { marginBottom: "10px", lineHeight: 1.35 };
+const RENDER_REJECT_ACTIONS_STYLE = { justifyContent: "flex-end", gap: "8px" };
+
 function RenderRejectDialog({
   t,
   open = false,
@@ -23,15 +40,7 @@ function RenderRejectDialog({
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0, 0, 0, 0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 2000,
-      }}
+      style={RENDER_REJECT_OVERLAY_STYLE}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !busy) {
           onCancel?.();
@@ -43,16 +52,13 @@ function RenderRejectDialog({
         role="dialog"
         aria-modal="true"
         aria-label={dialogTitle}
-        style={{
-          width: "min(560px, calc(100vw - 32px))",
-          padding: "16px",
-        }}
+        style={RENDER_REJECT_DIALOG_STYLE}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div style={{ fontWeight: 600, marginBottom: "10px" }}>
+        <div style={RENDER_REJECT_TITLE_STYLE}>
           {dialogTitle}
         </div>
-        <div style={{ marginBottom: "10px", lineHeight: 1.35 }}>
+        <div style={RENDER_REJECT_MESSAGE_STYLE}>
           {dialogMessage}
         </div>
         <textarea
@@ -63,7 +69,7 @@ function RenderRejectDialog({
           placeholder={safeT(t, "postprod.renders.reject.reasonPlaceholder", "Ajouter un motif (facultatif)")}
           onChange={(event) => onChangeReason?.(event.target.value)}
         />
-        <div className="uu-row mt-12" style={{ justifyContent: "flex-end", gap: "8px" }}>
+        <div className="uu-row mt-12" style={RENDER_REJECT_ACTIONS_STYLE}>
           <button
             type="button"
             className="uu-btn"
@@ -89,5 +95,3 @@ function RenderRejectDialog({
 export {
   RenderRejectDialog,
 };
-
-export default RenderRejectDialog;

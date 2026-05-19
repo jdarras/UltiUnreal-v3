@@ -1,3 +1,22 @@
+import { getFavoriteLabel } from './componentI18n';
+
+const PROJECTS_HEADER_ROOT_STYLE = { flexWrap: 'nowrap', alignItems: 'center' };
+const PROJECTS_HEADER_GROUP_STYLE = { flex: '0 0 auto' };
+const PROJECTS_HEADER_SORT_SELECT_STYLE = { height: '36px' };
+const PROJECTS_HEADER_SEARCH_INPUT_STYLE = { width: '280px', maxWidth: '320px', height: '36px', lineHeight: '36px' };
+const PROJECTS_HEADER_CLEAR_BUTTON_STYLE = {
+  width: '36px',
+  minWidth: '36px',
+  height: '36px',
+  padding: '0 6px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+const PROJECTS_HEADER_ADVANCED_BUTTON_STYLE = { height: '36px', minHeight: '36px', display: 'flex', alignItems: 'center' };
+const PROJECTS_HEADER_FAVORITES_STYLE = { marginLeft: '12px' };
+const PROJECTS_HEADER_VIEW_MODE_STYLE = { marginLeft: 'auto' };
+
 export default function ProjectsHeaderBar({
   t,
   sortMode,
@@ -14,8 +33,9 @@ export default function ProjectsHeaderBar({
   onAdd,
   canAdd = true,
 }) {
+  const favoriteLabel = getFavoriteLabel(t);
   return (
-    <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'nowrap', alignItems: 'center' }}>
+    <div className="uu-row uu-align-center uu-gap-8" style={PROJECTS_HEADER_ROOT_STYLE}>
       <button
         type="button"
         className="uu-btn"
@@ -25,10 +45,10 @@ export default function ProjectsHeaderBar({
         {t('projects.server.addProject')}
       </button>
 
-      <div className="uu-row uu-gap-8 uu-align-center" style={{ flex: '0 0 auto' }}>
+      <div className="uu-row uu-gap-8 uu-align-center" style={PROJECTS_HEADER_GROUP_STYLE}>
         <select
           className="uu-select"
-          style={{ height: '36px' }}
+          style={PROJECTS_HEADER_SORT_SELECT_STYLE}
           value={sortMode}
           onChange={(e) => onSortChange(e.target.value)}
         >
@@ -38,10 +58,10 @@ export default function ProjectsHeaderBar({
           <option value="engineVersion">{t('projects.server.sortByEngine')}</option>
         </select>
 
-        <div className="uu-row uu-gap-4 uu-align-center" style={{ flex: '0 0 auto' }}>
+        <div className="uu-row uu-gap-4 uu-align-center" style={PROJECTS_HEADER_GROUP_STYLE}>
           <input
             className="uu-input"
-            style={{ width: '280px', maxWidth: '320px', height: '36px', lineHeight: '36px' }}
+            style={PROJECTS_HEADER_SEARCH_INPUT_STYLE}
             placeholder={t('projects.search.placeholder')}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
@@ -52,7 +72,7 @@ export default function ProjectsHeaderBar({
             onClick={onSearchClear}
             disabled={!canClear}
             title={t('projects.search.clear')}
-            style={{ width: '36px', minWidth: '36px', height: '36px', padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={PROJECTS_HEADER_CLEAR_BUTTON_STYLE}
           >
             ✕
           </button>
@@ -60,27 +80,27 @@ export default function ProjectsHeaderBar({
             type="button"
             className="uu-btn"
             onClick={onAdvanced}
-            style={{ height: '36px', minHeight: '36px', display: 'flex', alignItems: 'center' }}
+            style={PROJECTS_HEADER_ADVANCED_BUTTON_STYLE}
           >
             {t('projects.search.advancedButton')}
           </button>
         </div>
 
-        <div className="uu-row uu-gap-6 uu-align-center" style={{ marginLeft: '12px' }}>
+        <div className="uu-row uu-gap-6 uu-align-center" style={PROJECTS_HEADER_FAVORITES_STYLE}>
           <button
             type="button"
             className={`uu-fav-filter ${favoriteOnly ? 'active' : ''}`}
             onClick={onToggleFavoriteFilter}
             aria-pressed={favoriteOnly ? 'true' : 'false'}
-            title={t('resources.detail.labels.favorite') || 'Favoris'}
+            title={favoriteLabel}
           >
             ★
           </button>
-          <span>{t('resources.detail.labels.favorite') || 'Favoris'}</span>
+          <span>{favoriteLabel}</span>
         </div>
       </div>
 
-      <div className="uu-row uu-gap-4" style={{ marginLeft: 'auto' }}>
+      <div className="uu-row uu-gap-4" style={PROJECTS_HEADER_VIEW_MODE_STYLE}>
         <button
           type="button"
           className={`uu-btn ${viewMode === 'thumbs' ? 'prod-toggle-active' : ''}`}

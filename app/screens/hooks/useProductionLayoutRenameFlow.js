@@ -43,4 +43,3 @@ function useProductionLayoutRenameFlow({
 }
 
 export { useProductionLayoutRenameFlow };
-export default useProductionLayoutRenameFlow;

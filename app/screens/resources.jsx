@@ -4,8 +4,11 @@ import { readIdentity } from '../utils/identity';
 import { createT } from '../i18n';
 import ResourceList from '../components/ResourceList.jsx';
 import MultiSelectDropdown from '../components/MultiSelectDropdown.jsx';
-import useResourcesList from './hooks/useResourcesList';
-import useResourceDetail from './hooks/useResourceDetail';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { resolveConfirmDialogLabels } from '../components/confirmDialogLabels';
+import { safeT } from '../utils/i18nSafe.js';
+import { useResourcesList } from './hooks/useResourcesList';
+import { useResourceDetail } from './hooks/useResourceDetail';
 import {
   USAGE_VALUES,
   STYLE_VALUES,
@@ -20,35 +23,72 @@ import {
   buildMetaLine,
 } from '../utils/resources-helpers';
 
+const MARGIN_LEFT_AUTO_STYLE = { marginLeft: 'auto' };
+const ROW_WRAP_STYLE = { flexWrap: 'wrap' };
+const RESOURCE_SELECT_STYLE = { flex: '1 1 220px', minWidth: '200px', height: '36px' };
+const DETAIL_FLAG_FLEX_STYLE = { flex: '1 1 auto' };
+const NOTE_TEXTAREA_STYLE = { overflow: 'hidden' };
+const FLEX_AUTO_STYLE = { flex: '1 1 auto' };
+const TAG_INPUT_STYLE = { minWidth: '200px', flex: '1 1 260px' };
+const TAG_CHIPS_ROW_STYLE = { marginLeft: '90px' };
+const TAG_CHIP_STYLE = { border: 'none', padding: '6px 10px', gap: '8px' };
+const TAG_TEXT_STYLE = { marginRight: '6px' };
+const TAG_REMOVE_STYLE = { padding: '2px 6px', minWidth: 'auto', height: '22px' };
+const TOPBAR_ROW_STYLE = { flexWrap: 'nowrap', alignItems: 'center' };
+const TOPBAR_GROUP_STYLE = { flex: '0 0 auto' };
+const TOPBAR_SEARCH_INPUT_STYLE = { width: '280px', maxWidth: '320px', height: '36px', lineHeight: '36px' };
+const TOPBAR_CLEAR_BUTTON_STYLE = {
+  width: '36px',
+  minWidth: '36px',
+  height: '36px',
+  padding: '0 6px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+const TOPBAR_ADVANCED_BUTTON_STYLE = { height: '36px', minHeight: '36px', display: 'flex', alignItems: 'center' };
+const TOPBAR_FILTERS_GROUP_STYLE = { flex: '0 0 auto', marginLeft: '12px', gap: '32px' };
+const COMPAT_FILTER_DISABLED_STYLE = { opacity: 0.5 };
+const COMPAT_FILTER_ENABLED_STYLE = { opacity: 1 };
+const ADVANCED_FIXED_WIDTH_STYLE = { width: '480px', minWidth: '480px', maxWidth: '480px' };
+const PAGINATION_ROW_STYLE = { marginBottom: '8px' };
+const PAGE_SIZE_STYLE = { width: '80px' };
+
 export default function ResourcesScreen({ refreshKey = 0 } = {}) {
   const id = readIdentity();
   const lang = String(id?.lang || 'fr').trim();
-  const t = createT(lang);
+  const t = React.useMemo(() => createT(lang), [lang]);
+  const {
+    title: confirmTitle,
+    cancelLabel: confirmCancelLabel,
+  } = resolveConfirmDialogLabels(t, {
+    cancelAltKey: 'app.quit.confirm.cancel',
+  });
 
   const usageOptions = React.useMemo(() => (
     USAGE_VALUES
       .map((value) => ({
         value,
-        label: t(`resources.detail.usage.${value}`) || value,
+        label: safeT(t, `resources.detail.usage.${value}`, value),
       }))
       .sort((a, b) => a.label.localeCompare(b.label, lang === 'en' ? 'en' : 'fr', { sensitivity: 'base' }))
   ), [t, lang]);
   const styleOptions = React.useMemo(() => (
     STYLE_VALUES.map((value) => ({
       value,
-      label: t(`resources.detail.style.${value}`) || value,
+      label: safeT(t, `resources.detail.style.${value}`, value),
     }))
   ), [t]);
   const ambianceOptions = React.useMemo(() => (
     AMBIANCE_VALUES.map((value) => ({
       value,
-      label: t(`resources.detail.ambiance.${value}`) || value,
+      label: safeT(t, `resources.detail.ambiance.${value}`, value),
     }))
   ), [t]);
   const licenseOptions = React.useMemo(() => (
     LICENSE_VALUES.map((value) => ({
       value,
-      label: t(`resources.detail.license.${value}`) || value,
+      label: safeT(t, `resources.detail.license.${value}`, value),
     }))
   ), [t]);
   const noneLabel = React.useMemo(() => {
@@ -107,8 +147,6 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
     detailDeleteBusy,
     deleteConfirmOpen,
     setDeleteConfirmOpen,
-    setDetailMsg,
-    setDetailMsgType,
     tagInput,
     setTagInput,
     lightboxIndex,
@@ -185,7 +223,7 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
             {detailItem?.uid ? (
               <span className="uu-id-tag uu-muted">[{detailItem.uid}]</span>
             ) : null}
-            <div style={{ marginLeft: 'auto' }} />
+            <div style={MARGIN_LEFT_AUTO_STYLE} />
             {detailItem?.listingUrl ? (
               <button className="uu-btn" onClick={() => { void handleLaunchInUnreal(); }}>
                 {t('resources.openFab')}
@@ -196,8 +234,6 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
               className="uu-btn"
               onClick={() => {
                 setDeleteConfirmOpen(true);
-                setDetailMsg('');
-                setDetailMsgType('');
               }}
               disabled={detailDeleteBusy}
             >
@@ -289,7 +325,7 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
           </div>
 
           <div className="uu-card uu-col uu-gap-12">
-            <div className="uu-row uu-align-center uu-gap-12" style={{ flexWrap: 'wrap' }}>
+            <div className="uu-row uu-align-center uu-gap-12" style={ROW_WRAP_STYLE}>
               <strong className="uu-block-title">
                 {t('resources.detail.indexation')}
               </strong>
@@ -298,13 +334,13 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
 
             <div className="uu-col uu-gap-12">
               <div className="uu-row uu-gap-16 uu-wrap">
-                <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>
+                <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">
                     {t('resources.detail.labels.usage')}
                   </label>
                   <select
                     className="uu-select"
-                    style={{ flex: '1 1 220px', minWidth: '200px', height: '36px' }}
+                    style={RESOURCE_SELECT_STYLE}
                     value={detailDraft.usage}
                     onChange={(e) => setDetailDraft((prev) => ({ ...prev, usage: e.target.value }))}
                     onBlur={() => { /* save only on close */ }}
@@ -315,13 +351,13 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
                     ))}
                   </select>
                 </div>
-                <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>
+                <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">
                     {t('resources.detail.labels.style')}
                   </label>
                   <select
                     className="uu-select"
-                    style={{ flex: '1 1 220px', minWidth: '200px', height: '36px' }}
+                    style={RESOURCE_SELECT_STYLE}
                     value={detailDraft.style}
                     onChange={(e) => setDetailDraft((prev) => ({ ...prev, style: e.target.value }))}
                     onBlur={() => { /* save only on close */ }}
@@ -335,13 +371,13 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
               </div>
 
               <div className="uu-row uu-gap-16 uu-wrap">
-                <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>
+                <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">
                     {t('resources.detail.labels.ambiance')}
                   </label>
                   <select
                     className="uu-select"
-                    style={{ flex: '1 1 220px', minWidth: '200px', height: '36px' }}
+                    style={RESOURCE_SELECT_STYLE}
                     value={detailDraft.ambiance}
                     onChange={(e) => setDetailDraft((prev) => ({ ...prev, ambiance: e.target.value }))}
                     onBlur={() => { /* save only on close */ }}
@@ -352,13 +388,13 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
                     ))}
                   </select>
                 </div>
-                <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>
+                <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">
                     {t('resources.detail.labels.license')}
                   </label>
                   <select
                     className="uu-select"
-                    style={{ flex: '1 1 220px', minWidth: '200px', height: '36px' }}
+                    style={RESOURCE_SELECT_STYLE}
                     value={detailDraft.license}
                     onChange={(e) => setDetailDraft((prev) => ({ ...prev, license: e.target.value }))}
                     onBlur={() => { /* save only on close */ }}
@@ -427,7 +463,7 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
                     ))}
                   </div>
                 </div>
-              <div className="uu-detail-flag" style={{ flex: '1 1 auto' }}>
+              <div className="uu-detail-flag" style={DETAIL_FLAG_FLEX_STYLE}>
                 <label className="uu-label">
                   {t('resources.detail.labels.performance')}
                 </label>
@@ -451,13 +487,13 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
               </div>
 
               <div className="uu-row wrap">
-                <div className="uu-label" style={{ width: '90px' }}>{t('resources.detail.labels.note')}</div>
+                <div className="uu-label w-90">{t('resources.detail.labels.note')}</div>
                 <div className="uu-value">
                   <textarea
                     ref={detailNoteRef}
                     className="uu-input"
                     rows={1}
-                    style={{ overflow: 'hidden' }}
+                    style={NOTE_TEXTAREA_STYLE}
                     value={detailDraft.note}
                     onChange={(e) => {
                       const el = e.target;
@@ -477,12 +513,12 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
               </div>
 
               <div className="uu-row wrap">
-                <div className="uu-label" style={{ width: '90px' }}>{t('resources.detail.labels.tags')}</div>
-                <div className="uu-row" style={{ flex: '1 1 auto' }}>
+                <div className="uu-label w-90">{t('resources.detail.labels.tags')}</div>
+                <div className="uu-row" style={FLEX_AUTO_STYLE}>
                   <input
                     ref={detailTagsRef}
                     className="uu-input"
-                    style={{ minWidth: '200px', flex: '1 1 260px' }}
+                    style={TAG_INPUT_STYLE}
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
                     onKeyDown={handleTagInputKeyDown}
@@ -491,20 +527,20 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
                   />
                 </div>
               </div>
-              <div className="uu-row uu-gap-6 uu-wrap" style={{ marginLeft: '90px' }}>
+              <div className="uu-row uu-gap-6 uu-wrap" style={TAG_CHIPS_ROW_STYLE}>
                 {detailTagsList.map((tag) => (
                   <span
                     key={tag}
                     className="uu-chip"
-                    style={{ border: 'none', padding: '6px 10px', gap: '8px' }}
+                    style={TAG_CHIP_STYLE}
                   >
-                    <span style={{ marginRight: '6px' }}>{tag}</span>
+                    <span style={TAG_TEXT_STYLE}>{tag}</span>
                     <button
                       type="button"
                       className="uu-chip-remove"
                       onClick={() => removeTagFromDraft(tag)}
                       aria-label={t('common.delete')}
-                      style={{ padding: '2px 6px', minWidth: 'auto', height: '22px' }}
+                      style={TAG_REMOVE_STYLE}
                     >
                       ×
                     </button>
@@ -603,62 +639,20 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
             </div>
           </div>
         ) : null}
-        {deleteConfirmOpen ? (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0, 0, 0, 0.45)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 2200,
-            }}
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget && !detailDeleteBusy) {
-                closeDeleteConfirm(false);
-              }
-            }}
-          >
-            <div
-              className="uu-card"
-              role="dialog"
-              aria-modal="true"
-              aria-label={t('production.confirm.title')}
-              style={{
-                width: 'min(460px, calc(100vw - 32px))',
-                padding: '16px',
-              }}
-              onMouseDown={(event) => event.stopPropagation()}
-            >
-              <div style={{ fontWeight: 600, marginBottom: '10px' }}>
-                {t('production.confirm.title')}
-              </div>
-              <div style={{ marginBottom: '14px', lineHeight: 1.35 }}>
-                {`Supprimer la ressource "${detailTitle || detailUid || '-'}" ?`}
-              </div>
-              <div className="uu-row" style={{ justifyContent: 'flex-end', gap: '8px' }}>
-                <button
-                  type="button"
-                  className="uu-btn"
-                  disabled={detailDeleteBusy}
-                  onClick={() => closeDeleteConfirm(false)}
-                >
-                  {t('production.confirm.cancel')}
-                </button>
-                <button
-                  ref={deleteConfirmOkRef}
-                  type="button"
-                  className="uu-btn prod-toggle-active"
-                  disabled={detailDeleteBusy}
-                  onClick={() => closeDeleteConfirm(true)}
-                >
-                  {detailDeleteBusy ? t('common.loading') : t('common.delete')}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        <ConfirmDialog
+          open={deleteConfirmOpen}
+          busy={detailDeleteBusy}
+          title={confirmTitle}
+          message={t('resources.detail.confirmDelete', {
+            name: detailTitle || detailUid || '-',
+          })}
+          cancelLabel={confirmCancelLabel}
+          confirmLabel={detailDeleteBusy ? t('common.loading') : t('common.delete')}
+          onCancel={() => closeDeleteConfirm(false)}
+          onConfirm={() => closeDeleteConfirm(true)}
+          confirmRef={deleteConfirmOkRef}
+          overlayZIndex={2200}
+        />
       </div>
     );
   }
@@ -666,11 +660,11 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
   return (
     <div className="uu-page uu-page-compact resources-page">
       <div className="uu-section">
-        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'nowrap', alignItems: 'center' }}>
-          <div className="uu-row uu-gap-4 uu-align-center" style={{ flex: '0 0 auto' }}>
+        <div className="uu-row uu-align-center uu-gap-8" style={TOPBAR_ROW_STYLE}>
+          <div className="uu-row uu-gap-4 uu-align-center" style={TOPBAR_GROUP_STYLE}>
             <input
               className="uu-input"
-              style={{ width: '280px', maxWidth: '320px', height: '36px', lineHeight: '36px' }}
+              style={TOPBAR_SEARCH_INPUT_STYLE}
               placeholder={t('resources.searchPlaceholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -686,7 +680,7 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
               }}
               disabled={!canClearSearch}
               title={t('resources.search.clear')}
-              style={{ width: '36px', minWidth: '36px', height: '36px', padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={TOPBAR_CLEAR_BUTTON_STYLE}
             >
               ✕
             </button>
@@ -694,13 +688,13 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
               type="button"
               className="uu-btn"
               onClick={() => setSearchExpanded(true)}
-              style={{ height: '36px', minHeight: '36px', display: 'flex', alignItems: 'center' }}
+              style={TOPBAR_ADVANCED_BUTTON_STYLE}
             >
               {t('resources.search.advancedButton')}
             </button>
           </div>
 
-          <div className="uu-row uu-align-center" style={{ flex: '0 0 auto', marginLeft: '12px', gap: '32px' }}>
+          <div className="uu-row uu-align-center" style={TOPBAR_FILTERS_GROUP_STYLE}>
             <label className="uu-check">
               <input
                 type="checkbox"
@@ -709,7 +703,7 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
               />
               {t('resources.detail.labels.tested')}
             </label>
-            <label className="uu-check" style={{ opacity: compatDisabled ? 0.5 : 1 }}>
+            <label className="uu-check" style={compatDisabled ? COMPAT_FILTER_DISABLED_STYLE : COMPAT_FILTER_ENABLED_STYLE}>
               <input
                 type="checkbox"
                 disabled={compatDisabled}
@@ -731,7 +725,7 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
               <span>{t('resources.detail.labels.favorite')}</span>
             </div>
           </div>
-          <div className="uu-row uu-gap-4" style={{ marginLeft: 'auto' }}>
+          <div className="uu-row uu-gap-4" style={MARGIN_LEFT_AUTO_STYLE}>
             <button
               type="button"
               className={`uu-btn ${viewMode === 'thumbs' ? 'prod-toggle-active' : ''}`}
@@ -767,64 +761,62 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
 
             <div className="uu-col uu-gap-12">
                 <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>{t('resources.detail.labels.usage')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">{t('resources.detail.labels.usage')}</label>
                   <MultiSelectDropdown
                     options={usageOptions}
                     values={searchAdvanced.usage}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, usage: vals }))}
                     noneLabel={noneLabel}
-                    style={{ width: '480px', minWidth: '480px', maxWidth: '480px' }}
+                    style={ADVANCED_FIXED_WIDTH_STYLE}
                   />
                 </div>
-                <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>{t('resources.detail.labels.style')}</label>
+                <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">{t('resources.detail.labels.style')}</label>
                   <MultiSelectDropdown
                     options={styleOptions}
                     values={searchAdvanced.style}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, style: vals }))}
                     noneLabel={noneLabel}
-                    style={{}}
                   />
                 </div>
               </div>
 
               <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>{t('resources.detail.labels.ambiance')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">{t('resources.detail.labels.ambiance')}</label>
                   <MultiSelectDropdown
                     options={ambianceOptions}
                     values={searchAdvanced.ambiance}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, ambiance: vals }))}
                     noneLabel={noneLabel}
-                    style={{ width: '480px', minWidth: '480px', maxWidth: '480px' }}
+                    style={ADVANCED_FIXED_WIDTH_STYLE}
                   />
                 </div>
-                <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>{t('resources.detail.labels.license')}</label>
+                <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">{t('resources.detail.labels.license')}</label>
                   <MultiSelectDropdown
                     options={licenseOptions}
                     values={searchAdvanced.license}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, license: vals }))}
                     noneLabel={noneLabel}
-                    style={{}}
                   />
                 </div>
               </div>
 
               <div className="uu-row uu-gap-16 uu-wrap">
-                <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>{t('resources.type')}</label>
+                <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">{t('resources.type')}</label>
                   <MultiSelectDropdown
                     options={typeOptions.map((val) => ({ value: val, label: val }))}
                     values={searchAdvanced.type}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, type: vals }))}
                     noneLabel={noneLabel}
-                    style={{ width: '480px', minWidth: '480px', maxWidth: '480px' }}
+                    style={ADVANCED_FIXED_WIDTH_STYLE}
                   />
                 </div>
-                <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>{t('resources.detail.distribution')}</label>
+                <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">{t('resources.detail.distribution')}</label>
                   <MultiSelectDropdown
                     options={distributionOptions.map((val) => ({ value: val, label: val }))}
                     values={searchAdvanced.distribution}
@@ -835,21 +827,21 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
               </div>
 
                 <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>{t('resources.ueVersions')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">{t('resources.ueVersions')}</label>
                   <MultiSelectDropdown
                     options={ueOptions.map((val) => ({ value: val, label: val }))}
                     values={searchAdvanced.ueVersion}
                     onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, ueVersion: vals }))}
                     noneLabel={noneLabel}
-                    style={{ width: '480px', minWidth: '480px', maxWidth: '480px' }}
+                    style={ADVANCED_FIXED_WIDTH_STYLE}
                   />
                   </div>
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                    <label className="uu-label" style={{ width: '90px' }}>{t('resources.seller')}</label>
-                    <select
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                    <label className="uu-label w-90">{t('resources.seller')}</label>
+                  <select
                     className="uu-select"
-                    style={{ flex: '1 1 220px', minWidth: '200px', height: '36px' }}
+                    style={RESOURCE_SELECT_STYLE}
                     value={searchAdvanced.seller}
                     onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, seller: e.target.value }))}
                   >
@@ -862,8 +854,8 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
               </div>
 
               <div className="uu-row uu-gap-16 uu-wrap">
-                <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>{t('resources.detail.labels.quality')}</label>
+                <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">{t('resources.detail.labels.quality')}</label>
                   <div className="uu-row uu-align-center uu-gap-8">
                     <div className="uu-rating">
                       {RATING_VALUES.map((n) => (
@@ -892,8 +884,8 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
                     </button>
                   </div>
                 </div>
-                <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>{t('resources.detail.labels.performance')}</label>
+                <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">{t('resources.detail.labels.performance')}</label>
                   <div className="uu-row uu-align-center uu-gap-8">
                     <div className="uu-rating">
                       {RATING_VALUES.map((n) => (
@@ -925,23 +917,23 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
               </div>
 
                 <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>{t('resources.detail.labels.tags')}</label>
+                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">{t('resources.detail.labels.tags')}</label>
                   <input
                     className="uu-input"
-                    style={{ width: '480px', minWidth: '480px', maxWidth: '480px' }}
+                    style={ADVANCED_FIXED_WIDTH_STYLE}
                     value={searchAdvanced.tags}
                     onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, tags: e.target.value }))}
                     placeholder={t('resources.search.placeholderTags')}
                   />
                 </div>
-                <div className="uu-row uu-align-center uu-gap-8" style={{ flex: '1 1 45%', minWidth: '320px' }}>
-                  <label className="uu-label" style={{ width: '90px' }}>
+                <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
+                  <label className="uu-label w-90">
                     {t('resources.detail.labels.epicAccount')}
                   </label>
                   <select
                     className="uu-select"
-                    style={{ flex: '1 1 220px', minWidth: '200px', height: '36px' }}
+                    style={RESOURCE_SELECT_STYLE}
                     value={searchAdvanced.epicAccount}
                     onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, epicAccount: e.target.value }))}
                   >
@@ -969,7 +961,7 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
 
       <div className={`uu-section mt-16 ${viewMode === 'thumbs' ? 'resources-thumbs-section' : ''}`}>
         {filteredResources.length > 0 ? (
-          <div className="uu-row uu-gap-12 uu-align-center" style={{ marginBottom: '8px' }}>
+          <div className="uu-row uu-gap-12 uu-align-center" style={PAGINATION_ROW_STYLE}>
             <div className="uu-row uu-gap-6 uu-align-center">
               {canPrevPage ? (
                 <button
@@ -998,7 +990,7 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
                 className="uu-select"
                 value={pageSize}
                 onChange={(e) => setPageSize(Math.max(10, Number(e.target.value) || 25))}
-                style={{ width: '80px' }}
+                style={PAGE_SIZE_STYLE}
                 aria-label={t('projects.pagination.pageSizeAria')}
               >
                 {[25, 50, 100, 200].map((n) => (
@@ -1045,3 +1037,4 @@ export default function ResourcesScreen({ refreshKey = 0 } = {}) {
     </div>
   );
 }
+

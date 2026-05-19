@@ -9,6 +9,7 @@ const VIEW_MODE_CHECKER = "checker";
 
 const MIN_ZOOM = 25;
 const MAX_ZOOM = 400;
+const RENDER_DETAIL_PREVIEW_TITLE_STYLE = { margin: "0 0 8px 0" };
 
 function clamp(value, min, max) {
   const n = Number(value);
@@ -858,13 +859,15 @@ function RenderDetailPreviewPanel({
   const transformStyle = {
     transform: `translate(${Math.round(panX)}px, ${Math.round(panY)}px) scale(${zoomPercent / 100})`,
   };
+  const compareClipStyle = { clipPath: `inset(0 0 0 ${compareSplitPercent}%)` };
+  const compareHandleStyle = { left: `${compareSplitPercent}%` };
 
   const showGeneratingOverlay = effectiveGenerating && !hasProxy;
   const showNoProxyState = !hasProxy && !showGeneratingOverlay;
 
   return (
     <section className="uu-render-detail-preview-block">
-      <h4 className="uu-h3 uu-block-title" style={{ margin: "0 0 8px 0" }}>
+      <h4 className="uu-h3 uu-block-title" style={RENDER_DETAIL_PREVIEW_TITLE_STYLE}>
         {safeT(t, "postprod.renders.preview.title", "Apercu rendu")}
       </h4>
 
@@ -984,12 +987,12 @@ function RenderDetailPreviewPanel({
                     preload="metadata"
                     muted
                     className="uu-render-viewer-video is-compare"
-                    style={{ clipPath: `inset(0 0 0 ${compareSplitPercent}%)` }}
+                    style={compareClipStyle}
                   />
                   <button
                     type="button"
                     className="uu-render-viewer-compare-handle"
-                    style={{ left: `${compareSplitPercent}%` }}
+                    style={compareHandleStyle}
                     onMouseDown={handleCompareHandleMouseDown}
                     aria-label={safeT(t, "postprod.renders.viewer.compare", "Comparer")}
                   />
@@ -1095,4 +1098,3 @@ function RenderDetailPreviewPanel({
 }
 
 export { RenderDetailPreviewPanel };
-export default RenderDetailPreviewPanel;

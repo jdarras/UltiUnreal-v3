@@ -13,6 +13,8 @@ import {
   resolveAvatarInitials,
 } from "./userSharedHelpers";
 
+const SELF_PROFILE_SAVE_ROW_STYLE = { justifyContent: "flex-end" };
+
 function SelfProfileCard({
   t,
   user = null,
@@ -225,7 +227,7 @@ function SelfProfileCard({
         submitDisabled={saving}
         onChangePassword={handleChangePassword}
       />
-      <div className="uu-row mt-12" style={{ justifyContent: "flex-end" }}>
+      <div className="uu-row mt-12" style={SELF_PROFILE_SAVE_ROW_STYLE}>
         <button
           className="uu-btn"
           type="button"

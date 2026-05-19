@@ -60,4 +60,3 @@ function ProjectActionsRow({
 }
 
 export { ProjectActionsRow };
-export default ProjectActionsRow;

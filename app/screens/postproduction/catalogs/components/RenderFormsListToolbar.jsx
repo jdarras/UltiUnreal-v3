@@ -1,5 +1,22 @@
 import { safeT } from "../../shared/helpers";
 
+const FORMS_TOOLBAR_ROW_STYLE = { flexWrap: "nowrap", alignItems: "center" };
+const FORMS_TOOLBAR_CONTROLS_STYLE = { flex: "0 0 auto" };
+const FORMS_TOOLBAR_SELECT_STYLE = { height: "36px" };
+const FORMS_TOOLBAR_SEARCH_INPUT_STYLE = { width: "280px", maxWidth: "320px", height: "36px", lineHeight: "36px" };
+const FORMS_TOOLBAR_ICON_BUTTON_STYLE = {
+  width: "36px",
+  minWidth: "36px",
+  height: "36px",
+  padding: "0 6px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+const FORMS_TOOLBAR_ADVANCED_BUTTON_STYLE = { height: "36px", minHeight: "36px", display: "flex", alignItems: "center" };
+const FORMS_TOOLBAR_FAVORITE_GROUP_STYLE = { marginLeft: "12px" };
+const FORMS_TOOLBAR_VIEW_GROUP_STYLE = { marginLeft: "auto" };
+
 function RenderFormsListToolbar({
   t,
   canManageRenderTemplates = false,
@@ -19,7 +36,7 @@ function RenderFormsListToolbar({
 }) {
   return (
     <div className="uu-card">
-      <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: "nowrap", alignItems: "center" }}>
+      <div className="uu-row uu-align-center uu-gap-8" style={FORMS_TOOLBAR_ROW_STYLE}>
         <button
           type="button"
           className="uu-btn"
@@ -33,10 +50,10 @@ function RenderFormsListToolbar({
           {safeT(t, "postprod.data.forms.add.compact", "+Formulaire")}
         </button>
 
-        <div className="uu-row uu-gap-8 uu-align-center" style={{ flex: "0 0 auto" }}>
+        <div className="uu-row uu-gap-8 uu-align-center" style={FORMS_TOOLBAR_CONTROLS_STYLE}>
           <select
             className="uu-select"
-            style={{ height: "36px" }}
+            style={FORMS_TOOLBAR_SELECT_STYLE}
             value={`${formsSortMode}:${formsSortDir}`}
             onChange={(e) => {
               if (typeof onSortSelect === "function") {
@@ -50,10 +67,10 @@ function RenderFormsListToolbar({
             <option value="mapName:asc">{safeT(t, "postprod.data.forms.sort.level", "Trier par level")}</option>
           </select>
 
-          <div className="uu-row uu-gap-4 uu-align-center" style={{ flex: "0 0 auto" }}>
+          <div className="uu-row uu-gap-4 uu-align-center" style={FORMS_TOOLBAR_CONTROLS_STYLE}>
             <input
               className="uu-input"
-              style={{ width: "280px", maxWidth: "320px", height: "36px", lineHeight: "36px" }}
+              style={FORMS_TOOLBAR_SEARCH_INPUT_STYLE}
               placeholder={safeT(t, "postprod.data.forms.search.placeholder", "Recherche (nom, projet, level, sequence, preset...)")}
               value={formsSearchQuery}
               onChange={(e) => {
@@ -72,7 +89,7 @@ function RenderFormsListToolbar({
               }}
               disabled={!canClearFormsFilters}
               title={safeT(t, "postprod.data.forms.search.clear", "Effacer filtres")}
-              style={{ width: "36px", minWidth: "36px", height: "36px", padding: "0 6px", display: "flex", alignItems: "center", justifyContent: "center" }}
+              style={FORMS_TOOLBAR_ICON_BUTTON_STYLE}
             >
               ✕
             </button>
@@ -84,13 +101,13 @@ function RenderFormsListToolbar({
                   onOpenAdvancedSearch();
                 }
               }}
-              style={{ height: "36px", minHeight: "36px", display: "flex", alignItems: "center" }}
+              style={FORMS_TOOLBAR_ADVANCED_BUTTON_STYLE}
             >
               {safeT(t, "postprod.data.forms.search.advancedButton", "Recherche avancee")}
             </button>
           </div>
 
-          <div className="uu-row uu-gap-6 uu-align-center" style={{ marginLeft: "12px" }}>
+          <div className="uu-row uu-gap-6 uu-align-center" style={FORMS_TOOLBAR_FAVORITE_GROUP_STYLE}>
             <button
               type="button"
               className={`uu-fav-filter ${formsFavoriteOnly ? "active" : ""}`}
@@ -108,7 +125,7 @@ function RenderFormsListToolbar({
           </div>
         </div>
 
-        <div className="uu-row uu-gap-4" style={{ marginLeft: "auto" }}>
+        <div className="uu-row uu-gap-4" style={FORMS_TOOLBAR_VIEW_GROUP_STYLE}>
           <button
             type="button"
             className={`uu-btn ${formsViewMode === "thumbs" ? "prod-toggle-active" : ""}`}

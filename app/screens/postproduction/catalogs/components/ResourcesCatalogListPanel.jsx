@@ -1,6 +1,45 @@
 import { safeT } from "../../shared/helpers";
 import { ResourceThumbImage } from "./ResourceThumbImage";
 
+const RESOURCES_LIST_CONTAINER_STYLE = { maxHeight: "520px", overflow: "auto" };
+const RESOURCES_LIST_THUMB_HEADER_STYLE = { width: "80px", textAlign: "left" };
+const RESOURCES_LIST_HEADER_STYLE = { textAlign: "left" };
+const RESOURCES_GRID_BASE_STYLE = {
+  display: "grid",
+  gap: "12px",
+  maxHeight: "520px",
+  overflow: "auto",
+  paddingRight: "4px",
+};
+const RESOURCES_GRID_THUMBS_TEMPLATE = "repeat(auto-fill, minmax(180px, 1fr))";
+const RESOURCES_GRID_CARDS_TEMPLATE = "repeat(auto-fill, minmax(280px, 1fr))";
+const RESOURCES_CARD_BASE_STYLE = { textAlign: "left" };
+const RESOURCES_CARD_SELECTED_STYLE = {
+  borderColor: "var(--uu-color-accent)",
+  boxShadow: "0 0 0 1px color-mix(in srgb, var(--uu-color-accent) 65%, transparent)",
+};
+const RESOURCES_CARD_TITLE_STYLE = { fontWeight: 600 };
+
+function buildResourcesListRowStyle(isSelected) {
+  return {
+    cursor: "pointer",
+    background: isSelected ? "rgba(38, 118, 242, 0.15)" : "transparent",
+  };
+}
+
+function buildResourcesGridStyle(viewMode) {
+  return {
+    ...RESOURCES_GRID_BASE_STYLE,
+    gridTemplateColumns: viewMode === "thumbs"
+      ? RESOURCES_GRID_THUMBS_TEMPLATE
+      : RESOURCES_GRID_CARDS_TEMPLATE,
+  };
+}
+
+function buildResourcesCardStyle(isSelected) {
+  return isSelected ? { ...RESOURCES_CARD_BASE_STYLE, ...RESOURCES_CARD_SELECTED_STYLE } : RESOURCES_CARD_BASE_STYLE;
+}
+
 function ResourcesCatalogListPanel({
   t,
   viewMode = "thumbs",
@@ -11,23 +50,23 @@ function ResourcesCatalogListPanel({
 }) {
   if (viewMode === "list") {
     return (
-      <div style={{ maxHeight: "520px", overflow: "auto" }}>
+      <div style={RESOURCES_LIST_CONTAINER_STYLE}>
         <table className="uu-table">
           <thead>
             <tr>
-              <th style={{ width: "80px", textAlign: "left" }}>
+              <th style={RESOURCES_LIST_THUMB_HEADER_STYLE}>
                 {safeT(t, "projects.table.thumbnail", "Miniature")}
               </th>
-              <th style={{ textAlign: "left" }}>
+              <th style={RESOURCES_LIST_HEADER_STYLE}>
                 {safeT(t, "projects.table.name", "Nom")}
               </th>
-              <th style={{ textAlign: "left" }}>
+              <th style={RESOURCES_LIST_HEADER_STYLE}>
                 {safeT(t, "resources.type", "Type")}
               </th>
-              <th style={{ textAlign: "left" }}>
+              <th style={RESOURCES_LIST_HEADER_STYLE}>
                 {safeT(t, "postprod.resources.table.linkedTasks", "Taches liees")}
               </th>
-              <th style={{ textAlign: "left" }}>
+              <th style={RESOURCES_LIST_HEADER_STYLE}>
                 {safeT(t, "postprod.resources.table.actions", "Actions")}
               </th>
             </tr>
@@ -38,10 +77,7 @@ function ResourcesCatalogListPanel({
               return (
                 <tr
                   key={`postprod-resource-list-${entry.ref}`}
-                  style={{
-                    cursor: "pointer",
-                    background: isSelected ? "rgba(38, 118, 242, 0.15)" : "transparent",
-                  }}
+                  style={buildResourcesListRowStyle(isSelected)}
                   onClick={() => onSelectRef?.(entry.ref)}
                 >
                   <td>
@@ -82,16 +118,7 @@ function ResourcesCatalogListPanel({
 
   return (
     <div
-      style={{
-        display: "grid",
-        gap: "12px",
-        maxHeight: "520px",
-        overflow: "auto",
-        paddingRight: "4px",
-        gridTemplateColumns: viewMode === "thumbs"
-          ? "repeat(auto-fill, minmax(180px, 1fr))"
-          : "repeat(auto-fill, minmax(280px, 1fr))",
-      }}
+      style={buildResourcesGridStyle(viewMode)}
     >
       {filteredResources.map((entry) => {
         const isSelected = entry.ref === selectedRef;
@@ -102,11 +129,7 @@ function ResourcesCatalogListPanel({
             type="button"
             className="uu-card"
             onClick={() => onSelectRef?.(entry.ref)}
-            style={{
-              textAlign: "left",
-              borderColor: isSelected ? "var(--uu-color-accent)" : undefined,
-              boxShadow: isSelected ? "0 0 0 1px color-mix(in srgb, var(--uu-color-accent) 65%, transparent)" : undefined,
-            }}
+            style={buildResourcesCardStyle(isSelected)}
           >
             {entry.thumbCandidates.length > 0 ? (
               <ResourceThumbImage
@@ -119,7 +142,7 @@ function ResourcesCatalogListPanel({
                 No thumbnail
               </div>
             )}
-            <div className="mt-8" style={{ fontWeight: 600 }}>{title}</div>
+            <div className="mt-8" style={RESOURCES_CARD_TITLE_STYLE}>{title}</div>
             <div className="uu-muted mt-8">
               {safeT(t, "postprod.resources.meta.type", "Type: {value}", {
                 value: entry.type || "-",
@@ -165,5 +188,3 @@ function ResourcesCatalogListPanel({
 }
 
 export { ResourcesCatalogListPanel };
-export default ResourcesCatalogListPanel;
-

@@ -19,5 +19,3 @@ export function buildRendersSectionPropsInputBase({
     reviewFlow: helpers.reviewFlow,
   };
 }
-
-export default buildRendersSectionPropsInputBase;

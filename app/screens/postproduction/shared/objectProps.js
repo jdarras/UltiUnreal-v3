@@ -23,8 +23,5 @@ function buildProps(source = {}, { keys = [], aliases = {} } = {}) {
 
 export {
   buildProps,
-  mapKeys,
   pickKeys,
 };
-
-export default buildProps;

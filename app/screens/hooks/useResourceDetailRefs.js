@@ -39,5 +39,3 @@ export function useResourceDetailRefs() {
     deleteConfirmOkRef,
   };
 }
-
-export default useResourceDetailRefs;

@@ -100,5 +100,3 @@ export function useRenderDetailController({
     },
   });
 }
-
-export default useRenderDetailController;

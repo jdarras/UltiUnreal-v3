@@ -89,5 +89,3 @@ export function useCreateRenderFormAction({
 
   return { createRenderForm };
 }
-
-export default useCreateRenderFormAction;

@@ -11,6 +11,15 @@ import { entryLevel } from "./audit/auditUiHelpers";
 
 const LEVELS = ["success", "info", "warn", "error", "debug"];
 const ALL_LEVELS = new Set(LEVELS);
+const AUDIT_FILTERS_ROW_STYLE = { gap: "8px", flexWrap: "wrap" };
+const AUDIT_FILTER_COL_200_STYLE = { minWidth: "200px" };
+const AUDIT_FILTER_COL_180_STYLE = { minWidth: "180px" };
+const AUDIT_FILTER_COL_QUERY_STYLE = { minWidth: "240px", flex: 1 };
+const AUDIT_FILTER_COL_CLEAR_STYLE = { minWidth: "140px", marginLeft: "auto" };
+const AUDIT_FILTER_CLEAR_LABEL_STYLE = { visibility: "hidden" };
+const AUDIT_LEVELS_ROW_STYLE = { flexWrap: "wrap" };
+const AUDIT_PAGINATION_RIGHT_STYLE = { marginLeft: "auto" };
+const AUDIT_PAGINATION_SIZE_STYLE = { width: "90px" };
 
 function AuditHistoryCard({
   t,
@@ -133,8 +142,8 @@ function AuditHistoryCard({
   return (
     <section className="uu-section">
       <div className="uu-card">
-        <div className="uu-row mt-8" style={{ gap: "8px", flexWrap: "wrap" }}>
-          <div className="uu-col" style={{ minWidth: "200px" }}>
+        <div className="uu-row mt-8" style={AUDIT_FILTERS_ROW_STYLE}>
+          <div className="uu-col" style={AUDIT_FILTER_COL_200_STYLE}>
             <label className="uu-label">{safeT(t, "postprod.users.activity.filter.fromAt", "Du")}</label>
             <DateTimeConfirmPicker
               value={fromAtLocal}
@@ -145,7 +154,7 @@ function AuditHistoryCard({
               clearLabel={safeT(t, "common.datePicker.clear", "Effacer")}
             />
           </div>
-          <div className="uu-col" style={{ minWidth: "200px" }}>
+          <div className="uu-col" style={AUDIT_FILTER_COL_200_STYLE}>
             <label className="uu-label">{safeT(t, "postprod.users.activity.filter.toAt", "Au")}</label>
             <DateTimeConfirmPicker
               value={toAtLocal}
@@ -156,7 +165,7 @@ function AuditHistoryCard({
               clearLabel={safeT(t, "common.datePicker.clear", "Effacer")}
             />
           </div>
-          <div className="uu-col" style={{ minWidth: "180px" }}>
+          <div className="uu-col" style={AUDIT_FILTER_COL_180_STYLE}>
             <label className="uu-label">{safeT(t, "postprod.users.activity.filter.actionType", "Type d'action")}</label>
             <select
               className="uu-input"
@@ -168,7 +177,7 @@ function AuditHistoryCard({
               ))}
             </select>
           </div>
-          <div className="uu-col" style={{ minWidth: "240px", flex: 1 }}>
+          <div className="uu-col" style={AUDIT_FILTER_COL_QUERY_STYLE}>
             <label className="uu-label">{safeT(t, "postprod.users.activity.filter.search", "Recherche locale")}</label>
             <input
               className="uu-input"
@@ -178,8 +187,8 @@ function AuditHistoryCard({
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <div className="uu-col" style={{ minWidth: "140px", marginLeft: "auto" }}>
-            <label className="uu-label" style={{ visibility: "hidden" }}>_</label>
+          <div className="uu-col" style={AUDIT_FILTER_COL_CLEAR_STYLE}>
+            <label className="uu-label" style={AUDIT_FILTER_CLEAR_LABEL_STYLE}>_</label>
             <button
               className="uu-btn-ghost"
               type="button"
@@ -191,7 +200,7 @@ function AuditHistoryCard({
         </div>
 
         <div className="uu-toolbar">
-          <div className="uu-row gap-8" style={{ flexWrap: "wrap" }}>
+          <div className="uu-row gap-8" style={AUDIT_LEVELS_ROW_STYLE}>
             <div className="uu-chip-group">
               {LEVELS.map((level) => (
                 <button
@@ -241,7 +250,7 @@ function AuditHistoryCard({
             ) : null}
           </div>
 
-          <div className="uu-row uu-gap-6 uu-align-center" style={{ marginLeft: "auto" }}>
+          <div className="uu-row uu-gap-6 uu-align-center" style={AUDIT_PAGINATION_RIGHT_STYLE}>
             {canPrevPage ? (
               <button type="button" className="uu-btn" onClick={handlePrevPage}>
                 ‹
@@ -257,7 +266,7 @@ function AuditHistoryCard({
               className="uu-select"
               value={currentPageSize}
               onChange={handlePageSizeChange}
-              style={{ width: "90px" }}
+              style={AUDIT_PAGINATION_SIZE_STYLE}
             >
               {[50, 100, 200, 500].map((n) => (
                 <option key={n} value={n}>{n}</option>

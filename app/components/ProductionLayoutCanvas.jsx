@@ -1,5 +1,9 @@
 import WidgetCard from '../widgets/widgetcard.jsx';
 
+function buildProductionLayoutFreeStyle(layoutHeight) {
+  return { minHeight: layoutHeight };
+}
+
 export default function ProductionLayoutCanvas({
   editMode,
   layoutHeight,
@@ -37,7 +41,7 @@ export default function ProductionLayoutCanvas({
     >
       <div
         className="prod-layout-free"
-        style={{ minHeight: layoutHeight }}
+        style={buildProductionLayoutFreeStyle(layoutHeight)}
         onMouseMove={onLayoutMouseMove}
         onMouseUp={onLayoutMouseUp}
         onMouseLeave={onLayoutMouseLeave}

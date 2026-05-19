@@ -38,5 +38,3 @@ export function useResourceDetailLightbox({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [lightboxOpen, lightboxItems.length, closeLightbox, stepLightbox]);
 }
-
-export default useResourceDetailLightbox;

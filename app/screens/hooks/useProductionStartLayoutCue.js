@@ -146,4 +146,3 @@ function useProductionStartLayoutCue({
 }
 
 export { useProductionStartLayoutCue };
-export default useProductionStartLayoutCue;

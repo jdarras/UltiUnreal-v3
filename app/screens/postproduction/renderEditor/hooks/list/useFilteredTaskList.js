@@ -70,5 +70,3 @@ export function useFilteredTaskList({
     hasActiveListFilters,
   };
 }
-
-export default useFilteredTaskList;

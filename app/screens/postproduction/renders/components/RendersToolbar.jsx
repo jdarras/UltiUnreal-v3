@@ -3,6 +3,24 @@ import { safeT } from "../../shared/helpers";
 
 const DROPDOWN_STYLE = { flex: "none", minWidth: 0, width: "100%" };
 const FIELD_GRID = { display: "grid", gridTemplateColumns: "150px 1fr", gap: "8px", alignItems: "center" };
+const RENDERS_TOOLBAR_ROW_STYLE = { flexWrap: "nowrap", alignItems: "center", width: "100%" };
+const RENDERS_TOOLBAR_LEFT_STYLE = { flex: "0 0 auto" };
+const RENDERS_TOOLBAR_SELECT_STYLE = { height: "36px" };
+const RENDERS_TOOLBAR_SEARCH_GROUP_STYLE = { flex: "0 0 auto" };
+const RENDERS_TOOLBAR_SEARCH_INPUT_STYLE = { width: "320px", maxWidth: "360px", height: "36px", lineHeight: "36px" };
+const RENDERS_TOOLBAR_CLEAR_BUTTON_STYLE = {
+  width: "36px",
+  minWidth: "36px",
+  height: "36px",
+  padding: "0 6px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+const RENDERS_TOOLBAR_ADVANCED_BUTTON_STYLE = { height: "36px", minHeight: "36px", display: "flex", alignItems: "center" };
+const RENDERS_TOOLBAR_HISTORY_LABEL_STYLE = { marginLeft: "8px", whiteSpace: "nowrap" };
+const RENDERS_TOOLBAR_VIEW_MODE_STYLE = { marginLeft: "auto" };
+const RENDERS_ADVANCED_GRID_STYLE = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", alignItems: "start" };
 
 function normalizeMultiSelectOptions(options = []) {
   return (Array.isArray(options) ? options : [])
@@ -35,8 +53,8 @@ function RendersToolbar({
 }) {
   return (
     <div className="uu-card">
-      <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: "nowrap", alignItems: "center", width: "100%" }}>
-        <div className="uu-row uu-gap-8 uu-align-center" style={{ flex: "0 0 auto" }}>
+      <div className="uu-row uu-align-center uu-gap-8" style={RENDERS_TOOLBAR_ROW_STYLE}>
+        <div className="uu-row uu-gap-8 uu-align-center" style={RENDERS_TOOLBAR_LEFT_STYLE}>
           <button
             className="uu-btn"
             type="button"
@@ -48,7 +66,7 @@ function RendersToolbar({
 
           <select
             className="uu-select"
-            style={{ height: "36px" }}
+            style={RENDERS_TOOLBAR_SELECT_STYLE}
             value={`${listSortKey}:${listSortDir}`}
             disabled={rendersLoading}
             onChange={(e) => onSetListSortFromSelect?.(e.target.value)}
@@ -62,10 +80,10 @@ function RendersToolbar({
             <option value="reviewStatus:asc">{safeT(t, "postprod.renders.sort.reviewStatus", "Validation")}</option>
           </select>
 
-          <div className="uu-row uu-gap-4 uu-align-center" style={{ flex: "0 0 auto" }}>
+          <div className="uu-row uu-gap-4 uu-align-center" style={RENDERS_TOOLBAR_SEARCH_GROUP_STYLE}>
             <input
               className="uu-input"
-              style={{ width: "320px", maxWidth: "360px", height: "36px", lineHeight: "36px" }}
+              style={RENDERS_TOOLBAR_SEARCH_INPUT_STYLE}
               type="text"
               value={searchQuery}
               disabled={rendersLoading}
@@ -78,15 +96,7 @@ function RendersToolbar({
               disabled={rendersLoading || !hasActiveFilters}
               onClick={() => onClearFilters?.()}
               title={safeT(t, "postprod.renders.search.clear", "Effacer filtres")}
-              style={{
-                width: "36px",
-                minWidth: "36px",
-                height: "36px",
-                padding: "0 6px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+              style={RENDERS_TOOLBAR_CLEAR_BUTTON_STYLE}
             >
               ✕
             </button>
@@ -94,11 +104,11 @@ function RendersToolbar({
               type="button"
               className="uu-btn"
               onClick={() => onOpenAdvancedSearch?.()}
-              style={{ height: "36px", minHeight: "36px", display: "flex", alignItems: "center" }}
+              style={RENDERS_TOOLBAR_ADVANCED_BUTTON_STYLE}
             >
               {safeT(t, "projects.search.advancedButton", "Recherche avancee")}
             </button>
-            <label className="uu-check" style={{ marginLeft: "8px", whiteSpace: "nowrap" }}>
+            <label className="uu-check" style={RENDERS_TOOLBAR_HISTORY_LABEL_STYLE}>
               <input
                 type="checkbox"
                 checked={showHistory === true}
@@ -110,7 +120,7 @@ function RendersToolbar({
           </div>
         </div>
 
-        <div className="uu-row uu-gap-4" style={{ marginLeft: "auto" }}>
+        <div className="uu-row uu-gap-4" style={RENDERS_TOOLBAR_VIEW_MODE_STYLE}>
           <button
             className={`uu-btn ${viewMode === "thumbs" ? "prod-toggle-active" : ""}`}
             type="button"
@@ -184,7 +194,7 @@ function RendersAdvancedSearchPanel({
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", alignItems: "start" }}>
+      <div style={RENDERS_ADVANCED_GRID_STYLE}>
         <div style={FIELD_GRID}>
           <label className="uu-label">{safeT(t, "postprod.renders.filters.projects", "Projets")}</label>
           <MultiSelectDropdown options={projectOptions} values={Array.isArray(projectFilter) ? projectFilter : []} onChange={(v) => { if (!rendersLoading) onSetProjectFilter?.(v); }} noneLabel={noneLabel} style={DROPDOWN_STYLE} />

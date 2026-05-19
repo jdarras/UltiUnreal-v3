@@ -22,15 +22,7 @@ import {
   logWidgetAction
 } from '../utils/agent';
 import { normalizeTimeline } from '../utils/timeline';
-
-import { readIdentity } from '../utils/identity';
-import { createT } from '../i18n';
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
-}
+import { getWidgetT } from './widgetTranslator.js';
 
 function getFunctionParamName(param = {}, index = 0) {
   return String(
@@ -373,7 +365,7 @@ export default function WidgetCard({
 }) {
   if (!w) return null;
 
-  const t = getT();
+  const t = getWidgetT();
   const baseClass = 'uu-card prod-widget';
       const cardRef = useRef(null);
 
@@ -1335,3 +1327,4 @@ export default function WidgetCard({
     </div>
   );
 }
+

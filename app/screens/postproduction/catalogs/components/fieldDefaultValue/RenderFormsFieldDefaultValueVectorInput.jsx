@@ -1,8 +1,12 @@
 import { persistOnBlur, updateDefaultValue } from "./defaultValueHelpers";
 
+const FIELD_DEFAULT_VECTOR_AXIS_LABEL_STYLE = { minWidth: "12px", textAlign: "right" };
+const FIELD_DEFAULT_VECTOR_INPUT_STYLE = { width: "84px", minWidth: "84px", maxWidth: "84px" };
+const FIELD_DEFAULT_VECTOR_ROW_STYLE = { flexWrap: "nowrap", alignItems: "center" };
+
 function axisLabel(axis) {
   return (
-    <span className="uu-muted" style={{ minWidth: "12px", textAlign: "right" }}>
+    <span className="uu-muted" style={FIELD_DEFAULT_VECTOR_AXIS_LABEL_STYLE}>
       {axis}
     </span>
   );
@@ -14,7 +18,7 @@ function axisInput({ value = "0", disabled = false, onChange = null, onPersist =
       className="uu-input"
       type="number"
       value={value}
-      style={{ width: "84px", minWidth: "84px", maxWidth: "84px" }}
+      style={FIELD_DEFAULT_VECTOR_INPUT_STYLE}
       disabled={disabled}
       onChange={(e) => onChange?.(e.target.value)}
       onBlur={() => persistOnBlur(onPersist)}
@@ -33,7 +37,7 @@ function RenderFormsFieldDefaultValueVectorInput({
 }) {
   if (inputKind === "vector2") {
     return (
-      <div className="uu-row uu-gap-4" style={{ flexWrap: "nowrap", alignItems: "center" }}>
+      <div className="uu-row uu-gap-4" style={FIELD_DEFAULT_VECTOR_ROW_STYLE}>
         {axisLabel("X")}
         {axisInput({
           value: vector2Default.x,
@@ -53,7 +57,7 @@ function RenderFormsFieldDefaultValueVectorInput({
   }
 
   return (
-    <div className="uu-row uu-gap-4" style={{ flexWrap: "nowrap", alignItems: "center" }}>
+    <div className="uu-row uu-gap-4" style={FIELD_DEFAULT_VECTOR_ROW_STYLE}>
       {axisLabel("X")}
       {axisInput({
         value: vector3Default.x,
@@ -92,4 +96,3 @@ function RenderFormsFieldDefaultValueVectorInput({
 }
 
 export { RenderFormsFieldDefaultValueVectorInput };
-

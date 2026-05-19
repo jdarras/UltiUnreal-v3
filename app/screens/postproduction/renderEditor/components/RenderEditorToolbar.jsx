@@ -1,6 +1,34 @@
 import { safeT } from "../../shared/helpers";
 import { normalizeTaskVisualStatusKey, taskVisualStatusClass, taskVisualStatusLabel } from "../helpers";
 
+const RENDER_EDITOR_TOOLBAR_ROOT_STYLE = {
+  justifyContent: "space-between",
+  alignItems: "flex-end",
+  gap: "12px",
+  flexWrap: "wrap",
+};
+const RENDER_EDITOR_TOOLBAR_BROWSE_ROW_STYLE = { flexWrap: "nowrap", alignItems: "center", width: "100%" };
+const RENDER_EDITOR_TOOLBAR_CONTROLS_STYLE = { flex: "0 0 auto" };
+const RENDER_EDITOR_TOOLBAR_SORT_STYLE = { height: "36px" };
+const RENDER_EDITOR_TOOLBAR_SEARCH_GROUP_STYLE = { flex: "0 0 auto" };
+const RENDER_EDITOR_TOOLBAR_SEARCH_INPUT_STYLE = { width: "280px", maxWidth: "320px", height: "36px", lineHeight: "36px" };
+const RENDER_EDITOR_TOOLBAR_CLEAR_BUTTON_STYLE = {
+  width: "36px",
+  minWidth: "36px",
+  height: "36px",
+  padding: "0 6px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+const RENDER_EDITOR_TOOLBAR_ADVANCED_BUTTON_STYLE = { height: "36px", minHeight: "36px", display: "flex", alignItems: "center" };
+const RENDER_EDITOR_TOOLBAR_FAVORITES_STYLE = { marginLeft: "12px" };
+const RENDER_EDITOR_TOOLBAR_HISTORY_LABEL_STYLE = { marginLeft: "10px", whiteSpace: "nowrap" };
+const RENDER_EDITOR_TOOLBAR_VIEW_TOGGLES_STYLE = { marginLeft: "auto" };
+const RENDER_EDITOR_TOOLBAR_FORM_ROW_STYLE = { justifyContent: "space-between", alignItems: "center", width: "100%" };
+const RENDER_EDITOR_TOOLBAR_FORM_STATUS_STYLE = { minHeight: "36px" };
+const RENDER_EDITOR_TOOLBAR_FORM_ACTIONS_STYLE = { marginLeft: "auto" };
+
 function RenderEditorToolbar({
   t,
   showCreateForm = false,
@@ -32,9 +60,9 @@ function RenderEditorToolbar({
   const editorStatusClass = taskVisualStatusClass(normalizedEditorStatus);
 
   return (
-    <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "flex-end", gap: "12px", flexWrap: "wrap" }}>
+    <div className="uu-row" style={RENDER_EDITOR_TOOLBAR_ROOT_STYLE}>
       {!showCreateForm ? (
-        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: "nowrap", alignItems: "center", width: "100%" }}>
+        <div className="uu-row uu-align-center uu-gap-8" style={RENDER_EDITOR_TOOLBAR_BROWSE_ROW_STYLE}>
           <button
             className="uu-btn"
             type="button"
@@ -44,10 +72,10 @@ function RenderEditorToolbar({
             {safeT(t, "postprod.tasks.form.new", "+ Nouvelle tache")}
           </button>
 
-          <div className="uu-row uu-gap-8 uu-align-center" style={{ flex: "0 0 auto" }}>
+          <div className="uu-row uu-gap-8 uu-align-center" style={RENDER_EDITOR_TOOLBAR_CONTROLS_STYLE}>
             <select
               className="uu-select"
-              style={{ height: "36px" }}
+              style={RENDER_EDITOR_TOOLBAR_SORT_STYLE}
               value={`${listSortKey}:${listSortDir}`}
               disabled={tasksLoading}
               onChange={(e) => onSetListSortFromSelect?.(e.target.value)}
@@ -69,10 +97,10 @@ function RenderEditorToolbar({
               </option>
             </select>
 
-            <div className="uu-row uu-gap-4 uu-align-center" style={{ flex: "0 0 auto" }}>
+            <div className="uu-row uu-gap-4 uu-align-center" style={RENDER_EDITOR_TOOLBAR_SEARCH_GROUP_STYLE}>
               <input
                 className="uu-input"
-                style={{ width: "280px", maxWidth: "320px", height: "36px", lineHeight: "36px" }}
+                style={RENDER_EDITOR_TOOLBAR_SEARCH_INPUT_STYLE}
                 type="text"
                 value={searchQuery}
                 disabled={tasksLoading}
@@ -85,7 +113,7 @@ function RenderEditorToolbar({
                 disabled={tasksLoading}
                 onClick={() => onClearFilters?.()}
                 title={safeT(t, "postprod.tasks.search.clear", "Effacer filtres")}
-                style={{ width: "36px", minWidth: "36px", height: "36px", padding: "0 6px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                style={RENDER_EDITOR_TOOLBAR_CLEAR_BUTTON_STYLE}
               >
                 ✕
               </button>
@@ -93,13 +121,13 @@ function RenderEditorToolbar({
                 type="button"
                 className="uu-btn"
                 onClick={() => onOpenAdvancedSearch?.()}
-                style={{ height: "36px", minHeight: "36px", display: "flex", alignItems: "center" }}
+                style={RENDER_EDITOR_TOOLBAR_ADVANCED_BUTTON_STYLE}
               >
                 {safeT(t, "projects.search.advancedButton", "Recherche avancee")}
               </button>
             </div>
 
-            <div className="uu-row uu-gap-6 uu-align-center" style={{ marginLeft: "12px" }}>
+            <div className="uu-row uu-gap-6 uu-align-center" style={RENDER_EDITOR_TOOLBAR_FAVORITES_STYLE}>
               <button
                 type="button"
                 className={`uu-fav-filter ${favoriteOnly ? "active" : ""}`}
@@ -112,7 +140,7 @@ function RenderEditorToolbar({
               <span>{safeT(t, "resources.detail.labels.favorite", "Favoris")}</span>
             </div>
 
-            <label className="uu-check" style={{ marginLeft: "10px", whiteSpace: "nowrap" }}>
+            <label className="uu-check" style={RENDER_EDITOR_TOOLBAR_HISTORY_LABEL_STYLE}>
               <input
                 type="checkbox"
                 checked={showHistory === true}
@@ -123,7 +151,7 @@ function RenderEditorToolbar({
             </label>
           </div>
 
-          <div className="uu-row uu-gap-4" style={{ marginLeft: "auto" }}>
+          <div className="uu-row uu-gap-4" style={RENDER_EDITOR_TOOLBAR_VIEW_TOGGLES_STYLE}>
             <button
               type="button"
               className={`uu-btn ${viewMode === "thumbs" ? "prod-toggle-active" : ""}`}
@@ -141,14 +169,14 @@ function RenderEditorToolbar({
           </div>
         </div>
       ) : (
-        <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-          <div className="uu-row uu-gap-8 uu-align-center" style={{ minHeight: "36px" }}>
+        <div className="uu-row" style={RENDER_EDITOR_TOOLBAR_FORM_ROW_STYLE}>
+          <div className="uu-row uu-gap-8 uu-align-center" style={RENDER_EDITOR_TOOLBAR_FORM_STATUS_STYLE}>
             <span className="uu-muted">{safeT(t, "postprod.tasks.form.status.label", "Statut du rendu")}</span>
             <span className={`uu-chip chip-on ${editorStatusClass}`}>
               {editorStatusLabel}
             </span>
           </div>
-          <div className="uu-row uu-gap-4" style={{ marginLeft: "auto" }}>
+          <div className="uu-row uu-gap-4" style={RENDER_EDITOR_TOOLBAR_FORM_ACTIONS_STYLE}>
             <button
               className="uu-btn"
               type="button"

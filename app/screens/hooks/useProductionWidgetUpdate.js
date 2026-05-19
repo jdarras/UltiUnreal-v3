@@ -72,4 +72,3 @@ function useProductionWidgetUpdate({
 }
 
 export { useProductionWidgetUpdate };
-export default useProductionWidgetUpdate;

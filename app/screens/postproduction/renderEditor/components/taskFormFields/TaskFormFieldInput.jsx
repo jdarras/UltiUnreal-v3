@@ -5,6 +5,10 @@ import {
   sanitizeInlineTextValue,
 } from "./helpers";
 
+const TASK_FORM_VECTOR_ROW_STYLE = { flexWrap: "nowrap", alignItems: "center" };
+const TASK_FORM_VECTOR_AXIS_LABEL_STYLE = { minWidth: "12px", textAlign: "right" };
+const TASK_FORM_VECTOR_INPUT_STYLE = { width: "84px", minWidth: "84px", maxWidth: "84px" };
+
 function TaskFormFieldInput({
   t,
   inputKind = "text",
@@ -62,26 +66,26 @@ function TaskFormFieldInput({
   if (inputKind === "vector2") {
     const vector = normalizeAutoRenderVectorUiValue(rawValue, 2);
     return (
-      <div className="uu-row uu-gap-4" style={{ flexWrap: "nowrap", alignItems: "center" }}>
-        <span className="uu-muted" style={{ minWidth: "12px", textAlign: "right" }}>
+      <div className="uu-row uu-gap-4" style={TASK_FORM_VECTOR_ROW_STYLE}>
+        <span className="uu-muted" style={TASK_FORM_VECTOR_AXIS_LABEL_STYLE}>
           X
         </span>
         <input
           className="uu-input"
           type="number"
           value={vector.x}
-          style={{ width: "84px", minWidth: "84px", maxWidth: "84px" }}
+          style={TASK_FORM_VECTOR_INPUT_STYLE}
           disabled={tasksLoading}
           onChange={(e) => update({ x: e.target.value, y: vector.y })}
         />
-        <span className="uu-muted" style={{ minWidth: "12px", textAlign: "right" }}>
+        <span className="uu-muted" style={TASK_FORM_VECTOR_AXIS_LABEL_STYLE}>
           Y
         </span>
         <input
           className="uu-input"
           type="number"
           value={vector.y}
-          style={{ width: "84px", minWidth: "84px", maxWidth: "84px" }}
+          style={TASK_FORM_VECTOR_INPUT_STYLE}
           disabled={tasksLoading}
           onChange={(e) => update({ x: vector.x, y: e.target.value })}
         />
@@ -92,37 +96,37 @@ function TaskFormFieldInput({
   if (inputKind === "vector3") {
     const vector = normalizeAutoRenderVectorUiValue(rawValue, 3);
     return (
-      <div className="uu-row uu-gap-4" style={{ flexWrap: "nowrap", alignItems: "center" }}>
-        <span className="uu-muted" style={{ minWidth: "12px", textAlign: "right" }}>
+      <div className="uu-row uu-gap-4" style={TASK_FORM_VECTOR_ROW_STYLE}>
+        <span className="uu-muted" style={TASK_FORM_VECTOR_AXIS_LABEL_STYLE}>
           X
         </span>
         <input
           className="uu-input"
           type="number"
           value={vector.x}
-          style={{ width: "84px", minWidth: "84px", maxWidth: "84px" }}
+          style={TASK_FORM_VECTOR_INPUT_STYLE}
           disabled={tasksLoading}
           onChange={(e) => update({ x: e.target.value, y: vector.y, z: vector.z })}
         />
-        <span className="uu-muted" style={{ minWidth: "12px", textAlign: "right" }}>
+        <span className="uu-muted" style={TASK_FORM_VECTOR_AXIS_LABEL_STYLE}>
           Y
         </span>
         <input
           className="uu-input"
           type="number"
           value={vector.y}
-          style={{ width: "84px", minWidth: "84px", maxWidth: "84px" }}
+          style={TASK_FORM_VECTOR_INPUT_STYLE}
           disabled={tasksLoading}
           onChange={(e) => update({ x: vector.x, y: e.target.value, z: vector.z })}
         />
-        <span className="uu-muted" style={{ minWidth: "12px", textAlign: "right" }}>
+        <span className="uu-muted" style={TASK_FORM_VECTOR_AXIS_LABEL_STYLE}>
           Z
         </span>
         <input
           className="uu-input"
           type="number"
           value={vector.z}
-          style={{ width: "84px", minWidth: "84px", maxWidth: "84px" }}
+          style={TASK_FORM_VECTOR_INPUT_STYLE}
           disabled={tasksLoading}
           onChange={(e) => update({ x: vector.x, y: vector.y, z: e.target.value })}
         />

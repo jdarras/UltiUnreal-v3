@@ -3,6 +3,9 @@ import { RenderFormsFieldsAdvancedEditor } from "./RenderFormsFieldsAdvancedEdit
 import { RenderFormsFieldsEditorModeToggle } from "./RenderFormsFieldsEditorModeToggle";
 import { RenderFormsFieldsTable } from "./RenderFormsFieldsTable";
 
+const FIELDS_EDITOR_CARD_STYLE = { gridColumn: "1 / -1" };
+const FIELDS_EDITOR_HEADER_STYLE = { justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" };
+
 function RenderFormsFieldsEditorCard({
   t,
   fieldsAdvancedMode = false,
@@ -34,11 +37,8 @@ function RenderFormsFieldsEditorCard({
   metaInfo: _metaInfo = "",
 }) {
   return (
-    <div className="uu-card" style={{ gridColumn: "1 / -1" }}>
-      <div
-        className="uu-row"
-        style={{ justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}
-      >
+    <div className="uu-card" style={FIELDS_EDITOR_CARD_STYLE}>
+      <div className="uu-row" style={FIELDS_EDITOR_HEADER_STYLE}>
         <div className="uu-h3 uu-block-title">
           {safeT(t, "postprod.data.forms.fieldsEditorVisual", "Champs du formulaire")}
         </div>

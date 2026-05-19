@@ -18,6 +18,25 @@ import { EnumEditorRight, EnumLabelEditor, EnumEditorLeftExtras } from '../widge
 import { BrowseEditorLeftExtras, BrowseLabelEditor, BrowseEditorRight } from '../widgets/browsewidget.jsx';
 import { TimelineEditorRight } from '../widgets/timelinewidget.jsx';
 import { colorClass } from '../utils/colors';
+import {
+  getButtonDefaultArgsTitlePluralLabel,
+  getButtonDefaultArgsTitleSingularLabel,
+  getLayoutColorLabel,
+  getLayoutEditTitleLabel,
+  getLayoutExportLabel,
+  getLayoutImportLabel,
+  getLayoutNameLabel,
+  getLayoutUseAsStartLabel,
+  getPaletteAddBrowseLabel,
+  getPaletteAddTimelineLabel,
+} from './componentI18n';
+
+const PRODUCTION_LAYOUT_TITLE_ROW_STYLE = { flexWrap: 'wrap' };
+const PRODUCTION_LAYOUT_CONTENT_ROW_STYLE = { alignItems: 'flex-start', flexWrap: 'wrap' };
+const PRODUCTION_LAYOUT_FIELDS_COLUMN_STYLE = { flex: '1 1 260px', minWidth: '240px' };
+const PRODUCTION_LAYOUT_LABEL_STYLE = { width: '60px' };
+const PRODUCTION_LAYOUT_NAME_INPUT_STYLE = { width: '220px' };
+const PRODUCTION_LAYOUT_ACTIONS_COLUMN_STYLE = { flex: '0 0 200px' };
 
 export default function ProductionSidebar({
   editMode,
@@ -45,6 +64,16 @@ export default function ProductionSidebar({
   );
   const companionLayoutId = String(layoutMeta?.id || '').trim();
   const [layoutNameDirty, setLayoutNameDirty] = React.useState(false);
+  const buttonDefaultArgsTitlePlural = getButtonDefaultArgsTitlePluralLabel(t);
+  const buttonDefaultArgsTitleSingular = getButtonDefaultArgsTitleSingularLabel(t);
+  const paletteAddBrowseLabel = getPaletteAddBrowseLabel(t);
+  const paletteAddTimelineLabel = getPaletteAddTimelineLabel(t);
+  const layoutEditTitle = getLayoutEditTitleLabel(t);
+  const layoutNameLabel = getLayoutNameLabel(t);
+  const layoutColorLabel = getLayoutColorLabel(t);
+  const layoutUseAsStartLabel = getLayoutUseAsStartLabel(t);
+  const layoutExportLabel = getLayoutExportLabel(t);
+  const layoutImportLabel = getLayoutImportLabel(t);
 
   React.useEffect(() => {
     // Changement de layout actif: on réinitialise l'édition locale.
@@ -86,14 +115,15 @@ export default function ProductionSidebar({
       : 0;
 
     return argCount > 1
-      ? (t('widgets.button.defaultArgsTitlePlural') || 'Valeurs par défaut')
-      : (t('widgets.button.defaultArgsTitleSingular') || 'Valeur par défaut');
+      ? buttonDefaultArgsTitlePlural
+      : buttonDefaultArgsTitleSingular;
   }, [
+    buttonDefaultArgsTitlePlural,
+    buttonDefaultArgsTitleSingular,
     presetData?.funcs,
     selected?.binding?.displayName,
     selected?.binding?.ownerName,
-    selected?.type,
-    t
+    selected?.type
   ]);
 
   if (!editMode) return null;
@@ -260,7 +290,7 @@ export default function ProductionSidebar({
                 e.dataTransfer.setData('text/uu-widget-type', 'browse');
               }}
             >
-              {t('production.palette.addBrowse') || 'Ajouter Browse'}
+              {paletteAddBrowseLabel}
             </button>
 
             <button
@@ -273,7 +303,7 @@ export default function ProductionSidebar({
                 e.dataTransfer.setData('text/uu-widget-type', 'timeline');
               }}
             >
-              {t('production.palette.addTimeline') || 'Ajouter Timeline'}
+              {paletteAddTimelineLabel}
             </button>
 
             <button
@@ -680,18 +710,18 @@ export default function ProductionSidebar({
     </div>
 
     <div className="uu-card mt-12">
-      <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
+      <div className="uu-row uu-align-center uu-gap-8" style={PRODUCTION_LAYOUT_TITLE_ROW_STYLE}>
         <strong className="uu-block-title">
-          {t('production.layout.editTitle') || 'Édition Layout'}
+          {layoutEditTitle}
         </strong>
       </div>
-      <div className="uu-row uu-gap-12 mt-8" style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div className="uu-col uu-gap-8" style={{ flex: '1 1 260px', minWidth: '240px' }}>
+      <div className="uu-row uu-gap-12 mt-8" style={PRODUCTION_LAYOUT_CONTENT_ROW_STYLE}>
+        <div className="uu-col uu-gap-8" style={PRODUCTION_LAYOUT_FIELDS_COLUMN_STYLE}>
           <div className="uu-row uu-align-center uu-gap-8">
-            <span className="uu-label" style={{ width: '60px' }}>{t('production.layout.name') || 'Nom'}</span>
+            <span className="uu-label" style={PRODUCTION_LAYOUT_LABEL_STYLE}>{layoutNameLabel}</span>
             <input
               className="uu-input"
-              style={{ width: '220px' }}
+              style={PRODUCTION_LAYOUT_NAME_INPUT_STYLE}
               maxLength={24}
               value={layoutNameDraft}
               onChange={(e) => {
@@ -717,7 +747,7 @@ export default function ProductionSidebar({
           </div>
 
           <div className="uu-row uu-align-center uu-gap-8">
-            <span className="uu-label" style={{ width: '60px' }}>{t('production.layout.color') || 'Couleur'}</span>
+            <span className="uu-label" style={PRODUCTION_LAYOUT_LABEL_STYLE}>{layoutColorLabel}</span>
             <input
               type="color"
               className="uu-input-color"
@@ -733,18 +763,18 @@ export default function ProductionSidebar({
               onChange={(e) => onLayoutMetaChange?.({ isStart: !!e.target.checked })}
               disabled={!!startLayoutToggleBusy}
             />
-            {t('production.layout.useAsStart') || 'Utiliser comme Start Layout'}
+            {layoutUseAsStartLabel}
           </label>
         </div>
 
-        <div className="uu-col uu-gap-8" style={{ flex: '0 0 200px' }}>
+        <div className="uu-col uu-gap-8" style={PRODUCTION_LAYOUT_ACTIONS_COLUMN_STYLE}>
           <button
             type="button"
             className="uu-btn"
             onClick={onExportLayout}
             disabled={!!exportImportBusy}
           >
-            {t('production.layout.export') || 'Exporter le layout'}
+            {layoutExportLabel}
           </button>
           <button
             type="button"
@@ -752,7 +782,7 @@ export default function ProductionSidebar({
             onClick={onImportLayout}
             disabled={!!exportImportBusy}
           >
-            {t('production.layout.import') || 'Importer le layout'}
+            {layoutImportLabel}
           </button>
         </div>
       </div>

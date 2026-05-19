@@ -55,5 +55,3 @@ function buildRenderEditorListControllerInput({
 export {
   buildRenderEditorListControllerInput,
 };
-
-export default buildRenderEditorListControllerInput;

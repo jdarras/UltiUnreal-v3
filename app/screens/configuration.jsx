@@ -32,6 +32,35 @@ import {
 import { useConfigFabLibrary } from './useConfigFabLibrary';
 import { useConfigProjectScan } from './useConfigProjectScan';
 
+const SECTION_HEADER_ROW_STYLE = { flexWrap: 'wrap' };
+const TITLE_NO_MARGIN_STYLE = { margin: 0 };
+const CARD_ROW_ALIGN_CENTER_STYLE = { alignItems: 'center' };
+const BASELINE_WRAP_ROW_STYLE = { alignItems: 'baseline', flexWrap: 'wrap' };
+const INLINE_FIELD_ROW_STYLE = { display: 'flex', alignItems: 'center', gap: '10px' };
+const INLINE_FIELD_LABEL_STYLE = { width: '170px', minWidth: '170px', margin: 0 };
+const FLEX_ONE_STYLE = { flex: 1 };
+const COMMON_COLUMNS_STYLE = { alignItems: 'flex-start', gap: '32px', flexWrap: 'wrap' };
+const COMMON_COLUMN_LEFT_STYLE = { flex: '1 1 340px', minWidth: '300px' };
+const COMMON_COLUMN_RIGHT_STYLE = { flex: '1 1 320px', minWidth: '280px' };
+const GRID_ONE_AUTO_STYLE = { gridTemplateColumns: '1fr auto' };
+const PROXY_OPTIONS_ROW_STYLE = { alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap' };
+const PROXY_OPTION_FIELD_STYLE = { minWidth: '250px', maxWidth: '340px' };
+const VERSION_ROW_GRID_STYLE = { gridTemplateColumns: '140px 1fr', gap: '8px' };
+const VERSION_ACTIONS_ROW_STYLE = { gridColumn: '1 / -1', flexWrap: 'nowrap' };
+const GRID_ONE_AUTO_AUTO_STYLE = { gridTemplateColumns: '1fr auto auto' };
+const CHECK_ALIGN_CENTER_STYLE = { alignItems: 'center' };
+const SCAN_ITEM_CONTENT_STYLE = { gap: '4px' };
+
+function ConfigSectionTitle({ children, noMargin = false }) {
+  return (
+    <div className="uu-row uu-align-center uu-gap-8" style={SECTION_HEADER_ROW_STYLE}>
+      <h3 className="uu-h3 uu-block-title" style={noMargin ? TITLE_NO_MARGIN_STYLE : undefined}>
+        {children}
+      </h3>
+    </div>
+  );
+}
+
 export default function ConfigurationScreen({
   licenseStatus,
   onCommonUpdated,
@@ -87,6 +116,7 @@ export default function ConfigurationScreen({
   const [userPrefsMsg, setUserPrefsMsg] = React.useState({ text: '', type: '' });
   const [loaded, setLoaded] = React.useState(false);
   const saveTimer = React.useRef(null);
+  const infoMsgTimer = React.useRef(null);
   const userPrefsMsgTimer = React.useRef(null);
   const cfgRef = React.useRef(EMPTY_COMMON);
   const versionsRef = React.useRef([]);
@@ -302,9 +332,43 @@ export default function ConfigurationScreen({
     }, 700);
   }, [loaded]);
 
+  const clearInfoFeedback = React.useCallback(() => {
+    setInfoMsg({ text: '', type: '', section: '' });
+  }, []);
+
+  const scheduleInfoFeedbackClear = React.useCallback((delayMs = 2500) => {
+    if (infoMsgTimer.current) {
+      clearTimeout(infoMsgTimer.current);
+      infoMsgTimer.current = null;
+    }
+    const rawDelay = Number(delayMs);
+    const timeoutMs = Number.isFinite(rawDelay) && rawDelay >= 0 ? Math.trunc(rawDelay) : 0;
+    infoMsgTimer.current = setTimeout(() => {
+      infoMsgTimer.current = null;
+      clearInfoFeedback();
+    }, timeoutMs);
+  }, [clearInfoFeedback]);
+
+  const showInfoFeedback = React.useCallback((text = '', type = '', section = '', delayMs = 2500) => {
+    const msg = String(text || '').trim();
+    const msgType = String(type || '').trim();
+    const msgSection = String(section || '').trim();
+    if (!msg) {
+      clearInfoFeedback();
+      return;
+    }
+    setInfoMsg({
+      text: msg,
+      type: msgType,
+      section: msgSection,
+    });
+    scheduleInfoFeedbackClear(delayMs);
+  }, [clearInfoFeedback, scheduleInfoFeedbackClear]);
+
   React.useEffect(() => {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (infoMsgTimer.current) clearTimeout(infoMsgTimer.current);
       if (userPrefsMsgTimer.current) clearTimeout(userPrefsMsgTimer.current);
     };
   }, []);
@@ -498,27 +562,99 @@ export default function ConfigurationScreen({
     scheduleSave('common');
   }
 
+  async function pickFolderPath() {
+    if (!window.electron?.chooseFolder) return '';
+    let folder = '';
+    try {
+      folder = await window.electron.chooseFolder();
+    } catch {}
+    return String(folder || '').trim();
+  }
+
+  async function pickExecutablePath(defaultPath = '') {
+    if (!window.electron?.openExecutable) return '';
+    let path = '';
+    try {
+      path = await window.electron.openExecutable({
+        defaultPath: String(defaultPath || '').trim(),
+      });
+    } catch {}
+    return String(path || '').trim();
+  }
+
+  function addVersionEntry() {
+    setVersions((prev) => [...prev, { name: '', path: '' }]);
+    scheduleSave('versions');
+  }
+
+  function updateVersionEntry(index, patch = {}) {
+    const safeIndex = Number(index);
+    if (!Number.isFinite(safeIndex) || safeIndex < 0) return;
+    setVersions((prev) => {
+      if (safeIndex >= prev.length) return prev;
+      const next = [...prev];
+      next[safeIndex] = {
+        ...next[safeIndex],
+        ...(patch && typeof patch === 'object' ? patch : {}),
+      };
+      return next;
+    });
+    scheduleSave('versions');
+  }
+
+  function removeVersionEntry(index) {
+    const safeIndex = Number(index);
+    if (!Number.isFinite(safeIndex) || safeIndex < 0) return;
+    setVersions((prev) => prev.filter((_, i) => i !== safeIndex));
+    scheduleSave('versions');
+  }
+
+  function addProjectRootEntry() {
+    setProjectRoots((prev) => [...prev, '']);
+    scheduleSave('projects');
+  }
+
+  function updateProjectRootEntry(index, value) {
+    const safeIndex = Number(index);
+    if (!Number.isFinite(safeIndex) || safeIndex < 0) return;
+    const nextValue = String(value || '');
+    setProjectRoots((prev) => {
+      if (safeIndex >= prev.length) return prev;
+      const next = [...prev];
+      next[safeIndex] = nextValue;
+      return next;
+    });
+    scheduleSave('projects');
+  }
+
+  function removeProjectRootEntry(index) {
+    const safeIndex = Number(index);
+    if (!Number.isFinite(safeIndex) || safeIndex < 0) return;
+    setProjectRoots((prev) => prev.filter((_, i) => i !== safeIndex));
+    scheduleSave('projects');
+  }
+
   const handleLaunchUnrealVersion = React.useCallback(async (versionName = '') => {
     if (!canUseEditorLaunch) return;
     const version = String(versionName || '').trim();
     if (!version) {
-      setInfoMsg({
-        text: t('launch.status.missingExeVersion', { version: '—' }),
-        type: 'error',
-        section: 'versions',
-      });
-      setTimeout(() => setInfoMsg({ text: '', type: '', section: '' }), 2500);
+      showInfoFeedback(
+        t('launch.status.missingExeVersion', { version: '—' }),
+        'error',
+        'versions',
+        2500
+      );
       return;
     }
 
     const targetIp = String(localIp || '').trim();
     if (!targetIp) {
-      setInfoMsg({
-        text: t('config.unreal.launchError', { version }),
-        type: 'error',
-        section: 'versions',
-      });
-      setTimeout(() => setInfoMsg({ text: '', type: '', section: '' }), 2500);
+      showInfoFeedback(
+        t('config.unreal.launchError', { version }),
+        'error',
+        'versions',
+        2500
+      );
       return;
     }
 
@@ -531,23 +667,24 @@ export default function ConfigurationScreen({
       if (res && res.ok === false) {
         throw new Error(String(res?.message || res?.error || 'launch_failed'));
       }
-      setInfoMsg({
-        text: t('config.unreal.launchSuccess', { version }),
-        type: 'ok',
-        section: 'versions',
-      });
+      showInfoFeedback(
+        t('config.unreal.launchSuccess', { version }),
+        'ok',
+        'versions',
+        3000
+      );
     } catch (e) {
       const details = String(e?.message || '').trim();
-      setInfoMsg({
-        text: details
+      showInfoFeedback(
+        details
           ? `${t('config.unreal.launchError', { version })} (${details})`
           : t('config.unreal.launchError', { version }),
-        type: 'error',
-        section: 'versions',
-      });
+        'error',
+        'versions',
+        3000
+      );
     }
-    setTimeout(() => setInfoMsg({ text: '', type: '', section: '' }), 3000);
-  }, [localIp, t, canUseEditorLaunch]);
+  }, [localIp, t, canUseEditorLaunch, showInfoFeedback]);
 
   async function handleSave(section = 'common', forceShowFlag = null) {
     if (!loaded) return;
@@ -593,13 +730,14 @@ export default function ConfigurationScreen({
     try {
       const r = await postCommon(body);
       const ok = r && r.ok !== false;
-      setInfoMsg({
-        text: ok
+      showInfoFeedback(
+        ok
           ? (t('setup.server.msg.commonSaved') )
           : (t('setup.server.msg.commonError')),
-        type: ok ? 'ok' : 'error',
+        ok ? 'ok' : 'error',
         section,
-      });
+        2500
+      );
 
       if (ok && typeof onCommonUpdated === 'function') {
         onCommonUpdated(r?.common || body);
@@ -622,16 +760,13 @@ export default function ConfigurationScreen({
         }
       }
     } catch {
-      setInfoMsg({
-        text: t('setup.server.msg.commonError'),
-        type: 'error',
+      showInfoFeedback(
+        t('setup.server.msg.commonError'),
+        'error',
         section,
-      });
+        2500
+      );
     }
-
-    setTimeout(() => {
-      setInfoMsg({ text: '', type: '', section: '' });
-    }, 2500);
   }
 
   const handleRegenerateAllProxies = React.useCallback(async () => {
@@ -651,16 +786,16 @@ export default function ConfigurationScreen({
       const count = Number.isFinite(countRaw) ? Math.max(0, Math.trunc(countRaw)) : 0;
       setProxyRegenResult(t('config.postprod.proxy.regenerateDone', { count }));
     } catch (e) {
-      setInfoMsg({
-        text: String(e?.message || 'proxy_regenerate_failed'),
-        type: 'error',
-        section: 'common',
-      });
-      setTimeout(() => setInfoMsg({ text: '', type: '', section: '' }), 3500);
+      showInfoFeedback(
+        String(e?.message || 'proxy_regenerate_failed'),
+        'error',
+        'common',
+        3500
+      );
     } finally {
       setProxyRegenBusy(false);
     }
-  }, [proxyRegenBusy, t]);
+  }, [proxyRegenBusy, t, showInfoFeedback]);
 
   const handleScanDetectedRenders = React.useCallback(async () => {
     if (detectedScanBusy) return;
@@ -674,6 +809,19 @@ export default function ConfigurationScreen({
   }, [detectedScanBusy, onScanDetectedRenders]);
 
   const cleanedProjectRoots = normalizeProjectRoots(projectRoots);
+  const exportDestinations = React.useMemo(
+    () => normalizeExportDestinations(cfg.renderExportDestinations, [], { keepEmpty: true }),
+    [cfg.renderExportDestinations]
+  );
+  const hasProjectScanResults = projectScanResults.length > 0;
+  const importableProjectScanCount = React.useMemo(
+    () => projectScanResults.reduce(
+      (count, item) => (item?.selected && !item?.exists ? count + 1 : count),
+      0
+    ),
+    [projectScanResults]
+  );
+  const hasImportableProjectSelection = importableProjectScanCount > 0;
   const showAdminConfiguration = canManageConfiguration === true;
 
   const renderFabPreviewList = (list) => (
@@ -686,7 +834,7 @@ export default function ConfigurationScreen({
         const metaParts = [seller, listingType].filter(Boolean);
         const meta = metaParts.join(' · ');
         return (
-          <div key={key || `fab-${idx}`} className="uu-card uu-row" style={{ alignItems: 'center' }}>
+          <div key={key || `fab-${idx}`} className="uu-card uu-row" style={CARD_ROW_ALIGN_CENTER_STYLE}>
             <input
               type="checkbox"
               checked={!!(key && fabSelection[key])}
@@ -697,7 +845,7 @@ export default function ConfigurationScreen({
                 setFabSelection((prev) => ({ ...prev, [key]: checked }));
               }}
             />
-            <div className="uu-row uu-row-gap4" style={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
+            <div className="uu-row uu-row-gap4" style={BASELINE_WRAP_ROW_STYLE}>
               <div className="uu-item-title">{title}</div>
               {meta ? <div className="uu-muted">{meta}</div> : null}
             </div>
@@ -711,18 +859,14 @@ export default function ConfigurationScreen({
     <div className="uu-page">
       <div className="uu-section">
         <div className="uu-config-stack">
-          <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
-            <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
-              {t('config.userPreferences.title')}
-            </h3>
-          </div>
-          <div className="uu-grid-field uu-maxw-420 mt-12" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <label className="uu-label" style={{ width: '170px', minWidth: '170px', margin: 0 }}>
+          <ConfigSectionTitle noMargin>{t('config.userPreferences.title')}</ConfigSectionTitle>
+          <div className="uu-grid-field uu-maxw-420 mt-12" style={INLINE_FIELD_ROW_STYLE}>
+            <label className="uu-label" style={INLINE_FIELD_LABEL_STYLE}>
               {t('config.lang.label')}
             </label>
             <select
               className="uu-input"
-              style={{ flex: 1 }}
+              style={FLEX_ONE_STYLE}
               value={interfaceLanguageForUser}
               disabled={userPrefsSaving}
               onChange={(e) => {
@@ -749,14 +893,10 @@ export default function ConfigurationScreen({
       {showAdminConfiguration ? (
       <>
       <div className="uu-section mt-16">
-        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
-          <h3 className="uu-h3 uu-block-title">
-            {t('config.commonTitle')}
-          </h3>
-        </div>
+        <ConfigSectionTitle>{t('config.commonTitle')}</ConfigSectionTitle>
 
-        <div className="uu-row" style={{ alignItems: 'flex-start', gap: '32px', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 340px', minWidth: '300px' }}>
+        <div className="uu-row" style={COMMON_COLUMNS_STYLE}>
+          <div style={COMMON_COLUMN_LEFT_STYLE}>
             {/* Rafraîchissement */}
             <div className="uu-grid-field uu-maxw-420">
               <label className="uu-label">
@@ -838,7 +978,7 @@ export default function ConfigurationScreen({
 
           </div>
 
-          <div style={{ flex: '1 1 320px', minWidth: '280px' }}>
+          <div style={COMMON_COLUMN_RIGHT_STYLE}>
             {/* Start Layout / WRC retries */}
             <div className="uu-grid-field uu-maxw-420">
               <label className="uu-label">
@@ -889,14 +1029,12 @@ export default function ConfigurationScreen({
 
       </div>
       <div className="uu-section mt-16">
-        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
-          <h3 className="uu-h3 uu-block-title">{t('config.postprod.sectionTitle')}</h3>
-        </div>
+        <ConfigSectionTitle>{t('config.postprod.sectionTitle')}</ConfigSectionTitle>
         <div className="uu-grid-field uu-maxw-720 mt-12">
           <label className="uu-label">
             {t('config.renders.outputDir')}
           </label>
-          <div className="uu-grid-2" style={{ gridTemplateColumns: '1fr auto' }}>
+          <div className="uu-grid-2" style={GRID_ONE_AUTO_STYLE}>
             <input
               className="uu-input"
               value={cfg.renderOutputDir}
@@ -907,12 +1045,7 @@ export default function ConfigurationScreen({
               type="button"
               className="uu-btn"
               onClick={async () => {
-                if (!window.electron?.chooseFolder) return;
-                let folder = '';
-                try {
-                  folder = await window.electron.chooseFolder();
-                } catch {}
-                const picked = String(folder || '').trim();
+                const picked = await pickFolderPath();
                 if (!picked) return;
                 updateField('renderOutputDir', picked);
               }}
@@ -952,8 +1085,8 @@ export default function ConfigurationScreen({
 
           {cfg.proxyEnabled ? (
             <>
-              <div className="uu-row mt-12" style={{ alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap' }}>
-                <div className="uu-grid-field" style={{ minWidth: '250px', maxWidth: '340px' }}>
+              <div className="uu-row mt-12" style={PROXY_OPTIONS_ROW_STYLE}>
+                <div className="uu-grid-field" style={PROXY_OPTION_FIELD_STYLE}>
                   <label className="uu-label">{t('config.postprod.proxy.resolution')}</label>
                   <select
                     className="uu-select"
@@ -966,7 +1099,7 @@ export default function ConfigurationScreen({
                   </select>
                 </div>
 
-                <div className="uu-grid-field" style={{ minWidth: '250px', maxWidth: '340px' }}>
+                <div className="uu-grid-field" style={PROXY_OPTION_FIELD_STYLE}>
                   <label className="uu-label">{t('config.postprod.proxy.quality')}</label>
                   <select
                     className="uu-select"
@@ -998,9 +1131,14 @@ export default function ConfigurationScreen({
           ) : null}
         </div>
 
-        <div className="uu-grid-field uu-maxw-720 mt-16">
+      </div>
+
+      <div className="uu-section mt-16">
+        <ConfigSectionTitle>{t('config.postprod.destinations.sectionTitle')}</ConfigSectionTitle>
+
+        <div className="uu-grid-field uu-maxw-720 mt-12">
           <label className="uu-label">
-            {t('config.postprod.exports.title', 'Destinations d’export des rendus validés')}
+            {t('config.postprod.exports.title')}
           </label>
 
           <div className="uu-row mt-12">
@@ -1009,21 +1147,21 @@ export default function ConfigurationScreen({
               className="uu-btn"
               onClick={() => addExportDestination()}
             >
-              {t('config.postprod.exports.add', '+ Ajouter une destination')}
+              {t('config.postprod.exports.add')}
             </button>
           </div>
 
-          {normalizeExportDestinations(cfg.renderExportDestinations, [], { keepEmpty: true }).length <= 0 ? (
+          {exportDestinations.length <= 0 ? (
             <div className="uu-muted mt-8">
-              {t('config.postprod.exports.empty', 'Aucune destination configurée.')}
+              {t('config.postprod.exports.empty')}
             </div>
           ) : null}
 
-          {normalizeExportDestinations(cfg.renderExportDestinations, [], { keepEmpty: true }).map((entry, idx) => (
+          {exportDestinations.map((entry, idx) => (
             <div key={`config-export-destination-${entry.id || idx}`} className="uu-grid-field mt-12">
               <div className="uu-export-destination-grid">
                 <div className="uu-grid-field">
-                  <label className="uu-label">{t('config.postprod.exports.name', 'Nom')}</label>
+                  <label className="uu-label">{t('config.postprod.exports.name')}</label>
                   <div className="uu-export-destination-name-row">
                     <label className="uu-check uu-export-destination-active">
                       <input
@@ -1031,18 +1169,18 @@ export default function ConfigurationScreen({
                         checked={entry.isActive !== false}
                         onChange={(e) => updateExportDestination(idx, { isActive: !!e.target.checked })}
                       />
-                      {t('config.postprod.exports.active', 'Active')}
+                      {t('config.postprod.exports.active')}
                     </label>
                     <input
                       className="uu-input"
                       value={String(entry.name || '')}
                       onChange={(e) => updateExportDestination(idx, { name: e.target.value })}
-                      placeholder={t('config.postprod.exports.namePlaceholder', 'Ex: Client / Livraison')}
+                      placeholder={t('config.postprod.exports.namePlaceholder')}
                     />
                   </div>
                 </div>
                 <div className="uu-grid-field">
-                  <label className="uu-label">{t('config.postprod.exports.path', 'Chemin')}</label>
+                  <label className="uu-label">{t('config.postprod.exports.path')}</label>
                   <div className="uu-export-destination-path-row">
                     <input
                       className="uu-input"
@@ -1054,12 +1192,7 @@ export default function ConfigurationScreen({
                       type="button"
                       className="uu-btn"
                       onClick={async () => {
-                        if (!window.electron?.chooseFolder) return;
-                        let folder = '';
-                        try {
-                          folder = await window.electron.chooseFolder();
-                        } catch {}
-                        const picked = String(folder || '').trim();
+                        const picked = await pickFolderPath();
                         if (!picked) return;
                         updateExportDestination(idx, { path: picked });
                       }}
@@ -1079,13 +1212,10 @@ export default function ConfigurationScreen({
             </div>
           ))}
         </div>
-
       </div>
 
       <div className="uu-section mt-16">
-        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
-          <h3 className="uu-h3 uu-block-title">{t('config.unreal.sectionTitle')}</h3>
-        </div>
+        <ConfigSectionTitle>{t('config.unreal.sectionTitle')}</ConfigSectionTitle>
 
         {canUseEditorLaunch ? (
           <label className="uu-check mt-8">
@@ -1102,13 +1232,7 @@ export default function ConfigurationScreen({
           <button
             type="button"
             className="uu-btn"
-            onClick={() =>
-              setVersions((prev) => {
-                const next = [...prev, { name: '', path: '' }];
-                scheduleSave('versions');
-                return next;
-              })
-            }
+            onClick={addVersionEntry}
           >
             {t('config.unreal.addVersion')}
           </button>
@@ -1118,7 +1242,7 @@ export default function ConfigurationScreen({
           <div
             key={idx}
             className="uu-grid-2 uu-maxw-720 mt-12"
-            style={{ gridTemplateColumns: '140px 1fr', gap: '8px' }}
+            style={VERSION_ROW_GRID_STYLE}
           >
             <div className="uu-grid-field">
               <label className="uu-label">{t('config.unreal.versionLabel')}</label>
@@ -1126,76 +1250,49 @@ export default function ConfigurationScreen({
                 className="uu-input"
                 value={v.name}
                 onChange={(e) => {
-                  const value = e.target.value;
-                  setVersions((prev) => {
-                    const next = [...prev];
-                    next[idx] = { ...next[idx], name: value };
-                    return next;
-                  });
-                  scheduleSave('versions');
+                  updateVersionEntry(idx, { name: e.target.value });
                 }}
                 placeholder="5.7"
               />
             </div>
             <div className="uu-grid-field">
               <label className="uu-label">{t('config.unreal.pathLabel')}</label>
-              <div className="uu-grid-2" style={{ gridTemplateColumns: '1fr auto' }}>
+              <div className="uu-grid-2" style={GRID_ONE_AUTO_STYLE}>
                 <input
                   className="uu-input"
                   value={v.path}
                   onChange={(e) => {
-                    const value = e.target.value;
-                  setVersions((prev) => {
-                    const next = [...prev];
-                    next[idx] = { ...next[idx], path: value };
-                    return next;
-                  });
-                  scheduleSave('versions');
-                }}
+                    updateVersionEntry(idx, { path: e.target.value });
+                  }}
                 placeholder="C:\\Program Files\\Epic Games\\UE_5.7\\Engine\\Binaries\\Win64\\UnrealEditor.exe"
               />
                 <button
                 type="button"
                   className="uu-btn"
                   onClick={async () => {
-                    if (!window.electron?.openExecutable) return;
-                    let path = '';
-                    try {
-                      path = await window.electron.openExecutable({
-                        defaultPath: String(v?.path || '').trim(),
-                      });
-                    } catch {}
-                  if (!path) return;
-                  const trimmed = String(path).trim();
-                  setVersions((prev) => {
-                    const next = [...prev];
-                    next[idx] = { ...next[idx], path: trimmed };
-                    return next;
-                  });
-                  scheduleSave('versions');
-                }}
+                    const picked = await pickExecutablePath(v?.path);
+                    if (!picked) return;
+                    updateVersionEntry(idx, { path: picked });
+                  }}
               >
                 {t('common.browse')}
               </button>
             </div>
             </div>
-            <div className="uu-row uu-gap-8" style={{ gridColumn: '1 / -1', flexWrap: 'nowrap' }}>
+            <div className="uu-row uu-gap-8" style={VERSION_ACTIONS_ROW_STYLE}>
               {canUseEditorLaunch ? (
                 <button
                   type="button"
                   className="uu-btn"
                   onClick={() => handleLaunchUnrealVersion(v?.name)}
                 >
-                  {t('config.unreal.launchVersion', 'Lancer')}
+                  {t('config.unreal.launchVersion')}
                 </button>
               ) : null}
               <button
                 type="button"
                 className="uu-btn"
-                onClick={() => {
-                  setVersions((prev) => prev.filter((_, i) => i !== idx));
-                  scheduleSave('versions');
-                }}
+                onClick={() => removeVersionEntry(idx)}
               >
                 {t('common.delete')}
               </button>
@@ -1208,11 +1305,7 @@ export default function ConfigurationScreen({
       {canManageProjects ? (
       <div className="uu-section mt-16">
         <div className="uu-config-stack">
-        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
-          <h3 className="uu-h3 uu-block-title">
-            {t('setup.server.projectRoots.title')}
-          </h3>
-        </div>
+        <ConfigSectionTitle>{t('setup.server.projectRoots.title')}</ConfigSectionTitle>
         <div className="uu-muted">
           {t('config.catalog.projectsSummary', {
             count: catalogStats.projectsCount,
@@ -1224,14 +1317,11 @@ export default function ConfigurationScreen({
           <button
             type="button"
             className="uu-btn"
-            onClick={() => {
-              setProjectRoots((prev) => [...prev, '']);
-              scheduleSave('projects');
-            }}
+            onClick={addProjectRootEntry}
           >
             {t('setup.server.projectRoots.add')}
           </button>
-          <label className="uu-check" style={{ alignItems: 'center' }}>
+          <label className="uu-check" style={CHECK_ALIGN_CENTER_STYLE}>
             <input
               type="checkbox"
               checked={!!projectScanRecursive}
@@ -1249,7 +1339,7 @@ export default function ConfigurationScreen({
               ? t('common.loading')
               : t('setup.server.projectRoots.scanButton')}
           </button>
-          {projectScanResults.filter((it) => it.selected && !it.exists).length > 0 ? (
+          {hasImportableProjectSelection ? (
             <button
               type="button"
               className="uu-btn"
@@ -1261,7 +1351,7 @@ export default function ConfigurationScreen({
                 : t('setup.server.projectRoots.importButton')}
             </button>
           ) : null}
-          {projectScanResults.length > 0 ? (
+          {hasProjectScanResults ? (
             <button
               type="button"
               className="uu-btn"
@@ -1284,18 +1374,12 @@ export default function ConfigurationScreen({
               <label className="uu-label w-160">
                 {t('setup.server.projectRoots.pathLabel')}
               </label>
-              <div className="uu-grid-2" style={{ gridTemplateColumns: '1fr auto auto' }}>
+              <div className="uu-grid-2" style={GRID_ONE_AUTO_AUTO_STYLE}>
                 <input
                   className="uu-input"
                   value={root}
                   onChange={(e) => {
-                    const value = e.target.value;
-                  setProjectRoots((prev) => {
-                    const next = [...prev];
-                    next[idx] = value;
-                    return next;
-                  });
-                    scheduleSave('projects');
+                    updateProjectRootEntry(idx, e.target.value);
                   }}
                   placeholder="D:\\Unreal_Projects"
                 />
@@ -1303,19 +1387,9 @@ export default function ConfigurationScreen({
                   type="button"
                   className="uu-btn"
                   onClick={async () => {
-                    if (!window.electron?.chooseFolder) return;
-                    let folder = '';
-                    try {
-                      folder = await window.electron.chooseFolder();
-                    } catch {}
-                    const picked = String(folder || '').trim();
+                    const picked = await pickFolderPath();
                     if (!picked) return;
-                    setProjectRoots((prev) => {
-                      const next = [...prev];
-                      next[idx] = picked;
-                      return next;
-                    });
-                    scheduleSave('projects');
+                    updateProjectRootEntry(idx, picked);
                   }}
                 >
                   {t('common.browse')}
@@ -1323,10 +1397,7 @@ export default function ConfigurationScreen({
                 <button
                   type="button"
                 className="uu-btn"
-                onClick={() => {
-                  setProjectRoots((prev) => prev.filter((_, i) => i !== idx));
-                  scheduleSave('projects');
-                }}
+                onClick={() => removeProjectRootEntry(idx)}
               >
                 {t('common.delete')}
               </button>
@@ -1335,7 +1406,7 @@ export default function ConfigurationScreen({
           ))
         )}
 
-        {projectScanResults.length > 0 ? (
+        {hasProjectScanResults ? (
           <>
             <div className="uu-row uu-gap-8">
               <button
@@ -1356,7 +1427,7 @@ export default function ConfigurationScreen({
                   ? (t('setup.server.projectRoots.unselectAll'))
                   : (t('setup.server.projectRoots.selectAll'))}
               </button>
-              <label className="uu-check" style={{ alignItems: 'center' }}>
+              <label className="uu-check" style={CHECK_ALIGN_CENTER_STYLE}>
                 <input
                   type="checkbox"
                   checked={!!hideImportedProjects}
@@ -1369,7 +1440,7 @@ export default function ConfigurationScreen({
               {visibleScanResults.map((it, idx) => {
                 const key = normalizePathKey(it.uprojectPath || it.name || String(idx));
                 return (
-                  <div key={key} className="uu-card uu-row" style={{ alignItems: 'center' }}>
+                  <div key={key} className="uu-card uu-row" style={CARD_ROW_ALIGN_CENTER_STYLE}>
                     <input
                       type="checkbox"
                       checked={!!it.selected}
@@ -1383,7 +1454,7 @@ export default function ConfigurationScreen({
                         );
                       }}
                     />
-                    <div className="uu-col" style={{ gap: '4px' }}>
+                    <div className="uu-col" style={SCAN_ITEM_CONTENT_STYLE}>
                       <div className="uu-item-title">{it.name || '—'}</div>
                       <div className="uu-muted">{it.uprojectPath}</div>
                     </div>
@@ -1406,11 +1477,7 @@ export default function ConfigurationScreen({
       {canViewResources ? (
       <div className="uu-section mt-16">
         <div className="uu-config-stack">
-        <div className="uu-row uu-align-center uu-gap-8" style={{ flexWrap: 'wrap' }}>
-          <h3 className="uu-h3 uu-block-title" style={{ margin: 0 }}>
-            {t('config.resources.title')}
-          </h3>
-        </div>
+        <ConfigSectionTitle noMargin>{t('config.resources.title')}</ConfigSectionTitle>
         <div className="uu-muted">
           {t('config.catalog.resourcesSummary', {
             count: catalogStats.resourcesCount,

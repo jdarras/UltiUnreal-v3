@@ -11,5 +11,3 @@ export function buildRenderEditorStatusInput({
     showCreateForm,
   };
 }
-
-export default buildRenderEditorStatusInput;

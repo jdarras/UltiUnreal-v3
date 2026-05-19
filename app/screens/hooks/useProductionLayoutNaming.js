@@ -46,4 +46,3 @@ function useProductionLayoutNaming({
 }
 
 export { useProductionLayoutNaming };
-export default useProductionLayoutNaming;

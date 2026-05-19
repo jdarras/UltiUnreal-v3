@@ -1,5 +1,7 @@
 import { safeT } from "../../shared/helpers";
 
+const FIELDS_EDITOR_MODE_TOGGLE_STYLE = { gap: "8px" };
+
 function RenderFormsFieldsEditorModeToggle({
   t,
   fieldsAdvancedMode = false,
@@ -10,7 +12,7 @@ function RenderFormsFieldsEditorModeToggle({
       className="uu-row"
       role="group"
       aria-label={safeT(t, "postprod.data.forms.fieldsMode", "Mode edition des champs")}
-      style={{ gap: "8px" }}
+      style={FIELDS_EDITOR_MODE_TOGGLE_STYLE}
     >
       <button
         type="button"

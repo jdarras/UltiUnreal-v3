@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getT, getTimelineLabel } from './timelinewidget-shared.js';
 import {
+  buildTimelineRuntimeStatusLabels,
+  buildTimelineRuntimeTransportLabels,
+  resolveTimelineRuntimeErrorStatusLabel
+} from './timelineRuntimeI18n.js';
+import {
   createTimelinePlayer,
   getTimelineMaxFrame,
   normalizeTimeline,
@@ -17,7 +22,9 @@ export default function TimelineWidget({
   if (!widget) return null;
 
   const t = getT();
-  const displayLabel = getTimelineLabel(widget);
+  const transportLabels = buildTimelineRuntimeTransportLabels(t);
+  const statusLabels = buildTimelineRuntimeStatusLabels(t);
+  const displayLabel = getTimelineLabel(widget, t);
   const timeline = useMemo(
     () => normalizeTimeline(widget.ui?.timeline),
     [widget.ui?.timeline]
@@ -77,11 +84,11 @@ export default function TimelineWidget({
 
   const startPlayback = (requestedStartFrame, initialDirection = 1) => {
     if (fpsWarnings.includes('missing')) {
-      showStatus(t('timeline.status.fpsMissing') || 'FPS manquant sur la station serveur.');
+      showStatus(statusLabels.fpsMissing);
       return;
     }
     if (!timeline.tracks || timeline.tracks.length === 0) {
-      showStatus(t('timeline.status.noTracks') || 'Aucune piste.');
+      showStatus(statusLabels.noTracks);
       return;
     }
 
@@ -109,10 +116,11 @@ export default function TimelineWidget({
         playheadRef.current = frame;
       },
       onError: (err) => {
-        if (err?.type === 'fps') showStatus(t('timeline.status.fpsInvalid') || 'FPS invalide.');
-        if (err?.type === 'parse') showStatus(t('timeline.status.jsonInvalid') || 'Valeur JSON invalide.');
-        if (err?.type === 'transform') showStatus(t('timeline.status.transformInvalid') || 'Valeur Transform invalide.');
-        if (err?.type === 'value') showStatus(t('timeline.status.valueOutOfRange') || 'Valeur hors limite.');
+        const errorStatus = resolveTimelineRuntimeErrorStatusLabel(
+          statusLabels,
+          err?.type
+        );
+        if (errorStatus) showStatus(errorStatus);
       },
       onStop: () => {
         setPlaying(false);
@@ -238,7 +246,7 @@ export default function TimelineWidget({
         className="uu-btn uu-btn-secondary uu-timeline-btn"
         onClick={handleCue}
         onMouseDown={(e) => e.stopPropagation()}
-        title={t('timeline.cue') || 'Cue (revenir au début)'}
+        title={transportLabels.cue}
       >
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="2" y="2" width="2" height="10" fill="currentColor" /><polygon points="9,2 3.5,7 9,12" fill="currentColor" /></svg>
           </button>
@@ -248,7 +256,7 @@ export default function TimelineWidget({
             onClick={handlePlay}
             onMouseDown={(e) => e.stopPropagation()}
             disabled={playing}
-            title="Play"
+            title={transportLabels.play}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><polygon points="4,2 12,7 4,12" fill="currentColor" /></svg>
           </button>
@@ -258,11 +266,11 @@ export default function TimelineWidget({
             onClick={handlePause}
             onMouseDown={(e) => e.stopPropagation()}
             disabled={!playing}
-            title="Pause"
+            title={transportLabels.pause}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="3" y="2" width="3" height="10" fill="currentColor" /><rect x="8" y="2" width="3" height="10" fill="currentColor" /></svg>
           </button>
-          <button type="button" className="uu-btn uu-btn-secondary uu-timeline-btn" onClick={handleContinue} onMouseDown={(e) => e.stopPropagation()} disabled={!paused || playing} title="Continue">
+          <button type="button" className="uu-btn uu-btn-secondary uu-timeline-btn" onClick={handleContinue} onMouseDown={(e) => e.stopPropagation()} disabled={!paused || playing} title={transportLabels.continue}>
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><polygon points="2,2 8,7 2,12" fill="currentColor" /><polygon points="7,2 13,7 7,12" fill="currentColor" /></svg>
           </button>
         </div>

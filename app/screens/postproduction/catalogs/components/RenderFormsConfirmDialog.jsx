@@ -1,5 +1,21 @@
 import { safeT } from "../../shared/helpers";
 
+const FORMS_CONFIRM_DIALOG_OVERLAY_STYLE = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0, 0, 0, 0.45)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 2000,
+};
+const FORMS_CONFIRM_DIALOG_CARD_BASE_STYLE = {
+  padding: "16px",
+};
+const FORMS_CONFIRM_DIALOG_TITLE_STYLE = { fontWeight: 600, marginBottom: "10px" };
+const FORMS_CONFIRM_DIALOG_MESSAGE_STYLE = { marginBottom: "14px", lineHeight: 1.35 };
+const FORMS_CONFIRM_DIALOG_ACTIONS_STYLE = { justifyContent: "flex-end", gap: "8px" };
+
 function RenderFormsConfirmDialog({
   t,
   open = false,
@@ -14,18 +30,11 @@ function RenderFormsConfirmDialog({
   width = "min(460px, calc(100vw - 32px))",
 }) {
   if (!open) return null;
+  const dialogCardStyle = { ...FORMS_CONFIRM_DIALOG_CARD_BASE_STYLE, width };
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0, 0, 0, 0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 2000,
-      }}
+      style={FORMS_CONFIRM_DIALOG_OVERLAY_STYLE}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && typeof onCancel === "function") {
           onCancel();
@@ -37,19 +46,16 @@ function RenderFormsConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title || safeT(t, "common.confirmation", "Confirmation")}
-        style={{
-          width,
-          padding: "16px",
-        }}
+        style={dialogCardStyle}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {title ? (
-          <div style={{ fontWeight: 600, marginBottom: "10px" }}>{title}</div>
+          <div style={FORMS_CONFIRM_DIALOG_TITLE_STYLE}>{title}</div>
         ) : null}
-        <div style={{ marginBottom: "14px", lineHeight: 1.35 }}>
+        <div style={FORMS_CONFIRM_DIALOG_MESSAGE_STYLE}>
           {message}
         </div>
-        <div className="uu-row" style={{ justifyContent: "flex-end", gap: "8px" }}>
+        <div className="uu-row" style={FORMS_CONFIRM_DIALOG_ACTIONS_STYLE}>
           <button
             type="button"
             className="uu-btn"

@@ -1,5 +1,22 @@
 import { FixedSizeList as List } from 'react-window';
-import { formatDateTime } from '../utils/projects-helpers';
+import { formatDateTime, getProjectUsageModeLabel } from '../utils/projects-helpers';
+import { getFavoriteLabel } from './componentI18n';
+
+const PROJECTS_LIST_VIRTUAL_ROW_BASE_STYLE = {
+  display: 'grid',
+  gridTemplateColumns: '90px 1fr 130px 140px 180px 150px 150px 260px',
+  gap: '8px',
+  alignItems: 'center',
+  padding: '6px 4px',
+};
+const PROJECTS_LIST_EMPTY_STYLE = { padding: '12px' };
+const PROJECTS_LIST_VIRTUAL_HEADER_STYLE = { padding: '6px 4px' };
+const PROJECTS_LIST_TABLE_STYLE = { width: '100%', borderCollapse: 'separate', borderSpacing: '8px 6px' };
+const PROJECTS_LIST_HEADER_CELL_STYLE = { textAlign: 'left' };
+
+function buildProjectsListVirtualRowStyle(style) {
+  return { ...style, ...PROJECTS_LIST_VIRTUAL_ROW_BASE_STYLE };
+}
 
 export default function ProjectsListView({
   t,
@@ -23,19 +40,11 @@ export default function ProjectsListView({
   isAutoRenderUsage = null,
   showActivationControls = true,
 }) {
+  const favoriteLabel = getFavoriteLabel(t);
   const canEditFields = canEditProjectFields !== null
     ? canEditProjectFields === true
     : canManageUnrealProjects;
   const canOpenProjectDetails = canManageUnrealProjects || canEditFields;
-  const usageModeLabel = (value) => {
-    const v = String(value || '').trim();
-    if (v === 'live') return t('projects.detail.usageMode.live');
-    if (v === 'auto_render') return t('projects.detail.usageMode.auto_render');
-    if (v === 'live_auto_render') return t('projects.detail.usageMode.live_auto_render');
-    if (v === 'other') return t('projects.detail.usageMode.other');
-    return '—';
-  };
-
   const sortArrowFor = (col) =>
     sortMode === col ? (sortDir === 'asc' ? '▲' : '▼') : '';
 
@@ -98,7 +107,7 @@ export default function ProjectsListView({
         ) : null}
         {canCreateTask ? (
           <button className="uu-btn" onClick={() => onCreateTaskFromProject?.(p.id)}>
-            {t('projects.actions.createTask', 'Rendu')}
+            {t('projects.actions.createTask')}
           </button>
         ) : null}
         {typeof onToggleFavorite === 'function' ? (
@@ -106,7 +115,7 @@ export default function ProjectsListView({
             className={`uu-fav-btn ${isFav ? 'active' : ''}`}
             onClick={() => onToggleFavorite(p)}
             aria-pressed={isFav ? 'true' : 'false'}
-            title={t('resources.detail.labels.favorite') || 'Favoris'}
+            title={favoriteLabel}
           >
             ★
           </button>
@@ -126,7 +135,7 @@ export default function ProjectsListView({
           </td>
           <td>{versionEl(p.engineVersion)}</td>
           <td className="uu-muted">{p.metaStatus || '—'}</td>
-          <td className="uu-muted">{usageModeLabel(p.metaUsageMode)}</td>
+          <td className="uu-muted">{getProjectUsageModeLabel(t, p.metaUsageMode)}</td>
           <td>{formatDateTime(p.createdAt)}</td>
           <td>{formatDateTime(p.lastModified)}</td>
           <td>{actionButtons}</td>
@@ -137,7 +146,7 @@ export default function ProjectsListView({
     return (
       <div
         key={key}
-        style={{ ...style, display: 'grid', gridTemplateColumns: '90px 1fr 130px 140px 180px 150px 150px 260px', gap: '8px', alignItems: 'center', padding: '6px 4px' }}
+        style={buildProjectsListVirtualRowStyle(style)}
         className="uu-table-row-virtual"
       >
         <div>[{p.id || '----'}]</div>
@@ -147,7 +156,7 @@ export default function ProjectsListView({
         </div>
         <div>{versionEl(p.engineVersion)}</div>
         <div className="uu-muted">{p.metaStatus || '—'}</div>
-        <div className="uu-muted">{usageModeLabel(p.metaUsageMode)}</div>
+        <div className="uu-muted">{getProjectUsageModeLabel(t, p.metaUsageMode)}</div>
         <div>{formatDateTime(p.createdAt)}</div>
         <div>{formatDateTime(p.lastModified)}</div>
         <div>{actionButtons}</div>
@@ -157,7 +166,7 @@ export default function ProjectsListView({
 
   if (!Array.isArray(projects) || projects.length === 0) {
     return (
-      <div className="uu-muted" style={{ padding: '12px' }}>
+      <div className="uu-muted" style={PROJECTS_LIST_EMPTY_STYLE}>
         {t('projects.server.empty')}
       </div>
     );
@@ -168,7 +177,7 @@ export default function ProjectsListView({
     const listHeight = Math.min(640, projects.length * ROW_HEIGHT);
     return (
       <div className="uu-table uu-table-virtual">
-        <div className="uu-row uu-gap-8 uu-muted" style={{ padding: '6px 4px' }}>
+        <div className="uu-row uu-gap-8 uu-muted" style={PROJECTS_LIST_VIRTUAL_HEADER_STYLE}>
           <span>{t('projects.table.id')}</span>
           <span>{t('projects.table.name')}</span>
           <span>{t('projects.table.engineVersion')}</span>
@@ -191,41 +200,41 @@ export default function ProjectsListView({
   }
 
   return (
-    <table className="uu-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '8px 6px' }}>
+    <table className="uu-table" style={PROJECTS_LIST_TABLE_STYLE}>
       <thead>
         <tr>
-          <th style={{ textAlign: 'left' }}>
+          <th style={PROJECTS_LIST_HEADER_CELL_STYLE}>
             <button className="uu-link" type="button" onClick={() => onSort('id')}>
               {t('projects.table.id')} {sortArrowFor('id')}
             </button>
           </th>
-          <th style={{ textAlign: 'left' }}>
+          <th style={PROJECTS_LIST_HEADER_CELL_STYLE}>
             <button className="uu-link" type="button" onClick={() => onSort('name')}>
               {t('projects.table.name')} {sortArrowFor('name')}
             </button>
           </th>
-          <th style={{ textAlign: 'left' }}>
+          <th style={PROJECTS_LIST_HEADER_CELL_STYLE}>
             <button className="uu-link" type="button" onClick={() => onSort('engineVersion')}>
               {t('projects.table.engineVersion')} {sortArrowFor('engineVersion')}
             </button>
           </th>
-          <th style={{ textAlign: 'left' }}>
+          <th style={PROJECTS_LIST_HEADER_CELL_STYLE}>
             <button className="uu-link" type="button" onClick={() => onSort('status')}>
               {t('projects.table.status')} {sortArrowFor('status')}
             </button>
           </th>
-          <th style={{ textAlign: 'left' }}>{t('projects.table.usageMode')}</th>
-          <th style={{ textAlign: 'left' }}>
+          <th style={PROJECTS_LIST_HEADER_CELL_STYLE}>{t('projects.table.usageMode')}</th>
+          <th style={PROJECTS_LIST_HEADER_CELL_STYLE}>
             <button className="uu-link" type="button" onClick={() => onSort('createdAt')}>
               {t('projects.table.createdUU')} {sortArrowFor('createdAt')}
             </button>
           </th>
-          <th style={{ textAlign: 'left' }}>
+          <th style={PROJECTS_LIST_HEADER_CELL_STYLE}>
             <button className="uu-link" type="button" onClick={() => onSort('lastModified')}>
               {t('projects.table.lastModified')} {sortArrowFor('lastModified')}
             </button>
           </th>
-          <th style={{ textAlign: 'left' }}>{t('projects.table.actions')}</th>
+          <th style={PROJECTS_LIST_HEADER_CELL_STYLE}>{t('projects.table.actions')}</th>
         </tr>
       </thead>
       <tbody>

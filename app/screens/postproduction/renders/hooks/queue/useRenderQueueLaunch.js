@@ -138,5 +138,3 @@ export function useRenderQueueLaunch({
     launchQueueBatch,
   };
 }
-
-export default useRenderQueueLaunch;

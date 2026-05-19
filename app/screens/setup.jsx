@@ -1,6 +1,5 @@
 ﻿// app/screens/setup.jsx
 import React from 'react';
-import { colorClass, normalizeMachineColor } from '../utils/colors';
 import { readIdentity } from '../utils/identity';
 import {
   getHosts,
@@ -11,213 +10,28 @@ import {
   getOnlineStatus,
   setProjectAssociation,
 } from '../utils/agent';
-import DateTimeConfirmPicker from '../components/DateTimeConfirmPicker';
 import { createT } from '../i18n';
+import {
+  MACHINE_COLORS,
+  PRESET_OPTIONS,
+  RENDER_AVAILABILITY_VALUES,
+  hostArrayToEditList,
+  isValidIpv4,
+  buildEditorsSignature,
+} from './setupHelpers';
+import {
+  MachineArgsPanel,
+  MachineCardHeaderRow,
+  MachineGroupSection,
+  UnknownDetectedSection,
+} from './setupSections';
 
 const EMPTY_CFG = {
   machines: [],
 };
 
-// Couleurs possibles pour les machines (10 au total)
-const MACHINE_COLORS = [
-  { value: '#60A5FA', label: 'Bleu' },
-  { value: '#22D3EE', label: 'Cyan' },
-  { value: '#F59E0B', label: 'Orange' },
-  { value: '#7A1B3C', label: 'Bordeaux' },
-  { value: '#A78BFA', label: 'Violet' },
-  { value: '#14B8A6', label: 'Turquoise' },
-  { value: '#F472B6', label: 'Rose' },
-  { value: '#FACC15', label: 'Jaune' },
-  { value: '#6366F1', label: 'Indigo' },
-  { value: '#6B7280', label: 'Gris' },
-];
-
-// Options de résolution communes (évite de les recréer par carte)
-const PRESET_OPTIONS = [
-  { k: 'manual', label: 'Manuel', x: null, y: null },
-  { k: '720x486', label: '720 × 486', x: 720, y: 486 },
-  { k: '720x576', label: '720 × 576', x: 720, y: 576 },
-  { k: '1280x720', label: '1280 × 720', x: 1280, y: 720 },
-  { k: '1920x1080', label: '1920 × 1080', x: 1920, y: 1080 },
-  { k: '2048x1080', label: '2048 × 1080', x: 2048, y: 1080 },
-  { k: '3840x2160', label: '3840 × 2160', x: 3840, y: 2160 },
-  { k: '4096x2160', label: '4096 × 2160', x: 4096, y: 2160 },
-  { k: '7680x4320', label: '7680 × 4320', x: 7680, y: 4320 },
-  { k: '8192x4320', label: '8192 × 4320', x: 8192, y: 4320 },
-];
-
-function hostArrayToEditList(list, locale = 'fr') {
-  const presetKeyFromRes = (x, y) => {
-    const px = Number(x);
-    const py = Number(y);
-    const presets = [
-      { k: '720x486', x: 720, y: 486 },
-      { k: '720x576', x: 720, y: 576 },
-      { k: '1280x720', x: 1280, y: 720 },
-      { k: '1920x1080', x: 1920, y: 1080 },
-      { k: '2048x1080', x: 2048, y: 1080 },
-      { k: '3840x2160', x: 3840, y: 2160 },
-      { k: '4096x2160', x: 4096, y: 2160 },
-      { k: '7680x4320', x: 7680, y: 4320 },
-      { k: '8192x4320', x: 8192, y: 4320 },
-    ];
-    const hit = presets.find((p) => p.x === px && p.y === py);
-    return hit ? hit.k : 'manual';
-  };
-
-  const collator = new Intl.Collator(locale || 'fr', { numeric: true, sensitivity: 'base' });
-
-  const withIndex = [...(Array.isArray(list) ? list : [])].map((h, idx) => {
-    const n = Number(h?.sortIndex);
-    return { host: h, sortIndex: Number.isFinite(n) ? n : idx };
-  });
-
-  const sorted = withIndex.sort((a, b) => {
-    if (a.sortIndex !== b.sortIndex) return a.sortIndex - b.sortIndex;
-    const na = String(a.host?.name || '').trim();
-    const nb = String(b.host?.name || '').trim();
-    if (na && nb) {
-      const c = collator.compare(na, nb);
-      if (c !== 0) return c;
-    } else if (na) {
-      return -1;
-    } else if (nb) {
-      return 1;
-    }
-    return collator.compare(String(a.host?.ip || ''), String(b.host?.ip || ''));
-  });
-
-  const out = [];
-  for (const { host: h, sortIndex } of sorted) {
-    const a = h.args || {};
-    out.push({
-      name: h.name || '',
-      color: normalizeMachineColor(h.color),
-      ip: h.ip || '',
-      uproject: h.uproject || '',
-      args: {
-        resx: a.resx ?? '',
-        resy: a.resy ?? '',
-        frameRateLimit: (a.FrameRateLimit ?? a.frameRateLimit) ?? '',
-        execCmds: a.ExecCmds ?? a.execCmds ?? '',
-        renderOffscreen: !!a.RenderOffscreen || !!a.renderOffscreen,
-        noScreenMessages: !!a.NoScreenMessages || !!a.noScreenMessages,
-        videoCard: a.videoCard ?? '',
-        resPreset: a.resPreset ?? presetKeyFromRes(a.resx, a.resy),
-      },
-      showEditor: false,
-      showArgs: false,
-      status: 'unknown',
-      lastMsg: '',
-      lastMsgType: '',
-      renderAvailability: (() => {
-        const VALID = ['capable', 'busy', 'excluded'];
-        if (VALID.includes(h.renderAvailability)) return h.renderAvailability;
-        if (h.eligible === false || h.renderEnabled === false) return 'excluded';
-        return 'capable';
-      })(),
-      renderReturnAt: typeof h.renderReturnAt === 'string' && h.renderReturnAt.trim()
-        ? h.renderReturnAt.trim()
-        : null,
-      sortIndex,
-    });
-  }
-  return out;
-}
-
-// Validation minimale IPv4 pour éviter les enregistrements avec une IP partielle
-function isValidIpv4(ip) {
-  const s = String(ip || '').trim();
-  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s);
-  if (!m) return false;
-  return m.slice(1).every((x) => {
-    const n = Number(x);
-    return Number.isInteger(n) && n >= 0 && n <= 255;
-  });
-}
-
-function normalizeEditorsMap(map = {}) {
-  const out = {};
-  if (!map || typeof map !== 'object') return out;
-  for (const [k, v] of Object.entries(map)) {
-    const key = String(k || '').trim();
-    if (!key) continue;
-    out[key] = String(v || '').trim();
-  }
-  return out;
-}
-
-function buildEditorsSignature(map = {}) {
-  const norm = normalizeEditorsMap(map);
-  const keys = Object.keys(norm).sort((a, b) =>
-    String(a || '').localeCompare(String(b || ''), undefined, {
-      numeric: true,
-      sensitivity: 'base',
-    })
-  );
-  return keys.map((k) => `${k}:${norm[k]}`).join('|');
-}
-
-// ---- Composant sélecteur de date de retour (renderReturnAt) ----
-const RETURN_PRESETS_MIN = [30, 60, 120, 240, 480];
-
-function ReturnAtPicker({ value, onChange, t }) {
-  // value: ISO string | null
-  // Convertit ISO -> valeur pour datetime-local (YYYY-MM-DDTHH:mm)
-  const isoToLocal = (iso) => {
-    if (!iso) return '';
-    try {
-      const d = new Date(iso);
-      if (!Number.isFinite(d.getTime())) return '';
-      const pad = (n) => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    } catch { return ''; }
-  };
-
-  const localToIso = (local) => {
-    if (!local) return null;
-    try {
-      const d = new Date(local);
-      if (!Number.isFinite(d.getTime())) return null;
-      return d.toISOString();
-    } catch { return null; }
-  };
-
-  const applyPreset = (minutes) => {
-    const iso = new Date(Date.now() + minutes * 60000).toISOString();
-    onChange(iso);
-  };
-
-  return (
-    <div className="uu-row" style={{ gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-      <span style={{ fontSize: '0.82em', color: 'var(--uu-text-muted, #888)', whiteSpace: 'nowrap' }}>
-        {t('renderReturnAt.label')}
-      </span>
-      <div style={{ minWidth: 220, maxWidth: 280, flex: '1 1 220px' }}>
-        <DateTimeConfirmPicker
-          value={isoToLocal(value)}
-          onChange={(nextValue) => onChange(localToIso(nextValue))}
-          placeholder="jj/mm/aaaa hh:mm"
-          applyLabel={t('postprod.renders.queue.jobs.save') || 'Valider'}
-          cancelLabel={t('postprod.renders.queue.jobs.cancel') || 'Annuler'}
-          clearLabel={t('renderReturnAt.clear') || 'Effacer'}
-          locale="fr-FR"
-        />
-      </div>
-      {RETURN_PRESETS_MIN.map((m) => (
-        <button
-          key={m}
-          className="uu-btn"
-          style={{ fontSize: '0.8em', padding: '2px 6px' }}
-          onClick={() => applyPreset(m)}
-          title={t('renderReturnAt.presetTitle', { m: m >= 60 ? `${m/60}h` : `${m}m` })}
-        >
-          {m >= 60 ? `${m/60}h` : `${m}m`}
-        </button>
-      ))}
-    </div>
-  );
-}
+const CARD_MARGIN_BOTTOM_STYLE = { marginBottom: '12px' };
+const GRID_ONE_AUTO_STYLE = { gridTemplateColumns: '1fr auto' };
 
 export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
   const id = React.useMemo(readIdentity, []);
@@ -331,6 +145,52 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
   const clientSaveTimer = React.useRef(null);
   const clientSaveReady = React.useRef(false);
   const lastClientSaveSigRef = React.useRef('');
+  const clientMsgTimerRef = React.useRef(null);
+
+  const clearClientMessage = React.useCallback(() => {
+    if (clientMsgTimerRef.current) {
+      clearTimeout(clientMsgTimerRef.current);
+      clientMsgTimerRef.current = null;
+    }
+    setClientMsg('');
+    setClientMsgType('');
+  }, []);
+
+  const scheduleClientMessageClear = React.useCallback((delayMs = 2500) => {
+    if (clientMsgTimerRef.current) {
+      clearTimeout(clientMsgTimerRef.current);
+      clientMsgTimerRef.current = null;
+    }
+    const rawDelay = Number(delayMs);
+    const timeoutMs = Number.isFinite(rawDelay) && rawDelay >= 0 ? Math.trunc(rawDelay) : 0;
+    if (timeoutMs <= 0) {
+      return;
+    }
+    clientMsgTimerRef.current = setTimeout(() => {
+      clientMsgTimerRef.current = null;
+      clearClientMessage();
+    }, timeoutMs);
+  }, [clearClientMessage]);
+
+  const showClientTransientMessage = React.useCallback((message, type = 'info', delayMs = 2500) => {
+    const msg = String(message || '').trim();
+    if (!msg) {
+      clearClientMessage();
+      return;
+    }
+    setClientMsg(msg);
+    setClientMsgType(type);
+    scheduleClientMessageClear(delayMs);
+  }, [clearClientMessage, scheduleClientMessageClear]);
+
+  React.useEffect(() => {
+    return () => {
+      if (clientMsgTimerRef.current) {
+        clearTimeout(clientMsgTimerRef.current);
+        clientMsgTimerRef.current = null;
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     setClientSyncState(!!clientSyncEnabled);
@@ -496,12 +356,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
 
   async function saveClientEditors(editorsOverride = null) {
     if (!localIp) {
-      setClientMsg(t('setup.client.msg.localIpMissing'));
-      setClientMsgType('error');
-      setTimeout(() => {
-        setClientMsg('');
-        setClientMsgType('');
-      }, 2500);
+      showClientTransientMessage(t('setup.client.msg.localIpMissing'), 'error', 2500);
       return;
     }
 
@@ -542,12 +397,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
     writeCachedSync(payload.syncEnabled);
 
     if (!clientHostExists) {
-      setClientMsg(t('setup.client.msg.hostMissingOnServer'));
-      setClientMsgType('error');
-      setTimeout(() => {
-        setClientMsg('');
-        setClientMsgType('');
-      }, 2500);
+      showClientTransientMessage(t('setup.client.msg.hostMissingOnServer'), 'error', 2500);
       return;
     }
 
@@ -557,8 +407,11 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
       if (ok) {
         lastClientSaveSigRef.current = payloadSig;
       }
-      setClientMsg(ok ? t('setup.client.msg.saveOk') : t('setup.client.msg.saveError'));
-      setClientMsgType(ok ? 'ok' : 'error');
+      showClientTransientMessage(
+        ok ? t('setup.client.msg.saveOk') : t('setup.client.msg.saveError'),
+        ok ? 'ok' : 'error',
+        2500
+      );
 
       if (ok) {
         try {
@@ -599,14 +452,8 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
         } catch {}
       }
     } catch {
-      setClientMsg(t('setup.client.msg.saveError'));
-      setClientMsgType('error');
+      showClientTransientMessage(t('setup.client.msg.saveError'), 'error', 2500);
     }
-
-    setTimeout(() => {
-      setClientMsg('');
-      setClientMsgType('');
-    }, 2500);
   }
 
   async function handleClientToggleSync(e) {
@@ -619,22 +466,12 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
   }
 
   if (!localIp) {
-    setClientMsg(t('setup.client.msg.localIpMissing'));
-    setClientMsgType('error');
-    setTimeout(() => {
-      setClientMsg('');
-      setClientMsgType('');
-    }, 2500);
+    showClientTransientMessage(t('setup.client.msg.localIpMissing'), 'error', 2500);
     return;
   }
 
   if (!clientHostExists) {
-    setClientMsg(t('setup.client.msg.hostMissingOnServer'));
-    setClientMsgType('error');
-    setTimeout(() => {
-      setClientMsg('');
-      setClientMsgType('');
-    }, 2500);
+    showClientTransientMessage(t('setup.client.msg.hostMissingOnServer'), 'error', 2500);
     return;
   }
 
@@ -662,23 +499,18 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
       }
     }
 
-    setClientMsg(
+    showClientTransientMessage(
       ok
         ? (enabled
             ? t('setup.client.msg.syncEnabled')
             : t('setup.client.msg.syncDisabled'))
-        : t('setup.client.msg.syncUpdateError')
+        : t('setup.client.msg.syncUpdateError'),
+      ok ? 'ok' : 'error',
+      2500
     );
-    setClientMsgType(ok ? 'ok' : 'error');
   } catch {
-    setClientMsg(t('setup.client.msg.syncUpdateError'));
-    setClientMsgType('error');
+    showClientTransientMessage(t('setup.client.msg.syncUpdateError'), 'error', 2500);
   }
-
-  setTimeout(() => {
-    setClientMsg('');
-    setClientMsgType('');
-  }, 2500);
 }
 
   /* ====================== RÔLE CLIENT : interface minimale ====================== */
@@ -704,7 +536,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
               <label className="uu-label w-160">
                 {t('setup.client.unrealVersionLabel', { version: ver })}
               </label>
-              <div className="uu-grid-2" style={{ gridTemplateColumns: '1fr auto' }}>
+              <div className="uu-grid-2" style={GRID_ONE_AUTO_STYLE}>
                 <input
                   className="uu-input"
                   value={clientEditors[ver] || ''}
@@ -729,12 +561,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
                   type="button"
                   onClick={async () => {
                     if (!window.electron?.openExecutable) {
-                      setClientMsg(t('setup.client.msg.browseUnavailable'));
-                      setClientMsgType('error');
-                      setTimeout(() => {
-                        setClientMsg('');
-                        setClientMsgType('');
-                      }, 2500);
+                      showClientTransientMessage(t('setup.client.msg.browseUnavailable'), 'error', 2500);
                       return;
                     }
                     let file = '';
@@ -798,6 +625,23 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
   const [detected, setDetected] = React.useState([]); // présences non déclarées
   const sortLocale = lang || 'fr';
   const serverSaveTimers = React.useRef({});
+  const serverMachineMsgTimers = React.useRef({});
+
+  React.useEffect(() => {
+    return () => {
+      const saveTimers = serverSaveTimers.current || {};
+      Object.values(saveTimers).forEach((timerId) => {
+        if (timerId) clearTimeout(timerId);
+      });
+      serverSaveTimers.current = {};
+
+      const msgTimers = serverMachineMsgTimers.current || {};
+      Object.values(msgTimers).forEach((timerId) => {
+        if (timerId) clearTimeout(timerId);
+      });
+      serverMachineMsgTimers.current = {};
+    };
+  }, []);
 
   React.useEffect(() => {
     (async () => {
@@ -881,6 +725,22 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
       return { ...prev, machines: m };
     });
   }
+
+  function toggleMachineParams(i, shouldOpen) {
+    updateMachine(i, { showEditor: !!shouldOpen, showArgs: !!shouldOpen });
+  }
+
+  function updateMachineRenderReturnAt(i, iso) {
+    updateMachine(i, { renderReturnAt: iso });
+    const updated = { ...cfgRef.current?.machines?.[i], renderReturnAt: iso };
+    saveArgsToServer(i, updated);
+  }
+
+  function updateMachineArgs(i, patch = {}) {
+    const prevArgs = cfgRef.current?.machines?.[i]?.args || {};
+    updateMachine(i, { args: { ...prevArgs, ...patch } });
+  }
+
   function addMachine() {
     setCfg(prev => {
       const nextIndex = prev.machines.length;
@@ -1031,6 +891,37 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
     serverSaveTimers.current = timers;
   }
 
+  function clearMachineTransientMessage(idxInState) {
+    if (!Number.isInteger(idxInState) || idxInState < 0) return;
+    const timers = serverMachineMsgTimers.current || {};
+    if (timers[idxInState]) {
+      clearTimeout(timers[idxInState]);
+      delete timers[idxInState];
+    }
+    serverMachineMsgTimers.current = timers;
+    updateMachine(idxInState, { lastMsg: '', lastMsgType: '' });
+  }
+
+  function showMachineTransientMessage(idxInState, lastMsg, lastMsgType = 'info', clearAfterMs = 3000) {
+    if (!Number.isInteger(idxInState) || idxInState < 0) return;
+    updateMachine(idxInState, { lastMsg, lastMsgType });
+
+    const timers = serverMachineMsgTimers.current || {};
+    if (timers[idxInState]) {
+      clearTimeout(timers[idxInState]);
+      delete timers[idxInState];
+    }
+    const rawDelay = Number(clearAfterMs);
+    const timeoutMs = Number.isFinite(rawDelay) && rawDelay >= 0 ? Math.trunc(rawDelay) : 0;
+    if (timeoutMs <= 0) {
+      return;
+    }
+    timers[idxInState] = setTimeout(() => {
+      clearMachineTransientMessage(idxInState);
+    }, timeoutMs);
+    serverMachineMsgTimers.current = timers;
+  }
+
   async function saveArgsToServer(key = null, machineOverride = null) {
     const stateMachines = Array.isArray(cfgRef.current?.machines)
       ? cfgRef.current.machines
@@ -1073,12 +964,10 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
       : -1;
     if (!ip) {
       if (idxInState >= 0) {
-        updateMachine(idxInState, {
-          lastMsg: t('setup.server.msg.hostIpMissing'),
-          lastMsgType: 'error',
-        });
-        setTimeout(
-          () => updateMachine(idxInState, { lastMsg: '', lastMsgType: '' }),
+        showMachineTransientMessage(
+          idxInState,
+          t('setup.server.msg.hostIpMissing'),
+          'error',
           1500
         );
       }
@@ -1099,9 +988,8 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
         ? idxInState
         : Number(m.sortIndex);
     const renderAvailability = (() => {
-      const VALID = ['capable', 'busy', 'excluded'];
       const val = stateMatch?.renderAvailability ?? m?.renderAvailability;
-      if (VALID.includes(val)) return val;
+      if (RENDER_AVAILABILITY_VALUES.includes(val)) return val;
       // Migration depuis les anciens champs
       if (stateMatch?.eligible === false || m?.eligible === false) return 'excluded';
       return 'capable';
@@ -1124,14 +1012,12 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
     const r = await postHost(ip, payload);
     const ok = r && r.ok !== false;
     if (idxInState >= 0) {
-      updateMachine(idxInState, {
-        lastMsg: ok
+      showMachineTransientMessage(
+        idxInState,
+        ok
           ? t('setup.server.msg.hostSaved')
           : t('setup.server.msg.hostSaveError'),
-        lastMsgType: ok ? 'ok' : 'error',
-      });
-      setTimeout(
-        () => updateMachine(idxInState, { lastMsg: '', lastMsgType: '' }),
+        ok ? 'ok' : 'error',
         3000
       );
     }
@@ -1161,8 +1047,45 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
     return <span className={`uu-dot ${cls}`} title={title} />;
   }
 
-  const capableList = cfg.machines.map((m, idx) => ({ ...m, _idx: idx })).filter((m) => m.renderAvailability !== 'excluded');
-  const excludedList = cfg.machines.map((m, idx) => ({ ...m, _idx: idx })).filter((m) => m.renderAvailability === 'excluded');
+  const presetOptions = React.useMemo(() => (
+    PRESET_OPTIONS.map((preset) => ({
+      ...preset,
+      label: preset.k === 'manual' ? t('setup.server.resPreset.manual') : preset.label,
+    }))
+  ), [t]);
+  const { capableList, excludedList } = React.useMemo(() => {
+    const capable = [];
+    const excluded = [];
+    for (let idx = 0; idx < (cfg.machines || []).length; idx += 1) {
+      const machine = cfg.machines[idx];
+      const entry = { ...machine, _idx: idx };
+      if (machine?.renderAvailability === 'excluded') excluded.push(entry);
+      else capable.push(entry);
+    }
+    return { capableList: capable, excludedList: excluded };
+  }, [cfg.machines]);
+  const machineColorUsageCounts = React.useMemo(() => {
+    const counts = new Map();
+    for (const machine of (cfg.machines || [])) {
+      const color = String(machine?.color || '').trim();
+      if (!color) continue;
+      counts.set(color, (counts.get(color) || 0) + 1);
+    }
+    return counts;
+  }, [cfg.machines]);
+  const unknownDetected = React.useMemo(() => {
+    const known = new Set(
+      (cfg.machines || [])
+        .map((machine) => String(machine.ip || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    return (detected || []).filter(
+      (entry) =>
+        entry &&
+        String(entry.ip || '').trim() &&
+        !known.has(String(entry.ip || '').trim().toLowerCase())
+    );
+  }, [cfg.machines, detected]);
 
   const dragInfo = React.useRef(null);
 
@@ -1180,8 +1103,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
         const ip = String(vm?.ip || '').trim();
         if (!ip) continue;
         try {
-          const VALID_AVAIL = ['capable', 'busy', 'excluded'];
-          const vmAvail = VALID_AVAIL.includes(vm.renderAvailability) ? vm.renderAvailability : 'capable';
+          const vmAvail = RENDER_AVAILABILITY_VALUES.includes(vm.renderAvailability) ? vm.renderAvailability : 'capable';
           await postHost(ip, {
             ip,
             name: String(vm.name || '').trim(),
@@ -1242,8 +1164,7 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
   // Change renderAvailability d'une machine et force le sortIndex en fin de segment cible
   const setRenderAvailability = React.useCallback(
     async (idxInState, avail) => {
-      const VALID = ['capable', 'busy', 'excluded'];
-      if (!VALID.includes(avail)) return;
+      if (!RENDER_AVAILABILITY_VALUES.includes(avail)) return;
       const list = Array.isArray(cfgRef.current?.machines)
         ? [...cfgRef.current.machines]
         : [];
@@ -1312,11 +1233,6 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
     if (next) await reindexAndPersist(next);
   };
 
-  const moveBetween = async (fromSegment, toSegment, fromIdx, _toIdx = null) => {
-    // Désactivé : on utilise les boutons pour changer de segment
-    return;
-  };
-
   const onDragStart = (segment, idx) => {
     dragInfo.current = { segment, idx };
   };
@@ -1327,39 +1243,21 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
     const info = dragInfo.current;
     dragInfo.current = null;
     if (!info) return;
-    if (info.segment === segment) {
-      reorderWithin(segment, info.idx, idx);
-    } else {
-      moveBetween(info.segment, segment, info.idx, idx);
-    }
+    if (info.segment !== segment) return;
+    reorderWithin(segment, info.idx, idx);
   };
+  const onCardDragEnd = React.useCallback(() => {
+    reindexAndPersist(cfgRef.current?.machines || []);
+  }, [reindexAndPersist]);
 
   const renderCard = (m, segment, position) => {
     const a = m.args || {};
-    const presetOptions = PRESET_OPTIONS.map((p) => ({
-      ...p,
-      label: p.k === 'manual'
-          ? t('setup.server.resPreset.manual')
-        : p.label,
-    }));
 
     const paramsOpen = !isRenderMode && !!(m.showEditor || m.showArgs);
-    const toggleParams = () => {
-      const next = !paramsOpen;
-      updateMachine(m._idx, { showEditor: next, showArgs: next });
-    };
-
-    const usedByOthers = new Set(
-      (cfg.machines || [])
-        .map((other, idx) =>
-          idx === m._idx ? '' : String(other.color || '').trim()
-        )
-        .filter(Boolean)
-    );
 
     const currentColor = String(m.color || '').trim();
     const availableColors = MACHINE_COLORS.filter(
-      (c) => c.value === currentColor || !usedByOthers.has(c.value)
+      (c) => c.value === currentColor || !machineColorUsageCounts.has(c.value)
     );
 
     const statusIsFail = m.status === 'fail';
@@ -1374,243 +1272,37 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
         className={`uu-card ${cardStateClass}`}
         draggable
         onDragStart={() => onDragStart(segment, position)}
-        onDragEnd={() => reindexAndPersist(cfgRef.current?.machines || [])}
+        onDragEnd={onCardDragEnd}
         onDragOver={onDragOver}
         onDrop={(e) => { e.preventDefault(); onDrop(segment, position); }}
-        style={{ marginBottom: '12px' }}
+        style={CARD_MARGIN_BOTTOM_STYLE}
       >
-        <div className="uu-row">
-          <span className={`uu-pastille ${colorClass(m.color)}`} />
-          <input className="uu-input w-160" value={m.name||''} onChange={(e)=>updateMachine(m._idx,{name:e.target.value})} />
-          <select
-            className="uu-input w-160"
-            value={m.color || ''}
-            onChange={(e) => updateMachine(m._idx, { color: e.target.value })}
-          >
-            <option value="">(sans couleur)</option>
-            {availableColors.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+        <MachineCardHeaderRow
+          machine={m}
+          machineIndex={m._idx}
+          t={t}
+          statusDot={statusDot}
+          availableColors={availableColors}
+          isRenderMode={isRenderMode}
+          paramsOpen={paramsOpen}
+          onToggleParams={toggleMachineParams}
+          segment={segment}
+          updateMachine={updateMachine}
+          onSetRenderAvailability={setRenderAvailability}
+          onRemoveMachine={removeMachine}
+          onIpBlur={handleIpBlur}
+          onRenderReturnAtChange={updateMachineRenderReturnAt}
+        />
 
-          {statusDot(m.status)}
-          <input
-            className="uu-input w-160"
-            value={m.ip}
-            onChange={(e)=>updateMachine(m._idx,{ip:e.target.value})}
-            onBlur={() => handleIpBlur(m._idx)}
+        {paramsOpen ? (
+          <MachineArgsPanel
+            machine={m}
+            args={a}
+            t={t}
+            presetOptions={presetOptions}
+            updateMachineArgs={updateMachineArgs}
           />
-
-          {!isRenderMode ? (
-            <button onClick={toggleParams} className="uu-btn">
-              {paramsOpen
-                ? t('setup.server.toggleParams.hide')
-                : t('setup.server.toggleParams.show')}
-            </button>
-          ) : null}
-
-          {isRenderMode ? (
-            <select
-              className="uu-input"
-              style={{ width: 110, minWidth: 0, flexShrink: 0 }}
-              value={m.renderAvailability || 'capable'}
-              onChange={(e) => setRenderAvailability(m._idx, e.target.value)}
-            >
-              <option value="capable">{t('renderAvailability.capable')}</option>
-              <option value="busy">{t('renderAvailability.busy')}</option>
-              <option value="excluded">{t('renderAvailability.excluded')}</option>
-            </select>
-          ) : (
-            segment === 'capable' ? (
-              <button onClick={() => setRenderAvailability(m._idx, 'excluded')} className="uu-btn">
-                {t('setup.launchControl.exclude')}
-              </button>
-            ) : (
-              <button onClick={() => setRenderAvailability(m._idx, 'capable')} className="uu-btn">
-                {t('setup.launchControl.reinclude')}
-              </button>
-            )
-          )}
-
-          <button onClick={()=>removeMachine(m._idx)} className="uu-btn">{t('common.delete')}</button>
-
-          {isRenderMode && m.renderAvailability === 'busy' && (
-            <ReturnAtPicker
-              value={m.renderReturnAt || null}
-              onChange={(iso) => {
-                updateMachine(m._idx, { renderReturnAt: iso });
-                const updated = { ...cfgRef.current?.machines?.[m._idx], renderReturnAt: iso };
-                saveArgsToServer(m._idx, updated);
-              }}
-              t={t}
-            />
-          )}
-
-          <span
-            style={{ marginLeft: 'auto', cursor: 'grab', opacity: 0.6 }}
-            title={t('setup.launchControl.dragToReorder')}
-          >⋯</span>
-        </div>
-
-        {paramsOpen && (
-          <>
-            <div className="uu-args">
-              <div className="uu-args-title">{t('setup.server.argsTitle')}</div>
-            <div
-              className="uu-grid-3"
-              style={{ columnGap: '24px', gridTemplateColumns: '260px 260px 260px' }}
-            >
-              <div className="uu-grid-field">
-            <label className="uu-label w-160">{t('setup.server.resPresetLabel')}</label>
-                <select
-                  className="uu-input"
-                  value={a.resPreset || 'manual'}
-                  onChange={(e) => {
-                    const val = e.target.value || 'manual';
-                    const preset = presetOptions.find((p) => p.k === val);
-                    if (preset && preset.x && preset.y) {
-                      updateMachine(m._idx, {
-                        args: {
-                          ...(m.args || {}),
-                          resPreset: val,
-                          resx: preset.x,
-                          resy: preset.y,
-                        },
-                      });
-                    } else {
-                      updateMachine(m._idx, {
-                        args: { ...(m.args || {}), resPreset: 'manual' },
-                      });
-                    }
-                  }}
-                >
-                  {presetOptions.map((p) => (
-                    <option key={p.k} value={p.k}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="uu-grid-field">
-                <label className="uu-label w-160">{t('setup.server.resx')}</label>
-                <input
-                  type="number"
-                  className="uu-input"
-                  value={a.resx ?? ''}
-                  disabled={a.resPreset && a.resPreset !== 'manual'}
-                  onChange={(e) =>
-                    updateMachine(m._idx, {
-                      args: { ...(m.args || {}), resx: e.target.value, resPreset: 'manual' },
-                    })
-                  }
-                />
-              </div>
-              <div className="uu-grid-field">
-                <label className="uu-label w-160">{t('setup.server.resy')}</label>
-                <input
-                  type="number"
-                  className="uu-input"
-                  value={a.resy ?? ''}
-                  disabled={a.resPreset && a.resPreset !== 'manual'}
-                  onChange={(e) =>
-                    updateMachine(m._idx, {
-                      args: { ...(m.args || {}), resy: e.target.value, resPreset: 'manual' },
-                    })
-                  }
-                />
-              </div>
-              <div
-                className="uu-grid-3 mt-12"
-                style={{ columnGap: '24px', alignItems: 'center', gridTemplateColumns: '260px 200px 200px 220px' }}
-              >
-                <div className="uu-grid-field">
-                  <label className="uu-label w-160">{t('setup.server.frameRateLimit')}</label>
-                  <select
-                    className="uu-input"
-                    value={a.frameRateLimit ?? ''}
-                    onChange={(e) =>
-                      updateMachine(m._idx, {
-                        args: { ...(m.args || {}), frameRateLimit: e.target.value },
-                      })
-                    }
-                  >
-                    <option value="">{'—'}</option>
-                    <option value="23.98">23.98 fps</option>
-                    <option value="24">24 fps</option>
-                    <option value="25">25 fps</option>
-                    <option value="29.97">29.97 fps</option>
-                    <option value="30">30 fps</option>
-                    <option value="47.95">47.95 fps</option>
-                    <option value="48">48 fps</option>
-                    <option value="50">50 fps</option>
-                    <option value="59.94">59.94 fps</option>
-                    <option value="60">60 fps</option>
-                  </select>
-                </div>
-                <div className="uu-grid-field">
-                  <label className="uu-check" style={{ alignItems: 'center' }}>
-                    <input
-                      type="checkbox"
-                      checked={!!a.renderOffscreen}
-                      onChange={(e) =>
-                        updateMachine(m._idx, { args: { ...(m.args || {}), renderOffscreen: !!e.target.checked } })
-                      }
-                    />
-                    {t('setup.server.renderOffscreen')}
-                  </label>
-                </div>
-                <div className="uu-grid-field">
-                  <label className="uu-check" style={{ alignItems: 'center' }}>
-                    <input
-                      type="checkbox"
-                      checked={!!a.noScreenMessages}
-                      onChange={(e) =>
-                        updateMachine(m._idx, { args: { ...(m.args || {}), noScreenMessages: !!e.target.checked } })
-                      }
-                    />
-                    {t('setup.server.noScreenMessages')}
-                  </label>
-                </div>
-              </div>
-            </div>
-            <div
-              className="uu-grid-2 mt-12"
-              style={{ gridTemplateColumns: '0.3fr 0.7fr' }}
-            >
-              <div className="uu-grid-field">
-                <label className="uu-label w-160">{t('setup.server.videoCard')}</label>
-                <select
-                  className="uu-input"
-                  value={a.videoCard || ''}
-                  onChange={(e) =>
-                    updateMachine(m._idx, {
-                      args: { ...(m.args || {}), videoCard: e.target.value },
-                    })
-                  }
-                >
-                  <option value="">{t('setup.server.videoCard.none')}</option>
-                  <option value="AJA">{t('setup.server.videoCard.aja')}</option>
-                  <option value="BlackMagic">{t('setup.server.videoCard.blackmagic')}</option>
-                </select>
-              </div>
-              <div className="uu-grid-field">
-                <label>{t('setup.server.execCmds')}</label>
-                <input
-                  className="uu-input"
-                  value={a.execCmds || ''}
-                  onChange={(e) =>
-                    updateMachine(m._idx, {
-                      args: { ...(m.args || {}), execCmds: e.target.value },
-                    })
-                  }
-                />
-              </div>
-            </div>
-          </div>
-          </>
-        )}
+        ) : null}
 
         {m?.lastMsg && (
           <div className={`uu-msg ${m.lastMsgType || ''} mt-8`}>
@@ -1631,70 +1323,29 @@ export default function SetupScreen({ clientSyncEnabled, onClientSyncChange }) {
         </div>
       </div>
 
-      <div className="uu-section">
-        <h3 className="uu-h3 uu-block-title" style={{ marginBottom: "12px" }}>
-          {isRenderMode ? t('setup.server.machinesRenderEligible') : t('setup.server.machinesEligible')}
-        </h3>
-        {capableList.length === 0 ? (
-          <div className="uu-muted">{t('setup.server.noEligible')}</div>
-        ) : (
-          capableList.map((m, idx) => renderCard(m, 'capable', idx))
-        )}
-      </div>
+      <MachineGroupSection
+        title={isRenderMode ? t('setup.server.machinesRenderEligible') : t('setup.server.machinesEligible')}
+        emptyText={t('setup.server.noEligible')}
+        list={capableList}
+        segment="capable"
+        renderCard={renderCard}
+      />
 
-      <div className="uu-section">
-        <h3 className="uu-h3 uu-block-title" style={{ marginBottom: "12px" }}>
-          {isRenderMode ? t('setup.server.machinesRenderExcluded') : t('setup.server.machinesExcluded')}
-        </h3>
-        {excludedList.length === 0 ? (
-          <div className="uu-muted">
-            {isRenderMode ? t('setup.server.noRenderExcluded') : t('setup.server.noExcluded')}
-          </div>
-        ) : (
-          excludedList.map((m, idx) => renderCard(m, 'excluded', idx))
-        )}
-      </div>
+      <MachineGroupSection
+        title={isRenderMode ? t('setup.server.machinesRenderExcluded') : t('setup.server.machinesExcluded')}
+        emptyText={isRenderMode ? t('setup.server.noRenderExcluded') : t('setup.server.noExcluded')}
+        list={excludedList}
+        segment="excluded"
+        renderCard={renderCard}
+      />
 
-      {(() => {
-        const known = new Set(
-          (cfg.machines || [])
-            .map((m) => String(m.ip || '').trim().toLowerCase())
-            .filter(Boolean)
-        );
-        const unknownDetected = (detected || []).filter(
-          (d) =>
-            d &&
-            String(d.ip || '').trim() &&
-            !known.has(String(d.ip || '').trim().toLowerCase())
-        );
-        if (unknownDetected.length === 0) return null;
-        return (
-          <div className="uu-section">
-            <h3 className="uu-h3 uu-block-title">{t('setup.server.detectedUnknown')}</h3>
-            <div className="uu-list">
-              {unknownDetected.map((d) => (
-                <div key={d.ip} className="uu-card uu-row" style={{ alignItems: 'center' }}>
-                  <div className="uu-col">
-                    <div className="uu-item-title">{d.name || d.ip}</div>
-                    <div className="uu-item-sub">{d.ip}</div>
-                    {d.ts ? (
-                      <div className="uu-item-sub">
-                        {t('setup.server.detectedAt').replace('{ts}', d.ts)}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="uu-col uu-actions">
-                    <button className="uu-btn" onClick={() => addDetectedMachine(d)}>
-                      {t('setup.server.addDetected')}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
+      <UnknownDetectedSection
+        t={t}
+        unknownDetected={unknownDetected}
+        addDetectedMachine={addDetectedMachine}
+      />
     </div>
   );
 }
+
 

@@ -3,6 +3,8 @@ import { useResourcesCatalogController } from "./hooks/useResourcesCatalogContro
 import { ResourcesCatalogListPanel } from "./components/ResourcesCatalogListPanel";
 import { ResourcesCatalogDetailPanel } from "./components/ResourcesCatalogDetailPanel";
 
+const RESOURCES_CATALOG_HEADER_STYLE = { justifyContent: "space-between", alignItems: "center" };
+
 function ResourcesCatalogCard({
   t,
   resources = [],
@@ -56,7 +58,7 @@ function ResourcesCatalogCard({
 
   return (
     <section className="uu-section">
-      <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+      <div className="uu-row" style={RESOURCES_CATALOG_HEADER_STYLE}>
         <h3 className="uu-h3 uu-block-title">{safeT(t, "postprod.resources.title", "Ressources Post-production")}</h3>
         <div className="uu-row uu-gap-4">
           <button

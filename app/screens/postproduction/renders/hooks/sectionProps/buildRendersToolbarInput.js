@@ -83,5 +83,3 @@ export function buildRendersToolbarInput({
     sequenceFilterOptions,
   };
 }
-
-export default buildRendersToolbarInput;

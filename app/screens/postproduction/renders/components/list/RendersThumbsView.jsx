@@ -1,6 +1,24 @@
 import { useEffect, useState } from "react";
 import { formatDate, safeT, simplifyUnrealAssetDisplayName } from "../../../shared/helpers";
 
+const RENDERS_THUMB_CARD_CLICKABLE_STYLE = { cursor: "pointer" };
+const RENDERS_THUMB_HEADER_ROW_STYLE = { justifyContent: "space-between", alignItems: "baseline", gap: "8px" };
+const RENDERS_THUMB_FILE_STYLE = { fontWeight: 600, overflowWrap: "anywhere", minWidth: 0 };
+const RENDERS_THUMB_ID_STYLE = { opacity: 0.4, fontSize: "0.85em", whiteSpace: "nowrap", flexShrink: 0 };
+const RENDERS_THUMB_LINK_STYLE = { cursor: "pointer" };
+const RENDERS_THUMB_META_TAG_WITH_MARGIN_STYLE = { marginLeft: "6px", opacity: 0.4 };
+const RENDERS_THUMB_META_TAG_NO_MARGIN_STYLE = { marginLeft: "0", opacity: 0.4 };
+const RENDERS_THUMB_DELETE_BUTTON_STYLE = {
+  width: "32px",
+  minWidth: "32px",
+  height: "32px",
+  padding: "0",
+  flex: "0 0 32px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
 function firstNonEmptyString(values = []) {
   for (const value of Array.isArray(values) ? values : []) {
     const normalized = String(value || "").trim();
@@ -295,15 +313,15 @@ function RendersThumbCard({
   return (
     <div
       className="uu-card uu-render-item-clickable"
-      style={{ cursor: "pointer" }}
+      style={RENDERS_THUMB_CARD_CLICKABLE_STYLE}
       onClick={() => onOpenRenderDetail?.(render)}
     >
-      <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
-        <div style={{ fontWeight: 600, overflowWrap: "anywhere", minWidth: 0 }}>
+      <div className="uu-row" style={RENDERS_THUMB_HEADER_ROW_STYLE}>
+        <div style={RENDERS_THUMB_FILE_STYLE}>
           {typeof renderOutputFilename === "function" ? renderOutputFilename(render) : "-"}
         </div>
         {renderIdText ? (
-          <span style={{ opacity: 0.4, fontSize: "0.85em", whiteSpace: "nowrap", flexShrink: 0 }}>{renderIdText}</span>
+          <span style={RENDERS_THUMB_ID_STYLE}>{renderIdText}</span>
         ) : null}
       </div>
       <div className="uu-render-thumb-frame mt-8">
@@ -330,12 +348,12 @@ function RendersThumbCard({
         <span className="uu-muted">{safeT(t, "postprod.renders.table.project", "Projet")}: </span>
         <span
           onClick={canOpenProjectLink ? handleOpenProject : undefined}
-          style={canOpenProjectLink ? { cursor: "pointer" } : undefined}
+          style={canOpenProjectLink ? RENDERS_THUMB_LINK_STYLE : undefined}
         >
           {projectLabel}
         </span>
         {showProjectRefTag ? (
-          <span style={{ marginLeft: "6px", opacity: 0.4 }}>#{projectRef}</span>
+          <span style={RENDERS_THUMB_META_TAG_WITH_MARGIN_STYLE}>#{projectRef}</span>
         ) : null}
       </div>
       <div className="uu-render-thumb-meta-row mt-8" onClick={(e) => e.stopPropagation()}>
@@ -343,7 +361,7 @@ function RendersThumbCard({
         {linkedTaskId > 0 ? (
           <>
             {linkedTaskTitle ? <span>{linkedTaskTitle}</span> : null}
-            <span style={{ marginLeft: linkedTaskTitle ? "6px" : "0", opacity: 0.4 }}>
+            <span style={linkedTaskTitle ? RENDERS_THUMB_META_TAG_WITH_MARGIN_STYLE : RENDERS_THUMB_META_TAG_NO_MARGIN_STYLE}>
               #{String(linkedTaskId).padStart(4, "0")}
             </span>
           </>
@@ -356,13 +374,13 @@ function RendersThumbCard({
         {formNameLabel ? (
           <span
             onClick={canOpenFormLink ? handleOpenForm : undefined}
-            style={canOpenFormLink ? { cursor: "pointer" } : undefined}
+            style={canOpenFormLink ? RENDERS_THUMB_LINK_STYLE : undefined}
           >
             {formNameLabel}
           </span>
         ) : null}
         {formIdText ? (
-          <span style={{ marginLeft: formNameLabel ? "6px" : "0", opacity: 0.4 }}>{formIdText}</span>
+          <span style={formNameLabel ? RENDERS_THUMB_META_TAG_WITH_MARGIN_STYLE : RENDERS_THUMB_META_TAG_NO_MARGIN_STYLE}>{formIdText}</span>
         ) : null}
         {!formNameLabel && !formIdText ? (
           <span className="uu-render-thumb-meta-value">-</span>
@@ -407,16 +425,7 @@ function RendersThumbCard({
           onClick={handleDeleteRender}
           title={safeT(t, "postprod.renders.delete.button", "Supprimer")}
           aria-label={safeT(t, "postprod.renders.delete.button", "Supprimer")}
-          style={{
-            width: "32px",
-            minWidth: "32px",
-            height: "32px",
-            padding: "0",
-            flex: "0 0 32px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          style={RENDERS_THUMB_DELETE_BUTTON_STYLE}
         >
           {"X"}
         </button>

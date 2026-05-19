@@ -9,12 +9,10 @@ export function useResourceDetailCoreControllers({
   refs = {},
 } = {}) {
   const {
-    t,
     detailUid,
     detailItem,
     detailDraft,
     detailDeleteBusy,
-    detailMsg,
     deleteConfirmOpen,
     lightboxOpen,
     lightboxIndex,
@@ -27,8 +25,6 @@ export function useResourceDetailCoreControllers({
     setDetailData,
     setDetailUid,
     setDetailBusy,
-    setDetailMsg,
-    setDetailMsgType,
     setDetailDeleteBusy,
     setDeleteConfirmOpen,
     setLightboxIndex,
@@ -55,7 +51,6 @@ export function useResourceDetailCoreControllers({
     closeDeleteConfirm,
     triggerDetailSave,
   } = useResourceDetailPersistence({
-    t,
     detailUid,
     detailItem,
     detailDraft,
@@ -64,8 +59,6 @@ export function useResourceDetailCoreControllers({
     setDetailData,
     setDetailUid,
     setDetailBusy,
-    setDetailMsg,
-    setDetailMsgType,
     setDetailDeleteBusy,
     setDeleteConfirmOpen,
     detailSavedRef,
@@ -84,7 +77,6 @@ export function useResourceDetailCoreControllers({
     detailUid,
     detailItem,
     detailDraft,
-    detailMsg,
     deleteConfirmOpen,
     detailDeleteBusy,
     lightboxOpen,
@@ -92,8 +84,6 @@ export function useResourceDetailCoreControllers({
     triggerDetailSave,
     setDetailUid,
     setDeleteConfirmOpen,
-    setDetailMsg,
-    setDetailMsgType,
     deleteConfirmOkRef,
     detailSavedRef,
     detailSavedNoteRef,
@@ -135,5 +125,3 @@ export function useResourceDetailCoreControllers({
     stepLightbox,
   };
 }
-
-export default useResourceDetailCoreControllers;

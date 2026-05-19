@@ -1,6 +1,14 @@
-﻿import { safeT } from "../../../shared/helpers";
+import { safeT } from "../../../shared/helpers";
 import { taskAutoRenderStateLabel, taskVisualStatusClass } from "../../../renderEditor/helpers";
 
+const RENDERS_QUEUE_HEADER_STYLE = {
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "8px",
+  flexWrap: "wrap",
+};
+const RENDERS_QUEUE_CHIPS_AUTO_STYLE = { marginLeft: "auto" };
+const RENDERS_QUEUE_CHIPS_BASE_STYLE = { marginLeft: 0 };
 function RendersQueueHeader({
   t,
   queueStateSummary = { waiting: 0, running: 0, error: 0, toModify: 0 },
@@ -12,7 +20,7 @@ function RendersQueueHeader({
   const canToggleQueueMode = canLaunchRenders && typeof onSetQueueRuntimeMode === "function";
 
   return (
-    <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+    <div className="uu-row" style={RENDERS_QUEUE_HEADER_STYLE}>
       {canToggleQueueMode ? (
         <div className="uu-row uu-gap-4">
           <button
@@ -31,7 +39,7 @@ function RendersQueueHeader({
           </button>
         </div>
       ) : <div />}
-      <div className="uu-chip-group" style={{ marginLeft: canToggleQueueMode ? "auto" : 0 }}>
+      <div className="uu-chip-group" style={canToggleQueueMode ? RENDERS_QUEUE_CHIPS_AUTO_STYLE : RENDERS_QUEUE_CHIPS_BASE_STYLE}>
         <span className={`uu-chip chip-on ${taskVisualStatusClass("waiting")}`}>
           {taskAutoRenderStateLabel(t, "waiting")} ({Number(queueStateSummary?.waiting || 0)})
         </span>
@@ -50,4 +58,5 @@ function RendersQueueHeader({
 }
 
 export { RendersQueueHeader };
+
 

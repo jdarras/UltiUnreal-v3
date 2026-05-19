@@ -43,4 +43,3 @@ function ProjectsCatalogListPanel({
 }
 
 export { ProjectsCatalogListPanel };
-export default ProjectsCatalogListPanel;

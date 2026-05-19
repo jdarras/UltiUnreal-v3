@@ -315,5 +315,3 @@ export function useResourcesList({ t, id, refreshKey = 0 }) {
     isUeCompatible,
   };
 }
-
-export default useResourcesList;

@@ -136,7 +136,8 @@ export function useRendersListController({
   const reviewFilterOptions = useMemo(() => ([
     { value: "to_validate", label: safeT(t, "postprod.renders.review.toValidate", "A valider") },
     { value: "validated", label: safeT(t, "postprod.renders.review.validated", "Validee") },
-    { value: "rejected", label: safeT(t, "postprod.renders.review.rejected", "Rejetee") },
+    { value: "to_modify", label: safeT(t, "postprod.renders.review.toModify", "A modifier") },
+    { value: "canceled", label: safeT(t, "postprod.renders.review.canceled", "Annulee") },
   ]), [t]);
 
   useSyncSelectionWithOptions(projectFilter, setProjectFilter, projectFilterOptions);
@@ -190,5 +191,3 @@ export function useRendersListController({
     setListSortFromSelect,
   };
 }
-
-export default useRendersListController;

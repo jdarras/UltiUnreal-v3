@@ -3,13 +3,14 @@ import { useRef, useState } from 'react';
 import './joystickwidget.css';
 import BindingPicker from './bindingpicker.jsx';
 import { getCompanionBaseUrl } from '../utils/agent';
-import { readIdentity } from '../utils/identity';
-import { createT } from '../i18n';
+import { getLimitsTitleLabel } from './widgetI18n.js';
+import { getWidgetT } from './widgetTranslator.js';
 
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
+function buildJoystickKnobStyle(knobX, knobY) {
+  return {
+    left: `${knobX}%`,
+    top: `${knobY}%`
+  };
 }
 
 /**
@@ -36,7 +37,7 @@ export default function JoystickWidget({
   onDelete,
   onDuplicate
 }) {
-  const t = getT();
+  const t = getWidgetT();
 
   const padRef = useRef(null);
   const [, setDragging] = useState(false);
@@ -316,10 +317,7 @@ export default function JoystickWidget({
           <div className="uu-joystick-cross" />
           <div
             className="uu-joystick-knob"
-            style={{
-              left: `${knobX}%`,
-              top: `${knobY}%`
-            }}
+            style={buildJoystickKnobStyle(knobX, knobY)}
           />
         </div>
       </div>
@@ -408,7 +406,7 @@ export default function JoystickWidget({
 export function JoystickEditLeft({ widget, updateSelected, layoutId = '' }) {
   if (!widget) return null;
 
-  const t = getT();
+  const t = getWidgetT();
 
   const ui = widget?.ui || {};
 
@@ -616,7 +614,8 @@ export function JoystickEditorRight({
 }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
+  const limitsTitle = getLimitsTitleLabel(t);
 
   const ui = selected.ui || {};
   const linkType = ui.linkType || 'vector2d';
@@ -756,7 +755,7 @@ const maxY = ui.maxY ?? 10;
         )}
 
         <div className="uu-item-title mt-8">
-          {t('widgets.common.limitsTitle') || 'Limites'}
+          {limitsTitle}
         </div>
 
         {/* Plage X / Y : min / max */}
@@ -844,7 +843,7 @@ export function JoystickLabelEditor({ selected, updateSelected }) {
 
   const ui = selected.ui || {};
   const live = ui.live === true;
-  const t = getT();
+  const t = getWidgetT();
 
   return (
     <>
@@ -886,3 +885,4 @@ export function JoystickLabelEditor({ selected, updateSelected }) {
     </>
   );
 }
+

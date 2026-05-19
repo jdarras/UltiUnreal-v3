@@ -176,4 +176,3 @@ function useConfigProjectScan({ t, projectRootsRef, refreshCatalogStats, onNavig
 }
 
 export { useConfigProjectScan };
-export default useConfigProjectScan;

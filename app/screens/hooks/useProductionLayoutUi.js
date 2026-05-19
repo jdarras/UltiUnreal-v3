@@ -33,4 +33,3 @@ function useProductionLayoutUi({
 }
 
 export { useProductionLayoutUi };
-export default useProductionLayoutUi;

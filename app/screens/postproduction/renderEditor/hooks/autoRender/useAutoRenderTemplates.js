@@ -149,5 +149,3 @@ export function useAutoRenderTemplates({
     selectedAutoRenderTemplate,
   };
 }
-
-export default useAutoRenderTemplates;

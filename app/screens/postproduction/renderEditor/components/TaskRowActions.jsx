@@ -1,5 +1,7 @@
 import { safeT } from "../../shared/helpers";
 
+const TASK_ROW_ACTIONS_STYLE = { flexWrap: "nowrap", whiteSpace: "nowrap" };
+
 function TaskRowActions({
   t,
   task = null,
@@ -9,7 +11,7 @@ function TaskRowActions({
   onDelete = null,
 }) {
   return (
-    <div className="uu-row uu-gap-4" style={{ flexWrap: "nowrap", whiteSpace: "nowrap" }}>
+    <div className="uu-row uu-gap-4" style={TASK_ROW_ACTIONS_STYLE}>
       <button
         className="uu-btn-ghost"
         type="button"

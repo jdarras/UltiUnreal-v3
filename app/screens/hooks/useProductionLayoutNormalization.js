@@ -33,4 +33,3 @@ function useProductionLayoutNormalization({
 }
 
 export { useProductionLayoutNormalization };
-export default useProductionLayoutNormalization;

@@ -1,5 +1,6 @@
 import BindingPicker from '../bindingpicker.jsx';
 import { getWidgetValueMeta } from '../../utils/timeline';
+import { TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE } from './timelineEditorStyles.js';
 import {
   getFiniteNumber,
   hasValuesAboveMax,
@@ -52,7 +53,7 @@ export function TextTimelineEditor({
       {isNumeric && (
         <div
           className="uu-row uu-slider-editor-row"
-          style={{ flexWrap: 'nowrap', gap: 10 }}
+          style={TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE}
         >
           <label className="uu-label w-160">Limites & pas</label>
           <span className="uu-muted">Min</span>

@@ -1,0 +1,31 @@
+export function buildProjectDetailPublicApiHttpBind({
+  httpBindBusy,
+  httpBindEditing,
+  httpBindDraft,
+  setHttpBindDraft,
+  httpBindDisplay,
+  httpBindDisplayClass,
+  httpBindDraftValid,
+  httpBindInlineMsg,
+  httpBindInlineClass,
+  canEditHttpBind,
+  startHttpBindEdit,
+  cancelHttpBindEdit,
+  saveHttpBindAddress,
+} = {}) {
+  return {
+    httpBindBusy,
+    httpBindEditing,
+    httpBindDraft,
+    setHttpBindDraft,
+    httpBindDisplay,
+    httpBindDisplayClass,
+    httpBindDraftValid,
+    httpBindInlineMsg,
+    httpBindInlineClass,
+    canEditHttpBind,
+    startHttpBindEdit,
+    cancelHttpBindEdit,
+    saveHttpBindAddress,
+  };
+}

@@ -90,5 +90,3 @@ export function useRenderReviewController({
     confirmRejectDialog,
   };
 }
-
-export default useRenderReviewController;

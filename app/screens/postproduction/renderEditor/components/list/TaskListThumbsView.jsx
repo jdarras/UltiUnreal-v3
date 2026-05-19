@@ -1,5 +1,19 @@
 import { formatDate, safeT } from "../../../shared/helpers";
 
+const TASK_LIST_THUMBS_GRID_STYLE = {
+  display: "grid",
+  gap: "12px",
+  gridTemplateColumns: "repeat(4, 1fr)",
+};
+const TASK_THUMB_HEADER_ROW_STYLE = { justifyContent: "space-between", alignItems: "center" };
+const TASK_THUMB_META_ROW_STYLE = { display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: "6px" };
+const TASK_THUMB_TITLE_STYLE = { fontWeight: 600 };
+const TASK_THUMB_ID_STYLE = { opacity: 0.4, fontWeight: 600, flexShrink: 0 };
+const TASK_THUMB_SUB_ID_STYLE = { opacity: 0.4, flexShrink: 0 };
+const TASK_THUMB_LINK_ID_STYLE = { marginLeft: "6px", opacity: 0.4 };
+const TASK_THUMB_POINTER_STYLE = { cursor: "pointer" };
+const TASK_THUMB_VALUE_STYLE = { color: "#fff" };
+
 function getTaskSequenceName(task) {
   const raw = String(
     task?.autoRenderConfig?.sequenceName
@@ -25,13 +39,7 @@ function TaskListThumbsView({
   onEditRenderForm = null,
 }) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gap: "12px",
-        gridTemplateColumns: "repeat(4, 1fr)",
-      }}
-    >
+    <div style={TASK_LIST_THUMBS_GRID_STYLE}>
       {displayedTasks.map((task) => (
         <TaskThumbCard
           key={`postprod-task-card-${Number(task?.id || 0)}`}
@@ -82,10 +90,11 @@ function TaskThumbCard({
   const projectId = Number(projectOption?.id || 0);
 
   const id = Number(task?.id || 0);
+  const canNavigateToProject = typeof onNavigateToProject === "function";
 
   return (
     <div className="uu-card">
-      <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+      <div className="uu-row" style={TASK_THUMB_HEADER_ROW_STYLE}>
         <span className={visualStatus.className}>{visualStatus.label}</span>
         <button
           type="button"
@@ -99,21 +108,21 @@ function TaskThumbCard({
           ★
         </button>
       </div>
-      <div className="mt-8" style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: "6px" }}>
-        <span style={{ fontWeight: 600 }}>{String(task?.title || "")}</span>
-        {id > 0 && <span style={{ opacity: 0.4, fontWeight: 600, flexShrink: 0 }}>#{String(id).padStart(4, "0")}</span>}
+      <div className="mt-8" style={TASK_THUMB_META_ROW_STYLE}>
+        <span style={TASK_THUMB_TITLE_STYLE}>{String(task?.title || "")}</span>
+        {id > 0 && <span style={TASK_THUMB_ID_STYLE}>#{String(id).padStart(4, "0")}</span>}
       </div>
 
       {projectLabel && (
-        <div className="mt-8" style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: "6px" }}>
+        <div className="mt-8" style={TASK_THUMB_META_ROW_STYLE}>
           <span className="uu-muted">{safeT(t, "postprod.data.project", "Projet")}:</span>
           <span
-            onClick={typeof onNavigateToProject === "function" ? () => onNavigateToProject(projectRef) : undefined}
-            style={typeof onNavigateToProject === "function" ? { cursor: "pointer" } : undefined}
+            onClick={canNavigateToProject ? () => onNavigateToProject(projectRef) : undefined}
+            style={canNavigateToProject ? TASK_THUMB_POINTER_STYLE : undefined}
           >
             {projectLabel}
           </span>
-          {projectId > 0 && <span style={{ opacity: 0.4, flexShrink: 0 }}>#{String(projectId).padStart(4, "0")}</span>}
+          {projectId > 0 && <span style={TASK_THUMB_SUB_ID_STYLE}>#{String(projectId).padStart(4, "0")}</span>}
         </div>
       )}
 
@@ -128,28 +137,28 @@ function TaskThumbCard({
             <>
               <span
                 onClick={typeof onEditRenderForm === "function" && fid ? () => onEditRenderForm({ id: parseInt(fid, 10) }) : undefined}
-                style={typeof onEditRenderForm === "function" && fid ? { cursor: "pointer" } : undefined}
+                style={typeof onEditRenderForm === "function" && fid ? TASK_THUMB_POINTER_STYLE : undefined}
               >
                 {name}
               </span>
-              {fid && <span style={{ marginLeft: "6px", opacity: 0.4 }}>#{fid}</span>}
+              {fid && <span style={TASK_THUMB_LINK_ID_STYLE}>#{fid}</span>}
             </>
           );
         })()}
       </div>
       <div className="mt-8">
         <span className="uu-muted">{safeT(t, "postprod.data.forms.levelSequence", "LS")}:{" "}</span>
-        <span style={{ color: "#fff" }}>{getTaskSequenceName(task)}</span>
+        <span style={TASK_THUMB_VALUE_STYLE}>{getTaskSequenceName(task)}</span>
       </div>
       <div className="mt-8">
         <span className="uu-muted">{safeT(t, "postprod.tasks.form.autoRenderWorker.short", "Station")}:{" "}</span>
-        <span style={{ color: "#fff" }}>
+        <span style={TASK_THUMB_VALUE_STYLE}>
           {typeof taskRenderWorkerLabel === "function" ? taskRenderWorkerLabel(task) : "-"}
         </span>
       </div>
       <div className="mt-8">
         <span className="uu-muted">{safeT(t, "common.updatedAt", "Maj")}:{" "}</span>
-        <span style={{ color: "#fff" }}>{formatDate(task?.updatedAt || task?.createdAt)}</span>
+        <span style={TASK_THUMB_VALUE_STYLE}>{formatDate(task?.updatedAt || task?.createdAt)}</span>
       </div>
 
       <div className="mt-12">
@@ -160,4 +169,3 @@ function TaskThumbCard({
 }
 
 export { TaskListThumbsView };
-export default TaskListThumbsView;

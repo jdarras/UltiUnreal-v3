@@ -1,25 +1,29 @@
 import { safeT } from "../../../shared/helpers";
 import { resolveLiveFieldInputKind, resolveSafeColorValue } from "./renderFormsLiveFieldHelpers";
 
+const LIVE_VECTOR_ROW_STYLE = { flexWrap: "nowrap", alignItems: "center" };
+const LIVE_VECTOR_AXIS_LABEL_STYLE = { minWidth: "12px", textAlign: "right" };
+const LIVE_VECTOR_NUMBER_INPUT_STYLE = { width: "84px", minWidth: "84px", maxWidth: "84px" };
+
 function VectorInput2({ vector, onChange = null }) {
   return (
-    <div className="uu-row uu-gap-4" style={{ flexWrap: "nowrap", alignItems: "center" }}>
-      <span className="uu-muted" style={{ minWidth: "12px", textAlign: "right" }}>X</span>
+    <div className="uu-row uu-gap-4" style={LIVE_VECTOR_ROW_STYLE}>
+      <span className="uu-muted" style={LIVE_VECTOR_AXIS_LABEL_STYLE}>X</span>
       <input
         className="uu-input"
         type="number"
         value={vector.x}
-        style={{ width: "84px", minWidth: "84px", maxWidth: "84px" }}
+        style={LIVE_VECTOR_NUMBER_INPUT_STYLE}
         onChange={(e) => {
           if (typeof onChange === "function") onChange({ x: e.target.value, y: vector.y });
         }}
       />
-      <span className="uu-muted" style={{ minWidth: "12px", textAlign: "right" }}>Y</span>
+      <span className="uu-muted" style={LIVE_VECTOR_AXIS_LABEL_STYLE}>Y</span>
       <input
         className="uu-input"
         type="number"
         value={vector.y}
-        style={{ width: "84px", minWidth: "84px", maxWidth: "84px" }}
+        style={LIVE_VECTOR_NUMBER_INPUT_STYLE}
         onChange={(e) => {
           if (typeof onChange === "function") onChange({ x: vector.x, y: e.target.value });
         }}
@@ -30,33 +34,33 @@ function VectorInput2({ vector, onChange = null }) {
 
 function VectorInput3({ vector, onChange = null }) {
   return (
-    <div className="uu-row uu-gap-4" style={{ flexWrap: "nowrap", alignItems: "center" }}>
-      <span className="uu-muted" style={{ minWidth: "12px", textAlign: "right" }}>X</span>
+    <div className="uu-row uu-gap-4" style={LIVE_VECTOR_ROW_STYLE}>
+      <span className="uu-muted" style={LIVE_VECTOR_AXIS_LABEL_STYLE}>X</span>
       <input
         className="uu-input"
         type="number"
         value={vector.x}
-        style={{ width: "84px", minWidth: "84px", maxWidth: "84px" }}
+        style={LIVE_VECTOR_NUMBER_INPUT_STYLE}
         onChange={(e) => {
           if (typeof onChange === "function") onChange({ x: e.target.value, y: vector.y, z: vector.z });
         }}
       />
-      <span className="uu-muted" style={{ minWidth: "12px", textAlign: "right" }}>Y</span>
+      <span className="uu-muted" style={LIVE_VECTOR_AXIS_LABEL_STYLE}>Y</span>
       <input
         className="uu-input"
         type="number"
         value={vector.y}
-        style={{ width: "84px", minWidth: "84px", maxWidth: "84px" }}
+        style={LIVE_VECTOR_NUMBER_INPUT_STYLE}
         onChange={(e) => {
           if (typeof onChange === "function") onChange({ x: vector.x, y: e.target.value, z: vector.z });
         }}
       />
-      <span className="uu-muted" style={{ minWidth: "12px", textAlign: "right" }}>Z</span>
+      <span className="uu-muted" style={LIVE_VECTOR_AXIS_LABEL_STYLE}>Z</span>
       <input
         className="uu-input"
         type="number"
         value={vector.z}
-        style={{ width: "84px", minWidth: "84px", maxWidth: "84px" }}
+        style={LIVE_VECTOR_NUMBER_INPUT_STYLE}
         onChange={(e) => {
           if (typeof onChange === "function") onChange({ x: vector.x, y: vector.y, z: e.target.value });
         }}
@@ -159,5 +163,3 @@ function RenderFormsLiveFieldInput({
 }
 
 export { RenderFormsLiveFieldInput };
-
-export default RenderFormsLiveFieldInput;

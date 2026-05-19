@@ -1,17 +1,11 @@
 import BindingPicker from '../bindingpicker.jsx';
-import { readIdentity } from '../../utils/identity';
-import { createT } from '../../i18n';
+import { getWidgetT } from '../widgetTranslator.js';
 import {
   getFiniteNumber,
   hasValuesAboveMax,
   hasValuesBelowMin
 } from './rangeAlerts.js';
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
-}
+import { TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE } from './timelineEditorStyles.js';
 
 export function JoystickTimelineEditor({
   selected,
@@ -22,7 +16,7 @@ export function JoystickTimelineEditor({
 }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
   const ui = selected.ui || {};
   const linkType = ui.linkType || 'vector2d';
 
@@ -134,7 +128,7 @@ export function JoystickTimelineEditor({
         </>
       )}
 
-      <div className="uu-row uu-slider-editor-row" style={{ flexWrap: 'nowrap', gap: 10 }}>
+      <div className="uu-row uu-slider-editor-row" style={TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE}>
         <label className="uu-label w-160">Limites X</label>
         <span className="uu-muted">Min</span>
         <input
@@ -163,7 +157,7 @@ export function JoystickTimelineEditor({
         />
       </div>
 
-      <div className="uu-row uu-slider-editor-row" style={{ flexWrap: 'nowrap', gap: 10 }}>
+      <div className="uu-row uu-slider-editor-row" style={TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE}>
         <label className="uu-label w-160">Limites Y</label>
         <span className="uu-muted">Min</span>
         <input

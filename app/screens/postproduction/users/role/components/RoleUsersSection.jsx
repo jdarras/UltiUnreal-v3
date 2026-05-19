@@ -2,6 +2,75 @@ import { safeT } from "../../../shared/helpers";
 import { resolveUserDisplayName } from "../../roleHelpers";
 import { isUsableAvatarSrc, resolveAvatarInitials } from "../../userSharedHelpers";
 
+const ROLE_USERS_TITLE_STYLE = { marginBottom: "6px" };
+const ROLE_USERS_GRID_STYLE = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "12px" };
+const ROLE_USER_CARD_GRID_STYLE = {
+  display: "grid",
+  gridTemplateColumns: "96px minmax(0, 1fr)",
+  columnGap: "12px",
+  rowGap: "8px",
+  alignItems: "center",
+};
+const ROLE_USER_AVATAR_STYLE = {
+  width: "64px",
+  height: "64px",
+  borderRadius: "50%",
+  overflow: "hidden",
+  border: "1px solid var(--uu-border, #ddd)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "var(--uu-surface-soft, #f3f3f3)",
+  fontWeight: 700,
+  userSelect: "none",
+  flex: "0 0 auto",
+};
+const ROLE_USER_AVATAR_IMAGE_STYLE = { width: "100%", height: "100%", objectFit: "cover" };
+const ROLE_USER_MIN_WIDTH_STYLE = { minWidth: 0 };
+const ROLE_USER_NAME_ROW_STYLE = { alignItems: "center", gap: "8px", minWidth: 0 };
+const ROLE_USER_DISPLAY_NAME_STYLE = {
+  fontWeight: 700,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  color: "var(--uu-fg, #fff)",
+};
+const ROLE_USER_STATUS_DOT_STYLE = {
+  width: "9px",
+  height: "9px",
+  borderRadius: "999px",
+  flex: "0 0 auto",
+};
+const ROLE_USER_STATUS_DOT_ACTIVE_STYLE = {
+  ...ROLE_USER_STATUS_DOT_STYLE,
+  background: "#22c55e",
+};
+const ROLE_USER_STATUS_DOT_INACTIVE_STYLE = {
+  ...ROLE_USER_STATUS_DOT_STYLE,
+  background: "#ef4444",
+};
+const ROLE_USER_NAME_LINE_STYLE = {
+  marginTop: "2px",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  color: "var(--uu-fg, #fff)",
+};
+const ROLE_USER_ICON_STYLE = { display: "flex", justifyContent: "center", alignItems: "center" };
+const ROLE_USER_VALUE_STYLE = { color: "var(--uu-fg, #fff)", minWidth: 0, wordBreak: "break-word" };
+const ROLE_USER_EMAIL_BUTTON_STYLE = {
+  padding: 0,
+  color: "var(--uu-fg, #fff)",
+  display: "inline-block",
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  verticalAlign: "bottom",
+};
+const ROLE_USER_TEXT_STYLE = { color: "var(--uu-fg, #fff)" };
+const ROLE_USER_OPEN_ACTION_STYLE = { gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end" };
+
 function RoleUsersSection({
   t,
   roleUsersKey = "",
@@ -10,7 +79,7 @@ function RoleUsersSection({
 } = {}) {
   return (
     <div>
-      <h4 className="uu-h3 uu-block-title" style={{ marginBottom: "6px" }}>
+      <h4 className="uu-h3 uu-block-title" style={ROLE_USERS_TITLE_STYLE}>
         {safeT(t, "postprod.roles.users.title", "Utilisateurs de ce profil")}
       </h4>
       {!String(roleUsersKey || "").trim() ? (
@@ -22,7 +91,7 @@ function RoleUsersSection({
           {safeT(t, "postprod.roles.users.empty", "Aucun utilisateur sur ce profil.")}
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "12px" }}>
+        <div style={ROLE_USERS_GRID_STYLE}>
           {usersForRole.map((entry) => {
             const entryId = Number(entry?.id || 0);
             const isActive = entry?.isActive !== false;
@@ -50,52 +119,21 @@ function RoleUsersSection({
 
             return (
               <div key={entryId} className="uu-card">
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "96px minmax(0, 1fr)",
-                    columnGap: "12px",
-                    rowGap: "8px",
-                    alignItems: "center",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "64px",
-                      height: "64px",
-                      borderRadius: "50%",
-                      overflow: "hidden",
-                      border: "1px solid var(--uu-border, #ddd)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: "var(--uu-surface-soft, #f3f3f3)",
-                      fontWeight: 700,
-                      userSelect: "none",
-                      flex: "0 0 auto",
-                    }}
-                  >
+                <div style={ROLE_USER_CARD_GRID_STYLE}>
+                  <div style={ROLE_USER_AVATAR_STYLE}>
                     {rowAvatarSrc ? (
                       <img
                         src={rowAvatarSrc}
                         alt={safeT(t, "postprod.profile.form.avatar.alt", "Photo utilisateur")}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        style={ROLE_USER_AVATAR_IMAGE_STYLE}
                       />
                     ) : (
                       <span>{rowAvatarInitials}</span>
                     )}
                   </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div className="uu-row" style={{ alignItems: "center", gap: "8px", minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          color: "var(--uu-fg, #fff)",
-                        }}
-                      >
+                  <div style={ROLE_USER_MIN_WIDTH_STYLE}>
+                    <div className="uu-row" style={ROLE_USER_NAME_ROW_STYLE}>
+                      <div style={ROLE_USER_DISPLAY_NAME_STYLE}>
                         {rowDisplayName}
                       </div>
                       <span
@@ -105,24 +143,10 @@ function RoleUsersSection({
                         aria-label={isActive
                           ? safeT(t, "postprod.users.status.active", "Disponible")
                           : safeT(t, "postprod.users.status.inactive", "Indisponible")}
-                        style={{
-                          width: "9px",
-                          height: "9px",
-                          borderRadius: "999px",
-                          background: isActive ? "#22c55e" : "#ef4444",
-                          flex: "0 0 auto",
-                        }}
+                        style={isActive ? ROLE_USER_STATUS_DOT_ACTIVE_STYLE : ROLE_USER_STATUS_DOT_INACTIVE_STYLE}
                       />
                     </div>
-                    <div
-                      style={{
-                        marginTop: "2px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        color: "var(--uu-fg, #fff)",
-                      }}
-                    >
+                    <div style={ROLE_USER_NAME_LINE_STYLE}>
                       {rowNameLine}
                     </div>
                   </div>
@@ -131,11 +155,11 @@ function RoleUsersSection({
                     className="uu-muted"
                     title={safeT(t, "postprod.users.form.phone1", "Telephone 1")}
                     aria-label={safeT(t, "postprod.users.form.phone1", "Telephone 1")}
-                    style={{ display: "flex", justifyContent: "center", alignItems: "center" }}
+                    style={ROLE_USER_ICON_STYLE}
                   >
                     ☎
                   </div>
-                  <div style={{ color: "var(--uu-fg, #fff)", minWidth: 0, wordBreak: "break-word" }}>
+                  <div style={ROLE_USER_VALUE_STYLE}>
                     {rowPhone1 || "-"}
                   </div>
 
@@ -143,37 +167,28 @@ function RoleUsersSection({
                     className="uu-muted"
                     title={safeT(t, "postprod.users.form.email1", "Email 1")}
                     aria-label={safeT(t, "postprod.users.form.email1", "Email 1")}
-                    style={{ display: "flex", justifyContent: "center", alignItems: "center" }}
+                    style={ROLE_USER_ICON_STYLE}
                   >
                     ✉
                   </div>
-                  <div style={{ minWidth: 0 }}>
+                  <div style={ROLE_USER_MIN_WIDTH_STYLE}>
                     {rowEmail1 ? (
                       <button
                         type="button"
                         className="uu-link"
-                        style={{
-                          padding: 0,
-                          color: "var(--uu-fg, #fff)",
-                          display: "inline-block",
-                          maxWidth: "100%",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          verticalAlign: "bottom",
-                        }}
+                        style={ROLE_USER_EMAIL_BUTTON_STYLE}
                         onClick={openMailCompose}
                         title={safeT(t, "postprod.users.action.writeMail", "Ecrire un email")}
                       >
                         {rowEmail1}
                       </button>
                     ) : (
-                      <span style={{ color: "var(--uu-fg, #fff)" }}>-</span>
+                      <span style={ROLE_USER_TEXT_STYLE}>-</span>
                     )}
                   </div>
 
                   {onOpenUser ? (
-                    <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end" }}>
+                    <div style={ROLE_USER_OPEN_ACTION_STYLE}>
                       <button
                         type="button"
                         className="uu-btn-ghost"
@@ -195,4 +210,3 @@ function RoleUsersSection({
 }
 
 export { RoleUsersSection };
-export default RoleUsersSection;

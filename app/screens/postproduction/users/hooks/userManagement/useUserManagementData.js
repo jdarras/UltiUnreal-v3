@@ -62,5 +62,3 @@ export function useUserManagementData({
     onUpdateUserProjectPermissions,
   });
 }
-
-export default useUserManagementData;

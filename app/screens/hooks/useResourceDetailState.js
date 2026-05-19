@@ -18,8 +18,6 @@ export function useResourceDetailState() {
     note: '',
     epicAccount: '',
   });
-  const [detailMsg, setDetailMsg] = useState('');
-  const [_detailMsgType, setDetailMsgType] = useState('');
   const [detailBusy, setDetailBusy] = useState(false);
   const [detailDeleteBusy, setDetailDeleteBusy] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -35,9 +33,6 @@ export function useResourceDetailState() {
     setDetailLoading,
     detailDraft,
     setDetailDraft,
-    detailMsg,
-    setDetailMsg,
-    setDetailMsgType,
     detailBusy,
     setDetailBusy,
     detailDeleteBusy,
@@ -50,5 +45,3 @@ export function useResourceDetailState() {
     setLightboxIndex,
   };
 }
-
-export default useResourceDetailState;

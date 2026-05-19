@@ -42,6 +42,9 @@ const DatasCard = lazy(() =>
 const RendersValidationCard = lazy(() =>
   loadRendersCards().then((module) => ({ default: module.RendersValidationCard }))
 );
+const CARD_FALLBACK_LOADING_STYLE = { padding: "12px 0" };
+const STUB_INTRO_STYLE = { marginTop: "8px", marginBottom: "0" };
+const STUB_DESCRIPTION_STYLE = { marginTop: "10px", marginBottom: "0" };
 
 function PostProductionScreen({
   tabKey = "Utilisateurs",
@@ -211,7 +214,7 @@ function PostProductionScreen({
 
   const cardFallback = (
     <section className="uu-section">
-      <div className="uu-loading" style={{ padding: "12px 0" }}>
+      <div className="uu-loading" style={CARD_FALLBACK_LOADING_STYLE}>
         {safeT(t, "common.loading", "Chargement...")}
       </div>
     </section>
@@ -264,10 +267,10 @@ function PostProductionScreen({
     <div className="uu-page uu-page-compact">
       {!hideStubNotice ? (
         <section className="uu-section">
-          <p className="uu-muted" style={{ marginTop: "8px", marginBottom: "0" }}>
+          <p className="uu-muted" style={STUB_INTRO_STYLE}>
             {intro}
           </p>
-          <p style={{ marginTop: "10px", marginBottom: "0" }}>{description}</p>
+          <p style={STUB_DESCRIPTION_STYLE}>{description}</p>
           <div className="uu-msg info mt-12">{nextStep}</div>
         </section>
       ) : null}

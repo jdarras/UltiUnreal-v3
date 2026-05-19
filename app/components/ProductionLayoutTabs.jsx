@@ -1,3 +1,7 @@
+import { getLayoutUseAsStartTooltipLabel } from './componentI18n';
+
+const PRODUCTION_LAYOUT_START_PILL_STYLE = { color: '#fff' };
+
 export default function ProductionLayoutTabs({
   layouts,
   activeLayoutId,
@@ -18,6 +22,7 @@ export default function ProductionLayoutTabs({
   onAddLayout,
   t
 }) {
+  const layoutUseAsStartTooltip = getLayoutUseAsStartTooltipLabel(t);
   return (
     <div className="prod-layout-tabs">
       <div className="prod-layout-tabs-list">
@@ -92,9 +97,9 @@ export default function ProductionLayoutTabs({
                   {layout.isStart ? (
                     <span
                       className="prod-layout-start-pill"
-                      aria-label={t('production.layout.useAsStart') || 'Start Layout'}
-                      title={t('production.layout.useAsStart') || 'Start Layout'}
-                      style={{ color: '#fff' }}
+                      aria-label={layoutUseAsStartTooltip}
+                      title={layoutUseAsStartTooltip}
+                      style={PRODUCTION_LAYOUT_START_PILL_STYLE}
                     >
                       {'\u25B6'}
                     </span>

@@ -2,6 +2,9 @@
 import { NoticeContext } from "../NoticeContext";
 import Sidebar from "./Sidebar";
 import { buildPostprodScreenProps } from "./postprodScreenProps";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { resolveConfirmDialogLabels } from "./confirmDialogLabels";
+import { getQuitConfirmMessageLabel } from "./componentI18n";
 import Welcome from "../screens/welcome.jsx";
 import SetupScreen from "../screens/setup.jsx";
 import AuthGateScreen from "../screens/authgate.jsx";
@@ -23,7 +26,13 @@ const ConfigurationScreen = React.lazy(() => import("../screens/configuration.js
 const LicenseScreen = React.lazy(() => import("../screens/license.jsx"));
 const PostProductionScreen = React.lazy(() => import("../screens/postproduction.jsx"));
 
-const ScreenFallback = <div className="uu-loading" style={{ padding: '24px' }}>…</div>;
+const APP_SHELL_SCREEN_FALLBACK_STYLE = { padding: '24px' };
+const APP_SHELL_HYDRATING_SECTION_STYLE = { margin: '24px auto' };
+const ScreenFallback = <div className="uu-loading" style={APP_SHELL_SCREEN_FALLBACK_STYLE}>…</div>;
+
+function buildAppShellLaunchControlVisibilityStyle(isLaunchControlActive) {
+  return { display: isLaunchControlActive ? "block" : "none" };
+}
 
 function isServerPostprodScreenActive(ctx) {
   return (
@@ -261,7 +270,7 @@ const ScreenViewport = React.memo(function ScreenViewport({ ctx }) {
       )}
       {role === "server" && appMode === APP_MODE_LIVE && (
         <div
-          style={{ display: current === "Launch Control" ? "block" : "none" }}
+          style={buildAppShellLaunchControlVisibilityStyle(current === "Launch Control")}
           aria-hidden={current !== "Launch Control"}
         >
           <Suspense fallback={ScreenFallback}>
@@ -461,60 +470,30 @@ function AppShell({ state, actions }) {
     noticeApi.clearNotice();
   }, [current]);
 
-  const quitDialog = quitDialogOpen ? (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.45)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 2000
-      }}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
-          closeQuitDialog(false);
-        }
-      }}
-    >
-      <div
-        className="uu-card"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('production.confirm.title') || 'Confirmation'}
-        style={{
-          width: 'min(460px, calc(100vw - 32px))',
-          padding: '16px'
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div style={{ fontWeight: 600, marginBottom: '10px' }}>
-          {t('production.confirm.title') || 'Confirmation'}
-        </div>
-        <div style={{ marginBottom: '14px', lineHeight: 1.35 }}>
-          {t('app.quit.confirm.message') || "Voulez-vous quitter l'application ?"}
-        </div>
-        <div className="uu-row" style={{ justifyContent: 'flex-end', gap: '8px' }}>
-          <button
-            type="button"
-            className="uu-btn"
-            onClick={() => closeQuitDialog(false)}
-          >
-            {t('app.quit.confirm.cancel') || 'Annuler'}
-          </button>
-          <button
-            ref={quitOkBtnRef}
-            type="button"
-            className="uu-btn prod-toggle-active"
-            onClick={() => closeQuitDialog(true)}
-          >
-            {t('app.quit.confirm.ok') || "Quitter l'application"}
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
+  const {
+    title: quitDialogTitle,
+    cancelLabel: quitDialogCancelLabel,
+    confirmLabel: quitDialogConfirmLabel,
+  } = resolveConfirmDialogLabels(t, {
+    cancelAltKey: 'app.quit.confirm.cancel',
+    confirmKey: 'app.quit.confirm.ok',
+    confirmFallback: "Quitter l'application",
+  });
+  const quitConfirmMessage = getQuitConfirmMessageLabel(t);
+  const quitDialog = (
+    <ConfirmDialog
+      open={quitDialogOpen}
+      busy={false}
+      title={quitDialogTitle}
+      message={quitConfirmMessage}
+      cancelLabel={quitDialogCancelLabel}
+      confirmLabel={quitDialogConfirmLabel}
+      onCancel={() => closeQuitDialog(false)}
+      onConfirm={() => closeQuitDialog(true)}
+      confirmRef={quitOkBtnRef}
+      overlayZIndex={2000}
+    />
+  );
 
   const serverPostprodScreenActive = (
     role === "server"
@@ -693,7 +672,7 @@ function AppShell({ state, actions }) {
     return (
       <>
         <div className="uu-page uu-page-compact">
-          <section className="uu-section uu-maxw-420" style={{ margin: '24px auto' }}>
+          <section className="uu-section uu-maxw-420" style={APP_SHELL_HYDRATING_SECTION_STYLE}>
             <div className="uu-msg info">{t('common.loading')}</div>
           </section>
         </div>

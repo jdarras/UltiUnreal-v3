@@ -158,5 +158,3 @@ export function useRenderFormWrcImportAction({
     handleImportFieldsFromWrcPreset,
   };
 }
-
-export default useRenderFormWrcImportAction;

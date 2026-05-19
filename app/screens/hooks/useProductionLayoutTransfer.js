@@ -227,4 +227,3 @@ function useProductionLayoutTransfer({
 }
 
 export { useProductionLayoutTransfer };
-export default useProductionLayoutTransfer;

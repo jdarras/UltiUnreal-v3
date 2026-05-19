@@ -1,18 +1,7 @@
 ﻿import React from 'react';
 import { readIdentity } from '../utils/identity';
 import { createT } from '../i18n';
-
-function formatDate(exp, lang) {
-  const raw = String(exp || '').trim();
-  if (!raw) return '';
-  try {
-    const date = new Date(`${raw}T00:00:00Z`);
-    const locale = lang === 'en' ? 'en-US' : 'fr-FR';
-    return date.toLocaleDateString(locale);
-  } catch {
-    return raw;
-  }
-}
+import { formatLicenseDate } from './configurationHelpers';
 
 export default function LicenseScreen({
   licenseStatus,
@@ -28,7 +17,7 @@ export default function LicenseScreen({
   const status = licenseStatus || {};
   const licenseOk = status.ok === true;
   const codeId = String(status.codeId || '');
-  const expDate = formatDate(status.exp, lang);
+  const expDate = formatLicenseDate(status.exp, lang);
 
   const [licenseInput, setLicenseInput] = React.useState('');
   const [msg, setMsg] = React.useState('');

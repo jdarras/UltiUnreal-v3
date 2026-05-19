@@ -1,5 +1,11 @@
 import { useDebouncedLocalStorage } from "../../shared/useDebouncedLocalStorage";
 import { readStorageBoolean, readStorageString } from "../../shared/storage";
+import {
+  readEnumLowerStorage,
+  readEnumStorage,
+  readMultiFilterStorage,
+  serializeMultiFilterStorage,
+} from "../../shared/preferencesStorage";
 
 const STORAGE_KEYS = Object.freeze({
   view: "uu_postprod_renders_validation_view",
@@ -25,41 +31,8 @@ const SORT_DIR_SET = new Set(["asc", "desc"]);
 const QUEUE_SORT_KEY_SET = new Set(["startAt", "task", "sequence", "worker", "status"]);
 const QUEUE_RUNTIME_MODE_SET = new Set(["active", "paused"]);
 
-function normalizeMultiFilterValues(value = []) {
-  const source = Array.isArray(value) ? value : [value];
-  const seen = new Set();
-  const out = [];
-  for (const entry of source) {
-    const normalized = String(entry || "").trim().toLowerCase();
-    if (!normalized || normalized === "all" || seen.has(normalized)) continue;
-    seen.add(normalized);
-    out.push(normalized);
-  }
-  return out;
-}
-
-function readEnumLowerStorage(key, allowedSet, fallback) {
-  const raw = readStorageString(key).trim().toLowerCase();
-  return allowedSet.has(raw) ? raw : fallback;
-}
-
-function readEnumStorage(key, allowedSet, fallback) {
-  const raw = readStorageString(key).trim();
-  return allowedSet.has(raw) ? raw : fallback;
-}
-
 function getInitialSearchQuery() {
   return readStorageString(STORAGE_KEYS.searchQuery);
-}
-
-function readMultiFilterStorage(key) {
-  const raw = readStorageString(key).trim();
-  if (!raw || raw.toLowerCase() === "all") return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return normalizeMultiFilterValues(parsed);
-  } catch {}
-  return normalizeMultiFilterValues([raw]);
 }
 
 function getInitialReviewFilter() {
@@ -146,14 +119,14 @@ function usePersistRendersPreferences({
   useDebouncedLocalStorage(STORAGE_KEYS.searchQuery, String(searchQuery || ""), 280);
   useDebouncedLocalStorage(STORAGE_KEYS.view, String(viewMode || "thumbs"), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.showHistory, showHistory ? "true" : "false", 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.reviewFilter, JSON.stringify(normalizeMultiFilterValues(reviewFilter)), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.projectFilter, JSON.stringify(normalizeMultiFilterValues(projectFilter)), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.stationFilter, JSON.stringify(normalizeMultiFilterValues(stationFilter)), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.taskFilter, JSON.stringify(normalizeMultiFilterValues(taskFilter)), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.formFilter, JSON.stringify(normalizeMultiFilterValues(formFilter)), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.requesterFilter, JSON.stringify(normalizeMultiFilterValues(requesterFilter)), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.statusFilter, JSON.stringify(normalizeMultiFilterValues(statusFilter)), 180);
-  useDebouncedLocalStorage(STORAGE_KEYS.sequenceFilter, JSON.stringify(normalizeMultiFilterValues(sequenceFilter)), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.reviewFilter, serializeMultiFilterStorage(reviewFilter), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.projectFilter, serializeMultiFilterStorage(projectFilter), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.stationFilter, serializeMultiFilterStorage(stationFilter), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.taskFilter, serializeMultiFilterStorage(taskFilter), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.formFilter, serializeMultiFilterStorage(formFilter), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.requesterFilter, serializeMultiFilterStorage(requesterFilter), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.statusFilter, serializeMultiFilterStorage(statusFilter), 180);
+  useDebouncedLocalStorage(STORAGE_KEYS.sequenceFilter, serializeMultiFilterStorage(sequenceFilter), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.listSortKey, String(listSortKey || "updatedAt"), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.listSortDir, String(listSortDir || "desc"), 180);
   useDebouncedLocalStorage(STORAGE_KEYS.queueSortKey, String(queueSortKey || "startAt"), 180);
@@ -184,7 +157,5 @@ export {
   getInitialSearchQuery,
   getInitialShowHistory,
   getInitialViewMode,
-  normalizeMultiFilterValues,
-  STORAGE_KEYS,
   usePersistRendersPreferences,
 };

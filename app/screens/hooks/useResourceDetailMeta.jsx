@@ -7,6 +7,21 @@ import {
   toListString,
 } from '../../utils/resources-helpers';
 
+const DETAIL_UE_BADGE_BASE_STYLE = {
+  padding: '4px 8px',
+  background: 'transparent',
+  opacity: 1,
+  fontWeight: 600,
+};
+
+function buildDetailUeBadgeStyle(color, borderColor) {
+  return {
+    ...DETAIL_UE_BADGE_BASE_STYLE,
+    color,
+    borderColor,
+  };
+}
+
 export function useResourceDetailMeta({
   detailItem,
   userUeVersionSet,
@@ -63,14 +78,7 @@ export function useResourceDetailMeta({
         <span
           key={`${norm || ver}-${idx}`}
           className="uu-chip"
-          style={{
-            borderColor: border,
-            color,
-            padding: '4px 8px',
-            background: 'transparent',
-            opacity: 1,
-            fontWeight: 600,
-          }}
+          style={buildDetailUeBadgeStyle(color, border)}
         >
           {ver}
         </span>
@@ -108,5 +116,3 @@ export function useResourceDetailMeta({
     detailInfoLines,
   };
 }
-
-export default useResourceDetailMeta;

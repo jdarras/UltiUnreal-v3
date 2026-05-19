@@ -110,5 +110,3 @@ export {
   buildRenderEditorBrowsePreferencesOutput,
   buildRenderEditorListOutput,
 };
-
-export default buildRenderEditorListDataOutput;

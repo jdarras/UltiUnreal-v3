@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  captureActiveFocusableElement,
+  focusRefNextTick,
+  restoreFocusRefNextTick,
+} from "../../../hooks/dialogFocusHelpers";
 
 export function useTaskDeleteDialogController({
   onDeleteTask = null,
@@ -11,15 +16,7 @@ export function useTaskDeleteDialogController({
   const deleteDialogPrevFocusRef = useRef(null);
 
   const restoreDeleteDialogFocus = useCallback(() => {
-    const prev = deleteDialogPrevFocusRef.current;
-    deleteDialogPrevFocusRef.current = null;
-    if (prev && typeof prev.focus === "function") {
-      setTimeout(() => {
-        try {
-          prev.focus();
-        } catch {}
-      }, 0);
-    }
+    restoreFocusRefNextTick(deleteDialogPrevFocusRef);
   }, []);
 
   const closeDeleteTaskDialog = useCallback(async (shouldDelete) => {
@@ -68,9 +65,7 @@ export function useTaskDeleteDialogController({
     if (typeof window !== "undefined") {
       window.addEventListener("keydown", onKeyDown, true);
     }
-    const timer = setTimeout(() => {
-      deleteDialogOkBtnRef.current?.focus?.();
-    }, 0);
+    const timer = focusRefNextTick(deleteDialogOkBtnRef);
     return () => {
       clearTimeout(timer);
       if (typeof window !== "undefined") {
@@ -83,12 +78,7 @@ export function useTaskDeleteDialogController({
     const taskIdRaw = Number(task?.id || 0);
     const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? Math.trunc(taskIdRaw) : 0;
     if (taskId <= 0) return;
-    const activeEl =
-      typeof document !== "undefined" && document?.activeElement
-        ? document.activeElement
-        : null;
-    deleteDialogPrevFocusRef.current =
-      activeEl && typeof activeEl.focus === "function" ? activeEl : null;
+    deleteDialogPrevFocusRef.current = captureActiveFocusableElement();
     setDeleteDialogBusy(false);
     setDeleteDialogTask({
       id: taskId,
@@ -104,5 +94,3 @@ export function useTaskDeleteDialogController({
     closeDeleteTaskDialog,
   };
 }
-
-export default useTaskDeleteDialogController;

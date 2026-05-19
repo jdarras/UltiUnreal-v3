@@ -139,5 +139,3 @@ export function buildRenderEditorEditorInput({
     openDeleteTaskDialog,
   };
 }
-
-export default buildRenderEditorEditorInput;

@@ -72,6 +72,3 @@ export function useRenderDetailTransitions({
     resolveTransitionsState,
   };
 }
-
-export default useRenderDetailTransitions;
-

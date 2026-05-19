@@ -192,5 +192,3 @@ export function useAutoRenderLookupMaps({
     selectedAutoRenderProjectRef,
   };
 }
-
-export default useAutoRenderLookupMaps;

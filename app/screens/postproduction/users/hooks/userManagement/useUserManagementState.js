@@ -5,7 +5,7 @@ import { useUserActivity } from "../useUserActivity";
 import { useUserProjectPermissions } from "../useUserProjectPermissions";
 import { useUserEditorFlow } from "../useUserEditorFlow";
 import { useUserCatalogOptions } from "../useUserCatalogOptions";
-import { DEFAULT_NOTIFICATION_PREFS, stringifyNotificationPrefs, USER_LIST_SORT_COLUMNS } from "../../userSharedHelpers";
+import { USER_LIST_SORT_COLUMNS } from "../../userSharedHelpers";
 
 export function useUserManagementState({
   t,
@@ -48,6 +48,12 @@ export function useUserManagementState({
   const [editorInputFocused, setEditorInputFocused] = useState(false);
   const [autosavePulse, setAutosavePulse] = useState(0);
   const editorAvatarInputRef = useRef(null);
+  const editorFlowCallbacksRef = useRef({
+    resetPermissionState: null,
+    resetActivityState: null,
+    loadUserProjectPermissions: null,
+    loadUserActivity: null,
+  });
 
   const {
     editorMode,
@@ -63,8 +69,16 @@ export function useUserManagementState({
     inEditor,
     isCreate,
     resetDraft: resetEditorDraft,
+    openCreate,
+    openEdit,
+    closeEditor,
   } = useUserEditorFlow({
     roleOptions,
+    resetPermissionState: (...args) => editorFlowCallbacksRef.current.resetPermissionState?.(...args),
+    resetActivityState: (...args) => editorFlowCallbacksRef.current.resetActivityState?.(...args),
+    canManageProjectPermissions,
+    loadUserProjectPermissions: (...args) => editorFlowCallbacksRef.current.loadUserProjectPermissions?.(...args),
+    loadUserActivity: (...args) => editorFlowCallbacksRef.current.loadUserActivity?.(...args),
   });
 
   const {
@@ -125,6 +139,11 @@ export function useUserManagementState({
     onLoadUserActivity,
   });
 
+  editorFlowCallbacksRef.current.resetPermissionState = resetPermissionState;
+  editorFlowCallbacksRef.current.resetActivityState = resetActivityState;
+  editorFlowCallbacksRef.current.loadUserProjectPermissions = loadUserProjectPermissions;
+  editorFlowCallbacksRef.current.loadUserActivity = loadUserActivity;
+
   const {
     orderedUsers,
     groupedUsersByProfile,
@@ -137,63 +156,6 @@ export function useUserManagementState({
     listSortMode,
     listSortDir,
   });
-
-  function openCreate() {
-    resetEditorDraft(roleOptions[0] || "");
-    resetPermissionState?.();
-    resetActivityState?.();
-    setEditingUserId(0);
-    setEditorMode("create");
-  }
-
-  function openEdit(entry) {
-    const id = Number(entry?.id || 0);
-    if (!id) return;
-    setDraft({
-      username: String(entry?.username || ""),
-      displayName: String(entry?.displayName || ""),
-      password: "",
-      firstName: String(entry?.firstName || ""),
-      lastName: String(entry?.lastName || ""),
-      email: String(entry?.email || ""),
-      email2: String(entry?.email2 || ""),
-      phone: String(entry?.phone1 || entry?.phone || ""),
-      phone2: String(entry?.phone2 || entry?.officePhone || ""),
-      note: String(entry?.note || ""),
-      avatarPath: String(entry?.avatarPath || ""),
-      language: String(entry?.language || "fr").trim().toLowerCase() === "en" ? "en" : "fr",
-      notificationPrefsJson: stringifyNotificationPrefs(
-        entry?.notificationPrefsJson || entry?.notificationPreferences || DEFAULT_NOTIFICATION_PREFS
-      ),
-      mustChangePassword: entry?.mustChangePassword === true,
-      role: String(entry?.role || roleOptions[0] || "").trim(),
-      isActive: entry?.isActive !== false,
-    });
-    resetPermissionState?.();
-    resetActivityState?.();
-    setEditorAvatarError("");
-    setEditorAvatarLoading(false);
-    setEditingUserId(id);
-    setEditorMode("edit");
-    void loadUserActivity?.(id, {
-      fromAtLocal: "",
-      toAtLocal: "",
-      actionType: "all",
-      projectRef: "",
-      searchQuery: "",
-    });
-    if (canManageProjectPermissions) {
-      void loadUserProjectPermissions?.(id);
-    }
-  }
-
-  function closeEditor() {
-    setEditorMode("list");
-    setEditingUserId(0);
-    resetEditorDraft(roleOptions[0] || "");
-    resetPermissionState?.();
-    resetActivityState?.();
-  }
 
   useEffect(() => {
     if (typeof onEditorModeChange !== "function") return;
@@ -291,5 +253,3 @@ export function useUserManagementState({
     closeEditor,
   };
 }
-
-export default useUserManagementState;

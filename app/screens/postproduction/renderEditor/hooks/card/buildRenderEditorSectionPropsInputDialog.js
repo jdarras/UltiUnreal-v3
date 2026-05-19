@@ -8,5 +8,3 @@ export function buildRenderEditorSectionPropsInputDialog({
     closeDeleteTaskDialog: dialog.closeDeleteTaskDialog,
   };
 }
-
-export default buildRenderEditorSectionPropsInputDialog;

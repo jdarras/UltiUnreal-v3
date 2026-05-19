@@ -68,5 +68,3 @@ export function buildRenderQueueTasks({
   });
   return out;
 }
-
-export default buildRenderQueueTasks;

@@ -97,7 +97,10 @@ function useProjectIntegration({
   const [serverRunning, setServerRunning] = useState(false);
   const [integrationBusy, setIntegrationBusy] = useState(false);
   const [integrationMsg, setIntegrationMsg] = useState('');
-  const [integrationMsgType, setIntegrationMsgType] = useState('');
+
+  const clearIntegrationFeedback = useCallback(() => {
+    setIntegrationMsg('');
+  }, []);
 
   useEffect(() => {
     if (role !== 'server') return;
@@ -150,7 +153,6 @@ function useProjectIntegration({
               ? t('launch.status.missingUprojectSync')
               : t('launch.status.missingUproject'))
       );
-      setIntegrationMsgType('error');
       return;
     }
     setIntegrationBusy(true);
@@ -158,19 +160,17 @@ function useProjectIntegration({
       await postCommon({ launchMode: 'integration' });
       const launchRes = await postLaunch(serverHost.ip, { uproject, engineVersion: requiredVersion });
       if (launchRes?.localFallback?.used) {
-        const msg = t('launch.msg.localFallback') || 'Reseau Ethernet inactif, bascule locale sur 127.0.0.1.';
+        const msg = t('launch.msg.localFallback');
         noticeApi?.showNotice?.(msg, 'warn');
       }
       setServerRunning(true);
-      setIntegrationMsg('');
-      setIntegrationMsgType('');
+      clearIntegrationFeedback();
     } catch (e) {
       setIntegrationMsg(e?.message || String(e));
-      setIntegrationMsgType('error');
     } finally {
       setIntegrationBusy(false);
     }
-  }, [canManageUnrealProjects, serverHost, projects, activeId, activeName, t, noticeApi]);
+  }, [canManageUnrealProjects, serverHost, projects, activeId, activeName, t, noticeApi, clearIntegrationFeedback]);
 
   const stopIntegration = useCallback(async (projectKey = '') => {
     if (!canManageUnrealProjects) return;
@@ -180,20 +180,20 @@ function useProjectIntegration({
       const uproject = resolveUprojectForHost(serverHost, projects, activeId, activeName, projectKey);
       const stopRes = await postStop(serverHost.ip, { mode: 'integration', uproject });
       if (stopRes?.localFallback?.used) {
-        const msg = t('launch.msg.localFallback') || 'Reseau Ethernet inactif, bascule locale sur 127.0.0.1.';
+        const msg = t('launch.msg.localFallback');
         noticeApi?.showNotice?.(msg, 'warn');
       }
       await postCommon({ launchMode: 'production' });
       setServerRunning(false);
-      setIntegrationMsg('');
-      setIntegrationMsgType('');
+      clearIntegrationFeedback();
     } catch (e) {
       setIntegrationMsg(e?.message || String(e));
-      setIntegrationMsgType('error');
     } finally {
       setIntegrationBusy(false);
     }
-  }, [canManageUnrealProjects, serverHost, projects, activeId, activeName, t, noticeApi]);
+  }, [canManageUnrealProjects, serverHost, projects, activeId, activeName, t, noticeApi, clearIntegrationFeedback]);
+
+  const integrationMsgType = integrationMsg ? 'error' : '';
 
   return {
     serverHost,
@@ -207,4 +207,3 @@ function useProjectIntegration({
 }
 
 export { useProjectIntegration };
-export default useProjectIntegration;

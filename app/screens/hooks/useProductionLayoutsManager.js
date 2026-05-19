@@ -307,4 +307,3 @@ function useProductionLayoutsManager({
 }
 
 export { useProductionLayoutsManager };
-export default useProductionLayoutsManager;

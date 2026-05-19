@@ -2,6 +2,8 @@
 import { useProjectsCatalogController } from "./hooks/useProjectsCatalogController";
 import { ProjectsCatalogListPanel } from "./components/ProjectsCatalogListPanel";
 
+const PROJECTS_CATALOG_HEADER_STYLE = { justifyContent: "space-between", alignItems: "center" };
+
 function ProjectsCatalogCard({
   t,
   projects = [],
@@ -39,7 +41,7 @@ function ProjectsCatalogCard({
 
   return (
     <section className="uu-section">
-      <div className="uu-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+      <div className="uu-row" style={PROJECTS_CATALOG_HEADER_STYLE}>
         <h3 className="uu-h3 uu-block-title">{safeT(t, "postprod.projects.title", "Projets Post-production")}</h3>
         <div className="uu-row uu-gap-4">
           <button

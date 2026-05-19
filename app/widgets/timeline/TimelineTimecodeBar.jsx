@@ -1,6 +1,25 @@
 import { useMemo } from 'react';
 import { TimecodeField } from './TimecodeField.jsx';
 
+function buildTimelineTimecodeRowStyle(timecodeColumns) {
+  return { gridTemplateColumns: timecodeColumns };
+}
+
+function buildTimelineTimecodeWindowStyle(windowStartRatio, windowWidthRatio) {
+  return {
+    left: `${windowStartRatio * 100}%`,
+    width: `${windowWidthRatio * 100}%`
+  };
+}
+
+function buildTimelineTimecodeFillStyle(playheadRatio) {
+  return { width: `${playheadRatio * 100}%` };
+}
+
+function buildTimelineTimecodeThumbStyle(playheadRatio) {
+  return { left: `${playheadRatio * 100}%` };
+}
+
 export function TimelineTimecodeBar({
   fps,
   fpsWarnings,
@@ -48,7 +67,7 @@ export function TimelineTimecodeBar({
   return (
     <div
       className="uu-timeline-timecode-row"
-      style={{ gridTemplateColumns: timecodeColumns }}
+      style={buildTimelineTimecodeRowStyle(timecodeColumns)}
     >
       <TimecodeField
         fps={fps}
@@ -67,10 +86,7 @@ export function TimelineTimecodeBar({
       >
         <div
           className="uu-timeline-timecode-window"
-          style={{
-            left: `${windowStartRatio * 100}%`,
-            width: `${windowWidthRatio * 100}%`
-          }}
+          style={buildTimelineTimecodeWindowStyle(windowStartRatio, windowWidthRatio)}
           onPointerDown={(e) => {
             e.stopPropagation();
             onViewportPointerDown?.(e);
@@ -82,12 +98,12 @@ export function TimelineTimecodeBar({
         />
         <div
           className="uu-timeline-timecode-fill"
-          style={{ width: `${playheadRatio * 100}%` }}
+          style={buildTimelineTimecodeFillStyle(playheadRatio)}
           onPointerDown={(e) => e.stopPropagation()}
         />
         <div
           className="uu-timeline-timecode-thumb"
-          style={{ left: `${playheadRatio * 100}%` }}
+          style={buildTimelineTimecodeThumbStyle(playheadRatio)}
           onPointerDown={onTimecodeDown}
           onPointerMove={onTimecodeMove}
           onPointerUp={onTimecodeUp}

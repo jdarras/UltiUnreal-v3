@@ -39,5 +39,3 @@ export function buildSelectedFormData({
     missingRequiredField,
   };
 }
-
-export default buildSelectedFormData;

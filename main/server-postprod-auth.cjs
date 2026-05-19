@@ -8375,7 +8375,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     if (usersCount > 0) return null;
 
     const roleKey = resolveBootstrapAdminRoleKey();
-    const username = normalizeUsername('Admin') || 'admin';
+    const username = normalizeUsername('admin') || 'admin';
     const displayName = 'Admin';
     const firstName = 'Admin';
     const now = nowIso();
@@ -8384,12 +8384,11 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
       const result = stmts.insertUser.run(
         publicId,
         username,
-        hashPassword('Admin', pbkdf2Iters),
+        hashPassword('admin', pbkdf2Iters),
         roleKey,
         1,
         displayName,
         firstName,
-        '',
         '',
         '',
         '',
@@ -8420,7 +8419,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
         level: 'info',
         src: 'postprod',
         action: 'bootstrap_admin_seeded',
-        message: `Utilisateur bootstrap cree: ${username} / Admin`,
+        message: `Utilisateur bootstrap cree: ${username} / admin`,
       });
       return created || null;
     } catch (err) {

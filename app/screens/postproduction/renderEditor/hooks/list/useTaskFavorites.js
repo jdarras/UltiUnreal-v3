@@ -34,4 +34,3 @@ function useTaskFavorites({
 }
 
 export { useTaskFavorites };
-export default useTaskFavorites;

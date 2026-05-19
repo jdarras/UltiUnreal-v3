@@ -1,6 +1,10 @@
 import { useCallback } from 'react';
 import { getProjectMeta } from '../../utils/agent';
-import { normPath } from '../../utils/projects-helpers';
+import {
+  buildMergedProjectMeta,
+  buildProjectListPatchFromMergedMeta,
+  mapProjectById,
+} from './projectDetailPersistenceHelpers';
 
 export function useProjectDetailPersistenceReload({
   projectFavoritesRef,
@@ -23,39 +27,19 @@ export function useProjectDetailPersistenceReload({
       const res = await getProjectMeta(pid);
       if (res && res.ok) {
         const metaRaw = res.meta || {};
-        const mergedMeta = {
-          ...metaRaw,
-          status: preserved.status ?? metaRaw.status,
-          type: preserved.type ?? metaRaw.type,
-          usageMode: preserved.usageMode ?? metaRaw.usageMode,
-          note: preserved.note ?? metaRaw.note,
-          keywords: preserved.keywords ?? metaRaw.keywords,
-          referents: { ...(metaRaw.referents || {}), ...(preserved.referents || {}) },
-          favorite: projectFavoritesRef?.current?.[String(pid || '').trim()] === true,
-        };
+        const isFavorite = projectFavoritesRef?.current?.[String(pid || '').trim()] === true;
+        const mergedMeta = buildMergedProjectMeta({ metaRaw, preserved, isFavorite });
         setDetailMeta(mergedMeta);
         setDetailInsights(res.insights || {});
         const pvFromScan = String(res.insights?.projectVersion ?? metaRaw.fileVersion ?? '').trim();
         setProjectVersion(pvFromScan);
         setProjectVersionMsg('');
         setProjectVersionMsgType('');
-        setProjects((prev) => prev.map((p) =>
-          String(p.id || '').trim() === pid
-            ? {
-                ...p,
-                uproject: pathValue ? normPath(pathValue) : p.uproject,
-                wrcNames: wrcNamesValue,
-                note: mergedMeta.note,
-                metaStatus: mergedMeta.status || '',
-                metaType: mergedMeta.type || '',
-                metaUsageMode: mergedMeta.usageMode || '',
-                metaCategory: mergedMeta.category || '',
-                metaFileVersion: mergedMeta.fileVersion ?? '',
-                metaReferents: mergedMeta.referents || {},
-                metaKeywords: Array.isArray(mergedMeta.keywords) ? mergedMeta.keywords : [],
-              }
-            : p
-        ));
+        const patch = buildProjectListPatchFromMergedMeta({ pathValue, wrcNamesValue, mergedMeta });
+        setProjects((prev) => mapProjectById(prev, pid, (current) => ({
+          ...patch,
+          uproject: patch.uproject ?? current.uproject,
+        })));
       }
     } catch {}
     finally {
@@ -74,5 +58,3 @@ export function useProjectDetailPersistenceReload({
 
   return { reloadDetailAfterPathChange };
 }
-
-export default useProjectDetailPersistenceReload;

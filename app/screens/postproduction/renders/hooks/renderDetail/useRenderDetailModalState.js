@@ -47,6 +47,3 @@ export function useRenderDetailModalState({
     closeRenderDetail,
   };
 }
-
-export default useRenderDetailModalState;
-

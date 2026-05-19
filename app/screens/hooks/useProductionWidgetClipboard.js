@@ -363,4 +363,3 @@ function useProductionWidgetClipboard({
 }
 
 export { useProductionWidgetClipboard };
-export default useProductionWidgetClipboard;

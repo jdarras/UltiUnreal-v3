@@ -105,5 +105,3 @@ export function buildRenderEditorBrowseInput({
     renderTaskActions,
   };
 }
-
-export default buildRenderEditorBrowseInput;

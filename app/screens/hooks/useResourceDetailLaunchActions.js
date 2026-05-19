@@ -100,5 +100,3 @@ export function useResourceDetailLaunchActions({
     handleResourceImageContextMenu,
   };
 }
-
-export default useResourceDetailLaunchActions;

@@ -29,4 +29,3 @@ function useProductionLayoutStateUpdater({
 }
 
 export { useProductionLayoutStateUpdater };
-export default useProductionLayoutStateUpdater;

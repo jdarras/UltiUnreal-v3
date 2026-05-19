@@ -125,5 +125,3 @@ export function useProjectDetailRenderBridge({
     installRenderBridgeForDetail,
   };
 }
-
-export default useProjectDetailRenderBridge;

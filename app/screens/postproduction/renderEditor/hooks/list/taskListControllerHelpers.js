@@ -6,7 +6,6 @@ import {
   taskStatusLabel,
 } from "../../helpers";
 import {
-  taskFavoriteKey,
   taskLaunchModeValue,
   taskRenderFormId,
   taskTargetRenderWorkerKey,
@@ -18,11 +17,6 @@ export function buildOptionLabelMap(options = []) {
     map.set(option.ref, option.label || option.ref);
   }
   return map;
-}
-
-export function isTaskFavoriteByState(task, taskFavorites) {
-  const key = taskFavoriteKey(task);
-  return !!taskFavorites?.[key];
 }
 
 export function buildTaskVisualStatus(task, t, taskRenderStateByTaskId, resolveTaskVisualStatus) {

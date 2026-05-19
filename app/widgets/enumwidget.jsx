@@ -1,14 +1,7 @@
 // app/widgets/enumwidget.jsx
 import './enumwidget.css';
 import { getCompanionBaseUrl } from '../utils/agent';
-import { readIdentity } from "../utils/identity";
-import { createT } from "../i18n";
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
-}
+import { getWidgetT } from "./widgetTranslator.js";
 
 /**
  * EnumWidget
@@ -31,7 +24,7 @@ export default function EnumWidget({
   onDuplicate,
   rightSlot
 }) {
-  const t = getT();
+  const t = getWidgetT();
 
   const opts = Array.isArray(options) ? options : [];
   const rawValue = value ?? '';
@@ -167,7 +160,7 @@ export default function EnumWidget({
  */
 export function EnumLabelEditor({ selected, updateSelected }) {
   if (!selected) return null;
-  const t = getT();
+  const t = getWidgetT();
   const label = selected.label ?? '';
   const hasError = !label.trim();
 
@@ -196,7 +189,7 @@ export function EnumLabelEditor({ selected, updateSelected }) {
 export function EnumEditorLeftExtras({ selected, layoutId = '' }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
   const widgetId = selected.id;
 
   // On essaie d'abord les valeurs récupérées depuis Unreal
@@ -446,3 +439,4 @@ export function EnumEditorRight({ selected, updateSelected }) {
     </div>
   );
 }
+

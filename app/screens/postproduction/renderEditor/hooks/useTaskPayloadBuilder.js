@@ -93,5 +93,3 @@ export function useTaskPayloadBuilder({
     buildTaskPayloadFromCurrentForm,
   };
 }
-
-export default useTaskPayloadBuilder;

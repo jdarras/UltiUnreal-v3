@@ -100,5 +100,3 @@ export function buildUserManagementDataOutput({
     manageableSet: state.manageableSet,
   };
 }
-
-export default buildUserManagementDataOutput;

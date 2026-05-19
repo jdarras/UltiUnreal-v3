@@ -145,5 +145,3 @@ export function useProjectUnrealCatalog({
     projectCatalogWrcPresetOptions,
   };
 }
-
-export default useProjectUnrealCatalog;

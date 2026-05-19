@@ -37,5 +37,3 @@ export function buildRendersListInput({
     openRenderDetail,
   };
 }
-
-export default buildRendersListInput;

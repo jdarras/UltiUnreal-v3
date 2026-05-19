@@ -1,5 +1,26 @@
 import React from 'react';
 
+const MULTI_SELECT_ROOT_BASE_STYLE = { position: 'relative', flex: '1 1 220px', minWidth: '200px' };
+const MULTI_SELECT_TRIGGER_STYLE = { width: '100%', height: '36px', textAlign: 'left', paddingRight: '28px' };
+const MULTI_SELECT_CARET_STYLE = { position: 'absolute', right: '10px' };
+const MULTI_SELECT_PANEL_STYLE = {
+  position: 'absolute',
+  zIndex: 30,
+  top: 'calc(100% + 4px)',
+  left: 0,
+  right: 0,
+  padding: '8px',
+  gap: '4px',
+  display: 'flex',
+  flexDirection: 'column',
+};
+const MULTI_SELECT_NONE_LABEL_STYLE = { margin: '2px 0', fontWeight: 600 };
+const MULTI_SELECT_OPTION_LABEL_STYLE = { margin: '2px 0' };
+
+function buildMultiSelectRootStyle(style) {
+  return { ...MULTI_SELECT_ROOT_BASE_STYLE, ...(style || {}) };
+}
+
 export default function MultiSelectDropdown({
   options = [],
   values = [],
@@ -55,33 +76,23 @@ export default function MultiSelectDropdown({
     <div
       ref={ref}
       className="uu-multi-select"
-      style={{ position: 'relative', flex: '1 1 220px', minWidth: '200px', ...(style || {}) }}
+      style={buildMultiSelectRootStyle(style)}
     >
       <button
         type="button"
         className="uu-select"
         onClick={() => setOpen((v) => !v)}
-        style={{ width: '100%', height: '36px', textAlign: 'left', paddingRight: '28px' }}
+        style={MULTI_SELECT_TRIGGER_STYLE}
       >
         <span>{title}</span>
-        <span style={{ position: 'absolute', right: '10px' }}>▾</span>
+        <span style={MULTI_SELECT_CARET_STYLE}>▾</span>
       </button>
       {open ? (
         <div
           className="uu-card"
-          style={{
-            position: 'absolute',
-            zIndex: 30,
-            top: 'calc(100% + 4px)',
-            left: 0,
-            right: 0,
-            padding: '8px',
-            gap: '4px',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
+          style={MULTI_SELECT_PANEL_STYLE}
         >
-          <label className="uu-check" style={{ margin: '2px 0', fontWeight: 600 }}>
+          <label className="uu-check" style={MULTI_SELECT_NONE_LABEL_STYLE}>
             <input
               type="checkbox"
               checked={Array.isArray(values) ? values.length === 0 : true}
@@ -90,7 +101,7 @@ export default function MultiSelectDropdown({
             {noneLabel}
           </label>
           {options.map((opt) => (
-            <label key={opt.value} className="uu-check" style={{ margin: '2px 0' }}>
+            <label key={opt.value} className="uu-check" style={MULTI_SELECT_OPTION_LABEL_STYLE}>
               <input
                 type="checkbox"
                 checked={Array.isArray(values) && values.includes(opt.value)}

@@ -58,5 +58,3 @@ export function useResourceDetailTags({
     handleTagInputKeyDown,
   };
 }
-
-export default useResourceDetailTags;

@@ -4,6 +4,11 @@ import { TaskEditorFormDataCard } from "./editor/TaskEditorFormDataCard";
 import { TaskEditorTitleFields } from "./editor/TaskEditorTitleFields";
 import { formatDate, safeT } from "../../shared/helpers";
 
+const TASK_EDITOR_REJECTION_CARD_STYLE = { marginBottom: "12px" };
+const TASK_EDITOR_REJECTION_MSG_STYLE = { margin: 0 };
+const TASK_EDITOR_REJECTION_TITLE_STYLE = { fontWeight: 700 };
+const TASK_EDITOR_REJECTION_REASON_STYLE = { whiteSpace: "pre-wrap", wordBreak: "break-word" };
+
 function TaskEditorPanel({
   t,
   isEditingTask = false,
@@ -103,13 +108,13 @@ function TaskEditorPanel({
       }}
     >
       {rejectionInfo ? (
-        <div className="uu-card" style={{ marginBottom: "12px" }}>
-          <div className="uu-msg warn" style={{ margin: 0 }}>
-            <div style={{ fontWeight: 700 }}>
+        <div className="uu-card" style={TASK_EDITOR_REJECTION_CARD_STYLE}>
+          <div className="uu-msg warn" style={TASK_EDITOR_REJECTION_MSG_STYLE}>
+            <div style={TASK_EDITOR_REJECTION_TITLE_STYLE}>
               {safeT(t, "postprod.tasks.rejection.banner.title", "Rendu rejeté")}
             </div>
             <div>{rejectionMeta}</div>
-            <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            <div style={TASK_EDITOR_REJECTION_REASON_STYLE}>
               {rejectionReasonLabel}
             </div>
           </div>

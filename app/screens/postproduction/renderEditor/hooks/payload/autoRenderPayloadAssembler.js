@@ -1,3 +1,5 @@
+import { withRenderOffscreenExecution } from "../../../shared/autoRenderHelpers";
+
 function assignIfDefined(target, key, value) {
   if (value === undefined || value === null) return;
   if (typeof value === "string" && !value.trim()) return;
@@ -17,27 +19,6 @@ function normalizeExportDestinationIds(value) {
     out.push(id);
   }
   return out;
-}
-
-function withRenderOffscreenExecution(execution = null, renderOffscreen = false) {
-  if (!execution || typeof execution !== "object" || Array.isArray(execution)) return null;
-  const offscreen = renderOffscreen === true;
-  const cloned = {
-    ...execution,
-    renderOffscreen: offscreen,
-  };
-  const args = Array.isArray(execution?.args) ? execution.args : [];
-  if (args.length <= 0) {
-    if (offscreen) cloned.args = ["-RenderOffscreen"];
-    return cloned;
-  }
-  const nextArgs = args
-    .map((arg) => String(arg || "").trim())
-    .filter(Boolean)
-    .filter((arg) => String(arg || "").trim().toLowerCase() !== "-renderoffscreen");
-  if (offscreen) nextArgs.push("-RenderOffscreen");
-  cloned.args = nextArgs;
-  return cloned;
 }
 
 function normalizeLaunchMode(value = "") {
@@ -179,5 +160,3 @@ export function buildAutoRenderPayloads({
 
   return { basePayload, autoRenderConfig };
 }
-
-export default buildAutoRenderPayloads;

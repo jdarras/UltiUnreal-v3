@@ -16,5 +16,3 @@ export function useDebouncedLocalStorage(storageKey, value, delayMs = 250) {
     };
   }, [storageKey, value, delayMs]);
 }
-
-export default useDebouncedLocalStorage;

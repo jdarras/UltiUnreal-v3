@@ -71,5 +71,3 @@ export function useAutoRenderProjectCatalog({
     autoRenderProjectCatalogError,
   };
 }
-
-export default useAutoRenderProjectCatalog;

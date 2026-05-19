@@ -2,14 +2,6 @@ import { safeT } from "./helpers";
 
 const AUTO_RENDER_STATE_FLOW = ["waiting", "running", "error", "done", "canceled"];
 
-const AUTO_RENDER_STATE_PRIORITY = {
-  running: 5,
-  error: 4,
-  waiting: 3,
-  done: 2,
-  canceled: 1,
-};
-
 function isQueuedRenderWithError(render) {
   const status = String(render?.status || "").trim().toLowerCase();
   if (status !== "queued") return false;
@@ -63,17 +55,6 @@ function autoRenderStateLevel(stateRaw) {
 
 export {
   AUTO_RENDER_STATE_FLOW,
-  AUTO_RENDER_STATE_PRIORITY,
-  autoRenderStateFromRenderOrStatus,
-  autoRenderStateLabel,
-  autoRenderStateLevel,
-  autoRenderStateShortLabel,
-  isQueuedRenderWithError,
-};
-
-export default {
-  AUTO_RENDER_STATE_FLOW,
-  AUTO_RENDER_STATE_PRIORITY,
   autoRenderStateFromRenderOrStatus,
   autoRenderStateLabel,
   autoRenderStateLevel,

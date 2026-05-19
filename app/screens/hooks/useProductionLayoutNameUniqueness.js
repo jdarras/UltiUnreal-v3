@@ -40,4 +40,3 @@ function useProductionLayoutNameUniqueness({
 }
 
 export { useProductionLayoutNameUniqueness };
-export default useProductionLayoutNameUniqueness;

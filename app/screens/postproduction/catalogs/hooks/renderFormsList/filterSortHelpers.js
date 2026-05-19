@@ -6,7 +6,6 @@ export {
 } from "./formsFilterHelpers";
 
 export {
-  FORMS_SORT_MODES,
   sortForms,
   nextFormsSortState,
   formsSortArrowFor,

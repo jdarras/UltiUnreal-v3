@@ -3,6 +3,7 @@ import {
   renderOutputFilename,
   renderReviewStatusKey,
 } from "../../helpers";
+import { normalizeMultiFilterValues } from "../../../shared/filterValues";
 import { toSortTimestamp } from "../../../shared/sortUtils";
 
 export const RENDER_LIST_ALLOWED_SORT_KEYS = new Set([
@@ -18,6 +19,8 @@ export const RENDER_LIST_ALLOWED_SORT_KEYS = new Set([
 const REVIEW_STATUS_RANK = {
   to_validate: 0,
   validated: 1,
+  to_modify: 2,
+  canceled: 3,
   rejected: 2,
 };
 
@@ -37,19 +40,6 @@ function firstNonEmptyString(values = []) {
 
 function normalizeFilterValue(value = "") {
   return String(value || "").trim().toLowerCase();
-}
-
-export function normalizeMultiFilterValues(value = []) {
-  const source = Array.isArray(value) ? value : [value];
-  const seen = new Set();
-  const out = [];
-  for (const entry of source) {
-    const normalized = normalizeFilterValue(entry);
-    if (!normalized || normalized === "all" || seen.has(normalized)) continue;
-    seen.add(normalized);
-    out.push(normalized);
-  }
-  return out;
 }
 
 function simplifySequenceName(raw = "") {
@@ -183,15 +173,6 @@ export function resolveRenderSequenceMeta(render = null) {
   };
 }
 
-export function renderFavoriteStorageKey(render) {
-  const renderId = Number(render?.id || 0);
-  if (Number.isFinite(renderId) && renderId > 0) return `render:${Math.trunc(renderId)}`;
-  const projectName = String(render?.projectName || "").trim().toLowerCase();
-  const fileName = String(renderOutputFilename(render) || "").trim().toLowerCase();
-  const outputPath = String(render?.outputPath || "").trim().toLowerCase();
-  return `render:${projectName}|${fileName}|${outputPath}`;
-}
-
 export function buildRenderSearchHaystack(render) {
   const payload = resolveRenderPayload(render);
   const projectMeta = resolveRenderProjectMeta(render);
@@ -227,7 +208,7 @@ export function buildRenderSearchHaystack(render) {
     .toLowerCase();
 }
 
-export function renderStationLabel(render) {
+function renderStationLabel(render) {
   const name = String(render?.stationName || "").trim();
   if (name) return name;
   const ip = String(render?.stationIp || "").trim();
@@ -259,4 +240,7 @@ export function compareRendersBySortKey(a, b, listSortKey) {
   return toSortTimestamp(a?.updatedAt) - toSortTimestamp(b?.updatedAt);
 }
 
-export { toSortTimestamp };
+export {
+  normalizeMultiFilterValues,
+  toSortTimestamp,
+};

@@ -152,5 +152,3 @@ export function useResourcesCatalogController({
     openResourceLinkedTasks,
   };
 }
-
-export default useResourcesCatalogController;

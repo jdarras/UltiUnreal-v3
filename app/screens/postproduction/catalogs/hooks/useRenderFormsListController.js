@@ -151,5 +151,3 @@ export function useRenderFormsListController({
     formsSortArrowFor,
   };
 }
-
-export default useRenderFormsListController;

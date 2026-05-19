@@ -64,4 +64,3 @@ function useProductionLayoutRename({
 }
 
 export { useProductionLayoutRename };
-export default useProductionLayoutRename;

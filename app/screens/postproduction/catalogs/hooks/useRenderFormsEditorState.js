@@ -44,5 +44,3 @@ export function useRenderFormsEditorState({ onResetCreateDraft = null } = {}) {
     backToList,
   };
 }
-
-export default useRenderFormsEditorState;

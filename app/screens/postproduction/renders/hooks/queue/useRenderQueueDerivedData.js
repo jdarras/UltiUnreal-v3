@@ -76,5 +76,3 @@ export function useRenderQueueDerivedData({
     getQueueEntryLaunchMeta,
   };
 }
-
-export default useRenderQueueDerivedData;

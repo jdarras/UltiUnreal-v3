@@ -1,6 +1,13 @@
 import { safeT } from "../../shared/helpers";
 import { RenderFormsFieldDefaultValueInput } from "./RenderFormsFieldDefaultValueInput";
 
+const FIELD_ROW_CELL_CENTER_STYLE = { textAlign: "center" };
+const FIELD_ROW_CHECK_CENTER_STYLE = { display: "inline-flex", alignItems: "center", justifyContent: "center" };
+const FIELD_ROW_REQUIRED_CHECK_STYLE = { ...FIELD_ROW_CHECK_CENTER_STYLE, gap: "6px" };
+const FIELD_ROW_VALUE_TYPE_STYLE = { textTransform: "lowercase", textAlign: "center" };
+const FIELD_ROW_ACTIONS_STYLE = { gap: "6px" };
+const FIELD_ROW_ACTION_ICON_STYLE = { width: "30px", minWidth: "30px", height: "30px", padding: "0" };
+
 function RenderFormsFieldRow({
   t,
   field = {},
@@ -41,8 +48,8 @@ function RenderFormsFieldRow({
 
   return (
     <tr>
-      <td style={{ textAlign: "center" }}>
-        <label className="uu-check" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+      <td style={FIELD_ROW_CELL_CENTER_STYLE}>
+        <label className="uu-check" style={FIELD_ROW_CHECK_CENTER_STYLE}>
           <input
             type="checkbox"
             checked={field?.isVisible !== false}
@@ -104,13 +111,13 @@ function RenderFormsFieldRow({
           ))}
         </select>
       </td>
-      <td style={{ textAlign: "center" }}>
-        <div className="uu-muted" style={{ textTransform: "lowercase", textAlign: "center" }}>
+      <td style={FIELD_ROW_CELL_CENTER_STYLE}>
+        <div className="uu-muted" style={FIELD_ROW_VALUE_TYPE_STYLE}>
           {String(field?.valueType || inferredValueType || "string")}
         </div>
       </td>
-      <td style={{ textAlign: "center" }}>
-        <label className="uu-check" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+      <td style={FIELD_ROW_CELL_CENTER_STYLE}>
+        <label className="uu-check" style={FIELD_ROW_REQUIRED_CHECK_STYLE}>
           <input
             type="checkbox"
             checked={field?.isRequired === true}
@@ -138,7 +145,7 @@ function RenderFormsFieldRow({
         />
       </td>
       <td>
-        <div className="uu-row" style={{ gap: "6px" }}>
+        <div className="uu-row" style={FIELD_ROW_ACTIONS_STYLE}>
           <button
             type="button"
             className="uu-btn uu-btn-icon"
@@ -147,7 +154,7 @@ function RenderFormsFieldRow({
             onClick={() => {
               if (typeof onMoveEditableField === "function") onMoveEditableField(fieldKey, -1);
             }}
-            style={{ width: "30px", minWidth: "30px", height: "30px", padding: "0" }}
+            style={FIELD_ROW_ACTION_ICON_STYLE}
           >
             ↑
           </button>
@@ -159,7 +166,7 @@ function RenderFormsFieldRow({
             onClick={() => {
               if (typeof onMoveEditableField === "function") onMoveEditableField(fieldKey, 1);
             }}
-            style={{ width: "30px", minWidth: "30px", height: "30px", padding: "0" }}
+            style={FIELD_ROW_ACTION_ICON_STYLE}
           >
             ↓
           </button>

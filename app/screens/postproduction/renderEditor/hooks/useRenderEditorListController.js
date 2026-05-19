@@ -148,5 +148,3 @@ export function useRenderEditorListController({
     },
   });
 }
-
-export default useRenderEditorListController;

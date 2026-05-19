@@ -8,7 +8,7 @@ import {
   renderReviewStatusLabel,
 } from "../helpers";
 
-const RENDER_REVIEW_FLOW = ["to_validate", "validated", "rejected"];
+const RENDER_REVIEW_FLOW = ["to_validate", "validated", "to_modify", "canceled"];
 
 export function useRendersCardController({
   t,
@@ -77,5 +77,3 @@ export function useRendersCardController({
     detailModalProps: { ...detailModalProps, onScheduleRender },
   };
 }
-
-export default useRendersCardController;

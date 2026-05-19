@@ -1,11 +1,23 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { safeT } from "../utils/i18nSafe";
 
-function safeT(t, key, fallback, params) {
-  if (typeof t !== "function") return fallback;
-  const value = t(key, params);
-  if (!value || value === key) return fallback;
-  return value;
-}
+const AUTH_GATE_OVERLAY_STYLE = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0, 0, 0, 0.45)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "16px",
+  zIndex: 2000,
+};
+
+const AUTH_GATE_DIALOG_STYLE = {
+  width: "min(460px, calc(100vw - 32px))",
+  padding: "16px",
+};
+
+const AUTH_GATE_TITLE_STYLE = { marginBottom: "10px" };
 
 export default function AuthGateScreen({
   t,
@@ -22,29 +34,15 @@ export default function AuthGateScreen({
   }, [error]);
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0, 0, 0, 0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "16px",
-        zIndex: 2000,
-      }}
-    >
+    <div style={AUTH_GATE_OVERLAY_STYLE}>
       <section
         className="uu-card"
         role="dialog"
         aria-modal="true"
         aria-label={safeT(t, "app.auth.title", "Connexion utilisateur")}
-        style={{
-          width: "min(460px, calc(100vw - 32px))",
-          padding: "16px",
-        }}
+        style={AUTH_GATE_DIALOG_STYLE}
       >
-        <h2 className="uu-h3 uu-block-title" style={{ marginBottom: "10px" }}>
+        <h2 className="uu-h3 uu-block-title" style={AUTH_GATE_TITLE_STYLE}>
           {safeT(t, "app.auth.title", "Connexion utilisateur")}
         </h2>
 
@@ -95,4 +93,5 @@ export default function AuthGateScreen({
     </div>
   );
 }
+
 

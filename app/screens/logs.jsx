@@ -1,9 +1,13 @@
 // app/screens/logs.jsx
 import React from 'react';
 import DateTimeConfirmPicker from '../components/DateTimeConfirmPicker';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { resolveConfirmDialogLabels } from '../components/confirmDialogLabels';
 import { getLogs, getAllLogs, getCommon, purgeLogs } from '../utils/agent';
 import { readIdentity } from '../utils/identity';
 import { createT } from '../i18n';
+import { usePromiseConfirmDialog } from './hooks/usePromiseConfirmDialog';
+import { getLogsPurgeLabel } from './screenI18n';
 
 const LEVELS = ['success','info','warn','error','debug'];
 const BASE_ACTION_FILTERS = [
@@ -14,6 +18,12 @@ const BASE_ACTION_FILTERS = [
 ];
 const ACTION_FILTER_STORAGE_KEY = 'uu.logs.actionFilter';
 const AUTO_REFRESH_STORAGE_KEY = 'uu.logs.autoRefresh';
+const FILTERS_ROW_STYLE = { gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' };
+const FILTER_COL_MIN_200_STYLE = { minWidth: '200px' };
+const FILTER_COL_MIN_160_STYLE = { minWidth: '160px' };
+const FILTER_COL_SEARCH_STYLE = { minWidth: '220px', flex: 1 };
+const HIDDEN_LABEL_STYLE = { visibility: 'hidden' };
+const PAGINATION_ROW_STYLE = { marginTop: '8px', marginBottom: '8px', flexWrap: 'wrap' };
 
 function parseTsMs(raw) {
   if (raw === null || raw === undefined || raw === '') return null;
@@ -60,7 +70,14 @@ export default function LogsScreen() {
   const id = readIdentity();
   const role = String(id.role || 'server').trim();
   const lang = String(id.lang || 'fr').trim();
-  const t = createT(lang);
+  const t = React.useMemo(() => createT(lang), [lang]);
+  const { cancelLabel: confirmCancelLabel } = React.useMemo(
+    () => resolveConfirmDialogLabels(t, {
+      cancelAltKey: 'app.quit.confirm.cancel',
+    }),
+    [t]
+  );
+  const purgeLabel = getLogsPurgeLabel(t);
 
   const [items, setItems] = React.useState([]);
   const [limit, setLimit] = React.useState(500);
@@ -76,8 +93,13 @@ export default function LogsScreen() {
   const [busy, setBusy] = React.useState(false);
   const [exportBusy, setExportBusy] = React.useState(false);
   const [expanded, setExpanded] = React.useState({}); // idx -> bool
-  const [confirmPurge, setConfirmPurge] = React.useState(false);
   const aliveRef = React.useRef(true);
+  const {
+    confirmDialog,
+    confirmOkBtnRef,
+    closeConfirmDialog,
+    requestConfirm,
+  } = usePromiseConfirmDialog();
 
   React.useEffect(() => {
     return () => {
@@ -190,9 +212,9 @@ export default function LogsScreen() {
     const effectiveAuto = auto && !quietMode;
     if (!effectiveAuto) return;
     fetchLogs(); // déclenche immédiatement quand on (re)active l'auto
-    const t = setInterval(fetchLogs, Math.max(2, Number(refreshSec) || 5) * 1000);
+    const timerId = setInterval(fetchLogs, Math.max(2, Number(refreshSec) || 5) * 1000);
     return () => {
-      clearInterval(t);
+      clearInterval(timerId);
     };
   }, [auto, quietMode, refreshSec, fetchLogs]);
 
@@ -260,7 +282,6 @@ export default function LogsScreen() {
   }
 
   async function handlePurge() {
-    setConfirmPurge(false);
     await purgeLogs({ allHosts: role === 'server' });
     await fetchLogs();
   }
@@ -350,8 +371,8 @@ export default function LogsScreen() {
     <div className="uu-page">
 
       {/* Barre de filtres dates + recherche */}
-      <div className="uu-row mt-8" style={{ gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div className="uu-col" style={{ minWidth: '200px' }}>
+      <div className="uu-row mt-8" style={FILTERS_ROW_STYLE}>
+        <div className="uu-col" style={FILTER_COL_MIN_200_STYLE}>
           <label className="uu-label">{t('postprod.users.activity.filter.fromAt')}</label>
           <DateTimeConfirmPicker
             value={fromAtLocal}
@@ -362,7 +383,7 @@ export default function LogsScreen() {
             clearLabel={t('common.datePicker.clear')}
           />
         </div>
-        <div className="uu-col" style={{ minWidth: '200px' }}>
+        <div className="uu-col" style={FILTER_COL_MIN_200_STYLE}>
           <label className="uu-label">{t('postprod.users.activity.filter.toAt')}</label>
           <DateTimeConfirmPicker
             value={toAtLocal}
@@ -373,7 +394,7 @@ export default function LogsScreen() {
             clearLabel={t('common.datePicker.clear')}
           />
         </div>
-        <div className="uu-col" style={{ minWidth: '160px' }}>
+        <div className="uu-col" style={FILTER_COL_MIN_160_STYLE}>
           <label className="uu-label">{t('logs.filters.actionType')}</label>
           <select
             className="uu-input"
@@ -385,7 +406,7 @@ export default function LogsScreen() {
             ))}
           </select>
         </div>
-        <div className="uu-col" style={{ minWidth: '220px', flex: 1 }}>
+        <div className="uu-col" style={FILTER_COL_SEARCH_STYLE}>
           <label className="uu-label">{t('postprod.users.activity.filter.search')}</label>
           <input
             className="uu-input"
@@ -395,7 +416,7 @@ export default function LogsScreen() {
           />
         </div>
         <div className="uu-col">
-          <label className="uu-label" style={{ visibility: 'hidden' }}>_</label>
+          <label className="uu-label" style={HIDDEN_LABEL_STYLE}>_</label>
           <button
             className="uu-btn-ghost"
             type="button"
@@ -461,7 +482,10 @@ export default function LogsScreen() {
       <div className="uu-toolbar-sub">
         <button
           className="uu-btn"
-          onClick={() => setConfirmPurge(true)}
+          onClick={async () => {
+            const ok = await requestConfirm(t('logs.confirm.purge'));
+            if (ok) await handlePurge();
+          }}
           title={t('logs.toolbar.purgeTooltip')}
         >
           {t('logs.toolbar.purgeButton')}
@@ -494,7 +518,7 @@ export default function LogsScreen() {
         </div>
       ) : null}
 
-      <div className="uu-row uu-gap-8 uu-align-center" style={{ marginTop: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+      <div className="uu-row uu-gap-8 uu-align-center" style={PAGINATION_ROW_STYLE}>
         {totalItems > 0 && (
           <div className="uu-row uu-gap-6 uu-align-center">
             {canPrevPage ? (
@@ -519,10 +543,9 @@ export default function LogsScreen() {
               </button>
             ) : null}
             <select
-              className="uu-select"
+              className="uu-select w-90"
               value={pageSize}
               onChange={(e) => setPageSize(Math.max(50, Number(e.target.value) || 200))}
-              style={{ width: '90px' }}
               aria-label={t('logs.pageSizeAria')}
             >
               {[100, 200, 400, 800].map((n) => (
@@ -570,35 +593,19 @@ export default function LogsScreen() {
       </div>
     </div>
 
-    {confirmPurge && (
-      <div
-        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}
-        onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmPurge(false); }}
-      >
-        <div
-          className="uu-card"
-          role="dialog"
-          aria-modal="true"
-          style={{ width: "min(420px, calc(100vw - 32px))", padding: "16px" }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <div style={{ fontWeight: 600, marginBottom: "10px" }}>
-            {t('logs.toolbar.purgeButton')}
-          </div>
-          <div style={{ marginBottom: "14px", lineHeight: 1.35 }}>
-            {t('logs.confirm.purge')}
-          </div>
-          <div className="uu-row" style={{ justifyContent: "flex-end", gap: "8px" }}>
-            <button type="button" className="uu-btn" onClick={() => setConfirmPurge(false)}>
-              {t('production.confirm.cancel')}
-            </button>
-            <button type="button" className="uu-btn prod-toggle-active" onClick={handlePurge}>
-              {t('logs.toolbar.purgeButton')}
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
+    <ConfirmDialog
+      open={confirmDialog.open}
+      busy={false}
+      title={purgeLabel}
+      message={confirmDialog.message}
+      cancelLabel={confirmCancelLabel}
+      confirmLabel={purgeLabel}
+      onCancel={() => closeConfirmDialog(false)}
+      onConfirm={() => closeConfirmDialog(true)}
+      confirmRef={confirmOkBtnRef}
+      overlayZIndex={2000}
+    />
     </>
   );
 }
+

@@ -63,6 +63,3 @@ export function usePersistRenderFormFields({
 
   return { persistEditableFields };
 }
-
-export default usePersistRenderFormFields;
-

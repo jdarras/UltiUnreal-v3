@@ -80,6 +80,3 @@ export function useRenderFormFieldMutations({
     removeEditableField,
   };
 }
-
-export default useRenderFormFieldMutations;
-

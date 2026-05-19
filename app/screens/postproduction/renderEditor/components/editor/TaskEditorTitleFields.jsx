@@ -1,5 +1,12 @@
 ﻿import { safeT } from "../../../shared/helpers";
 
+const TASK_EDITOR_TITLE_HEADING_STYLE = { marginBottom: "10px" };
+const TASK_EDITOR_TITLE_FIELD_ROW_STYLE = { alignItems: "center" };
+const TASK_EDITOR_TITLE_LABEL_STYLE = { width: "140px", marginBottom: 0 };
+const TASK_EDITOR_TITLE_INPUT_WRAP_STYLE = { flex: 1, minWidth: 0 };
+const TASK_EDITOR_TITLE_ID_HINT_STYLE = { whiteSpace: "nowrap", fontSize: "0.85em" };
+const TASK_EDITOR_TITLE_ASSIGNEE_HINT_STYLE = { fontSize: "0.85em" };
+
 function TaskEditorTitleFields({
   t,
   isEditingTask = false,
@@ -22,18 +29,18 @@ function TaskEditorTitleFields({
   })();
   return (
     <>
-      <h4 className="uu-h3 uu-block-title" style={{ marginBottom: "10px" }}>
+      <h4 className="uu-h3 uu-block-title" style={TASK_EDITOR_TITLE_HEADING_STYLE}>
         {isEditingTask
           ? safeT(t, "postprod.tasks.editTitle", "Modifier tache")
           : safeT(t, "postprod.tasks.createTitle", "Nouvelle tache")}
       </h4>
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
-            <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+          <div className="uu-row uu-gap-8" style={TASK_EDITOR_TITLE_FIELD_ROW_STYLE}>
+            <label className="uu-label" style={TASK_EDITOR_TITLE_LABEL_STYLE}>
               {safeT(t, "postprod.tasks.form.name", "Nom")}
             </label>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={TASK_EDITOR_TITLE_INPUT_WRAP_STYLE}>
               <input
                 className="uu-input"
                 type="text"
@@ -43,18 +50,18 @@ function TaskEditorTitleFields({
               />
             </div>
             {isEditingTask && taskIdNum > 0 ? (
-              <span className="uu-muted" style={{ whiteSpace: "nowrap", fontSize: "0.85em" }}>
+              <span className="uu-muted" style={TASK_EDITOR_TITLE_ID_HINT_STYLE}>
                 #{taskIdNum}
               </span>
             ) : null}
           </div>
         </div>
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
-            <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+          <div className="uu-row uu-gap-8" style={TASK_EDITOR_TITLE_FIELD_ROW_STYLE}>
+            <label className="uu-label" style={TASK_EDITOR_TITLE_LABEL_STYLE}>
               {safeT(t, "postprod.tasks.form.assignee", "Assigné à")}
             </label>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={TASK_EDITOR_TITLE_INPUT_WRAP_STYLE}>
               <select
                 className="uu-input"
                 value={selectedAssigneeValue}
@@ -77,7 +84,7 @@ function TaskEditorTitleFields({
                 })}
               </select>
               {assigneeUserIdLocked ? (
-                <div className="uu-muted mt-4" style={{ fontSize: "0.85em" }}>
+                <div className="uu-muted mt-4" style={TASK_EDITOR_TITLE_ASSIGNEE_HINT_STYLE}>
                   {safeT(
                     t,
                     "postprod.tasks.form.assignee.selfOnlyHint",

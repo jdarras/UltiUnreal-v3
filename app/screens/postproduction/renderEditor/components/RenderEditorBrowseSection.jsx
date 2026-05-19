@@ -9,6 +9,8 @@ import { TaskListPanel } from "./TaskListPanel";
 import { RenderEditorAdvancedSearchPanel } from "./RenderEditorAdvancedSearchPanel";
 import { RenderEditorToolbar } from "./RenderEditorToolbar";
 
+const RENDER_EDITOR_HISTORY_TITLE_STYLE = { marginBottom: "10px" };
+
 function RenderEditorBrowseSection({
   t,
   showCreateForm = false,
@@ -173,7 +175,7 @@ function RenderEditorBrowseSection({
 
       {!showCreateForm && showHistory ? (
         <div className="uu-card mt-12">
-          <h4 className="uu-h3 uu-block-title" style={{ marginBottom: "10px" }}>
+          <h4 className="uu-h3 uu-block-title" style={RENDER_EDITOR_HISTORY_TITLE_STYLE}>
             {safeT(t, "postprod.tasks.history.title", "Historique (taches validees)")}
           </h4>
           <TaskListPanel

@@ -68,5 +68,3 @@ export function buildRenderEditorSectionPropsInputBrowse({
     ...pickKeys(ui, UI_KEYS),
   };
 }
-
-export default buildRenderEditorSectionPropsInputBrowse;

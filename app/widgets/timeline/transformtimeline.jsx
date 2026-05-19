@@ -1,4 +1,5 @@
 import BindingPicker from '../bindingpicker.jsx';
+import { TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE } from './timelineEditorStyles.js';
 import {
   collectChannelKeyframes,
   getFiniteNumber,
@@ -77,7 +78,7 @@ export function TransformTimelineEditor({
         : rangeScale;
     const alerts = alertsByTarget[target] || { min: false, max: false };
     return (
-      <div className="uu-row uu-slider-editor-row" style={{ flexWrap: 'nowrap', gap: 10 }}>
+      <div className="uu-row uu-slider-editor-row" style={TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE}>
         <label className="uu-label w-160">{label}</label>
         <span className="uu-muted">Min</span>
         <input

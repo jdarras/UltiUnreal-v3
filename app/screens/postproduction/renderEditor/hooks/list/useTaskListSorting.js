@@ -86,5 +86,3 @@ export function useTaskListSorting({
     toggleListSort,
   };
 }
-
-export default useTaskListSorting;

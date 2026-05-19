@@ -6,6 +6,11 @@ import {
   activityTypeChipLevel,
 } from "../../userSharedHelpers";
 
+const USER_ACTIVITY_CHIP_GROUP_STYLE = { marginTop: "6px", flexWrap: "wrap" };
+const USER_ACTIVITY_CHIP_BUTTON_STYLE = { cursor: "pointer" };
+const USER_ACTIVITY_TOOLBAR_STYLE = { marginTop: "8px", justifyContent: "space-between" };
+const USER_ACTIVITY_PAGE_SIZE_STYLE = { width: "80px" };
+
 function UserActivitySummary({
   t,
   usersLoading = false,
@@ -34,7 +39,7 @@ function UserActivitySummary({
 
   return (
     <>
-      <div className="uu-chip-group" style={{ marginTop: "6px", flexWrap: "wrap" }}>
+      <div className="uu-chip-group" style={USER_ACTIVITY_CHIP_GROUP_STYLE}>
         {ACTIVITY_TYPE_FILTERS.map((type) => {
           const normalizedType = String(type || "").trim().toLowerCase() || "all";
           const isActive = activityActionType === normalizedType;
@@ -55,7 +60,7 @@ function UserActivitySummary({
               className={`uu-chip ${activityTypeChipLevel(normalizedType)} ${isActive ? "chip-on" : "chip-off"}`}
               type="button"
               disabled={disabled}
-              style={{ cursor: "pointer" }}
+              style={USER_ACTIVITY_CHIP_BUTTON_STYLE}
               onClick={() => onChooseActionType?.(normalizedType)}
             >
               {activityActionTypeLabel(t, normalizedType)} {count}
@@ -63,12 +68,12 @@ function UserActivitySummary({
           );
         })}
       </div>
-      <div className="uu-chip-group" style={{ marginTop: "6px", flexWrap: "wrap" }}>
+      <div className="uu-chip-group" style={USER_ACTIVITY_CHIP_GROUP_STYLE}>
         <button
           className={`uu-chip lvl-info ${!activityProjectRef ? "chip-on" : "chip-off"}`}
           type="button"
           disabled={disabled}
-          style={{ cursor: "pointer" }}
+          style={USER_ACTIVITY_CHIP_BUTTON_STYLE}
           onClick={() => onChooseProject?.("")}
         >
           {safeT(t, "postprod.users.activity.filter.project.all", "Tous les projets")}
@@ -83,7 +88,7 @@ function UserActivitySummary({
               className={`uu-chip lvl-success ${isActive ? "chip-on" : "chip-off"}`}
               type="button"
               disabled={disabled}
-              style={{ cursor: "pointer" }}
+              style={USER_ACTIVITY_CHIP_BUTTON_STYLE}
               onClick={() => onChooseProject?.(normalizedRef)}
             >
               {normalizedRef}
@@ -91,7 +96,7 @@ function UserActivitySummary({
           );
         })}
       </div>
-      <div className="uu-toolbar-sub" style={{ marginTop: "8px", justifyContent: "space-between" }}>
+      <div className="uu-toolbar-sub" style={USER_ACTIVITY_TOOLBAR_STYLE}>
         <div className="uu-row uu-gap-8">
           {onPurgeActivity ? (
             <button
@@ -132,7 +137,7 @@ function UserActivitySummary({
             className="uu-select"
             value={pageSize}
             onChange={(e) => onPageSizeChange?.(Number(e.target.value) || 100)}
-            style={{ width: "80px" }}
+            style={USER_ACTIVITY_PAGE_SIZE_STYLE}
           >
             {pageSizes.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>

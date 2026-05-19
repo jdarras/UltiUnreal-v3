@@ -22,5 +22,3 @@ export function buildRendersSectionPropsInput({
     ...buildRendersSectionPropsInputData(data),
   };
 }
-
-export default buildRendersSectionPropsInput;

@@ -2,14 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import './dropdownwidget.css';
 import { getCompanionBaseUrl } from '../utils/agent';
-import { readIdentity } from '../utils/identity';
-import { createT } from '../i18n';
-
-function getT() {
-  const id = readIdentity() || {};
-  const lang = String(id.lang || 'fr').trim();
-  return createT(lang);
-}
+import { getWidgetT } from './widgetTranslator.js';
 
 /**
  * DropdownWidget
@@ -43,7 +36,7 @@ export default function DropdownWidget({
   rightSlot
 }) {
 
-  const t = getT();
+  const t = getWidgetT();
   const vt = String(valueType || '').toLowerCase();
   const isByte =
     vt === 'byte' ||
@@ -282,7 +275,7 @@ export default function DropdownWidget({
 export function DropdownEditorRight({ selected, updateSelected }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
   const valueType = String(selected.binding?.valueType || '').toLowerCase();
   const isByte =
     valueType === 'byte' ||
@@ -486,7 +479,7 @@ export function DropdownLabelEditor({ selected, updateSelected }) {
   if (!selected) return null;
 
   const hasError = !selected.label || !selected.label.trim();
-  const t = getT();
+  const t = getWidgetT();
 
   return (
     <div className="uu-row">
@@ -509,7 +502,7 @@ export function DropdownLabelEditor({ selected, updateSelected }) {
 export function DropdownEditorLeftExtras({ selected /*, updateSelected */, layoutId = '' }) {
   if (!selected) return null;
 
-  const t = getT();
+  const t = getWidgetT();
   const widgetId = selected.id;
   const ui = selected.ui || {};
 
@@ -628,4 +621,5 @@ export function DropdownEditorLeftExtras({ selected /*, updateSelected */, layou
     </>
   );
 }
+
 

@@ -3,6 +3,18 @@ import { safeT } from "../../../shared/helpers";
 import { RenderFormsConfirmDialog } from "../../../catalogs/components/RenderFormsConfirmDialog";
 import { RendersQueueTableRow } from "./RendersQueueTableRow";
 
+const RENDERS_QUEUE_SCROLL_STYLE = { overflowX: "auto" };
+const RENDERS_QUEUE_TABLE_STYLE = { width: "100%", tableLayout: "fixed" };
+const RENDERS_QUEUE_COL_1_STYLE = { width: "8%" };
+const RENDERS_QUEUE_COL_2_STYLE = { width: "23%" };
+const RENDERS_QUEUE_COL_3_STYLE = { width: "18%" };
+const RENDERS_QUEUE_COL_4_STYLE = { width: "13%" };
+const RENDERS_QUEUE_COL_5_STYLE = { width: "12%" };
+const RENDERS_QUEUE_COL_6_STYLE = { width: "26%" };
+const RENDERS_QUEUE_TH_LEFT_STYLE = { textAlign: "left" };
+const RENDERS_QUEUE_TH_CENTER_STYLE = { textAlign: "center" };
+const RENDERS_QUEUE_TH_RIGHT_STYLE = { textAlign: "right" };
+
 function RendersQueueTable({
   t,
   sortedRenderQueueTasks = [],
@@ -24,6 +36,8 @@ function RendersQueueTable({
 }) {
   const actionsGroupWidth = 192;
   const stationOffsetPx = 32;
+  const workerHeaderStyle = { textAlign: "left", paddingLeft: `${stationOffsetPx}px` };
+  const actionsHeaderWrapStyle = { width: `${actionsGroupWidth}px`, textAlign: "center", marginLeft: "auto" };
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
@@ -62,47 +76,47 @@ function RendersQueueTable({
         onCancel={() => { if (!deleteBusy) setPendingDelete(null); }}
         onConfirm={handleConfirmDelete}
       />
-      <div style={{ overflowX: "auto" }} className="mt-12">
-        <table className="uu-table" style={{ width: "100%", tableLayout: "fixed" }}>
+      <div style={RENDERS_QUEUE_SCROLL_STYLE} className="mt-12">
+        <table className="uu-table" style={RENDERS_QUEUE_TABLE_STYLE}>
           <colgroup>
-            <col style={{ width: "8%" }} />
-            <col style={{ width: "23%" }} />
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "13%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "26%" }} />
+            <col style={RENDERS_QUEUE_COL_1_STYLE} />
+            <col style={RENDERS_QUEUE_COL_2_STYLE} />
+            <col style={RENDERS_QUEUE_COL_3_STYLE} />
+            <col style={RENDERS_QUEUE_COL_4_STYLE} />
+            <col style={RENDERS_QUEUE_COL_5_STYLE} />
+            <col style={RENDERS_QUEUE_COL_6_STYLE} />
           </colgroup>
           <thead>
             <tr>
-              <th style={{ textAlign: "left" }}>
+              <th style={RENDERS_QUEUE_TH_LEFT_STYLE}>
                 <button type="button" className="uu-link" onClick={() => onToggleQueueSort?.("startAt")}>
                   {safeT(t, "postprod.renders.queue.table.order", "Ordre")}
                   {typeof queueSortIndicator === "function" ? queueSortIndicator("startAt") : ""}
                 </button>
               </th>
-              <th style={{ textAlign: "left" }}>
+              <th style={RENDERS_QUEUE_TH_LEFT_STYLE}>
                 <button type="button" className="uu-link" onClick={() => onToggleQueueSort?.("task")}>
                   {safeT(t, "postprod.renders.queue.table.task", "Tache")}
                   {typeof queueSortIndicator === "function" ? queueSortIndicator("task") : ""}
                 </button>
               </th>
-              <th style={{ textAlign: "center" }}>
+              <th style={RENDERS_QUEUE_TH_CENTER_STYLE}>
                 {safeT(t, "postprod.renders.queue.table.launch", "Lancement")}
               </th>
-              <th style={{ textAlign: "left", paddingLeft: `${stationOffsetPx}px` }}>
+              <th style={workerHeaderStyle}>
                 <button type="button" className="uu-link" onClick={() => onToggleQueueSort?.("worker")}>
                   {safeT(t, "postprod.renders.queue.table.worker", "Station")}
                   {typeof queueSortIndicator === "function" ? queueSortIndicator("worker") : ""}
                 </button>
               </th>
-              <th style={{ textAlign: "right" }}>
+              <th style={RENDERS_QUEUE_TH_RIGHT_STYLE}>
                 <button type="button" className="uu-link" onClick={() => onToggleQueueSort?.("status")}>
                   {safeT(t, "postprod.renders.queue.table.status", "Statut")}
                   {typeof queueSortIndicator === "function" ? queueSortIndicator("status") : ""}
                 </button>
               </th>
-              <th style={{ textAlign: "right" }}>
-                <div style={{ width: `${actionsGroupWidth}px`, textAlign: "center", marginLeft: "auto" }}>
+              <th style={RENDERS_QUEUE_TH_RIGHT_STYLE}>
+                <div style={actionsHeaderWrapStyle}>
                   {safeT(t, "postprod.renders.queue.table.actions", "Actions")}
                 </div>
               </th>

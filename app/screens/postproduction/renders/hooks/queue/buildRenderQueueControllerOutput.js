@@ -32,5 +32,3 @@ function buildRenderQueueControllerOutput({
 export {
   buildRenderQueueControllerOutput,
 };
-
-export default buildRenderQueueControllerOutput;

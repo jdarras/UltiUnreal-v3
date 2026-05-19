@@ -43,5 +43,3 @@ export function useResourceDetailLoader({
     };
   }, [detailUid, detailInitRef, aliveRef, resourceFavoritesRef, setDetailData, setDetailLoading]);
 }
-
-export default useResourceDetailLoader;

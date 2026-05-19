@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import { formatDate, safeT } from "../../../shared/helpers";
 
+const RENDER_DETAIL_LOGS_TITLE_STYLE = { margin: "0 0 8px 0" };
+const RENDER_DETAIL_LOGS_DETAILS_TOGGLE_ROW_STYLE = { justifyContent: "flex-start", marginTop: "8px" };
+
 function transitionLogLevel(entry = null) {
   const toStatus = String(entry?.toStatus || "").trim().toLowerCase();
   if (toStatus === "done") return "success";
@@ -95,7 +98,7 @@ function RenderDetailLogsPanel({
 
   return (
     <section className="uu-render-detail-logs-block">
-      <h4 className="uu-h3 uu-block-title" style={{ margin: "0 0 8px 0" }}>
+      <h4 className="uu-h3 uu-block-title" style={RENDER_DETAIL_LOGS_TITLE_STYLE}>
         {safeT(t, "postprod.renders.logs.title", "Logs d'execution")}
       </h4>
       {transitionsLoading ? (
@@ -124,7 +127,7 @@ function RenderDetailLogsPanel({
                   <span className="log-action">{entry.action}</span>
                 </div>
                 <div className="log-msg">{entry.message}</div>
-                <div className="uu-row" style={{ justifyContent: "flex-start", marginTop: "8px" }}>
+                <div className="uu-row" style={RENDER_DETAIL_LOGS_DETAILS_TOGGLE_ROW_STYLE}>
                   <button type="button" className="uu-btn" onClick={() => toggleExpanded(entry.key)}>
                     {isExpanded
                       ? safeT(t, "logs.details.hide", "Masquer détails")
@@ -146,5 +149,3 @@ function RenderDetailLogsPanel({
 export {
   RenderDetailLogsPanel,
 };
-
-export default RenderDetailLogsPanel;

@@ -32,5 +32,3 @@ function ResourceThumbImage({ candidates = [], className = "", alt = "" }) {
 }
 
 export { ResourceThumbImage };
-export default ResourceThumbImage;
-

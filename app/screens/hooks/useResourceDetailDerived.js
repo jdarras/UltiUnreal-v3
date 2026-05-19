@@ -43,5 +43,3 @@ export function useResourceDetailDerived({
     detailTagsSet,
   };
 }
-
-export default useResourceDetailDerived;

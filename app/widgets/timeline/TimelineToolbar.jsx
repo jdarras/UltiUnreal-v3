@@ -1,4 +1,5 @@
 import { getT } from './timelinewidget-shared';
+import { buildTimelineToolbarLabels } from './timelineToolbarI18n.js';
 
 const ICON_SIZE = 14;
 
@@ -24,12 +25,6 @@ const ICONS = {
     </svg>
   )
 };
-
-const INTERP_OPTIONS = [
-  { id: 'constant', titleKey: 'timeline.keyframeType.constant' },
-  { id: 'linear', titleKey: 'timeline.keyframeType.linear' },
-  { id: 'bezier', titleKey: 'timeline.keyframeType.bezier' }
-];
 
 const IconCue = (
   <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
@@ -58,6 +53,11 @@ const IconContinue = (
   </svg>
 );
 
+const TIMELINE_TOOLBAR_SPACER_STYLE = { width: 70 };
+const TIMELINE_TOOLBAR_BEZIER_INPUT_STYLE = { width: 70 };
+const TIMELINE_TOOLBAR_DURATION_ROW_STYLE = { marginLeft: 'auto' };
+const TIMELINE_TOOLBAR_DURATION_INPUT_STYLE = { width: '90px' };
+
 export function TimelineToolbar({
   editorPlaying,
   editorPaused,
@@ -82,12 +82,19 @@ export function TimelineToolbar({
   t
 }) {
   const tt = t || getT();
+  const labels = buildTimelineToolbarLabels(tt);
   const playBtnActive = !!editorPlaying;
   const pauseBtnActive = !!(!editorPlaying && editorPaused);
+  const interpOptions = [
+    { id: 'constant', title: labels.keyframeTypeConstant },
+    { id: 'linear', title: labels.keyframeTypeLinear },
+    { id: 'bezier', title: labels.keyframeTypeBezier }
+  ];
+
   return (
     <div className="uu-row uu-align-center uu-timeline-controls uu-timeline-playback">
       <div className="uu-row uu-align-center uu-gap-8">
-        <button type="button" className="uu-btn uu-btn-secondary uu-timeline-btn" onClick={handleEditorCue} onMouseDown={(e) => e.stopPropagation()} title={tt('timeline.cue')}>
+        <button type="button" className="uu-btn uu-btn-secondary uu-timeline-btn" onClick={handleEditorCue} onMouseDown={(e) => e.stopPropagation()} title={labels.cue}>
           {IconCue}
         </button>
         <button
@@ -96,7 +103,7 @@ export function TimelineToolbar({
           onClick={handleEditorPlay}
           onMouseDown={(e) => e.stopPropagation()}
           disabled={editorPlaying}
-          title={tt('timeline.play')}
+          title={labels.play}
         >
           {IconPlay}
         </button>
@@ -106,25 +113,25 @@ export function TimelineToolbar({
           onClick={handleEditorPause}
           onMouseDown={(e) => e.stopPropagation()}
           disabled={!editorPlaying}
-          title={tt('timeline.pause')}
+          title={labels.pause}
         >
           {IconPause}
         </button>
-        <button type="button" className="uu-btn uu-btn-secondary uu-timeline-btn" onClick={handleEditorContinue} onMouseDown={(e) => e.stopPropagation()} disabled={!editorPaused || editorPlaying} title={tt('timeline.continue')}>
+        <button type="button" className="uu-btn uu-btn-secondary uu-timeline-btn" onClick={handleEditorContinue} onMouseDown={(e) => e.stopPropagation()} disabled={!editorPaused || editorPlaying} title={labels.continue}>
           {IconContinue}
         </button>
-        <button type="button" className="uu-btn uu-btn-secondary uu-btn-sm uu-timeline-btn" onClick={() => handleEditorStep(-1)} onMouseDown={(e) => e.stopPropagation()} disabled={editorPlaying} title={tt('timeline.prevFrame')}>
+        <button type="button" className="uu-btn uu-btn-secondary uu-btn-sm uu-timeline-btn" onClick={() => handleEditorStep(-1)} onMouseDown={(e) => e.stopPropagation()} disabled={editorPlaying} title={labels.prevFrame}>
           {'<'}
         </button>
-        <button type="button" className="uu-btn uu-btn-secondary uu-btn-sm uu-timeline-btn" onClick={() => handleEditorStep(1)} onMouseDown={(e) => e.stopPropagation()} disabled={editorPlaying} title={tt('timeline.nextFrame')}>
+        <button type="button" className="uu-btn uu-btn-secondary uu-btn-sm uu-timeline-btn" onClick={() => handleEditorStep(1)} onMouseDown={(e) => e.stopPropagation()} disabled={editorPlaying} title={labels.nextFrame}>
           {'>'}
         </button>
-        <div style={{ width: 70 }} />
+        <div style={TIMELINE_TOOLBAR_SPACER_STYLE} />
       </div>
       {!hideKeyframeTypes && (
         <div className="uu-row uu-align-center uu-gap-8">
           <div className="uu-row">
-            {INTERP_OPTIONS.map((opt) => (
+            {interpOptions.map((opt) => (
               <button
                 key={opt.id}
                 type="button"
@@ -132,7 +139,7 @@ export function TimelineToolbar({
                   keyframeType === opt.id ? ' is-active prod-toggle-active' : ''
                 }`}
                 onClick={() => onKeyframeTypeChange(opt.id)}
-                title={tt(opt.titleKey)}
+                title={opt.title}
               >
                 {ICONS[opt.id]}
               </button>
@@ -141,70 +148,70 @@ export function TimelineToolbar({
           {keyframeType === 'bezier' && (
             <div className="uu-row uu-align-center uu-gap-10 uu-wrap">
               <div className="uu-row uu-align-center uu-gap-4">
-                <span className="uu-muted">{tt('timeline.bezier.in')}</span>
+                <span className="uu-muted">{labels.bezierIn}</span>
                 <input
                   className="uu-input uu-input-arg"
-                  style={{ width: 70 }}
+                  style={TIMELINE_TOOLBAR_BEZIER_INPUT_STYLE}
                   type="number"
                   step="1"
                   inputMode="numeric"
                   pattern="-?\\d+"
                   value={keyframeInTanDraft}
                   onChange={(e) => onBezierTangentChange('in', e.target.value)}
-                  title={tt('timeline.bezier.inSlope')}
+                  title={labels.bezierInSlope}
                 />
                 <input
                   className="uu-input uu-input-arg"
-                  style={{ width: 70 }}
+                  style={TIMELINE_TOOLBAR_BEZIER_INPUT_STYLE}
                   type="number"
                   step="1"
                   inputMode="numeric"
                   pattern="\\d+"
                   value={keyframeInSpanDraft}
                   onChange={(e) => onBezierSpanChange('in', e.target.value)}
-                  title={tt('timeline.bezier.inSpan')}
+                  title={labels.bezierInSpan}
                 />
               </div>
               <div className="uu-row uu-align-center uu-gap-4">
-                <span className="uu-muted">{tt('timeline.bezier.out')}</span>
+                <span className="uu-muted">{labels.bezierOut}</span>
                 <input
                   className="uu-input uu-input-arg"
-                  style={{ width: 70 }}
+                  style={TIMELINE_TOOLBAR_BEZIER_INPUT_STYLE}
                   type="number"
                   step="1"
                   inputMode="numeric"
                   pattern="-?\\d+"
                   value={keyframeOutTanDraft}
                   onChange={(e) => onBezierTangentChange('out', e.target.value)}
-                  title={tt('timeline.bezier.outSlope')}
+                  title={labels.bezierOutSlope}
                 />
                 <input
                   className="uu-input uu-input-arg"
-                  style={{ width: 70 }}
+                  style={TIMELINE_TOOLBAR_BEZIER_INPUT_STYLE}
                   type="number"
                   step="1"
                   inputMode="numeric"
                   pattern="\\d+"
                   value={keyframeOutSpanDraft}
                   onChange={(e) => onBezierSpanChange('out', e.target.value)}
-                  title={tt('timeline.bezier.outSpan')}
+                  title={labels.bezierOutSpan}
                 />
               </div>
             </div>
           )}
         </div>
       )}
-      <div className="uu-row uu-align-center uu-gap-8" style={{ marginLeft: 'auto' }}>
+      <div className="uu-row uu-align-center uu-gap-8" style={TIMELINE_TOOLBAR_DURATION_ROW_STYLE}>
         <span className="uu-muted">
-          {useTimecodeView ? tt('timeline.durationTc') : tt('timeline.durationFrames')}
+          {useTimecodeView ? labels.durationTc : labels.durationFrames}
         </span>
         <input
           className="uu-input uu-input-arg w-100"
           type={useTimecodeView ? 'text' : 'number'}
           min={useTimecodeView ? undefined : '1'}
           step={useTimecodeView ? undefined : '1'}
-          placeholder={tt('timeline.durationAuto')}
-          style={{ width: '90px' }}
+          placeholder={labels.durationAuto}
+          style={TIMELINE_TOOLBAR_DURATION_INPUT_STYLE}
           value={durationDisplay}
           onChange={(e) => handleDurationChange(e.target.value)}
         />

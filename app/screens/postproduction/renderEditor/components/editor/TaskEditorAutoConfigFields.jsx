@@ -3,6 +3,17 @@ import { useEffect, useRef, useState } from "react";
 import DateTimeConfirmPicker from "../../../../../components/DateTimeConfirmPicker";
 
 const WARN_SOON_MS = 5 * 60 * 1000;
+const AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE = { alignItems: "center" };
+const AUTO_CONFIG_LABEL_140_STYLE = { width: "140px", marginBottom: 0 };
+const AUTO_CONFIG_FLEX_1_MIN_0_STYLE = { flex: 1, minWidth: 0 };
+const AUTO_CONFIG_FORM_NOTE_STYLE = {
+  whiteSpace: "pre-wrap",
+  display: "flex",
+  width: "100%",
+  fontSize: "14px",
+  boxSizing: "border-box",
+};
+const AUTO_CONFIG_CENTER_FLEX_STYLE = { display: "flex", alignItems: "center" };
 
 function resolveDatetimeBadge(scheduledAt) {
   if (!scheduledAt) return null;
@@ -74,11 +85,11 @@ function LaunchModeSection({
 
   const stationField = showStation ? (
     <div className="uu-grid-field">
-      <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
-        <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+      <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
+        <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
           {safeT(t, "postprod.tasks.form.autoRenderWorker", "Station de rendu")}
         </label>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
           <select
             className="uu-input"
             value={autoRenderWorkerKey}
@@ -124,11 +135,11 @@ function LaunchModeSection({
     <>
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
-            <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+          <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
+            <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
               {safeT(t, "postprod.tasks.form.autoRenderLaunchMode", "Mode de lancement")}
             </label>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
               <select
                 className="uu-input"
                 value={mergedMode}
@@ -154,11 +165,11 @@ function LaunchModeSection({
       {showDatetimePicker ? (
         <div className="uu-grid-2 mt-12">
           <div className="uu-grid-field">
-            <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
-              <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+            <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
+              <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
                 {safeT(t, "postprod.tasks.form.autoRenderScheduledAt", "Date de lancement")}
               </label>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
                 <DateTimeConfirmPicker
                   value={autoRenderScheduledAt}
                   disabled={tasksLoading}
@@ -256,11 +267,11 @@ function TaskEditorAutoConfigFields({
     <>
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
-            <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+          <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
+            <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
               {safeT(t, "postprod.tasks.form.autoRenderProjectSelect", "Projet")}
             </label>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
               <select
                 className="uu-input"
                 value={autoRenderProjectRef}
@@ -287,11 +298,11 @@ function TaskEditorAutoConfigFields({
           ) : null}
         </div>
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
-            <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+          <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
+            <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
               {safeT(t, "postprod.tasks.form.autoRenderFormShort", "Formulaire")}
             </label>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
               <select
                 className="uu-input"
                 value={autoRenderFormId}
@@ -331,17 +342,17 @@ function TaskEditorAutoConfigFields({
         </div>
       </div>
       {selectedAutoRenderForm && String(selectedAutoRenderForm?.note || "").trim() ? (
-        <div className="uu-notice info mt-12" style={{ whiteSpace: "pre-wrap", display: "flex", width: "100%", fontSize: "14px", boxSizing: "border-box" }}>
+        <div className="uu-notice info mt-12" style={AUTO_CONFIG_FORM_NOTE_STYLE}>
           {String(selectedAutoRenderForm.note).trim()}
         </div>
       ) : null}
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
-            <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+          <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
+            <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
               {safeT(t, "postprod.tasks.form.renderPreset", "Preset de rendu")}
             </label>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
               <select
                 className="uu-input"
                 value={autoRenderTemplateId}
@@ -375,7 +386,7 @@ function TaskEditorAutoConfigFields({
             </div>
           ) : null}
         </div>
-        <div style={{ display: "flex", alignItems: "center" }}>
+        <div style={AUTO_CONFIG_CENTER_FLEX_STYLE}>
           <label className="uu-check">
             <input
               type="checkbox"
@@ -391,11 +402,11 @@ function TaskEditorAutoConfigFields({
       </div>
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={{ alignItems: "center" }}>
-            <label className="uu-label" style={{ width: "140px", marginBottom: 0 }}>
+          <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
+            <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
               {safeT(t, "postprod.tasks.form.autoRenderSequence", "Level Sequence")}
             </label>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
               <select
                 className="uu-input"
                 value={taskSequenceName}

@@ -24,5 +24,3 @@ function buildRenderDetailControllerOutput({
 export {
   buildRenderDetailControllerOutput,
 };
-
-export default buildRenderDetailControllerOutput;

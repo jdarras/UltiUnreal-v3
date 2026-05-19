@@ -1,6 +1,8 @@
 import { safeT } from "../../shared/helpers";
 import { ResourceThumbImage } from "./ResourceThumbImage";
 
+const RESOURCES_DETAIL_JSON_STYLE = { maxHeight: "240px", overflow: "auto" };
+
 function ResourcesCatalogDetailPanel({
   t,
   detailLoading = false,
@@ -74,11 +76,11 @@ function ResourcesCatalogDetailPanel({
               className="uu-btn-ghost"
               disabled={typeof onOpenLinkedTasks !== "function"}
               onClick={() => onOpenLinkedTasks?.(selectedFallbackRef || detailUid || detailTitle)}
-            >
-              {safeT(t, "postprod.resources.action.openTasks", "Voir taches liees")}
-            </button>
-          </div>
-          <pre className="uu-code mt-12" style={{ maxHeight: "240px", overflow: "auto" }}>
+              >
+                {safeT(t, "postprod.resources.action.openTasks", "Voir taches liees")}
+              </button>
+            </div>
+          <pre className="uu-code mt-12" style={RESOURCES_DETAIL_JSON_STYLE}>
             {JSON.stringify(detailObj || {}, null, 2)}
           </pre>
         </div>
@@ -88,5 +90,3 @@ function ResourcesCatalogDetailPanel({
 }
 
 export { ResourcesCatalogDetailPanel };
-export default ResourcesCatalogDetailPanel;
-
