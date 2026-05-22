@@ -3,6 +3,7 @@ import { useRenderFocusRequestController } from "../useTaskFocusRequestControlle
 import { useRenderEditorCardListData } from "./useRenderEditorCardListData";
 import { useRenderEditorCardAutoRenderData } from "./useRenderEditorCardAutoRenderData";
 import { normalizeTaskVisualStatusKey } from "../../helpers";
+import { normalizeRenderReviewStatus } from "../../../shared/reviewStatusHelpers.js";
 
 function toPositiveTaskId(value = 0) {
   const parsed = Number(value || 0);
@@ -277,7 +278,7 @@ export function useRenderEditorDataController({
     const renderList = Array.isArray(renders) ? renders : [];
     for (const render of renderList) {
       if (resolveRenderLinkedTaskId(render) !== editingTaskId) continue;
-      const reviewStatus = String(render?.reviewStatus || "").trim().toLowerCase();
+      const reviewStatus = normalizeRenderReviewStatus(render?.reviewStatus);
       if (reviewStatus !== "to_modify") continue;
       const renderStamp = toRenderSortStamp(render);
       const renderIdRaw = Number(render?.id || 0);

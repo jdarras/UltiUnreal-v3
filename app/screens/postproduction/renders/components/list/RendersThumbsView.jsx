@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatDate, safeT, simplifyUnrealAssetDisplayName } from "../../../shared/helpers";
+import { renderReviewStatusClassName } from "../../helpers";
 
 const RENDERS_THUMB_CARD_CLICKABLE_STYLE = { cursor: "pointer" };
 const RENDERS_THUMB_HEADER_ROW_STYLE = { justifyContent: "space-between", alignItems: "baseline", gap: "8px" };
@@ -171,13 +172,6 @@ function resolveRenderSequenceLabel(render = null) {
     item?.sequenceName, payload?.sequenceName, payload?.levelSequence, payload?.levelSequenceName,
   ]);
   return simplifyUnrealAssetDisplayName(raw) || raw || "-";
-}
-
-function reviewStatusClassName(reviewStatus = "") {
-  const key = String(reviewStatus || "").trim().toLowerCase();
-  if (key === "validated") return "status-validated";
-  if (key === "rejected" || key === "to_modify" || key === "canceled") return "status-rejected";
-  return "status-to-validate";
 }
 
 function RendersThumbsView({
@@ -396,7 +390,7 @@ function RendersThumbCard({
       </div>
       <div className="uu-render-thumb-actions mt-12" onClick={(e) => e.stopPropagation()}>
         <select
-          className={`uu-input uu-render-thumb-validation uu-status-select ${reviewStatusClassName(reviewStatus)}`}
+          className={`uu-input uu-render-thumb-validation uu-status-select ${renderReviewStatusClassName(reviewStatus)}`}
           value={reviewStatus}
           disabled={rendersLoading || isBusy || !onTransitionRender || !canReviewRenders}
           onChange={async (e) => {

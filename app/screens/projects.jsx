@@ -30,14 +30,16 @@ import { useProjectsList } from './hooks/useProjectsList';
 import { useProjectDetail } from './hooks/useProjectDetail';
 import { usePromiseConfirmDialog } from './hooks/usePromiseConfirmDialog';
 import { useProjectsNoticeEffect } from './hooks/useProjectsNoticeEffect';
+import { useProjectsServerUiHandlers } from './hooks/useProjectsServerUiHandlers';
+import ProjectsSnapshotLightbox from '../components/ProjectsSnapshotLightbox';
+import ProjectsDetailActionsBar from '../components/ProjectsDetailActionsBar';
+import ProjectsDetailHeaderBar from '../components/ProjectsDetailHeaderBar';
+import ProjectsDetailIndexationCard from '../components/ProjectsDetailIndexationCard';
 
-const ProjectsHeaderBar = React.lazy(() => import('../components/ProjectsHeaderBar'));
-const ProjectsListView = React.lazy(() => import('../components/ProjectsListView'));
-const ProjectsCardsView = React.lazy(() => import('../components/ProjectsCardsView'));
-const ProjectForm = React.lazy(() => import('../components/ProjectForm'));
-const ProjectsThumbsView = React.lazy(() => import('../components/ProjectsThumbsView'));
 const HttpBindBlock = React.lazy(() => import('../components/HttpBindBlock'));
-const MultiSelectDropdown = React.lazy(() => import('../components/MultiSelectDropdown'));
+const ProjectsActiveBanner = React.lazy(() => import('../components/ProjectsActiveBanner'));
+const ProjectsClientSection = React.lazy(() => import('../components/ProjectsClientSection'));
+const ProjectsServerSection = React.lazy(() => import('../components/ProjectsServerSection'));
 
 function createInitialAdvanced() {
   return {
@@ -53,24 +55,27 @@ function createInitialAdvanced() {
   };
 }
 
+function createDefaultDetailMeta({ includeFavorite = false } = {}) {
+  const base = {
+    status: '',
+    type: '',
+    usageMode: '',
+    category: '',
+    fileVersion: '',
+    referents: {},
+    keywords: [],
+    note: '',
+  };
+  if (includeFavorite) {
+    return { ...base, favorite: false };
+  }
+  return base;
+}
+
 const DETAIL_SECTION_TITLE_ROW_STYLE = { marginBottom: '12px' };
-const DETAIL_NAME_INPUT_STYLE = { minWidth: '240px', width: '50%' };
-const FLEX_ZERO_AUTO_STYLE = { flex: '0 0 auto' };
-const MARGIN_LEFT_AUTO_STYLE = { marginLeft: 'auto' };
 const FLEX_1_300_STYLE = { flex: '1 1 300px' };
-const OVERFLOW_HIDDEN_STYLE = { overflow: 'hidden' };
-const FLEX_1_AUTO_STYLE = { flex: '1 1 auto' };
-const KEYWORDS_INPUT_STYLE = { minWidth: '220px', flex: '1 1 260px' };
-const KEYWORDS_CHIPS_ROW_STYLE = { marginLeft: '160px' };
-const CHIP_STYLE = { border: 'none', padding: '6px 10px', gap: '8px' };
-const CHIP_TEXT_STYLE = { marginRight: '6px' };
-const CHIP_REMOVE_STYLE = { padding: '2px 6px', minWidth: 'auto', height: '22px' };
 const LABEL_CLICKABLE_STYLE = { cursor: 'pointer', userSelect: 'none' };
-const WIDTH_110_LEFT_LABEL_STYLE = { width: '110px', textAlign: 'left', marginLeft: '8px' };
-const WIDTH_90_LEFT_LABEL_STYLE = { width: '90px', textAlign: 'left', marginLeft: '8px' };
 const TEXT_ELLIPSIS_STYLE = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-const SNAPSHOT_VIEWER_IMAGE_ROW_STYLE = { marginTop: '12px', display: 'flex', justifyContent: 'center' };
-const SNAPSHOT_VIEWER_IMAGE_STYLE = { maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px' };
 const PROJECT_DETAIL_FIELDSET_STYLE = {
   border: 'none',
   padding: 0,
@@ -95,35 +100,11 @@ const SNAPSHOT_TILE_PREVIEW_STYLE = {
 };
 const SNAPSHOT_TILE_IMAGE_STYLE = { width: '100%', height: '100%', objectFit: 'cover' };
 const SNAPSHOT_TILE_EMPTY_STYLE = { padding: '8px' };
-const SNAPSHOT_OVERLAY_STYLE = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,0.75)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '24px',
-  zIndex: 9999,
-};
-const SNAPSHOT_MODAL_STYLE = {
-  width: 'min(1200px, 95vw)',
-  maxHeight: '90vh',
-  overflow: 'auto',
-  padding: '12px',
-};
-const WIDTH_260_STYLE = { width: '260px' };
 const WIDTH_180_STYLE = { width: '180px' };
 const WIDTH_120_STYLE = { width: '120px' };
 const WIDTH_48_STYLE = { width: '48px' };
 const WIDTH_520_STYLE = { width: '520px' };
-const SEARCH_PANEL_MARGIN_BOTTOM_STYLE = { marginBottom: '16px' };
-const ADV_WIDTH_500_STYLE = { width: '500px', minWidth: '500px', maxWidth: '500px' };
-const ADV_WIDTH_520_STYLE = { width: '520px', minWidth: '520px', maxWidth: '520px' };
-const ADV_WIDTH_500_INPUT_STYLE = { width: '500px', minWidth: '500px', maxWidth: '500px', height: '36px' };
-const ADV_WIDTH_520_INPUT_STYLE = { width: '520px', minWidth: '520px', maxWidth: '520px', height: '36px' };
 const WIDTH_60_PERCENT_STYLE = { width: '60%' };
-const PAGINATION_ROW_MARGIN_STYLE = { margin: '12px 0' };
-const PAGE_SIZE_SELECT_STYLE = { width: '80px' };
 const RENDER_BRIDGE_STATE_READY_STYLE = { color: 'var(--uu-ok)' };
 const RENDER_BRIDGE_STATE_DEFAULT_STYLE = { color: 'var(--uu-color-text)' };
 const RENDER_BRIDGE_STATE_ERROR_STYLE = { color: 'var(--uu-error)' };
@@ -469,6 +450,102 @@ export default function ProjectsScreen({
     return associateForClientActive(clientActiveId, clientActiveName);
   }, [associateForClientActive, clientActiveId, clientActiveName]);
 
+  const handleDetailNameInputChange = React.useCallback((e) => {
+    const name = e.target.value;
+    setDetailName(name);
+    setDetailMsg('');
+    if (detailIsNew) return;
+    const updated = projects.map((p) => (
+      String(p.id || '').trim() === String(detailId).trim()
+        ? { ...p, name }
+        : p
+    ));
+    setProjects(updated);
+    saveToServer(updated, name, activeByHost, detailId);
+  }, [setDetailName, setDetailMsg, detailIsNew, projects, detailId, setProjects, saveToServer, activeByHost]);
+
+  const handleDetailFavoriteToggle = React.useCallback(() => {
+    const nextFav = detailMeta?.favorite === true ? false : true;
+    handleSetDetailFavorite(detailId, nextFav);
+  }, [detailMeta, detailId, handleSetDetailFavorite]);
+
+  const handleCloseDetail = React.useCallback(() => {
+    closeDetailAndSave('');
+  }, [closeDetailAndSave]);
+
+  const handleDetailPathInputChange = React.useCallback((e) => {
+    setDetailPath(e.target.value);
+    setDetailMsg('');
+  }, [setDetailPath, setDetailMsg]);
+
+  const handleDetailPathInputBlur = React.useCallback((e) => {
+    const nextPath = e.target.value;
+    scheduleSave(null, null, { path: nextPath });
+  }, [scheduleSave]);
+
+  const handleBrowseDetailPath = React.useCallback(async () => {
+    let file = await window.electron?.chooseUproject?.({
+      defaultPath: getUprojectDialogDefaultPath(detailPath),
+    });
+    if (file && typeof file === 'object') {
+      file = file.file || file.path || (Array.isArray(file) ? file[0] : '');
+    }
+    if (file) {
+      const np = normPath(file);
+      setDetailPath(np);
+      setDetailMsg('');
+      scheduleSave(null, null, { path: np });
+    }
+  }, [detailPath, setDetailPath, setDetailMsg, scheduleSave]);
+
+  const handleViewDetailPath = React.useCallback(() => {
+    const p = normPath(detailPath);
+    if (!p) return;
+    if (window?.electron?.openPath) {
+      window.electron.openPath(p);
+    } else {
+      const uri = p.startsWith('file://') ? p : `file:///${p.replace(/\\/g, '/')}`;
+      try { window.open(encodeURI(uri)); } catch {}
+    }
+  }, [detailPath]);
+
+  const markProjectDropdownDirty = React.useCallback(() => {
+    projectDropdownDirtyRef.current = true;
+  }, [projectDropdownDirtyRef]);
+
+  const handleProjectVersionInputChange = React.useCallback((e) => {
+    const v = e.target.value;
+    setProjectVersion(v);
+    setProjectVersionMsg('');
+    setProjectVersionMsgType('');
+  }, [setProjectVersion, setProjectVersionMsg, setProjectVersionMsgType]);
+
+  const handleProjectVersionInputBlur = React.useCallback(() => {
+    scheduleProjectVersionSave();
+  }, [scheduleProjectVersionSave]);
+
+  const handleProjectVersionInputKeyDown = React.useCallback((e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      scheduleProjectVersionSave();
+    }
+  }, [scheduleProjectVersionSave]);
+
+  const handleDetailNoteChange = React.useCallback((e) => {
+    const el = e.target;
+    el.style.height = '0px';
+    el.style.height = `${el.scrollHeight}px`;
+    updateDetailField('note', e.target.value);
+  }, [updateDetailField]);
+
+  const handleKeywordsInputChange = React.useCallback((e) => {
+    setKeywordsInput(e.target.value);
+  }, [setKeywordsInput]);
+
+  const handleKeywordsInputBlur = React.useCallback(() => {
+    addKeywordToDraft(keywordsInput);
+  }, [addKeywordToDraft, keywordsInput]);
+
   const noticeCandidates = React.useMemo(() => ([
     integrationMsg ? { text: integrationMsg, type: integrationMsgType } : null,
     httpBindMsg ? { text: httpBindMsg, type: httpBindMsgType } : null,
@@ -572,7 +649,7 @@ export default function ProjectsScreen({
     setDetailName('');
     setDetailIsNew(true);
     resetDetailState();
-    setDetailMeta({ status: '', type: '', usageMode: '', category: '', fileVersion: '', referents: {}, keywords: [], note: '', favorite: false });
+    setDetailMeta(createDefaultDetailMeta({ includeFavorite: true }));
     setDetailInsights({});
     setDetailPath('');
     setDetailWrcNames([]);
@@ -625,7 +702,7 @@ export default function ProjectsScreen({
     await saveToServer(nextList, activeName, activeByHost, activeId);
     const detailMetaPayload = detailMeta && typeof detailMeta === 'object'
       ? detailMeta
-      : { status: '', type: '', usageMode: '', category: '', fileVersion: '', referents: {}, keywords: [], note: '' };
+      : createDefaultDetailMeta();
     const { favorite: _ignoredFavorite, ...detailMetaSharedPayload } = detailMetaPayload;
     await saveProjectMeta(newId, detailMetaSharedPayload);
     setDetailId('');
@@ -785,6 +862,29 @@ export default function ProjectsScreen({
   const visibleProjects = projectsWithActive.slice(pageStart, pageStart + pageSize);
   const canPrevPage = currentPage > 0;
   const canNextPage = currentPage < totalPages - 1;
+  const {
+    handleToggleFavoriteFilter,
+    handleSearchClear,
+    handleOpenAdvancedSearch,
+    handleBrowseProjectPath,
+    handleCloseAdvancedSearch,
+    handlePrevPage,
+    handleNextPage,
+    handlePageSizeChange,
+  } = useProjectsServerUiHandlers({
+    createInitialAdvanced,
+    formProjectPath: form.projectPath,
+    totalPages,
+    setFavoriteOnly,
+    setSearchQuery,
+    setSearchAdvanced,
+    setSearchExpanded,
+    setForm,
+    getUprojectDialogDefaultPath,
+    normPath,
+    setPage,
+    setPageSize,
+  });
   const projectViewCommonProps = {
     t,
     projects: visibleProjects,
@@ -825,7 +925,82 @@ export default function ProjectsScreen({
 
   /* ---------------- Rendu ---------------- */
   const lazyBlockFallback = <div className="uu-muted">{t('projects.detail.loading')}</div>;
-  const lazyInlineFallback = <span className="uu-muted">{t('projects.detail.loading')}</span>;
+  const canClearServerFilters = !!searchQuery || favoriteOnly || hasAdvancedFilters || searchExpanded;
+  const activeBannerProps = {
+    t,
+    role,
+    canOpenProjectDetails,
+    activeId,
+    activeName,
+    clientActiveId,
+    clientActiveName,
+    projectsLoading,
+    onOpenDetails: openDetails,
+  };
+  const serverSectionProps = {
+    fallback: lazyBlockFallback,
+    t,
+    formVisible,
+    sortMode,
+    onSortChange: handleSort,
+    searchQuery,
+    favoriteOnly,
+    onToggleFavoriteFilter: handleToggleFavoriteFilter,
+    onSearchChange: setSearchQuery,
+    onSearchClear: handleSearchClear,
+    canClear: canClearServerFilters,
+    onAdvanced: handleOpenAdvancedSearch,
+    viewMode,
+    onViewChange: setViewMode,
+    onAdd: startAddProject,
+    canAdd: canManageUnrealProjects,
+    form,
+    setForm,
+    formError,
+    onSubmit: submitForm,
+    onCancel: cancelForm,
+    editingIndex,
+    noteRef,
+    normalizePath: normPath,
+    clearFormError: () => setFormError(''),
+    onBrowse: handleBrowseProjectPath,
+    searchExpanded,
+    filteredCount: filteredProjects.length,
+    searchAdvanced,
+    setSearchAdvanced,
+    noneLabel,
+    engineVersionOptions,
+    directorOptions,
+    technicianOptions,
+    operatorOptions,
+    journalistOptions,
+    onCloseAdvanced: handleCloseAdvancedSearch,
+    projectsCount: projectsWithActive.length,
+    currentPage,
+    totalPages,
+    canPrevPage,
+    canNextPage,
+    pageSize,
+    onPrevPage: handlePrevPage,
+    onNextPage: handleNextPage,
+    onPageSizeChange: handlePageSizeChange,
+    projectsLoading,
+    projectViewCommonProps,
+    integrationMsg,
+    removeOne,
+    sortDir,
+  };
+  const clientSectionProps = {
+    t,
+    fallback: lazyBlockFallback,
+    showProjectActivation,
+    projectsLoading,
+    clientActiveName,
+    clientActiveId,
+    clientAssocPath,
+    clientSyncEnabled,
+    onAssociate: handleAssociateForClientActive,
+  };
 
   if (detailId) {
     const proj = projects.find(p => String(p.id || '').trim() === String(detailId));
@@ -896,55 +1071,18 @@ export default function ProjectsScreen({
 
     return (
       <div className="uu-page uu-page-compact">
-        <div className="uu-section">
-          <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-            <span className="uu-id-tag">[{detailId}]</span>
-            <input
-              className="uu-input"
-              style={DETAIL_NAME_INPUT_STYLE}
-              value={detailName}
-              onChange={(e) => {
-                const name = e.target.value;
-                setDetailName(name);
-                setDetailMsg('');
-                if (detailIsNew) return;
-                const updated = projects.map(p =>
-                  String(p.id || '').trim() === String(detailId).trim()
-                    ? { ...p, name }
-                    : p
-                );
-                setProjects(updated);
-                saveToServer(updated, name, activeByHost, detailId);
-              }}
-            />
-            <div className="uu-row uu-align-center uu-gap-6" style={FLEX_ZERO_AUTO_STYLE}>
-              <button
-                type="button"
-                className={`uu-fav-btn ${detailMeta?.favorite === true ? 'active' : ''}`}
-                onClick={() => {
-                  const nextFav = detailMeta?.favorite === true ? false : true;
-                  handleSetDetailFavorite(detailId, nextFav);
-                }}
-                aria-pressed={detailMeta?.favorite === true ? 'true' : 'false'}
-                title={t('resources.detail.labels.favorite')}
-              >
-                ★
-              </button>
-              <span>Favori</span>
-              <span>—</span>
-              <span>{t('projects.detail.labels.engineVersionShort')} {versionEl(proj?.engineVersion)}</span>
-            </div>
-            <div className="uu-row uu-gap-8" style={MARGIN_LEFT_AUTO_STYLE}>
-              {detailIsNew ? (
-                <button className="uu-btn" onClick={() => { createProjectFromDraft(); }}>
-                  {t('projects.detail.buttons.add')}
-                </button>
-              ) : null}
-              <button className="uu-btn" onClick={() => closeDetailAndSave('')}>{t('projects.detail.back')}</button>
-            </div>
-          </div>
-          {/* inline messages supprimés : seuls les messages top-page sont conservés */}
-        </div>
+        <ProjectsDetailHeaderBar
+          t={t}
+          detailId={detailId}
+          detailName={detailName}
+          onDetailNameChange={handleDetailNameInputChange}
+          isFavorite={detailMeta?.favorite === true}
+          onToggleFavorite={handleDetailFavoriteToggle}
+          engineVersionElement={versionEl(proj?.engineVersion)}
+          detailIsNew={detailIsNew}
+          onCreateProject={createProjectFromDraft}
+          onBack={handleCloseDetail}
+        />
 
         <div className="uu-section uu-col uu-gap-16">
           {detailLoading ? (
@@ -965,45 +1103,20 @@ export default function ProjectsScreen({
                         className="uu-input"
                         style={FLEX_1_300_STYLE}
                         value={detailPath}
-                        onChange={(e) => { setDetailPath(e.target.value); setDetailMsg(''); }}
-                        onBlur={(e) => {
-                          const nextPath = e.target.value;
-                          scheduleSave(null, null, { path: nextPath });
-                        }}
+                        onChange={handleDetailPathInputChange}
+                        onBlur={handleDetailPathInputBlur}
                       />
                       <button
                         type="button"
                         className="uu-btn"
-                        onClick={async () => {
-                          let file = await window.electron?.chooseUproject?.({
-                            defaultPath: getUprojectDialogDefaultPath(detailPath),
-                          });
-                          if (file && typeof file === 'object') {
-                            file = file.file || file.path || (Array.isArray(file) ? file[0] : '');
-                          }
-                          if (file) {
-                            const np = normPath(file);
-                            setDetailPath(np);
-                            setDetailMsg('');
-                            scheduleSave(null, null, { path: np });
-                          }
-                        }}
+                        onClick={handleBrowseDetailPath}
                       >
                         {t('common.browse')}
                       </button>
                       <button
                         type="button"
                         className="uu-btn"
-                        onClick={() => {
-                          const p = normPath(detailPath);
-                          if (!p) return;
-                          if (window?.electron?.openPath) {
-                            window.electron.openPath(p);
-                          } else {
-                            const uri = p.startsWith('file://') ? p : `file:///${p.replace(/\\/g, '/')}`;
-                            try { window.open(encodeURI(uri)); } catch {}
-                          }
-                        }}
+                        onClick={handleViewDetailPath}
                       >
                         {t('common.view')}
                       </button>
@@ -1012,156 +1125,28 @@ export default function ProjectsScreen({
                 </div>
               </div>
 
-              {/* Bloc : Indexation */}
-              <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
-                  <strong className="uu-block-title">{t('projects.detail.blocks.indexation')}</strong>
-                </div>
-                <div className="uu-col uu-gap-16">
-                  <div className="uu-row wrap uu-align-center uu-gap-8">
-                    <div className="uu-label w-160">{t('projects.detail.labels.status')}</div>
-                    <select
-                      className="uu-select"
-                      style={WIDTH_260_STYLE}
-                      value={meta.status || ''}
-                      onChange={(e) => {
-                        projectDropdownDirtyRef.current = true;
-                        updateDetailField('status', e.target.value);
-                      }}
-                    >
-                      <option value="">{noneLabel}</option>
-                      <option value="Test">{t('projects.detail.status.test')}</option>
-                      <option value="In progress">{t('projects.detail.status.in_progress')}</option>
-                      <option value="A modifier">{t('projects.detail.status.to_modify')}</option>
-                      <option value="PAD">{t('projects.detail.status.pas')}</option>
-                      <option value="Archive">{t('projects.detail.status.archive')}</option>
-                    </select>
-
-                    <div className="uu-label" style={WIDTH_110_LEFT_LABEL_STYLE}>
-                      {t('projects.detail.labels.usageMode')}
-                    </div>
-                    <select
-                      className="uu-select"
-                      style={WIDTH_260_STYLE}
-                      value={meta.usageMode || ''}
-                      onChange={(e) => {
-                        projectDropdownDirtyRef.current = true;
-                        updateDetailField('usageMode', e.target.value);
-                      }}
-                    >
-                      <option value="">{noneLabel}</option>
-                      <option value="live">{t('projects.detail.usageMode.live')}</option>
-                      <option value="auto_render">{t('projects.detail.usageMode.auto_render')}</option>
-                      <option value="live_auto_render">{t('projects.detail.usageMode.live_auto_render')}</option>
-                      <option value="other">{t('projects.detail.usageMode.other')}</option>
-                    </select>
-                  </div>
-
-                  <div className="uu-row wrap uu-align-center uu-gap-8">
-                    <div className="uu-label w-160">{t('projects.detail.labels.type')}</div>
-                    <select
-                      className="uu-select"
-                      style={WIDTH_260_STYLE}
-                      value={meta.type || ''}
-                      onChange={(e) => {
-                        projectDropdownDirtyRef.current = true;
-                        updateDetailField('type', e.target.value);
-                      }}
-                    >
-                      <option value="">{noneLabel}</option>
-                      <option value="Réalité augmentée">{t('projects.detail.type.ar')}</option>
-                      <option value="Green Screen">{t('projects.detail.type.green')}</option>
-                      <option value="NDisplay">{t('projects.detail.type.ndisplay')}</option>
-                      <option value="Motion Design">{t('projects.detail.type.motion')}</option>
-                      <option value="Blueprint">{t('projects.detail.type.blueprint')}</option>
-                      <option value="Plugin">{t('projects.detail.type.plugin')}</option>
-                      <option value="Scène Unreal">{t('projects.detail.type.scene')}</option>
-                      <option value="Movie Render Cue">{t('projects.detail.type.movie_render_cue')}</option>
-                    </select>
-
-                    {!detailIsNew && (
-                      <>
-                        <div className="uu-label" style={WIDTH_90_LEFT_LABEL_STYLE}>
-                          {t('projects.detail.labels.fileVersion')}
-                        </div>
-                        <input
-                          className="uu-input"
-                          style={WIDTH_180_STYLE}
-                          value={projectVersion ?? ''}
-                          disabled={detailLoading || projectVersionBusy}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setProjectVersion(v);
-                            setProjectVersionMsg('');
-                            setProjectVersionMsgType('');
-                          }}
-                          onBlur={() => scheduleProjectVersionSave()}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              scheduleProjectVersionSave();
-                            }
-                          }}
-                        />
-                      </>
-                    )}
-                  </div>
-
-                  <div className="uu-row wrap">
-                  <div className="uu-label w-160">{t('projects.detail.labels.note')}</div>
-                  <div className="uu-value">
-                    <textarea
-                      ref={detailNoteRef}
-                      className="uu-input"
-                      rows={1}
-                      style={OVERFLOW_HIDDEN_STYLE}
-                      value={meta.note || ''}
-                      onChange={(e) => {
-                        const el = e.target;
-                        el.style.height = '0px';
-                        el.style.height = el.scrollHeight + 'px';
-                        updateDetailField('note', e.target.value);
-                      }}
-                    />
-                  </div>
-                </div>
-
-                  <div className="uu-row wrap">
-                    <div className="uu-label w-160">{t('projects.detail.labels.keywords')}</div>
-                    <div className="uu-row" style={FLEX_1_AUTO_STYLE}>
-                      <input
-                        className="uu-input"
-                        style={KEYWORDS_INPUT_STYLE}
-                        placeholder=""
-                        value={keywordsInput}
-                        onChange={(e) => setKeywordsInput(e.target.value)}
-                        onKeyDown={handleKeywordKeyDown}
-                        onBlur={() => addKeywordToDraft(keywordsInput)}
-                      />
-                    </div>
-                  </div>
-                  <div className="uu-row uu-gap-6 uu-wrap" style={KEYWORDS_CHIPS_ROW_STYLE}>
-                    {detailKeywordsList.map((kw) => (
-                      <span
-                        key={kw}
-                        className="uu-chip"
-                        style={CHIP_STYLE}
-                      >
-                        <span style={CHIP_TEXT_STYLE}>{kw}</span>
-                        <button
-                          type="button"
-                          className="uu-chip-remove"
-                          onClick={() => removeKeywordFromDraft(kw)}
-          aria-label={t('common.delete')}
-                          style={CHIP_REMOVE_STYLE}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <ProjectsDetailIndexationCard
+                t={t}
+                meta={meta}
+                noneLabel={noneLabel}
+                detailIsNew={detailIsNew}
+                detailLoading={detailLoading}
+                projectVersion={projectVersion}
+                projectVersionBusy={projectVersionBusy}
+                markProjectDropdownDirty={markProjectDropdownDirty}
+                onUpdateDetailField={updateDetailField}
+                onProjectVersionChange={handleProjectVersionInputChange}
+                onProjectVersionBlur={handleProjectVersionInputBlur}
+                onProjectVersionKeyDown={handleProjectVersionInputKeyDown}
+                detailNoteRef={detailNoteRef}
+                onDetailNoteChange={handleDetailNoteChange}
+                keywordsInput={keywordsInput}
+                onKeywordsInputChange={handleKeywordsInputChange}
+                onKeywordsKeyDown={handleKeywordKeyDown}
+                onKeywordsBlur={handleKeywordsInputBlur}
+                detailKeywordsList={detailKeywordsList}
+                onRemoveKeyword={removeKeywordFromDraft}
+              />
 
               {/* Bloc : Plugin Rendu (Bridge) */}
               {!detailIsNew && renderBridgeEligible ? (
@@ -1782,103 +1767,31 @@ export default function ProjectsScreen({
           )}
         </div>
 
-        <div className="uu-section">
-          <div className="uu-row uu-gap-8">
-            {detailIsNew && canManageUnrealProjects ? (
-              <button
-                className="uu-btn"
-                onClick={createProjectFromDraft}
-              >
-                {t('projects.detail.buttons.add')}
-              </button>
-            ) : null}
-            {detailIsNew ? null : (
-              <>
-                {canManageUnrealProjects && showProjectActivation ? (
-                  <button
-                    className={`uu-btn ${isActiveDetail ? 'prod-toggle-active' : ''}`}
-                    onClick={() => { activateOne(detailId); }}
-                    disabled={isActiveDetail}
-                  >
-                    {isActiveDetail ? t('projects.server.card.active') : t('projects.server.card.setActive')}
-                  </button>
-                ) : null}
-                {canManageUnrealProjects && (showProjectActivation ? isActiveDetail : true) ? (
-                  <button
-                    className={showProjectActivation ? 'uu-btn prod-toggle-active' : 'uu-btn'}
-                    onClick={() => { startIntegration(detailId); }}
-                  >
-                    {t('launch.buttons.start')}
-                  </button>
-                ) : null}
-                {canCreateTaskFromProject && isAutoRenderUsage(detailMeta?.usageMode, detailMeta?.status) ? (
-                  <button
-                    className="uu-btn"
-                    onClick={() => { createTaskFromProject(detailId); }}
-                  >
-                    {t('projects.actions.createTask')}
-                  </button>
-                ) : null}
-                {canManageUnrealProjects ? (
-                  <button className="uu-btn" onClick={() => { removeOne(detailId); setDetailId(''); }}>{t('projects.server.card.delete')}</button>
-                ) : null}
-              </>
-            )}
-          </div>
-        </div>
+        <ProjectsDetailActionsBar
+          t={t}
+          detailIsNew={detailIsNew}
+          canManageUnrealProjects={canManageUnrealProjects}
+          showProjectActivation={showProjectActivation}
+          isActiveDetail={isActiveDetail}
+          canCreateTaskFromProject={canCreateTaskFromProject}
+          detailMeta={detailMeta}
+          isAutoRenderUsage={isAutoRenderUsage}
+          onCreateProject={createProjectFromDraft}
+          onActivateProject={() => activateOne(detailId)}
+          onStartIntegration={() => startIntegration(detailId)}
+          onCreateTaskFromProject={() => createTaskFromProject(detailId)}
+          onDeleteProject={() => { removeOne(detailId); setDetailId(''); }}
+        />
 
-        {snapshotOpen ? (
-          <div style={SNAPSHOT_OVERLAY_STYLE} onClick={closeSnapshotViewer}>
-            <div
-              className="uu-card"
-              style={SNAPSHOT_MODAL_STYLE}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-                <strong className="uu-block-title">{t('projects.snapshots.title')}</strong>
-                <span className="uu-muted" style={TEXT_ELLIPSIS_STYLE}>
-                  {snapshotOpen.rel || ''}
-                </span>
-                <button
-                  type="button"
-                  className="uu-btn"
-                  style={MARGIN_LEFT_AUTO_STYLE}
-                  onClick={closeSnapshotViewer}
-                  disabled={snapshotBusy}
-                >
-                  {t('common.close')}
-                </button>
-              </div>
-
-              <div style={SNAPSHOT_VIEWER_IMAGE_ROW_STYLE}>
-                <img
-                  src={snapshotSrc(detailId, snapshotOpen.rel, snapshotOpen.mtime)}
-                  alt=""
-                  style={SNAPSHOT_VIEWER_IMAGE_STYLE}
-                />
-              </div>
-
-              <div className="uu-row uu-gap-8 mt-12">
-                <button
-                  type="button"
-                  className="uu-btn"
-                  onClick={() => { if (snapshotOpen.path) window.electron?.openPath?.(snapshotOpen.path); }}
-                  disabled={!snapshotOpen.path}
-                >
-                  {t('projects.snapshots.openInExplorer')}
-                </button>
-                <button
-                  type="button"
-                  className="uu-btn"
-                  onClick={() => setAutoScreenshotFromSnapshot(snapshotOpen.rel || snapshotOpen.path, snapshotOpen.mtime)}
-                  disabled={snapshotBusy || !(snapshotOpen.rel || snapshotOpen.path)}
-                >
-                  {t('projects.snapshots.setAsThumbnail')}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        <ProjectsSnapshotLightbox
+          t={t}
+          snapshotOpen={snapshotOpen}
+          detailId={detailId}
+          snapshotBusy={snapshotBusy}
+          snapshotSrc={snapshotSrc}
+          onClose={closeSnapshotViewer}
+          onSetAsThumbnail={setAutoScreenshotFromSnapshot}
+        />
         {renderConfirmDialog()}
       </div>
     );
@@ -1888,411 +1801,24 @@ export default function ProjectsScreen({
   return (
     <div className="uu-page uu-page-compact">
       
-      {/* Bandeau "Projet actif" (live uniquement) */}
-      {showProjectActivation ? (
-        <div className="uu-section">
-          {role === 'server' ? (
-            <div className="uu-kv">
-              {canOpenProjectDetails && activeId ? (
-                <button className="uu-btn" onClick={() => openDetails(activeId)}>
-                  {t('projects.actions.edit')}
-                </button>
-              ) : null}
-              <span className="uu-k">{t('projects.active.label')}</span>
-              <span className="uu-v">
-                {projectsLoading
-                  ? t('projects.active.loading')
-            : (activeName || t('projects.active.none'))}{' '}
-                {activeId ? (
-                  <span className="uu-id-tag uu-muted">[{activeId}]</span>
-                ) : null}
-              </span>
-            </div>
-          ) : (
-            <div className="uu-kv">
-              <span className="uu-k">{t('projects.active.label')}</span>
-              <span className="uu-v">
-                {projectsLoading
-                  ? t('projects.active.loading')
-            : (clientActiveName || t('projects.active.none'))}{' '}
-                {clientActiveId ? <span className="uu-id-tag uu-muted">[{clientActiveId}]</span> : null}
-              </span>
-            </div>
-          )}
-        </div>
+      {role === 'server' && showProjectActivation ? (
+        <Suspense fallback={lazyBlockFallback}>
+          <ProjectsActiveBanner {...activeBannerProps} />
+        </Suspense>
       ) : null}
 
       {role === 'server' ? (
-        <>
-          {/* Section : bouton + tri OU formulaire */}
-          <div className="uu-section">
-            {/* Quand on n’édite pas : bouton + tri */}
-            {!formVisible && (
-              <Suspense fallback={lazyBlockFallback}>
-                <ProjectsHeaderBar
-                  t={t}
-                  sortMode={sortMode}
-                  onSortChange={(val) => handleSort(val)}
-                  searchQuery={searchQuery}
-                  favoriteOnly={favoriteOnly}
-                  onToggleFavoriteFilter={() => setFavoriteOnly((prev) => !prev)}
-                  onSearchChange={setSearchQuery}
-                  onSearchClear={() => {
-                    setSearchQuery('');
-                    setFavoriteOnly(false);
-                    setSearchAdvanced(createInitialAdvanced());
-                    setSearchExpanded(false);
-                  }}
-                  canClear={!!searchQuery || favoriteOnly || hasAdvancedFilters || searchExpanded}
-                  onAdvanced={() => setSearchExpanded(true)}
-                  viewMode={viewMode}
-                  onViewChange={setViewMode}
-                  onAdd={startAddProject}
-                  canAdd={canManageUnrealProjects}
-                />
-              </Suspense>
-            )}
-
-            {/* Quand on édite / ajoute : on affiche ton formulaire */}
-            {formVisible && (
-              <Suspense fallback={lazyBlockFallback}>
-                <ProjectForm
-                  t={t}
-                  form={form}
-                  setForm={setForm}
-                  formError={formError}
-                  onSubmit={submitForm}
-                  onCancel={cancelForm}
-                  editingIndex={editingIndex}
-                  noteRef={noteRef}
-                  normalizePath={normPath}
-                  clearFormError={() => setFormError('')}
-                  onBrowse={async () => {
-                    let file = await window.electron?.chooseUproject?.({
-                      defaultPath: getUprojectDialogDefaultPath(form.projectPath),
-                    });
-                    if (file && typeof file === 'object') {
-                      file = file.file || file.path || (Array.isArray(file) ? file[0] : '');
-                    }
-                    if (file) {
-                      setForm((f) => ({ ...f, projectPath: normPath(file) }));
-                    }
-                  }}
-                />
-              </Suspense>
-            )}
-          </div>
-
-          {/* Section : liste des projets (triés) */}
-          {searchExpanded && (
-            <div className="uu-card uu-col uu-gap-12" style={SEARCH_PANEL_MARGIN_BOTTOM_STYLE}>
-              <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-                <strong className="uu-block-title">{t('projects.search.advancedTitle')}</strong>
-                <div className="uu-muted">
-                  {filteredProjects.length ? `(${filteredProjects.length} ${t('projects.search.resultsLabel')})` : ''}
-                </div>
-              </div>
-
-              <div className="uu-col uu-gap-12">
-                <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
-                    <label className="uu-label w-90">{t('projects.detail.labels.status')}</label>
-                    <Suspense fallback={lazyInlineFallback}>
-                      <MultiSelectDropdown
-                        options={[
-                          { value: 'Test', label: t('projects.detail.status.test') },
-                          { value: 'In progress', label: t('projects.detail.status.in_progress') },
-                          { value: 'A modifier', label: t('projects.detail.status.to_modify') },
-                          { value: 'PAD', label: t('projects.detail.status.pas') },
-                          { value: 'Archive', label: t('projects.detail.status.archive') },
-                        ]}
-                        values={searchAdvanced.status}
-                        onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, status: vals }))}
-                        placeholder={noneLabel}
-                        noneLabel={noneLabel}
-                        style={ADV_WIDTH_500_STYLE}
-                      />
-                    </Suspense>
-                  </div>
-                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
-                    <label className="uu-label w-90">{t('projects.detail.labels.type')}</label>
-                    <Suspense fallback={lazyInlineFallback}>
-                      <MultiSelectDropdown
-                        options={[
-                          { value: 'Réalité augmentée', label: t('projects.detail.type.ar') },
-                          { value: 'Green Screen', label: t('projects.detail.type.green') },
-                          { value: 'NDisplay', label: t('projects.detail.type.ndisplay') },
-                          { value: 'Motion Design', label: t('projects.detail.type.motion') },
-                          { value: 'Blueprint', label: t('projects.detail.type.blueprint') },
-                          { value: 'Plugin', label: t('projects.detail.type.plugin') },
-                          { value: 'Scène Unreal', label: t('projects.detail.type.scene') },
-                          { value: 'Movie Render Cue', label: t('projects.detail.type.movie_render_cue') },
-                        ]}
-                        values={searchAdvanced.type}
-                        onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, type: vals }))}
-                        placeholder={noneLabel}
-                        noneLabel={noneLabel}
-                        style={ADV_WIDTH_520_STYLE}
-                      />
-                    </Suspense>
-                  </div>
-                </div>
-
-                <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
-                    <label className="uu-label w-90">{t('projects.detail.labels.usageMode')}</label>
-                    <Suspense fallback={lazyInlineFallback}>
-                      <MultiSelectDropdown
-                        options={[
-                          { value: 'live', label: t('projects.detail.usageMode.live') },
-                          { value: 'auto_render', label: t('projects.detail.usageMode.auto_render') },
-                          { value: 'live_auto_render', label: t('projects.detail.usageMode.live_auto_render') },
-                          { value: 'other', label: t('projects.detail.usageMode.other') },
-                        ]}
-                        values={searchAdvanced.usageMode}
-                        onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, usageMode: vals }))}
-                        placeholder={noneLabel}
-                        noneLabel={noneLabel}
-                        style={ADV_WIDTH_500_STYLE}
-                      />
-                    </Suspense>
-                  </div>
-                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
-                    <label className="uu-label w-90">{t('projects.table.engineVersion')}</label>
-                    <Suspense fallback={lazyInlineFallback}>
-                      <MultiSelectDropdown
-                        options={engineVersionOptions}
-                        values={searchAdvanced.engineVersion}
-                        onChange={(vals) => setSearchAdvanced((prev) => ({ ...prev, engineVersion: vals }))}
-                        placeholder={noneLabel}
-                        noneLabel={noneLabel}
-                        style={ADV_WIDTH_520_STYLE}
-                      />
-                    </Suspense>
-                  </div>
-                </div>
-
-                <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
-                    <label className="uu-label w-90">{t('projects.detail.labels.director')}</label>
-                    <select
-                      className="uu-select"
-                      style={ADV_WIDTH_500_INPUT_STYLE}
-                      value={searchAdvanced.director}
-                      onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, director: e.target.value }))}
-                    >
-                      <option value="">{noneLabel}</option>
-                      {directorOptions.map((val) => (
-                        <option key={val} value={val}>{val}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
-                    <label className="uu-label w-90">{t('projects.detail.labels.technician')}</label>
-                    <select
-                      className="uu-select"
-                      style={ADV_WIDTH_520_INPUT_STYLE}
-                      value={searchAdvanced.technician}
-                      onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, technician: e.target.value }))}
-                    >
-                      <option value="">{noneLabel}</option>
-                      {technicianOptions.map((val) => (
-                        <option key={val} value={val}>{val}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
-                    <label className="uu-label w-90">{t('projects.detail.labels.operator')}</label>
-                    <select
-                      className="uu-select"
-                      style={ADV_WIDTH_500_INPUT_STYLE}
-                      value={searchAdvanced.operator}
-                      onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, operator: e.target.value }))}
-                    >
-                      <option value="">{noneLabel}</option>
-                      {operatorOptions.map((val) => (
-                        <option key={val} value={val}>{val}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
-                    <label className="uu-label w-90">{t('projects.detail.labels.journalist')}</label>
-                    <select
-                      className="uu-select"
-                      style={ADV_WIDTH_520_INPUT_STYLE}
-                      value={searchAdvanced.journalist}
-                      onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, journalist: e.target.value }))}
-                    >
-                      <option value="">{noneLabel}</option>
-                      {journalistOptions.map((val) => (
-                        <option key={val} value={val}>{val}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="uu-row uu-gap-16 uu-wrap">
-                  <div className="uu-row uu-align-center uu-gap-8 uu-flex-45-min-320">
-                    <label className="uu-label w-90">{t('projects.detail.labels.keywords')}</label>
-                    <input
-                      className="uu-input"
-                      style={ADV_WIDTH_500_STYLE}
-                      value={searchAdvanced.tags}
-                      onChange={(e) => setSearchAdvanced((prev) => ({ ...prev, tags: e.target.value }))}
-                      placeholder={t('projects.search.placeholderTags')}
-                    />
-                  </div>
-                </div>
-              </div>
-
-                <div className="uu-row uu-align-center uu-gap-8">
-                  <button
-                    type="button"
-                    className="uu-btn"
-                    onClick={() => { setSearchExpanded(false); setSearchQuery(''); setSearchAdvanced(createInitialAdvanced()); }}
-                  >
-                    {t('projects.search.close')}
-                  </button>
-                </div>
-              </div>
-            )}
-          <div className=" ">
-            {projectsWithActive.length === 0 && (
-              <div className="uu-muted">
-          {projectsLoading ? t('projects.detail.loading') : t('projects.server.empty')}
-              </div>
-            )}
-
-            {projectsWithActive.length > 0 && (
-              <div className="uu-row uu-gap-12 uu-align-center" style={PAGINATION_ROW_MARGIN_STYLE}>
-                <div className="uu-row uu-gap-6 uu-align-center">
-                  {canPrevPage && (
-                    <button
-                      type="button"
-                      className="uu-btn"
-                      onClick={() => setPage((p) => Math.max(0, p - 1))}
-                      aria-label={t('projects.pagination.prevAria')}
-                    >
-                      ‹
-                    </button>
-                  )}
-                  <span className="uu-muted">
-                    {`Page ${currentPage + 1}/${totalPages}`}
-                  </span>
-                  {canNextPage && (
-                    <button
-                      type="button"
-                      className="uu-btn"
-                      onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                      aria-label={t('projects.pagination.nextAria')}
-                    >
-                      ›
-                    </button>
-                  )}
-                  <select
-                    className="uu-select"
-                    value={pageSize}
-                    onChange={(e) => setPageSize(Math.max(10, Number(e.target.value) || 50))}
-                    style={PAGE_SIZE_SELECT_STYLE}
-                    aria-label={t('projects.pagination.pageSizeAria')}
-                  >
-                    {[25, 50, 100, 200].map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {projectsWithActive.length > 0 && viewMode === 'cards' && (
-              <Suspense fallback={lazyBlockFallback}>
-                <ProjectsCardsView
-                  {...projectViewCommonProps}
-                  integrationMsg={integrationMsg}
-                  removeOne={removeOne}
-                />
-              </Suspense>
-            )}
-
-            {projectsWithActive.length > 0 && viewMode === 'list' && (
-              <Suspense fallback={lazyBlockFallback}>
-                <ProjectsListView
-                  {...projectViewCommonProps}
-                  sortMode={sortMode}
-                  sortDir={sortDir}
-                  onSort={handleSort}
-                />
-              </Suspense>
-            )}
-
-            {projectsWithActive.length > 0 && viewMode === 'thumbs' && (
-              <Suspense fallback={lazyBlockFallback}>
-                <ProjectsThumbsView
-                  {...projectViewCommonProps}
-                />
-              </Suspense>
-            )}
-          </div>
-        </>
+        <Suspense fallback={lazyBlockFallback}>
+          <ProjectsServerSection {...serverSectionProps} />
+        </Suspense>
       ) : (
-        /* bloc client inchangé */
-        <div className="uu-section uu-maxw-640">
-          {!clientActiveName ? (
-            <div className="uu-muted">
-              {t('projects.client.noActiveServer')}
-            </div>
-          ) : (
-            <>
-              <div className="uu-row">
-                <div className="uu-label w-160">{t('projects.client.activeLabel')}</div>
-                <div className="uu-value">
-                  <span className="uu-id-tag">
-                    [{clientActiveId || '----'}]
-                  </span>
-                  {clientActiveName}
-                </div>
-              </div>
-
-              <div className="uu-grid-field mt-12">
-                <label className="uu-label">{t('projects.client.pathLabel')}</label>
-                <div className="uu-grid-2">
-                  <input
-                    className="uu-input"
-                    value={clientAssocPath}
-                    readOnly
-                    placeholder="D:\\Projets\\MonJeu\\MonJeu.uproject"
-                  />
-                <button
-                  type="button"
-                  className="uu-btn"
-                  onClick={handleAssociateForClientActive}
-                  disabled={!clientActiveName || clientSyncEnabled}
-                >
-                  {t('projects.client.associateButton')}
-                </button>
-                </div>
-              </div>
-
-              {clientSyncEnabled && (
-                <div className="uu-message uu-message-info">
-                  {t('projects.client.syncInfo.line1')}
-                  <br />
-                  {t('projects.client.syncInfo.line2')}
-                  <br />
-                  {t('projects.client.syncInfo.line3')}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        <Suspense fallback={lazyBlockFallback}>
+          <ProjectsClientSection {...clientSectionProps} />
+        </Suspense>
       )}
 
       {renderConfirmDialog()}
     </div>
   );
 }
-
-// MultiSelectDropdown moved to component file
 

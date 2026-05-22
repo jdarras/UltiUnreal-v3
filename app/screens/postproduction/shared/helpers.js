@@ -1,4 +1,4 @@
-export { safeT } from "../../../utils/i18nSafe";
+export { safeT } from "../../../utils/i18nSafe.js";
 
 const TAB_TO_NAV_KEY = {
   Dashboard: "users",

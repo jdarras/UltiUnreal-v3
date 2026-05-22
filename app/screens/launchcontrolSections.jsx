@@ -1,3 +1,5 @@
+import { buildColorDotStyle } from './launchcontrolHelpers';
+
 const STATUS_DOT_STYLE = { marginLeft: '6px' };
 const START_LAYOUT_LABEL_STYLE = { marginRight: '12px' };
 const UE_SECTION_STYLE = { marginTop: '12px' };
@@ -9,7 +11,6 @@ function LaunchHostCard({
   t,
   activeProjectEngineVersion,
   pathOrND,
-  renderColorDot,
   renderStatusDot,
   onStart,
   onStop,
@@ -244,10 +245,22 @@ function renderStatusDot(cls, title = '') {
   );
 }
 
+function renderColorDot(color, title = '') {
+  return (
+    <span
+      className="uu-pastille"
+      style={buildColorDotStyle(color)}
+      title={title}
+      aria-label={title || 'host color'}
+    />
+  );
+}
+
 export {
   LaunchHostCard,
   LaunchEditorVersionsSection,
   LaunchActiveProjectSummary,
   LaunchToolbarActions,
+  renderColorDot,
   renderStatusDot,
 };

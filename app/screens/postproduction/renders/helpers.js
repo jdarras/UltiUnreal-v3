@@ -1,25 +1,25 @@
-import { normalizeThumbnailPath } from "../../../utils/projects-helpers";
-import { normalizeThumbCandidates, safeT } from "../shared/helpers";
+import { normalizeThumbnailPath } from "../../../utils/projects-helpers.js";
+import { normalizeThumbCandidates, safeT } from "../shared/helpers.js";
+import {
+  normalizeRenderReviewStatus,
+  renderReviewStatusClassName as sharedRenderReviewStatusClassName,
+} from "../shared/reviewStatusHelpers.js";
 import {
   autoRenderStateShortLabel,
   isQueuedRenderWithError,
-} from "../shared/renderStateHelpers";
+} from "../shared/renderStateHelpers.js";
 
 function isRenderQueuedWithError(render) {
   return isQueuedRenderWithError(render);
 }
 
 function renderReviewStatusKey(render) {
-  const explicit = String(render?.reviewStatus || "").trim().toLowerCase();
-  if (explicit === "validated") return "validated";
-  if (explicit === "to_modify") return "to_modify";
-  if (explicit === "canceled") return "canceled";
-  if (explicit === "rejected") return "to_modify";
+  const explicit = normalizeRenderReviewStatus(render?.reviewStatus);
+  if (explicit) return explicit;
   const status = String(render?.status || "").trim().toLowerCase();
   if (status === "canceled" || status === "cancelled") return "canceled";
   if (status === "failed") return "to_modify";
   if (isRenderQueuedWithError(render)) return "to_modify";
-  if (explicit === "to_validate") return "to_validate";
   const validatedByUserId = Number(render?.validatedByUserId || 0);
   if (status === "done" && Number.isFinite(validatedByUserId) && validatedByUserId > 0) {
     return "validated";
@@ -28,17 +28,21 @@ function renderReviewStatusKey(render) {
 }
 
 function renderReviewStatusLabel(t, reviewStatus) {
-  const key = String(reviewStatus || "").trim();
+  const key = normalizeRenderReviewStatus(reviewStatus) || String(reviewStatus || "").trim().toLowerCase();
   if (key === "validated") {
     return safeT(t, "postprod.renders.review.validated", "Validee");
   }
-  if (key === "to_modify" || key === "rejected") {
+  if (key === "to_modify") {
     return safeT(t, "postprod.renders.review.toModify", "A modifier");
   }
   if (key === "canceled") {
     return safeT(t, "postprod.renders.review.canceled", "Annulee");
   }
   return safeT(t, "postprod.renders.review.toValidate", "A valider");
+}
+
+function renderReviewStatusClassName(reviewStatus = "") {
+  return sharedRenderReviewStatusClassName(reviewStatus);
 }
 
 function renderOutputFilename(render) {
@@ -134,5 +138,6 @@ export {
   renderLinkedTaskValue,
   renderOutputFilename,
   renderReviewStatusKey,
+  renderReviewStatusClassName,
   renderReviewStatusLabel,
 };

@@ -1,11 +1,12 @@
-import { safeT } from "../shared/helpers";
+import { safeT } from "../shared/helpers.js";
+import { normalizeRenderReviewStatus } from "../shared/reviewStatusHelpers.js";
 import {
   AUTO_RENDER_STATE_FLOW as TASK_AUTO_RENDER_STATE_FLOW,
   autoRenderStateFromRenderOrStatus,
   autoRenderStateLabel,
   autoRenderStateLevel,
   isQueuedRenderWithError,
-} from "../shared/renderStateHelpers";
+} from "../shared/renderStateHelpers.js";
 
 const TASK_STATUS_TO_KEY = {
   Planifiee: "planifiee",
@@ -75,20 +76,24 @@ function normalizeTaskVisualStatusKey(statusRaw = "") {
   if (normalized === "error" || normalized === "failed" || normalized === "en_erreur" || normalized === "en erreur") return "error";
   if (normalized === "to_validate" || normalized === "a_valider" || normalized === "a valider") return "to_validate";
   if (normalized === "validated" || normalized === "validee") return "validated";
-  if (normalized === "rejected" || normalized === "rejetee" || normalized === "to_modify" || normalized === "canceled" || normalized === "cancelled") return "rejected";
+  if (normalized === "rejetee") return "rejected";
+  const normalizedReviewStatus = normalizeRenderReviewStatus(normalized);
+  if (normalized === "rejected" || normalizedReviewStatus === "to_modify" || normalizedReviewStatus === "canceled") {
+    return "rejected";
+  }
   return "planned";
 }
 
 function taskVisualStatusFromRender(render = null) {
   const status = String(render?.status || "").trim().toLowerCase();
-  const explicitReviewStatus = String(render?.reviewStatus || "").trim().toLowerCase();
+  const explicitReviewStatus = normalizeRenderReviewStatus(render?.reviewStatus);
   if (status === "running") return "running";
   if (status === "failed") return "error";
   if (status === "canceled") return "rejected";
   if (isQueuedRenderWithError(render)) return "error";
   if (status === "done") {
     if (explicitReviewStatus === "validated") return "validated";
-    if (explicitReviewStatus === "to_modify" || explicitReviewStatus === "canceled" || explicitReviewStatus === "rejected") {
+    if (explicitReviewStatus === "to_modify" || explicitReviewStatus === "canceled") {
       return "rejected";
     }
     const validatedByUserId = Number(render?.validatedByUserId || 0);

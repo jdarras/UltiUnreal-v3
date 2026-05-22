@@ -1,4 +1,4 @@
-import { safeT } from "./helpers";
+import { safeT } from "./helpers.js";
 
 const AUTO_RENDER_STATE_FLOW = ["waiting", "running", "error", "done", "canceled"];
 

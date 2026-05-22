@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { canEditRenderReviewStatus } from "../../shared/helpers";
+import { normalizeRenderReviewStatus } from "../../shared/reviewStatusHelpers.js";
 import { renderReviewStatusKey } from "../helpers";
 import {
   buildRenderReviewTransitionSteps,
@@ -60,7 +61,7 @@ export function useRenderReviewController({
   const confirmRejectDialog = useCallback(async () => {
     const render = rejectDialogRender;
     if (!render || busyRenderId > 0) return;
-    await runReviewTransition(render, "rejected", {
+    await runReviewTransition(render, "to_modify", {
       rejectionReason: String(rejectDialogReason || ""),
     });
     setRejectDialogRender(null);
@@ -69,13 +70,13 @@ export function useRenderReviewController({
 
   const applyReviewStatus = useCallback(async (render, nextReviewStatus) => {
     if (!canReviewRenders) return;
-    const next = String(nextReviewStatus || "").trim().toLowerCase();
-    if (next === "rejected" || next === "to_modify") {
+    const next = normalizeRenderReviewStatus(nextReviewStatus) || String(nextReviewStatus || "").trim().toLowerCase();
+    if (next === "to_modify") {
       setRejectDialogRender(render && typeof render === "object" ? render : null);
       setRejectDialogReason("");
       return;
     }
-    await runReviewTransition(render, nextReviewStatus);
+    await runReviewTransition(render, next);
   }, [canReviewRenders, runReviewTransition]);
 
   return {

@@ -3,6 +3,7 @@ import {
   renderOutputFilename,
   renderReviewStatusKey,
 } from "../../helpers";
+import { normalizeRenderReviewStatus } from "../../../shared/reviewStatusHelpers.js";
 import { normalizeMultiFilterValues } from "../../../shared/filterValues";
 import { toSortTimestamp } from "../../../shared/sortUtils";
 
@@ -21,7 +22,6 @@ const REVIEW_STATUS_RANK = {
   validated: 1,
   to_modify: 2,
   canceled: 3,
-  rejected: 2,
 };
 
 function resolveRenderPayload(render = null) {
@@ -233,8 +233,8 @@ export function compareRendersBySortKey(a, b, listSortKey) {
     return renderStationLabel(a).localeCompare(renderStationLabel(b), undefined, { sensitivity: "base" });
   }
   if (listSortKey === "reviewStatus") {
-    const rankA = REVIEW_STATUS_RANK[renderReviewStatusKey(a)] ?? 999;
-    const rankB = REVIEW_STATUS_RANK[renderReviewStatusKey(b)] ?? 999;
+    const rankA = REVIEW_STATUS_RANK[normalizeRenderReviewStatus(renderReviewStatusKey(a))] ?? 999;
+    const rankB = REVIEW_STATUS_RANK[normalizeRenderReviewStatus(renderReviewStatusKey(b))] ?? 999;
     return rankA - rankB;
   }
   return toSortTimestamp(a?.updatedAt) - toSortTimestamp(b?.updatedAt);

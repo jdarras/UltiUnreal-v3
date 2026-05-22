@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { safeT } from "../../../shared/helpers";
+import { renderReviewStatusClassName } from "../../helpers";
 
 const RENDERS_LIST_ROW_CLICKABLE_STYLE = { cursor: "pointer" };
 const RENDERS_LIST_FILE_ROW_STYLE = { display: "flex", alignItems: "baseline", gap: "8px" };
@@ -55,13 +56,6 @@ function resolveRenderLinkedTaskMeta(render = null) {
     payload?.taskTitle,
   ]);
   return { taskId, taskTitle };
-}
-
-function reviewStatusClassName(reviewStatus = "") {
-  const key = String(reviewStatus || "").trim().toLowerCase();
-  if (key === "validated") return "status-validated";
-  if (key === "rejected" || key === "to_modify" || key === "canceled") return "status-rejected";
-  return "status-to-validate";
 }
 
 function RendersListTableRow({
@@ -191,7 +185,7 @@ function RendersListTableRow({
       <td style={RENDERS_LIST_STATION_STYLE}>{stationName || "-"}</td>
       <td onClick={(e) => e.stopPropagation()}>
         <select
-          className={`uu-input uu-status-select ${reviewStatusClassName(reviewStatus)}`}
+          className={`uu-input uu-status-select ${renderReviewStatusClassName(reviewStatus)}`}
           style={RENDERS_LIST_REVIEW_SELECT_STYLE}
           value={reviewStatus}
           disabled={rendersLoading || isBusy || !onTransitionRender || !canReviewRenders}

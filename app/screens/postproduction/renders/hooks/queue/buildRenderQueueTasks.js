@@ -1,5 +1,6 @@
 import { resolveTaskAutoRenderState } from "../../../renderEditor/helpers";
 import { resolveAutoRenderConfig } from "../../../shared/autoRenderHelpers";
+import { normalizeRenderReviewStatus } from "../../../shared/reviewStatusHelpers.js";
 
 function isAssignmentDraftTask(task = null) {
   const autoRenderConfig = resolveAutoRenderConfig(task) || {};
@@ -32,7 +33,7 @@ export function buildRenderQueueTasks({
     if (!linkedRender) continue;
     const assignmentDraft = isAssignmentDraftTask(task);
     if (assignmentDraft) continue;
-    const explicitReviewStatus = String(linkedRender?.reviewStatus || "").trim().toLowerCase();
+    const explicitReviewStatus = normalizeRenderReviewStatus(linkedRender?.reviewStatus);
     const isToModify = visualStatus === "rejected" && explicitReviewStatus === "to_modify";
     const taskStatus = String(task?.status || "").trim().toLowerCase();
     if (CLOSED_TASK_STATUS_SET.has(taskStatus) && !isToModify) continue;

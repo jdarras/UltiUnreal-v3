@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { renderReviewStatusKey } from "../../helpers";
+import { normalizeRenderReviewStatus } from "../../../shared/reviewStatusHelpers.js";
 import {
   buildRenderSearchHaystack,
   normalizeMultiFilterValues,
@@ -61,7 +62,11 @@ export function useFilteredRenders({
   const displayedRenders = useMemo(() => {
     const query = String(searchQuery || "").trim().toLowerCase();
     const hasQuery = query.length > 0;
-    const selectedReviewSet = new Set(normalizeMultiFilterValues(reviewFilter));
+    const selectedReviewSet = new Set(
+      normalizeMultiFilterValues(reviewFilter).map((value) => (
+        normalizeRenderReviewStatus(value) || String(value || "").trim().toLowerCase()
+      ))
+    );
     const selectedProjectSet = new Set(normalizeMultiFilterValues(projectFilter));
     const selectedStationSet = new Set(normalizeMultiFilterValues(stationFilter));
     const selectedTaskSet = new Set(normalizeMultiFilterValues(taskFilter));

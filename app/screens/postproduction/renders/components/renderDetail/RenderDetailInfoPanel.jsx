@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import MultiSelectDropdown from "../../../../../components/MultiSelectDropdown";
 import { formatDate, safeT, simplifyUnrealAssetDisplayName } from "../../../shared/helpers";
+import { renderReviewStatusClassName } from "../../helpers";
 
 const DESTINATION_DROPDOWN_STYLE = {
   flex: "none",
@@ -439,13 +440,6 @@ function formatIdTag(value = "", minDigits = 4) {
   return `#${raw}`;
 }
 
-function reviewStatusClassName(reviewStatus = "") {
-  const key = String(reviewStatus || "").trim().toLowerCase();
-  if (key === "validated") return "status-validated";
-  if (key === "rejected" || key === "to_modify" || key === "canceled") return "status-rejected";
-  return "status-to-validate";
-}
-
 function normalizeExportDestinationOptions(options = []) {
   const source = Array.isArray(options) ? options : [];
   const out = [];
@@ -734,7 +728,7 @@ function RenderDetailInfoPanel({
         </DetailInfoRow>
         <DetailInfoRow label={safeT(t, "postprod.renders.table.reviewStatus", "Validation")}>
           <select
-            className={`uu-input uu-status-select ${reviewStatusClassName(reviewStatusValue)}`}
+            className={`uu-input uu-status-select ${renderReviewStatusClassName(reviewStatusValue)}`}
             style={RENDER_DETAIL_REVIEW_SELECT_STYLE}
             value={reviewStatusValue}
             disabled={

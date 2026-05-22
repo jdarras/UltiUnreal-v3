@@ -1,3 +1,5 @@
+import { normalizeRenderReviewStatus } from "../../shared/reviewStatusHelpers.js";
+
 function toRenderId(value) {
   const parsed = Number(value || 0);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
@@ -9,16 +11,19 @@ function normalizeRenderStatusKey(value) {
 }
 
 function isSameReviewStatus(currentReviewStatus, nextReviewStatus) {
-  return String(nextReviewStatus || "").trim() === String(currentReviewStatus || "").trim();
+  const current = normalizeRenderReviewStatus(currentReviewStatus) || String(currentReviewStatus || "").trim().toLowerCase();
+  const next = normalizeRenderReviewStatus(nextReviewStatus) || String(nextReviewStatus || "").trim().toLowerCase();
+  return next === current;
 }
 
 function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "", options = {}) {
+  const normalizedReviewStatus = normalizeRenderReviewStatus(nextReviewStatus) || String(nextReviewStatus || "").trim().toLowerCase();
   const currentStatus = String(render?.status || "").trim();
   const currentStatusKey = normalizeRenderStatusKey(currentStatus);
   const isDone = currentStatusKey === "done";
   const rejectionReason = String(options?.rejectionReason || "").trim();
 
-  if (nextReviewStatus === "validated") {
+  if (normalizedReviewStatus === "validated") {
     const steps = [];
     if (!isDone) {
       steps.push({
@@ -34,7 +39,7 @@ function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "", 
     return steps;
   }
 
-  if (nextReviewStatus === "rejected" || nextReviewStatus === "to_modify") {
+  if (normalizedReviewStatus === "to_modify") {
     const steps = [];
     if (!isDone) {
       steps.push({
@@ -50,7 +55,7 @@ function buildRenderReviewTransitionSteps(render = null, nextReviewStatus = "", 
     return steps;
   }
 
-  if (nextReviewStatus === "canceled") {
+  if (normalizedReviewStatus === "canceled") {
     return [{
       toStatus: "Canceled",
       comment: "Validation annulee",

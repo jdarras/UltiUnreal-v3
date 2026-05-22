@@ -112,6 +112,23 @@ function isValidIpv4(ip) {
   });
 }
 
+function normalizeArgsForServer(a = {}) {
+  const out = {};
+  if (a.resx !== undefined && a.resx !== '') out.resx = Number(a.resx);
+  if (a.resy !== undefined && a.resy !== '') out.resy = Number(a.resy);
+  if (a.frameRateLimit !== undefined && a.frameRateLimit !== '') out.FrameRateLimit = Number(a.frameRateLimit);
+  if (a.resPreset !== undefined && a.resPreset !== '') out.resPreset = String(a.resPreset);
+  if (a.execCmds !== undefined && a.execCmds !== '') out.ExecCmds = String(a.execCmds);
+  if (a.renderOffscreen === true) out.RenderOffscreen = true;
+  if (a.noScreenMessages === true) out.NoScreenMessages = true;
+  if (a.videoCard) {
+    const card = String(a.videoCard || '').trim().toLowerCase();
+    if (card === 'aja') out.videoCard = 'AJA';
+    else if (card === 'blackmagic') out.videoCard = 'BlackMagic';
+  }
+  return out;
+}
+
 function normalizeEditorsMap(map = {}) {
   const out = {};
   if (!map || typeof map !== 'object') return out;
@@ -134,12 +151,55 @@ function buildEditorsSignature(map = {}) {
   return keys.map((k) => `${k}:${norm[k]}`).join('|');
 }
 
+function extractVersionsFromHosts(list = []) {
+  const set = new Set();
+  (list || []).forEach((host) => {
+    if (!host || typeof host !== 'object') return;
+    Object.keys(host).forEach((key) => {
+      const match = /^unreal_editor_(.+)$/i.exec(String(key || '').trim());
+      if (match && match[1]) set.add(match[1]);
+    });
+    if (host.unrealEditors && typeof host.unrealEditors === 'object') {
+      Object.keys(host.unrealEditors).forEach((key) => {
+        if (key) set.add(String(key).trim());
+      });
+    }
+  });
+  return Array.from(set).filter(Boolean);
+}
+
+function extractEditorsForHost(host = {}) {
+  const map = {};
+  if (host.unrealEditors && typeof host.unrealEditors === 'object') {
+    for (const [key, value] of Object.entries(host.unrealEditors)) {
+      map[String(key || '').trim()] = String(value || '').trim();
+    }
+  }
+  if (host.unreal_editors && typeof host.unreal_editors === 'object') {
+    for (const [key, value] of Object.entries(host.unreal_editors)) {
+      const normalizedKey = String(key || '').trim();
+      if (!map[normalizedKey]) map[normalizedKey] = String(value || '').trim();
+    }
+  }
+  Object.keys(host || {}).forEach((key) => {
+    const match = /^unreal_editor_(.+)$/i.exec(String(key || '').trim());
+    if (match && match[1]) {
+      const normalizedKey = String(match[1]).trim();
+      if (!map[normalizedKey]) map[normalizedKey] = String(host[key] || '').trim();
+    }
+  });
+  return map;
+}
+
 export {
   MACHINE_COLORS,
   PRESET_OPTIONS,
   RENDER_AVAILABILITY_VALUES,
   hostArrayToEditList,
   isValidIpv4,
+  normalizeArgsForServer,
   normalizeEditorsMap,
   buildEditorsSignature,
+  extractVersionsFromHosts,
+  extractEditorsForHost,
 };

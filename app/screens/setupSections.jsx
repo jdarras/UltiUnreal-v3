@@ -1,6 +1,6 @@
 import { colorClass } from '../utils/colors';
 import DateTimeConfirmPicker from '../components/DateTimeConfirmPicker';
-import { RENDER_AVAILABILITY_VALUES } from './setupHelpers';
+import { MACHINE_COLORS, RENDER_AVAILABILITY_VALUES } from './setupHelpers';
 import {
   getPostprodQueueCancelLabel,
   getPostprodQueueSaveLabel,
@@ -27,6 +27,7 @@ const MACHINE_ARGS_SECOND_GRID_STYLE = {
 const CHECK_ALIGN_CENTER_STYLE = { alignItems: 'center' };
 const MACHINE_ARGS_BOTTOM_GRID_STYLE = { gridTemplateColumns: '0.3fr 0.7fr' };
 const RENDER_AVAILABILITY_SELECT_STYLE = { width: 110, minWidth: 0, flexShrink: 0 };
+const CARD_MARGIN_BOTTOM_STYLE = { marginBottom: '12px' };
 
 const FRAME_RATE_OPTIONS = ['23.98', '24', '25', '29.97', '30', '47.95', '48', '50', '59.94', '60'];
 const RETURN_PRESETS_MIN = [30, 60, 120, 240, 480];
@@ -326,6 +327,90 @@ function MachineCardHeaderRow({
   );
 }
 
+function MachineSetupCard({
+  machine,
+  segment,
+  position,
+  t,
+  statusDot,
+  isRenderMode,
+  machineColorUsageCounts,
+  presetOptions,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
+  onToggleParams,
+  onUpdateMachine,
+  onSetRenderAvailability,
+  onRemoveMachine,
+  onIpBlur,
+  onRenderReturnAtChange,
+  onUpdateMachineArgs,
+}) {
+  const args = machine.args || {};
+  const paramsOpen = !isRenderMode && !!(machine.showEditor || machine.showArgs);
+
+  const currentColor = String(machine.color || '').trim();
+  const availableColors = MACHINE_COLORS.filter(
+    (color) => color.value === currentColor || !machineColorUsageCounts.has(color.value)
+  );
+
+  const statusIsFail = machine.status === 'fail';
+  const statusIsWarn = machine.status === 'warn';
+  const cardStateClass = statusIsFail
+    ? 'launch-host-invalid'
+    : (statusIsWarn ? 'launch-host-warn' : '');
+
+  return (
+    <div
+      className={`uu-card ${cardStateClass}`}
+      draggable
+      onDragStart={() => onDragStart(segment, position)}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDrop(segment, position);
+      }}
+      style={CARD_MARGIN_BOTTOM_STYLE}
+    >
+      <MachineCardHeaderRow
+        machine={machine}
+        machineIndex={machine._idx}
+        t={t}
+        statusDot={statusDot}
+        availableColors={availableColors}
+        isRenderMode={isRenderMode}
+        paramsOpen={paramsOpen}
+        onToggleParams={onToggleParams}
+        segment={segment}
+        updateMachine={onUpdateMachine}
+        onSetRenderAvailability={onSetRenderAvailability}
+        onRemoveMachine={onRemoveMachine}
+        onIpBlur={onIpBlur}
+        onRenderReturnAtChange={onRenderReturnAtChange}
+      />
+
+      {paramsOpen ? (
+        <MachineArgsPanel
+          machine={machine}
+          args={args}
+          t={t}
+          presetOptions={presetOptions}
+          updateMachineArgs={onUpdateMachineArgs}
+        />
+      ) : null}
+
+      {machine?.lastMsg ? (
+        <div className={`uu-msg ${machine.lastMsgType || ''} mt-8`}>
+          {machine.lastMsg}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MachineGroupSection({ title, emptyText, list, segment, renderCard }) {
   return (
     <div className="uu-section">
@@ -373,6 +458,7 @@ function UnknownDetectedSection({ t, unknownDetected, addDetectedMachine }) {
 export {
   MachineArgsPanel,
   MachineCardHeaderRow,
+  MachineSetupCard,
   MachineGroupSection,
   UnknownDetectedSection,
 };

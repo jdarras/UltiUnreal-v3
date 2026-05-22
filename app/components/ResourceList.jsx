@@ -1,6 +1,7 @@
 // app/components/ResourceList.jsx
 import React from 'react';
 import { VariableSizeList } from 'react-window';
+import RatingStars from './RatingStars.jsx';
 import { safeT } from '../utils/i18nSafe.js';
 import {
   getAddKeywordLabel,
@@ -415,35 +416,19 @@ function ResourceCardItem({
           </div>
           <div className="uu-index-field rating">
             <span className="uu-label-sm">{qualityLabel}</span>
-            <div className="uu-rating">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={`q-${n}`}
-                  type="button"
-                  className={`uu-rating-btn ${ratingQuality >= n ? 'active' : ''}`}
-                  onClick={() => onSetQuality && onSetQuality(item, ratingQuality === n ? 0 : n)}
-                  aria-pressed={ratingQuality >= n ? 'true' : 'false'}
-                >
-                  ★
-                </button>
-              ))}
-            </div>
+            <RatingStars
+              idPrefix={`q-${key}`}
+              value={ratingQuality}
+              onChange={(nextValue) => onSetQuality && onSetQuality(item, nextValue)}
+            />
           </div>
           <div className="uu-index-field rating">
             <span className="uu-label-sm">{performanceLabel}</span>
-            <div className="uu-rating">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={`p-${n}`}
-                  type="button"
-                  className={`uu-rating-btn ${ratingPerformance >= n ? 'active' : ''}`}
-                  onClick={() => onSetPerformance && onSetPerformance(item, ratingPerformance === n ? 0 : n)}
-                  aria-pressed={ratingPerformance >= n ? 'true' : 'false'}
-                >
-                  ★
-                </button>
-              ))}
-            </div>
+            <RatingStars
+              idPrefix={`p-${key}`}
+              value={ratingPerformance}
+              onChange={(nextValue) => onSetPerformance && onSetPerformance(item, nextValue)}
+            />
           </div>
         </div>
         <div
