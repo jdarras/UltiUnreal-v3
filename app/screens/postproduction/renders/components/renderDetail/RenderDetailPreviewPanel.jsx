@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeThumbnailPath } from "../../../../../utils/projects-helpers";
 import { safeT } from "../../../shared/helpers";
+import { startPostprodAsyncLoop } from "../../../../../hooks/postprodAsyncLoop";
 
 const VIEW_MODE_RGB = "rgb";
 const VIEW_MODE_ALPHA = "alpha";
@@ -729,7 +730,7 @@ function RenderDetailPreviewPanel({
     }
 
     let cancelled = false;
-    let intervalId = null;
+    let stopLoop = null;
 
     const findExistingPath = async (candidates = []) => {
       for (const candidate of candidates) {
@@ -759,14 +760,16 @@ function RenderDetailPreviewPanel({
     void checkExists().then((hasFoundProxy) => {
       if (cancelled) return;
       if (!effectiveGenerating || hasFoundProxy) return;
-      intervalId = setInterval(() => {
-        void checkExists();
-      }, 5000);
+      stopLoop = startPostprodAsyncLoop({
+        intervalMs: 5000,
+        initialDelayMs: 5000,
+        tick: checkExists,
+      });
     });
 
     return () => {
       cancelled = true;
-      if (intervalId) clearInterval(intervalId);
+      if (typeof stopLoop === "function") stopLoop();
     };
   }, [
     effectiveGenerating,

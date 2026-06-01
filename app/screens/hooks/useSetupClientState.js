@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTransientInfo } from './useTransientInfo';
 
 const LS_EDITORS_KEY = 'uu_client_unrealEditors';
 const LS_SYNC_KEY = 'uu_client_syncEnabled';
@@ -83,8 +84,12 @@ function useSetupClientState({ clientSyncEnabled }) {
   const [clientVersions, setClientVersions] = React.useState(versionsFromCache);
   const [clientEditors, setClientEditors] = React.useState(() => safeReadEditors());
   const [clientHostExists, setClientHostExists] = React.useState(false);
-  const [clientMsg, setClientMsg] = React.useState('');
-  const [clientMsgType, setClientMsgType] = React.useState('');
+  const {
+    infoMsg: clientMsg,
+    infoMsgType: clientMsgType,
+    showInfo: showClientInfo,
+    clearInfo: clearClientInfo,
+  } = useTransientInfo({ defaultType: 'info', clearAfterMs: 2500 });
   const [clientSyncState, setClientSyncState] = React.useState(() => {
     const cached = safeReadSync();
     return cached !== null ? cached : !!clientSyncEnabled;
@@ -92,43 +97,17 @@ function useSetupClientState({ clientSyncEnabled }) {
   const [versionsLoaded, setVersionsLoaded] = React.useState(false);
 
   const lastClientSaveSigRef = React.useRef('');
-  const clientMsgTimerRef = React.useRef(null);
   const clientSaveTimerRef = React.useRef(null);
   const clientSaveReadyRef = React.useRef(false);
-
-  const clearClientMessage = React.useCallback(() => {
-    if (clientMsgTimerRef.current) {
-      clearTimeout(clientMsgTimerRef.current);
-      clientMsgTimerRef.current = null;
-    }
-    setClientMsg('');
-    setClientMsgType('');
-  }, []);
-
-  const scheduleClientMessageClear = React.useCallback((delayMs = 2500) => {
-    if (clientMsgTimerRef.current) {
-      clearTimeout(clientMsgTimerRef.current);
-      clientMsgTimerRef.current = null;
-    }
-    const rawDelay = Number(delayMs);
-    const timeoutMs = Number.isFinite(rawDelay) && rawDelay >= 0 ? Math.trunc(rawDelay) : 0;
-    if (timeoutMs <= 0) return;
-    clientMsgTimerRef.current = setTimeout(() => {
-      clientMsgTimerRef.current = null;
-      clearClientMessage();
-    }, timeoutMs);
-  }, [clearClientMessage]);
 
   const showClientTransientMessage = React.useCallback((message, type = 'info', delayMs = 2500) => {
     const msg = String(message || '').trim();
     if (!msg) {
-      clearClientMessage();
+      clearClientInfo();
       return;
     }
-    setClientMsg(msg);
-    setClientMsgType(type);
-    scheduleClientMessageClear(delayMs);
-  }, [clearClientMessage, scheduleClientMessageClear]);
+    showClientInfo(msg, String(type || '').trim() || 'info', delayMs);
+  }, [clearClientInfo, showClientInfo]);
 
   const clearScheduledClientAutosave = React.useCallback(() => {
     if (clientSaveTimerRef.current) {
@@ -157,10 +136,6 @@ function useSetupClientState({ clientSyncEnabled }) {
 
   React.useEffect(() => {
     return () => {
-      if (clientMsgTimerRef.current) {
-        clearTimeout(clientMsgTimerRef.current);
-        clientMsgTimerRef.current = null;
-      }
       if (clientSaveTimerRef.current) {
         clearTimeout(clientSaveTimerRef.current);
         clientSaveTimerRef.current = null;

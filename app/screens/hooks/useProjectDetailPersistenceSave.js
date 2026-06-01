@@ -5,6 +5,7 @@ import {
   mapProjectById,
 } from './projectDetailPersistenceHelpers';
 import { useTransientClearTimer } from './useTransientClearTimer';
+import { setTypedMessage } from './projectDetailFeedbackHelpers';
 
 export function useProjectDetailPersistenceSave({
   t,
@@ -21,6 +22,42 @@ export function useProjectDetailPersistenceSave({
   setIntervenantsMsgType,
 } = {}) {
   const { scheduleClear } = useTransientClearTimer();
+  const applySourceFeedback = useCallback((source, type) => {
+    if (source === 'indexation') {
+      setTypedMessage(
+        setIndexationMsg,
+        setIndexationMsgType,
+        type,
+        t(
+          type === 'ok'
+            ? 'projects.detail.indexation.updateOk'
+            : 'projects.detail.indexation.updateError'
+        )
+      );
+      scheduleClear(() => setIndexationMsg(''), 2000);
+      return;
+    }
+    if (source === 'intervenants') {
+      setTypedMessage(
+        setIntervenantsMsg,
+        setIntervenantsMsgType,
+        type,
+        t(
+          type === 'ok'
+            ? 'projects.detail.intervenants.updateOk'
+            : 'projects.detail.intervenants.updateError'
+        )
+      );
+      scheduleClear(() => setIntervenantsMsg(''), 2000);
+    }
+  }, [
+    scheduleClear,
+    setIndexationMsg,
+    setIndexationMsgType,
+    setIntervenantsMsg,
+    setIntervenantsMsgType,
+    t,
+  ]);
 
   const saveProjectDetailMeta = useCallback(async ({
     pid,
@@ -42,40 +79,19 @@ export function useProjectDetailPersistenceSave({
       const listSaved = await saveToServer(updated, activeName, activeByHost, activeId);
       if (!listSaved) throw new Error('save_failed');
 
-      if (source === 'indexation') {
-        setIndexationMsgType('ok');
-        setIndexationMsg(t('projects.detail.indexation.updateOk'));
-        scheduleClear(() => setIndexationMsg(''), 2000);
-      } else if (source === 'intervenants') {
-        setIntervenantsMsgType('ok');
-        setIntervenantsMsg(t('projects.detail.intervenants.updateOk'));
-        scheduleClear(() => setIntervenantsMsg(''), 2000);
-      }
+      applySourceFeedback(source, 'ok');
     } catch {
-      if (source === 'indexation') {
-        setIndexationMsgType('error');
-        setIndexationMsg(t('projects.detail.indexation.updateError'));
-        scheduleClear(() => setIndexationMsg(''), 2000);
-      } else if (source === 'intervenants') {
-        setIntervenantsMsgType('error');
-        setIntervenantsMsg(t('projects.detail.intervenants.updateError'));
-        scheduleClear(() => setIntervenantsMsg(''), 2000);
-      }
+      applySourceFeedback(source, 'error');
     }
   }, [
     activeByHost,
     activeId,
     activeName,
+    applySourceFeedback,
     detailSavedNoteRef,
     projects,
     saveToServer,
-    setIndexationMsg,
-    setIndexationMsgType,
-    setIntervenantsMsg,
-    setIntervenantsMsgType,
     setProjects,
-    scheduleClear,
-    t,
   ]);
 
   return { saveProjectDetailMeta };

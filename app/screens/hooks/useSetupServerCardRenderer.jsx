@@ -1,5 +1,5 @@
 import React from 'react';
-import { MachineSetupCard } from '../setupSections';
+import { MachineSetupCard } from '../SetupMachineSetupCard';
 
 function useSetupServerCardRenderer({
   t,

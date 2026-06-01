@@ -1,15 +1,20 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getProjectMeta, setProjectVideoProduction } from '../../utils/agent';
 import { boolFromIni, parseSmoothedRange, formatFixed2 } from '../../utils/projects-helpers';
-import { useTransientClearTimer } from './useTransientClearTimer';
+import { useTransientInfo } from './useTransientInfo';
 
 export function useVideoProduction({ t, detailId, detailIsNew, detailInsights, setDetailInsights }) {
   const [vpDraft, setVpDraft] = useState(null);
-  const [vpMsg, setVpMsg] = useState('');
-  const [vpMsgType, setVpMsgType] = useState(''); // ok | error
+  const {
+    infoMsg: vpMsg,
+    setInfoMsg: setVpMsg,
+    infoMsgType: vpMsgType,
+    setInfoMsgType: setVpMsgType,
+    showInfo: showVpMsg,
+    clearInfo: clearVpMsg,
+  } = useTransientInfo({ defaultType: 'error', clearAfterMs: 2000 });
   const [vpBusy, setVpBusy] = useState(false);
   const timerRef = useRef(null);
-  const { scheduleClear } = useTransientClearTimer();
 
   useEffect(() => {
     return () => {
@@ -48,8 +53,7 @@ export function useVideoProduction({ t, detailId, detailIsNew, detailInsights, s
       const pid = String(detailId || '').trim();
       if (!pid || !draft || detailIsNew) return;
       setVpBusy(true);
-      setVpMsg('');
-      setVpMsgType('');
+      clearVpMsg();
       try {
         const res = await setProjectVideoProduction(pid, {
           minDesiredFrameRate: draft.minDesiredFrameRate,
@@ -66,17 +70,14 @@ export function useVideoProduction({ t, detailId, detailIsNew, detailInsights, s
           if (next && next.ok) setDetailInsights?.(next.insights || {});
         } catch {}
 
-        setVpMsgType('ok');
-        setVpMsg(t('projects.detail.vp.updateOk'));
-        scheduleClear(() => setVpMsg(''), 2000);
+        showVpMsg(t('projects.detail.vp.updateOk'), 'ok', 2000);
       } catch {
-        setVpMsgType('error');
-        setVpMsg(t('projects.detail.vp.updateError'));
+        showVpMsg(t('projects.detail.vp.updateError'), 'error', 0);
       } finally {
         setVpBusy(false);
       }
     },
-    [detailId, detailIsNew, scheduleClear, setDetailInsights, t]
+    [clearVpMsg, detailId, detailIsNew, setDetailInsights, showVpMsg, t]
   );
 
   const scheduleVpSave = useCallback(
@@ -89,11 +90,6 @@ export function useVideoProduction({ t, detailId, detailIsNew, detailInsights, s
   );
 
   const formatFixedValue = useCallback((val) => formatFixed2(val), []);
-
-  const clearVpMsg = useCallback(() => {
-    setVpMsg('');
-    setVpMsgType('');
-  }, []);
 
   return {
     vpDraft,

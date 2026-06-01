@@ -1,11 +1,9 @@
 import { safeT } from "../../../shared/helpers";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import DateTimeConfirmPicker from "../../../../../components/DateTimeConfirmPicker";
+import { startPostprodAsyncLoop } from "../../../../../hooks/postprodAsyncLoop";
 
 const WARN_SOON_MS = 5 * 60 * 1000;
-const AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE = { alignItems: "center" };
-const AUTO_CONFIG_LABEL_140_STYLE = { width: "140px", marginBottom: 0 };
-const AUTO_CONFIG_FLEX_1_MIN_0_STYLE = { flex: 1, minWidth: 0 };
 const AUTO_CONFIG_FORM_NOTE_STYLE = {
   whiteSpace: "pre-wrap",
   display: "flex",
@@ -13,7 +11,6 @@ const AUTO_CONFIG_FORM_NOTE_STYLE = {
   fontSize: "14px",
   boxSizing: "border-box",
 };
-const AUTO_CONFIG_CENTER_FLEX_STYLE = { display: "flex", alignItems: "center" };
 
 function resolveDatetimeBadge(scheduledAt) {
   if (!scheduledAt) return null;
@@ -51,17 +48,20 @@ function LaunchModeSection({
   renderWorkersError = "",
 }) {
   const [badge, setBadge] = useState(() => resolveDatetimeBadge(autoRenderScheduledAt));
-  const intervalRef = useRef(null);
 
   useEffect(() => {
     setBadge(resolveDatetimeBadge(autoRenderScheduledAt));
-    if (intervalRef.current) clearInterval(intervalRef.current);
     if (autoRenderLaunchMode === "scheduled" && autoRenderScheduledMode === "datetime" && autoRenderScheduledAt) {
-      intervalRef.current = setInterval(() => {
+      const stopLoop = startPostprodAsyncLoop({
+        intervalMs: 30000,
+        initialDelayMs: 30000,
+        tick: () => {
         setBadge(resolveDatetimeBadge(autoRenderScheduledAt));
-      }, 30000);
+        },
+      });
+      return stopLoop;
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    return undefined;
   }, [autoRenderLaunchMode, autoRenderScheduledMode, autoRenderScheduledAt]);
 
   const mergedMode = getMergedMode(autoRenderLaunchMode, autoRenderScheduledMode);
@@ -85,11 +85,11 @@ function LaunchModeSection({
 
   const stationField = showStation ? (
     <div className="uu-grid-field">
-      <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
-        <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
+      <div className="uu-row uu-gap-8">
+        <label className="uu-label uu-label-fixed-140">
           {safeT(t, "postprod.tasks.form.autoRenderWorker", "Station de rendu")}
         </label>
-        <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
+        <div className="uu-flex-1-min0">
           <select
             className="uu-input"
             value={autoRenderWorkerKey}
@@ -135,11 +135,11 @@ function LaunchModeSection({
     <>
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
-            <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
+          <div className="uu-row uu-gap-8">
+            <label className="uu-label uu-label-fixed-140">
               {safeT(t, "postprod.tasks.form.autoRenderLaunchMode", "Mode de lancement")}
             </label>
-            <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
+            <div className="uu-flex-1-min0">
               <select
                 className="uu-input"
                 value={mergedMode}
@@ -165,11 +165,11 @@ function LaunchModeSection({
       {showDatetimePicker ? (
         <div className="uu-grid-2 mt-12">
           <div className="uu-grid-field">
-            <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
-              <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
+            <div className="uu-row uu-gap-8">
+              <label className="uu-label uu-label-fixed-140">
                 {safeT(t, "postprod.tasks.form.autoRenderScheduledAt", "Date de lancement")}
               </label>
-              <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
+              <div className="uu-flex-1-min0">
                 <DateTimeConfirmPicker
                   value={autoRenderScheduledAt}
                   disabled={tasksLoading}
@@ -267,11 +267,11 @@ function TaskEditorAutoConfigFields({
     <>
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
-            <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
+          <div className="uu-row uu-gap-8">
+            <label className="uu-label uu-label-fixed-140">
               {safeT(t, "postprod.tasks.form.autoRenderProjectSelect", "Projet")}
             </label>
-            <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
+            <div className="uu-flex-1-min0">
               <select
                 className="uu-input"
                 value={autoRenderProjectRef}
@@ -298,11 +298,11 @@ function TaskEditorAutoConfigFields({
           ) : null}
         </div>
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
-            <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
+          <div className="uu-row uu-gap-8">
+            <label className="uu-label uu-label-fixed-140">
               {safeT(t, "postprod.tasks.form.autoRenderFormShort", "Formulaire")}
             </label>
-            <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
+            <div className="uu-flex-1-min0">
               <select
                 className="uu-input"
                 value={autoRenderFormId}
@@ -348,11 +348,11 @@ function TaskEditorAutoConfigFields({
       ) : null}
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
-            <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
+          <div className="uu-row uu-gap-8">
+            <label className="uu-label uu-label-fixed-140">
               {safeT(t, "postprod.tasks.form.renderPreset", "Preset de rendu")}
             </label>
-            <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
+            <div className="uu-flex-1-min0">
               <select
                 className="uu-input"
                 value={autoRenderTemplateId}
@@ -386,7 +386,7 @@ function TaskEditorAutoConfigFields({
             </div>
           ) : null}
         </div>
-        <div style={AUTO_CONFIG_CENTER_FLEX_STYLE}>
+        <div className="uu-flex-center">
           <label className="uu-check">
             <input
               type="checkbox"
@@ -402,11 +402,11 @@ function TaskEditorAutoConfigFields({
       </div>
       <div className="uu-grid-2 mt-12">
         <div className="uu-grid-field">
-          <div className="uu-row uu-gap-8" style={AUTO_CONFIG_ROW_ALIGN_CENTER_STYLE}>
-            <label className="uu-label" style={AUTO_CONFIG_LABEL_140_STYLE}>
+          <div className="uu-row uu-gap-8">
+            <label className="uu-label uu-label-fixed-140">
               {safeT(t, "postprod.tasks.form.autoRenderSequence", "Level Sequence")}
             </label>
-            <div style={AUTO_CONFIG_FLEX_1_MIN_0_STYLE}>
+            <div className="uu-flex-1-min0">
               <select
                 className="uu-input"
                 value={taskSequenceName}

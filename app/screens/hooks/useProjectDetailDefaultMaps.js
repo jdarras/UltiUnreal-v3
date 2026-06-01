@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { getProjectMeta, setProjectDefaultMaps } from '../../utils/agent';
 import { useTransientClearTimer } from './useTransientClearTimer';
+import { clearMessagePair, setTypedMessage } from './projectDetailFeedbackHelpers';
 
 export function useProjectDetailDefaultMaps({
   t,
@@ -12,6 +13,16 @@ export function useProjectDetailDefaultMaps({
   setMapsMsgType,
 } = {}) {
   const { scheduleClear } = useTransientClearTimer();
+  const clearMapsFeedback = useCallback(() => {
+    clearMessagePair(setMapsMsg, setMapsMsgType);
+  }, [setMapsMsg, setMapsMsgType]);
+
+  const showMapsFeedback = useCallback((type, key, clearAfterMs = 0) => {
+    setTypedMessage(setMapsMsg, setMapsMsgType, type, t(key));
+    if (Number(clearAfterMs) > 0) {
+      scheduleClear(() => setMapsMsg(''), clearAfterMs);
+    }
+  }, [scheduleClear, setMapsMsg, setMapsMsgType, t]);
 
   const applyDefaultMapsPatch = useCallback(async (patch = {}) => {
     const pid = String(detailId || '').trim();
@@ -21,8 +32,7 @@ export function useProjectDetailDefaultMaps({
     if (!pid || (!game && !editor)) return;
 
     setMapsBusy(true);
-    setMapsMsg('');
-    setMapsMsgType('');
+    clearMapsFeedback();
     setDetailInsights((prev) => ({
       ...(prev || {}),
       maps: {
@@ -53,27 +63,22 @@ export function useProjectDetailDefaultMaps({
         )));
       }
 
-      setMapsMsgType('ok');
       const okKey = (game && editor)
         ? 'projects.detail.maps.updateOk'
         : (game ? 'projects.detail.maps.updateOkGame' : 'projects.detail.maps.updateOkEditor');
-      setMapsMsg(t(okKey));
-      scheduleClear(() => setMapsMsg(''), 2000);
+      showMapsFeedback('ok', okKey, 2000);
     } catch {
-      setMapsMsgType('error');
-      setMapsMsg(t('projects.detail.maps.updateError'));
+      showMapsFeedback('error', 'projects.detail.maps.updateError');
     } finally {
       setMapsBusy(false);
     }
   }, [
+    clearMapsFeedback,
     detailId,
     setDetailInsights,
     setMapsBusy,
-    setMapsMsg,
-    setMapsMsgType,
     setProjects,
-    scheduleClear,
-    t,
+    showMapsFeedback,
   ]);
 
   return { applyDefaultMapsPatch };

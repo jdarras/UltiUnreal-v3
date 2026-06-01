@@ -12,9 +12,6 @@ const RED_INPUT_STYLE = {
 const RED_SELECT_STYLE = {
   borderColor: "var(--uu-color-red)",
 };
-const META_FIELD_ROW_STYLE = { display: "flex", alignItems: "center", gap: "10px" };
-const META_FIELD_LABEL_STYLE = { width: "150px", minWidth: "150px" };
-const META_ACTION_BUTTON_STYLE = { flexShrink: 0 };
 const META_HELP_TEXT_STYLE = { fontSize: "0.82em" };
 const META_WRC_ROW_STYLE = {
   display: "flex",
@@ -112,8 +109,8 @@ export function RenderFormsMetaCard({
     <>
       {/* ---- Bloc 1 : champs principaux ---- */}
       <div className="uu-card">
-        <div className="uu-grid-field" style={META_FIELD_ROW_STYLE}>
-          <label className="uu-label" style={META_FIELD_LABEL_STYLE}>{safeT(t, "postprod.data.project", "Projet")}</label>
+        <div className="uu-grid-field uu-row uu-row-nowrap uu-gap-10">
+          <label className="uu-label uu-label-fixed-150">{safeT(t, "postprod.data.project", "Projet")}</label>
           <input
             className="uu-input"
             type="text"
@@ -124,23 +121,21 @@ export function RenderFormsMetaCard({
           />
           <button
             type="button"
-            className="uu-btn"
-            style={META_ACTION_BUTTON_STYLE}
+            className="uu-btn uu-flex-no-shrink"
             onClick={() => onNavigateToProject?.(selectedForm?.projectName)}
           >
             {safeT(t, "common.edit", "Éditer")}
           </button>
           <button
             type="button"
-            className="uu-btn prod-toggle-active"
-            style={META_ACTION_BUTTON_STYLE}
+            className="uu-btn prod-toggle-active uu-flex-no-shrink"
             onClick={() => onNavigateToProject?.(selectedForm?.projectName, { start: true })}
           >
             {safeT(t, "common.start", "Start")}
           </button>
         </div>
-        <div className="uu-grid-field mt-8" style={META_FIELD_ROW_STYLE}>
-          <label className="uu-label" style={META_FIELD_LABEL_STYLE}>{safeT(t, "common.name", "Nom")}</label>
+        <div className="uu-grid-field mt-8 uu-row uu-row-nowrap uu-gap-10">
+          <label className="uu-label uu-label-fixed-150">{safeT(t, "common.name", "Nom")}</label>
           <input
             className="uu-input"
             type="text"
@@ -152,8 +147,8 @@ export function RenderFormsMetaCard({
             style={nameRed ? RED_INPUT_STYLE : undefined}
           />
         </div>
-        <div className="uu-grid-field mt-8" style={META_FIELD_ROW_STYLE}>
-          <label className="uu-label" style={META_FIELD_LABEL_STYLE}>{safeT(t, "postprod.tasks.form.autoRenderMap", "Level")}</label>
+        <div className="uu-grid-field mt-8 uu-row uu-row-nowrap uu-gap-10">
+          <label className="uu-label uu-label-fixed-150">{safeT(t, "postprod.tasks.form.autoRenderMap", "Level")}</label>
           <select
             className="uu-input"
             value={metaMapName}

@@ -29,6 +29,21 @@ export function useProjectDetailLifecycle({
   resetDetailState,
   saveDetails,
 } = {}) {
+  const applyDetailFallback = useCallback((projectId) => {
+    const pid = String(projectId || '').trim();
+    const isFavorite = projectFavoritesRef?.current?.[pid] === true;
+    setDetailMeta({ favorite: isFavorite });
+    detailSavedNoteRef.current = '';
+    detailNoteDirtyRef.current = false;
+    setDetailInsights({});
+  }, [
+    detailNoteDirtyRef,
+    detailSavedNoteRef,
+    projectFavoritesRef,
+    setDetailInsights,
+    setDetailMeta,
+  ]);
+
   const closeDetailAndSave = useCallback(async (nextDetailId = '') => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     if (!detailId || detailIsNew) {
@@ -131,20 +146,15 @@ export function useProjectDetailLifecycle({
           );
         }
       } else {
-        setDetailMeta({ favorite: projectFavoritesRef?.current?.[String(pid || '').trim()] === true });
-        detailSavedNoteRef.current = '';
-        detailNoteDirtyRef.current = false;
-        setDetailInsights({});
+        applyDetailFallback(pid);
       }
     } catch {
-      setDetailMeta({ favorite: projectFavoritesRef?.current?.[String(pid || '').trim()] === true });
-      detailSavedNoteRef.current = '';
-      detailNoteDirtyRef.current = false;
-      setDetailInsights({});
+      applyDetailFallback(pid);
     } finally {
       setDetailLoading(false);
     }
   }, [
+    applyDetailFallback,
     closeDetailAndSave,
     detailId,
     detailNoteDirtyRef,

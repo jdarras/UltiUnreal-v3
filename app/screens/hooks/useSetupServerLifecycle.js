@@ -1,4 +1,5 @@
 import React from 'react';
+import { startPostprodAsyncLoop } from '../../hooks/postprodAsyncLoop';
 
 function useSetupServerLifecycle({
   role,
@@ -34,21 +35,12 @@ function useSetupServerLifecycle({
 
   React.useEffect(() => {
     if (role !== 'server') return;
-    let stopped = false;
-    let timer = null;
-
-    const tick = async () => {
-      await refreshStatuses();
-      if (stopped) return;
-      const sec = Math.max(2, Number(refreshSec || 5));
-      timer = setTimeout(tick, sec * 1000);
-    };
-
-    tick();
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-    };
+    const sec = Math.max(2, Number(refreshSec || 5));
+    const stopLoop = startPostprodAsyncLoop({
+      intervalMs: sec * 1000,
+      tick: refreshStatuses,
+    });
+    return stopLoop;
   }, [refreshSec, refreshStatuses, role]);
 }
 

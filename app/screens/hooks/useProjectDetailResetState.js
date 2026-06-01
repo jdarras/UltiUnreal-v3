@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { clearMessagePair } from './projectDetailFeedbackHelpers';
 
 export function useProjectDetailResetState({
   resetHttpBind,
@@ -34,28 +35,21 @@ export function useProjectDetailResetState({
 } = {}) {
   const resetDetailState = useCallback(() => {
     resetHttpBind();
-    setIndexationMsg('');
-    setIndexationMsgType('');
+    clearMessagePair(setIndexationMsg, setIndexationMsgType);
     setRenderBridgeStatus(null);
-    setRenderBridgeMsg('');
-    setRenderBridgeMsgType('');
+    clearMessagePair(setRenderBridgeMsg, setRenderBridgeMsgType);
     setRenderBridgeBusy(false);
-    setIntervenantsMsg('');
-    setIntervenantsMsgType('');
+    clearMessagePair(setIntervenantsMsg, setIntervenantsMsgType);
     if (projectVersionTimer.current) clearTimeout(projectVersionTimer.current);
     setProjectVersion('');
-    setProjectVersionMsg('');
-    setProjectVersionMsgType('');
+    clearMessagePair(setProjectVersionMsg, setProjectVersionMsgType);
     setProjectVersionBusy(false);
     setSnapshotOpen(null);
     setSnapshotBusy(false);
-    setSnapshotMsg('');
-    setSnapshotMsgType('');
-    setMapsMsg('');
-    setMapsMsgType('');
+    clearMessagePair(setSnapshotMsg, setSnapshotMsgType);
+    clearMessagePair(setMapsMsg, setMapsMsgType);
     setMapsBusy(false);
-    setVpMsg('');
-    setVpMsgType('');
+    clearMessagePair(setVpMsg, setVpMsgType);
     setVpBusy(false);
     setVpDraft(null);
     setDetailMeta(null);

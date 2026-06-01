@@ -1,3 +1,5 @@
+import { clearMessagePair } from './projectDetailFeedbackHelpers';
+
 export function useProjectDetailEditor({
   canEditFields,
   detailIsNew,
@@ -15,6 +17,16 @@ export function useProjectDetailEditor({
   setIntervenantsMsgType,
   saveDetails,
 } = {}) {
+  function clearSourceFeedback(source) {
+    if (source === 'indexation') {
+      clearMessagePair(setIndexationMsg, setIndexationMsgType);
+      return;
+    }
+    if (source === 'intervenants') {
+      clearMessagePair(setIntervenantsMsg, setIntervenantsMsgType);
+    }
+  }
+
   function updateDetailField(path, value) {
     const base = detailMetaRef.current || detailMeta || {};
     const next = { ...base };
@@ -51,13 +63,7 @@ export function useProjectDetailEditor({
     if (!pid) return;
     if (source === 'indexation' && detailNoteDirtyRef.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    if (source === 'indexation') {
-      setIndexationMsg('');
-      setIndexationMsgType('');
-    } else if (source === 'intervenants') {
-      setIntervenantsMsg('');
-      setIntervenantsMsgType('');
-    }
+    clearSourceFeedback(source);
     const metaSnapshot = nextMeta || detailMetaRef.current || detailMeta || {};
     const metaForSave = { ...metaSnapshot };
     const pathSnapshot = overrides.path !== undefined ? overrides.path : undefined;

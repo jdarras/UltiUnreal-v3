@@ -6,6 +6,7 @@ import { buildTaskAutoRenderStateByTaskId } from "../screens/postproduction/rend
 import { buildRenderQueueTasks } from "../screens/postproduction/renders/hooks/queue/buildRenderQueueTasks";
 import { getQueueEntryLaunchMeta } from "../screens/postproduction/renders/hooks/queue/queueDerivedDataHelpers";
 import { launchScheduledTaskRenderAction } from "../screens/postproduction/renders/hooks/queue/queueLaunchControllerHelpers";
+import { startPostprodAsyncLoop } from "./postprodAsyncLoop";
 
 function usePostprodQueueDispatch({
   appMode, postprodAuthenticated, postprodCanLaunchRenders, localRenderEnabled,
@@ -21,24 +22,18 @@ function usePostprodQueueDispatch({
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
     if (!postprodCanLaunchRenders || !localRenderEnabled) return;
 
-    let stopped = false;
-    let timer = null;
-    let inFlight = false;
     const intervalMs = 5000;
 
-    const tick = async () => {
-      if (stopped) return;
-      if (inFlight) {
-        timer = setTimeout(tick, intervalMs);
-        return;
-      }
-
+    const stopLoop = startPostprodAsyncLoop({
+      intervalMs,
+      initialDelayMs: 2500,
+      inFlightDelayMs: intervalMs,
+      tick: async () => {
       const queueRuntimeActive = isPostprodQueueRuntimeActive();
       const token = String(postprodAuth.token || '').trim();
       const AUTO_DISPATCH_COOLDOWN_MS = 5_000;
       const autoDispatchAllowed = (Date.now() - postprodAutoDispatchLastKickRef.current) >= AUTO_DISPATCH_COOLDOWN_MS;
       if (!queueRuntimeActive || !token || !autoDispatchAllowed) {
-        timer = setTimeout(tick, intervalMs);
         return;
       }
 
@@ -97,7 +92,6 @@ function usePostprodQueueDispatch({
         }
       }
 
-      inFlight = true;
       try {
         if (dueScheduledQueueEntry) {
           const nowMs = Date.now();
@@ -128,17 +122,11 @@ function usePostprodQueueDispatch({
         postprodAutoDispatchLastKickRef.current = Date.now();
         await Promise.resolve(handlePostprodDispatchRenders({ maxJobs: 1, silent: true })).catch(() => ({}));
       } catch {
-      } finally {
-        inFlight = false;
-        if (!stopped) timer = setTimeout(tick, intervalMs);
       }
-    };
+      },
+    });
 
-    timer = setTimeout(tick, 2500);
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-    };
+    return stopLoop;
   }, [
     appMode,
     postprodAuthenticated,

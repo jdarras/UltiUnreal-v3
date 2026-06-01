@@ -1,58 +1,37 @@
 import React from 'react';
 import { NoticeContext } from '../../NoticeContext';
+import { useTransientInfo } from './useTransientInfo';
 
 function useLaunchControlFeedback() {
-  const [error, setError] = React.useState('');
-  const [statusMsg, setStatusMsg] = React.useState('');
-  const errorTimerRef = React.useRef(null);
+  const {
+    infoMsg: error,
+    showInfo: showTransientError,
+    clearInfo: clearTransientError,
+  } = useTransientInfo({ defaultType: 'error', clearAfterMs: 0 });
+  const {
+    infoMsg: statusMsg,
+    showInfo: showTransientStatus,
+    clearInfo: clearTransientStatus,
+  } = useTransientInfo({ defaultType: 'ok', clearAfterMs: 5000 });
   const noticeApi = React.useContext(NoticeContext);
-
-  const clearErrorMessage = React.useCallback(() => {
-    if (errorTimerRef.current) {
-      clearTimeout(errorTimerRef.current);
-      errorTimerRef.current = null;
-    }
-    setError('');
-  }, []);
-
-  const scheduleErrorClear = React.useCallback((delayMs = 0) => {
-    if (errorTimerRef.current) {
-      clearTimeout(errorTimerRef.current);
-      errorTimerRef.current = null;
-    }
-    const rawDelay = Number(delayMs);
-    const timeoutMs = Number.isFinite(rawDelay) && rawDelay > 0 ? Math.trunc(rawDelay) : 0;
-    if (timeoutMs <= 0) return;
-    errorTimerRef.current = setTimeout(() => {
-      errorTimerRef.current = null;
-      setError('');
-    }, timeoutMs);
-  }, []);
 
   const showErrorMessage = React.useCallback((message = '', clearAfterMs = 0) => {
     const normalized = String(message || '').trim();
     if (!normalized) {
-      clearErrorMessage();
+      clearTransientError();
       return;
     }
-    setError(normalized);
-    scheduleErrorClear(clearAfterMs);
-  }, [clearErrorMessage, scheduleErrorClear]);
+    showTransientError(normalized, 'error', clearAfterMs);
+  }, [clearTransientError, showTransientError]);
 
-  React.useEffect(() => {
-    if (!statusMsg) return;
-    const timer = setTimeout(() => setStatusMsg(''), 5000);
-    return () => clearTimeout(timer);
-  }, [statusMsg]);
-
-  React.useEffect(() => {
-    return () => {
-      if (errorTimerRef.current) {
-        clearTimeout(errorTimerRef.current);
-        errorTimerRef.current = null;
-      }
-    };
-  }, []);
+  const setStatusMsg = React.useCallback((message = '') => {
+    const normalized = String(message || '').trim();
+    if (!normalized) {
+      clearTransientStatus();
+      return;
+    }
+    showTransientStatus(normalized, 'ok', 5000);
+  }, [clearTransientStatus, showTransientStatus]);
 
   React.useEffect(() => {
     if (!noticeApi) return;
@@ -73,7 +52,7 @@ function useLaunchControlFeedback() {
       return;
     }
     setStatusMsg(normalized);
-  }, [noticeApi]);
+  }, [noticeApi, setStatusMsg]);
 
   return {
     error,

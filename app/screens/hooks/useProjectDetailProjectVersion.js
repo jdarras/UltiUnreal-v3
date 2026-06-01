@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { setProjectVersion as agentSetPV } from '../../utils/agent';
 import { useTransientClearTimer } from './useTransientClearTimer';
+import { clearMessagePair, setTypedMessage } from './projectDetailFeedbackHelpers';
 
 export function useProjectDetailProjectVersion({
   t,
@@ -22,9 +23,21 @@ export function useProjectDetailProjectVersion({
   const { scheduleClear } = useTransientClearTimer();
 
   const clearProjectVersionFeedback = useCallback(() => {
-    setProjectVersionMsg('');
-    setProjectVersionMsgType('');
+    clearMessagePair(setProjectVersionMsg, setProjectVersionMsgType);
   }, [setProjectVersionMsg, setProjectVersionMsgType]);
+
+  const showProjectVersionFeedback = useCallback((type, key, clearAfterMs = 0) => {
+    setTypedMessage(setProjectVersionMsg, setProjectVersionMsgType, type, t(key));
+    if (Number(clearAfterMs) > 0) {
+      scheduleClear(clearProjectVersionFeedback, clearAfterMs);
+    }
+  }, [
+    clearProjectVersionFeedback,
+    scheduleClear,
+    setProjectVersionMsg,
+    setProjectVersionMsgType,
+    t,
+  ]);
 
   useEffect(() => {
     if (!detailId || detailIsNew) {
@@ -68,8 +81,7 @@ export function useProjectDetailProjectVersion({
     try {
       const res = await agentSetPV(pid, pv);
       if (!res || res.ok === false) throw new Error(res?.error || 'save_failed');
-      setProjectVersionMsg(t('projects.detail.projectVersion.updateOk'));
-      setProjectVersionMsgType('ok');
+      showProjectVersionFeedback('ok', 'projects.detail.projectVersion.updateOk', 2000);
       setDetailInsights((prev) => ({ ...(prev || {}), projectVersion: pv }));
       setDetailMeta((prev) => ({ ...(prev || {}), fileVersion: pv }));
       setProjects((prev) =>
@@ -79,10 +91,8 @@ export function useProjectDetailProjectVersion({
             : p
         )
       );
-      scheduleClear(clearProjectVersionFeedback, 2000);
     } catch {
-      setProjectVersionMsg(t('projects.detail.projectVersion.updateError'));
-      setProjectVersionMsgType('error');
+      showProjectVersionFeedback('error', 'projects.detail.projectVersion.updateError');
     } finally {
       setProjectVersionBusy(false);
     }
@@ -97,8 +107,7 @@ export function useProjectDetailProjectVersion({
     setProjectVersionBusy,
     setProjects,
     clearProjectVersionFeedback,
-    scheduleClear,
-    t,
+    showProjectVersionFeedback,
   ]);
 
   const scheduleProjectVersionSave = useCallback((nextValue) => {

@@ -2,6 +2,26 @@ import React from 'react';
 
 import { postHost, checkSync } from '../../utils/agent';
 import { safeStr } from '../synchronisationHelpers';
+import { useSyncMessagePublisher } from './useSyncMessagePublisher';
+
+function extractDiffCount(listValue, countValue) {
+  return Array.isArray(listValue) ? listValue.length : Number(countValue ?? 0);
+}
+
+function extractSyncDiffCounts(syncResult) {
+  return {
+    added: extractDiffCount(syncResult?.added, syncResult?.addedCount),
+    modified: extractDiffCount(syncResult?.modified, syncResult?.modifiedCount),
+    removed: extractDiffCount(syncResult?.removed, syncResult?.deletedCount),
+  };
+}
+
+function isSyncCheckSuccessful(syncResult) {
+  return !!(
+    syncResult &&
+    (syncResult.ok || syncResult.status === 'in_sync' || syncResult.status === 'desync')
+  );
+}
 
 function useSyncClientFlow({
   role,
@@ -26,6 +46,7 @@ function useSyncClientFlow({
   const [clientInitDone, setClientInitDone] = React.useState(false);
   const clientSaveTimer = React.useRef(null);
   const saveReady = React.useRef(false);
+  const showClientMessage = useSyncMessagePublisher({ setMessage, scheduleMessageClear });
 
   React.useEffect(() => {
     if (role !== 'client') return;
@@ -66,58 +87,35 @@ function useSyncClientFlow({
     );
 
     if (!hostExists) {
-      setMessage({
-        type: 'error',
-        text: t('sync.client.msg.hostMissingOnServer'),
-      });
-      scheduleMessageClear(3000);
+      showClientMessage('error', t('sync.client.msg.hostMissingOnServer'), 3000);
       return;
     }
 
     if (clientSyncEnabled && !root) {
-      setMessage({
-        type: 'error',
-        text: t('sync.client.msg.missingRoot'),
-      });
-      scheduleMessageClear(2000);
+      showClientMessage('error', t('sync.client.msg.missingRoot'), 2000);
       return;
     }
 
     if (!localIp) {
-      setMessage({
-        type: 'error',
-        text: t('sync.client.msg.noLocalIp'),
-      });
-      scheduleMessageClear(3000);
+      showClientMessage('error', t('sync.client.msg.noLocalIp'), 3000);
       return;
     }
 
     try {
       await postHost(localIp, { syncRoot: root });
       writeCachedRoot(root);
-
-      setMessage({
-        type: 'ok',
-        text: t('sync.client.msg.saved'),
-      });
+      showClientMessage('ok', t('sync.client.msg.saved'), 2000);
     } catch (e) {
-      setMessage({
-        type: 'error',
-        text: `${t('sync.client.msg.saveErrorPrefix')}${e.message || e}`,
-      });
+      showClientMessage('error', `${t('sync.client.msg.saveErrorPrefix')}${e.message || e}`, 2000);
     }
-
-    const delay = clientSyncEnabled && !root ? 4000 : 2000;
-    scheduleMessageClear(delay);
   }, [
     clientRoot,
     hosts,
     localIp,
     clientSyncEnabled,
     t,
-    scheduleMessageClear,
+    showClientMessage,
     writeCachedRoot,
-    setMessage,
   ]);
 
   React.useEffect(() => {
@@ -146,72 +144,50 @@ function useSyncClientFlow({
       : null;
 
     if (!localHostClient || !localIp) {
-      setMessage({
-        type: 'info',
-        text: t('sync.client.msg.noLocalHost'),
-      });
-      scheduleMessageClear(4000);
+      showClientMessage('info', t('sync.client.msg.noLocalHost'), 4000);
       return;
     }
 
     const root = String(clientRoot || '').trim();
     if (!root) {
-      setMessage({
-        type: 'info',
-        text: t('sync.client.msg.mustSetRoot'),
-      });
-      scheduleMessageClear(4000);
+      showClientMessage('info', t('sync.client.msg.mustSetRoot'), 4000);
       return;
     }
 
     try {
-      setMessage({
-        type: 'info',
-        text: t('sync.client.msg.testRunning'),
-      });
+      showClientMessage('info', t('sync.client.msg.testRunning'));
 
       const res = await checkSync(localIp, syncScopeOptions || undefined);
 
-      if (res && (res.ok || res.status === 'in_sync' || res.status === 'desync')) {
-        const added = Array.isArray(res?.added) ? res.added.length : Number(res?.addedCount ?? 0);
-        const modified = Array.isArray(res?.modified)
-          ? res.modified.length
-          : Number(res?.modifiedCount ?? 0);
-        const removed = Array.isArray(res?.removed)
-          ? res.removed.length
-          : Number(res?.deletedCount ?? 0);
+      if (isSyncCheckSuccessful(res)) {
+        const { added, modified, removed } = extractSyncDiffCounts(res);
 
-        setMessage({
-          type: 'ok',
-          text: t('sync.client.msg.testOkCounts')
+        showClientMessage(
+          'ok',
+          t('sync.client.msg.testOkCounts')
             .replace('{added}', added)
             .replace('{modified}', modified)
             .replace('{removed}', removed),
-        });
+          4000
+        );
       } else {
-        setMessage({
-          type: 'error',
-          text: t('sync.client.msg.testError'),
-        });
+        showClientMessage('error', t('sync.client.msg.testError'), 4000);
       }
-
-      scheduleMessageClear(4000);
     } catch (e) {
-      setMessage({
-        type: 'error',
-        text: `${t('sync.client.msg.testErrorPrefix')}${e.message || e}`,
-      });
-      scheduleMessageClear(5000);
+      showClientMessage('error', `${t('sync.client.msg.testErrorPrefix')}${e.message || e}`, 5000);
     }
-  }, [hosts, localIp, clientRoot, t, scheduleMessageClear, setMessage, syncScopeOptions]);
+  }, [
+    hosts,
+    localIp,
+    clientRoot,
+    t,
+    syncScopeOptions,
+    showClientMessage,
+  ]);
 
   const handleBrowseClient = React.useCallback(async () => {
     if (!window.electron || typeof window.electron.chooseFolder !== 'function') {
-      setMessage({
-        type: 'error',
-        text: t('sync.client.msg.chooseFolderUnavailable'),
-      });
-      scheduleMessageClear(2500);
+      showClientMessage('error', t('sync.client.msg.chooseFolderUnavailable'), 2500);
       return;
     }
 
@@ -223,13 +199,9 @@ function useSyncClientFlow({
       writeCachedRoot(folder);
       setClientSyncEnabled(true);
     } catch {
-      setMessage({
-        type: 'error',
-        text: t('sync.client.msg.chooseFolderError'),
-      });
-      scheduleMessageClear(2500);
+      showClientMessage('error', t('sync.client.msg.chooseFolderError'), 2500);
     }
-  }, [t, scheduleMessageClear, setMessage, writeCachedRoot]);
+  }, [t, showClientMessage, writeCachedRoot]);
 
   return {
     clientRoot,

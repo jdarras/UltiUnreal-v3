@@ -22,17 +22,13 @@ import {
 import { mapRenderExportDestinationOptions } from "./utils/postprodCatalogHelpers";
 import {
   APP_MODE_POSTPROD,
-  POSTPROD_TAB_USERS,
   POSTPROD_TAB_RENDERS_CREATE,
 } from "./utils/appConstants";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AppShell from "./components/AppShell";
 import {
-  resolveUserShowFabResourcesPreference,
-  getPostprodTabsForUser,
   getModeAccessForUser,
   normalizeAppMode,
-  getLiveAccountTabs,
   getAllowedTabs,
   resolveDefaultTab,
 } from "./utils/postprodPermissionsHelpers";
@@ -52,6 +48,8 @@ import { usePostprodQueueDispatch } from "./hooks/usePostprodQueueDispatch";
 import { usePostprodNavCallbacks } from "./hooks/usePostprodNavCallbacks";
 import { usePostprodNavEffects } from "./hooks/usePostprodNavEffects";
 import { usePostprodNavAlerts } from "./hooks/usePostprodNavAlerts";
+import { usePostprodAccessState } from "./hooks/usePostprodAccessState";
+import { startPostprodAsyncLoop } from "./hooks/postprodAsyncLoop";
 
 import "./global.css";
 import { readIdentity, writeIdentity } from "./utils/identity";
@@ -458,61 +456,39 @@ function App() {
     };
   }, [openQuitDialog]);
 
-  const postprodCanManageUsers = !!postprodAuth.user?.permissions?.canManageUsers;
-  const postprodCanManageRoles = postprodAuth.user?.permissions?.canManageRoles === true;
-  const postprodCanManageRenderTemplates = postprodAuth.user?.permissions?.canManageForms === true;
-  const postprodCanManageMachines = postprodAuth.user?.permissions?.canManageMachines === true;
-  const postprodCanManageConfiguration = postprodAuthenticated
-    ? postprodAuth.user?.permissions?.canManageConfiguration === true
-    : true;
-  const postprodCanBanUsers = postprodAuth.user?.permissions?.canBanUsers === true;
-  const postprodCanManageProjectPermissions =
-    postprodAuth.user?.permissions?.canManageProjectPermissions === true;
-  const postprodCanViewResources = postprodAuth.user?.permissions?.canViewResources !== false;
-  const postprodUserShowFabResources = resolveUserShowFabResourcesPreference(postprodAuth.user);
-  const resourcesEnabledGlobal = !!(
-    commonCfg
-    && (
-      commonCfg.fab_resources_enabled === true
-      || commonCfg.fabResourcesEnabled === true
-    )
-  );
-  const resourcesEnabled = resourcesEnabledGlobal && (!postprodAuthenticated || postprodUserShowFabResources);
-  const postprodCanAccessResources = postprodCanViewResources && resourcesEnabled;
-  const postprodCanCreateTasks = postprodAuth.user?.permissions?.canCreateTasks !== false;
-  const postprodCanAssignRenderRequests = postprodAuth.user?.permissions?.canAssignRenderRequests === true;
-  const postprodCanBypassPadForTasks = postprodAuth.user?.permissions?.canSyncScenes === true;
-  const postprodCanEditProjects = postprodAuth.user?.permissions?.canEditProjects !== false;
-  const postprodCanManageLayouts = postprodAuth.user?.permissions?.canManageLayouts !== false;
-  const postprodCanLaunchLiveProjects = postprodAuth.user?.permissions?.canLaunchLiveProjects !== false;
-  const postprodCanLaunchProjects = postprodAuth.user?.permissions?.canLaunchProjects !== false;
-  const liveCanEditProjects = postprodAuthenticated ? postprodCanEditProjects : true;
-  const liveCanLaunchRuntimeProjects = postprodAuthenticated ? postprodCanLaunchLiveProjects : true;
-  const liveCanLaunchEditorProjects = postprodAuthenticated ? postprodCanLaunchProjects : true;
-  const postprodCanLaunchRenders = !!postprodAuth.user?.permissions?.canLaunchRenders;
-  const postprodRefreshSec = Math.max(2, Number(commonCfg?.refreshSec || 5) || 5);
-  const postprodRefreshMs = postprodRefreshSec * 1000;
-  const postprodManageableRoles = Array.isArray(postprodAuth.user?.permissions?.manageableRoles)
-    ? postprodAuth.user.permissions.manageableRoles
-    : [];
-  const postprodVisibleTabs = useMemo(
-    () =>
-      getPostprodTabsForUser(postprodAuth.user, postprodAuthenticated, {
-        resourcesEnabled,
-      }),
-    [postprodAuth.user, postprodAuthenticated, resourcesEnabled]
-  );
-  const liveAccountTabs = useMemo(
-    () => getLiveAccountTabs({
-      authenticated: postprodAuthenticated,
-      canManageUsers: postprodCanManageUsers,
-      canManageRoles: postprodCanManageRoles,
-    }),
-    [postprodAuthenticated, postprodCanManageUsers, postprodCanManageRoles]
-  );
-  const postprodLockedTabs = appMode === APP_MODE_POSTPROD && !postprodAuthenticated
-    ? postprodVisibleTabs.filter((tab) => tab !== POSTPROD_TAB_USERS)
-    : [];
+  const {
+    postprodCanManageUsers,
+    postprodCanManageRoles,
+    postprodCanManageRenderTemplates,
+    postprodCanManageMachines,
+    postprodCanManageConfiguration,
+    postprodCanBanUsers,
+    postprodCanManageProjectPermissions,
+    postprodCanViewResources,
+    resourcesEnabledGlobal,
+    resourcesEnabled,
+    postprodCanAccessResources,
+    postprodCanCreateTasks,
+    postprodCanAssignRenderRequests,
+    postprodCanBypassPadForTasks,
+    postprodCanEditProjects,
+    postprodCanManageLayouts,
+    postprodCanLaunchProjects,
+    liveCanEditProjects,
+    liveCanLaunchRuntimeProjects,
+    liveCanLaunchEditorProjects,
+    postprodCanLaunchRenders,
+    postprodRefreshMs,
+    postprodManageableRoles,
+    postprodVisibleTabs,
+    liveAccountTabs,
+    postprodLockedTabs,
+  } = usePostprodAccessState({
+    postprodAuth,
+    postprodAuthenticated,
+    commonCfg,
+    appMode,
+  });
   const postprodOfflineOutboxCount = useMemo(
     () => normalizePostprodOfflineOutbox(postprodOfflineOutbox).length,
     [postprodOfflineOutbox]
@@ -546,30 +522,21 @@ function App() {
       return;
     }
 
-    let stopped = false;
-    let timer = null;
     const pollSec = Math.max(2, Number(commonCfg?.refreshSec || 5) || 5);
-
-    const tick = async () => {
-      try {
-        const status = await getLogsStorage({ allHosts: true });
-        if (!stopped && status && typeof status === 'object' && status.ok !== false) {
-          setLogsStorageSummary(status);
+    const stopLoop = startPostprodAsyncLoop({
+      intervalMs: pollSec * 1000,
+      tick: async () => {
+        try {
+          const status = await getLogsStorage({ allHosts: true });
+          if (status && typeof status === 'object' && status.ok !== false) {
+            setLogsStorageSummary(status);
+          }
+        } catch {
+          // conserve le dernier état connu en cas d'erreur réseau temporaire
         }
-      } catch {
-        // conserve le dernier état connu en cas d'erreur réseau temporaire
-      }
-
-      if (!stopped) {
-        timer = setTimeout(tick, pollSec * 1000);
-      }
-    };
-
-    tick();
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-    };
+      },
+    });
+    return stopLoop;
   }, [
     showWelcome,
     showLicense,
@@ -1189,25 +1156,17 @@ function App() {
     if (!ip) return;
     if (roleNow === 'client' && !srvIp) return; // impossible d'atteindre le serveur
 
-    let stopped = false;
-    let timer = null;
-
-    const sendPresence = async () => {
-      try {
-        await postPresence({ ip, name: ip });
-      } catch {
-        // échec silencieux, on réessaie au tick suivant
-      }
-      if (!stopped) {
-        timer = setTimeout(sendPresence, 5000);
-      }
-    };
-
-    sendPresence();
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-    };
+    const stopLoop = startPostprodAsyncLoop({
+      intervalMs: 5000,
+      tick: async () => {
+        try {
+          await postPresence({ ip, name: ip });
+        } catch {
+          // échec silencieux, on réessaie au tick suivant
+        }
+      },
+    });
+    return stopLoop;
   }, [showWelcome, showLicense, safeIdentity.localIp, safeIdentity.serverIp, safeIdentity.role]);
 
   const { logsNavAlert, usersNavAlert, rendersNavAlert, rendersTopNoticeText } = usePostprodNavAlerts({

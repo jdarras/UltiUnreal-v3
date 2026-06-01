@@ -1,10 +1,17 @@
 import { useState, useMemo, useCallback } from 'react';
 import { normalizeHttpBindInput, isValidHttpBindInput } from '../../utils/projectsScreenUtils';
 import { setProjectHttpBind } from '../../utils/agent';
+import { useTransientInfo } from './useTransientInfo';
 
 export function useHttpBind({ detailInsights, detailId, detailIsNew, t, setDetailInsights }) {
-  const [httpBindDetailMsg, setHttpBindDetailMsg] = useState('');
-  const [httpBindDetailMsgType, setHttpBindDetailMsgType] = useState('');
+  const {
+    infoMsg: httpBindDetailMsg,
+    setInfoMsg: setHttpBindDetailMsg,
+    infoMsgType: httpBindDetailMsgType,
+    setInfoMsgType: setHttpBindDetailMsgType,
+    showInfo: showHttpBindDetailMsg,
+    clearInfo: clearHttpBindDetailMsg,
+  } = useTransientInfo({ defaultType: 'error', clearAfterMs: 2000 });
   const [httpBindEditing, setHttpBindEditing] = useState(false);
   const [httpBindDraft, setHttpBindDraft] = useState('');
   const [httpBindBusy, setHttpBindBusy] = useState(false);
@@ -51,16 +58,14 @@ export function useHttpBind({ detailInsights, detailId, detailIsNew, t, setDetai
     const nextValue = httpBindAddress || '0.0.0.0';
     setHttpBindDraft(nextValue);
     setHttpBindEditing(true);
-    setHttpBindDetailMsg('');
-    setHttpBindDetailMsgType('');
-  }, [canEditHttpBind, httpBindAddress]);
+    clearHttpBindDetailMsg();
+  }, [canEditHttpBind, clearHttpBindDetailMsg, httpBindAddress]);
 
   const cancelHttpBindEdit = useCallback(() => {
     setHttpBindEditing(false);
     setHttpBindDraft('');
-    setHttpBindDetailMsg('');
-    setHttpBindDetailMsgType('');
-  }, []);
+    clearHttpBindDetailMsg();
+  }, [clearHttpBindDetailMsg]);
 
   const saveHttpBindAddress = useCallback(async () => {
     if (!canEditHttpBind) return;
@@ -68,28 +73,17 @@ export function useHttpBind({ detailInsights, detailId, detailIsNew, t, setDetai
     if (!pid) return;
     const nextValue = normalizeHttpBindInput(httpBindDraft);
     if (!isValidHttpBindInput(nextValue)) {
-      setHttpBindDetailMsgType('error');
-      setHttpBindDetailMsg(t('projects.detail.httpBind.invalid'));
-      setTimeout(() => {
-        setHttpBindDetailMsg('');
-        setHttpBindDetailMsgType('');
-      }, 2000);
+      showHttpBindDetailMsg(t('projects.detail.httpBind.invalid'), 'error', 2000);
       return;
     }
     setHttpBindBusy(true);
-    setHttpBindDetailMsg('');
-    setHttpBindDetailMsgType('');
+    clearHttpBindDetailMsg();
     try {
       const res = await setProjectHttpBind(pid, nextValue);
       if (!res || res.ok === false) {
         throw new Error(res?.error || 'update_failed');
       }
-      setHttpBindDetailMsgType('ok');
-      setHttpBindDetailMsg(t('projects.detail.httpBind.updateOk'));
-      setTimeout(() => {
-        setHttpBindDetailMsg('');
-        setHttpBindDetailMsgType('');
-      }, 2000);
+      showHttpBindDetailMsg(t('projects.detail.httpBind.updateOk'), 'ok', 2000);
       setDetailInsights?.((prev) => ({
         ...(prev || {}),
         httpServer: {
@@ -103,28 +97,32 @@ export function useHttpBind({ detailInsights, detailId, detailIsNew, t, setDetai
     } catch (e) {
       const raw = String(e?.message || '');
       const missing = /404/.test(raw) || /ini_not_found/i.test(raw);
-      setHttpBindDetailMsgType('error');
-      setHttpBindDetailMsg(
+      showHttpBindDetailMsg(
         missing
           ? t('projects.detail.httpBind.iniMissing')
-          : t('projects.detail.httpBind.updateError')
+          : t('projects.detail.httpBind.updateError'),
+        'error',
+        2000
       );
-      setTimeout(() => {
-        setHttpBindDetailMsg('');
-        setHttpBindDetailMsgType('');
-      }, 2000);
     } finally {
       setHttpBindBusy(false);
     }
-  }, [canEditHttpBind, detailId, httpBindDraft, setDetailInsights, t]);
+  }, [
+    canEditHttpBind,
+    clearHttpBindDetailMsg,
+    detailId,
+    httpBindDraft,
+    setDetailInsights,
+    showHttpBindDetailMsg,
+    t,
+  ]);
 
   const resetHttpBind = useCallback(() => {
     setHttpBindBusy(false);
-    setHttpBindDetailMsg('');
-    setHttpBindDetailMsgType('');
+    clearHttpBindDetailMsg();
     setHttpBindEditing(false);
     setHttpBindDraft('');
-  }, []);
+  }, [clearHttpBindDetailMsg]);
 
   return {
     httpBindBusy,

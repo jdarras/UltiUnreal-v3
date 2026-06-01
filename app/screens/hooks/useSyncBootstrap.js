@@ -1,15 +1,6 @@
 import React from 'react';
 import { getCommon, getHosts } from '../../utils/agent';
-import { safeStr } from '../synchronisationHelpers';
-
-function normalizeHosts(rawHosts) {
-  return (Array.isArray(rawHosts) ? rawHosts : []).filter(
-    (host) =>
-      host &&
-      typeof host === 'object' &&
-      safeStr(host.ip || host.address, '')
-  );
-}
+import { normalizeSyncHosts } from './syncDataNormalization';
 
 export function useSyncBootstrap({
   setHosts,
@@ -26,7 +17,7 @@ export function useSyncBootstrap({
       try {
         const hostsRaw = await getHosts();
         if (cancelled) return;
-        setHosts(normalizeHosts(hostsRaw));
+        setHosts(normalizeSyncHosts(hostsRaw));
       } catch (error) {
         if (!cancelled) {
           setHostsError(String(error?.message || error));

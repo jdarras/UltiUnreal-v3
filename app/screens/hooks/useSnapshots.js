@@ -1,17 +1,19 @@
 import { useState, useCallback } from 'react';
 import { getAgentBaseUrl, setProjectAutoScreenshot } from '../../utils/agent';
 import { formatDateTime } from '../../utils/projects-helpers';
+import { useTransientInfo } from './useTransientInfo';
 
 export function useSnapshots({ t, detailId, setDetailMeta, setProjects }) {
   const [snapshotOpen, setSnapshotOpen] = useState(null); // { rel, path, mtime }
   const [snapshotBusy, setSnapshotBusy] = useState(false);
-  const [snapshotMsg, setSnapshotMsg] = useState('');
-  const [snapshotMsgType, setSnapshotMsgType] = useState(''); // ok | error
-
-  const clearSnapshotFeedback = useCallback(() => {
-    setSnapshotMsg('');
-    setSnapshotMsgType('');
-  }, []);
+  const {
+    infoMsg: snapshotMsg,
+    setInfoMsg: setSnapshotMsg,
+    infoMsgType: snapshotMsgType,
+    setInfoMsgType: setSnapshotMsgType,
+    showInfo: showSnapshotMsg,
+    clearInfo: clearSnapshotFeedback,
+  } = useTransientInfo({ defaultType: 'error', clearAfterMs: 0 });
 
   const openSnapshotViewer = useCallback((payload) => {
     clearSnapshotFeedback();
@@ -136,16 +138,23 @@ export function useSnapshots({ t, detailId, setDetailMeta, setProjects }) {
           );
         }
 
-        setSnapshotMsg(t('projects.snapshots.thumbnailUpdated'));
-        setSnapshotMsgType('ok');
+        showSnapshotMsg(t('projects.snapshots.thumbnailUpdated'), 'ok', 0);
       } catch (err) {
-        setSnapshotMsg(getSnapshotErrorMessage(err, stage));
-        setSnapshotMsgType('error');
+        showSnapshotMsg(getSnapshotErrorMessage(err, stage), 'error', 0);
       } finally {
         setSnapshotBusy(false);
       }
     },
-    [clearSnapshotFeedback, detailId, getSnapshotErrorMessage, setDetailMeta, snapshotSrc, setProjects, t]
+    [
+      clearSnapshotFeedback,
+      detailId,
+      getSnapshotErrorMessage,
+      setDetailMeta,
+      showSnapshotMsg,
+      snapshotSrc,
+      setProjects,
+      t,
+    ]
   );
 
   return {

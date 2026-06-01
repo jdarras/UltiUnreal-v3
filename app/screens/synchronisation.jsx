@@ -1,5 +1,6 @@
 // app/screens/synchronisation.jsx
-import { SyncClientPanel, SyncServerScreen } from './synchronisationSections';
+import SyncClientPanel from './SyncClientPanel';
+import SyncServerScreen from './SyncServerScreen';
 import { useSynchronisationOrchestrator } from './hooks/useSynchronisationOrchestrator';
 
 export default function SynchronisationScreen() {

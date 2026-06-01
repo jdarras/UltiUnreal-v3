@@ -5,9 +5,285 @@ import {
   buildHostsSignature,
   buildProjectsSignature,
 } from '../launchcontrolHelpers';
+import { startPostprodAsyncLoop } from '../../hooks/postprodAsyncLoop';
 
 function sortVersionsList(list = []) {
   return [...list].sort((a, b) => parseFloat(a) - parseFloat(b));
+}
+
+function normalizeUnrealVersions(commonRaw) {
+  return Array.isArray(commonRaw?.unrealVersions) && commonRaw.unrealVersions.length
+    ? commonRaw.unrealVersions.map((v) => String(v || '').trim()).filter(Boolean)
+    : [];
+}
+
+function normalizeSortedUnrealVersions(commonRaw) {
+  return sortVersionsList(normalizeUnrealVersions(commonRaw));
+}
+
+function applyCommonVisibilityFlags(
+  commonRaw,
+  canUseEditorLaunch,
+  setShowUeLaunch,
+  setAllowStartDesynced
+) {
+  setShowUeLaunch(canUseEditorLaunch && !!commonRaw?.show_start_new_ue);
+  setAllowStartDesynced(!!commonRaw?.allowStartDesynced);
+}
+
+function resolveLaunchModeFromCommon(commonRaw, canUseEditorLaunch, preserveUnknownInEditor) {
+  const mode = String(commonRaw?.launchMode || '').toLowerCase();
+  if (mode === 'integration' && canUseEditorLaunch) return 'integration';
+  if (mode === 'production') return 'production';
+  if (!canUseEditorLaunch) return 'production';
+  return preserveUnknownInEditor ? null : 'production';
+}
+
+function applyLaunchModeFromCommon(
+  commonRaw,
+  canUseEditorLaunch,
+  preserveUnknownInEditor,
+  setLaunchMode
+) {
+  const launchMode = resolveLaunchModeFromCommon(
+    commonRaw,
+    canUseEditorLaunch,
+    preserveUnknownInEditor
+  );
+  if (launchMode) setLaunchMode(launchMode);
+}
+
+function areStringListsEqual(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function setUnrealVersionsFromCommon(commonRaw, setUeVersions, { preservePrevious = true } = {}) {
+  const next = normalizeSortedUnrealVersions(commonRaw);
+  if (!preservePrevious) {
+    setUeVersions(next);
+    return;
+  }
+  setUeVersions((prev) => (areStringListsEqual(prev, next) ? prev : next));
+}
+
+function readPositiveNumber(value) {
+  const num = Number(value || 0);
+  return num > 0 ? num : 0;
+}
+
+function applyInitialRefreshSec(commonRaw, setRefreshSec) {
+  const refreshSeconds = readPositiveNumber(commonRaw?.refreshSec);
+  if (refreshSeconds) setRefreshSec(refreshSeconds);
+}
+
+function applyPolledRefreshSec(commonRaw, refreshSecRef, setRefreshSec) {
+  const refreshSeconds = readPositiveNumber(commonRaw?.refreshSec);
+  if (refreshSeconds && refreshSeconds !== refreshSecRef.current) {
+    setRefreshSec(refreshSeconds);
+  }
+}
+
+function applyInitialRcHttpPort(commonRaw, setRcHttpPort) {
+  const rcPort = readPositiveNumber(commonRaw?.rcHttpPort);
+  if (rcPort) setRcHttpPort(rcPort);
+}
+
+function applyPolledRcHttpPort(commonRaw, rcHttpPortRef, setRcHttpPort) {
+  const portCfg = readPositiveNumber(commonRaw?.rcHttpPort);
+  if (portCfg && portCfg !== rcHttpPortRef.current) {
+    setRcHttpPort(portCfg);
+  }
+}
+
+function applyInitialUseStartLayout(commonRaw, setUseStartLayout) {
+  if (typeof commonRaw?.useStartLayout === 'boolean') {
+    setUseStartLayout(!!commonRaw.useStartLayout);
+  }
+}
+
+function applyPolledUseStartLayout(commonRaw, useStartLayoutRef, setUseStartLayout) {
+  if (
+    typeof commonRaw?.useStartLayout === 'boolean' &&
+    commonRaw.useStartLayout !== useStartLayoutRef.current
+  ) {
+    setUseStartLayout(!!commonRaw.useStartLayout);
+  }
+}
+
+function readPollingIntervalMs(refreshSecRef) {
+  return Math.max(2, Number(refreshSecRef.current || 5)) * 1000;
+}
+
+function applyInitialCommonConfig({
+  commonRaw,
+  canUseEditorLaunch,
+  setRefreshSec,
+  setShowUeLaunch,
+  setAllowStartDesynced,
+  setUeVersions,
+  setLaunchMode,
+  setUseStartLayout,
+  setRcHttpPort,
+}) {
+  applyInitialRefreshSec(commonRaw, setRefreshSec);
+  applyCommonVisibilityFlags(commonRaw, canUseEditorLaunch, setShowUeLaunch, setAllowStartDesynced);
+  setUnrealVersionsFromCommon(commonRaw, setUeVersions, { preservePrevious: false });
+  applyLaunchModeFromCommon(commonRaw, canUseEditorLaunch, false, setLaunchMode);
+  applyInitialUseStartLayout(commonRaw, setUseStartLayout);
+  applyInitialRcHttpPort(commonRaw, setRcHttpPort);
+}
+
+function applyPolledCommonConfig({
+  commonRaw,
+  commonCfgRef,
+  canUseEditorLaunch,
+  setShowUeLaunch,
+  setAllowStartDesynced,
+  setUeVersions,
+  refreshSecRef,
+  setRefreshSec,
+  rcHttpPortRef,
+  setRcHttpPort,
+  setLaunchMode,
+  useStartLayoutRef,
+  setUseStartLayout,
+}) {
+  commonCfgRef.current = commonRaw;
+  applyCommonVisibilityFlags(commonRaw, canUseEditorLaunch, setShowUeLaunch, setAllowStartDesynced);
+  setUnrealVersionsFromCommon(commonRaw, setUeVersions);
+  applyPolledRefreshSec(commonRaw, refreshSecRef, setRefreshSec);
+  applyPolledRcHttpPort(commonRaw, rcHttpPortRef, setRcHttpPort);
+  applyLaunchModeFromCommon(commonRaw, canUseEditorLaunch, true, setLaunchMode);
+  applyPolledUseStartLayout(commonRaw, useStartLayoutRef, setUseStartLayout);
+}
+
+function normalizeLaunchProjectsData(projectsRaw) {
+  const activeByHost =
+    projectsRaw?.activeByHost && typeof projectsRaw.activeByHost === 'object'
+      ? projectsRaw.activeByHost
+      : {};
+
+  return {
+    activeName: String(projectsRaw?.activeName || ''),
+    activeId: String(projectsRaw?.activeId || ''),
+    projects: Array.isArray(projectsRaw?.projects) ? projectsRaw.projects : [],
+    activeByHost,
+  };
+}
+
+function canRunHostSyncCheck(host) {
+  return (
+    host &&
+    host.renderAvailability !== 'excluded' &&
+    host.eligible !== false &&
+    host.syncEnabled &&
+    String(host.syncRoot || '').trim()
+  );
+}
+
+function canBeQuickRefreshTarget(host, localIp) {
+  if (!host || host.renderAvailability === 'excluded' || host.eligible === false) return false;
+  const ip = String(host.ip || '').trim();
+  if (!ip || ip === localIp) return false;
+  if (host.syncEnabled) return false;
+  return true;
+}
+
+function mergeSyncStatusResults(previousMap, results) {
+  const next = { ...(previousMap || {}) };
+  (Array.isArray(results) ? results : []).forEach((entry) => {
+    if (!entry?.ip) return;
+    next[entry.ip] = entry.res || {};
+  });
+  return next;
+}
+
+function hostHasProjectAssociation(host, activeByHost, activeId) {
+  const ip = String(host?.ip || '').trim();
+  if (!ip) return false;
+  const perHost = activeByHost?.[ip] || {};
+  const assoc = typeof perHost[activeId] === 'string' ? perHost[activeId].trim() : '';
+  const uproject = typeof host?.uproject === 'string' ? host.uproject.trim() : '';
+  return !!assoc || !!uproject;
+}
+
+function needsQuickRefreshForHost(host, localIp, activeByHost, activeId) {
+  if (!canBeQuickRefreshTarget(host, localIp)) return false;
+  return !hostHasProjectAssociation(host, activeByHost, activeId);
+}
+
+function resolveActiveProjectFromData(projectsData) {
+  const list = Array.isArray(projectsData?.projects) ? projectsData.projects : [];
+  const activePid = String(projectsData?.activeId || '').trim();
+  const activeName = String(projectsData?.activeName || '').trim();
+
+  return (
+    list.find((project) => String(project?.id || '').trim() === activePid) ||
+    list.find(
+      (project) =>
+        activeName &&
+        String(project?.name || '').trim().toLowerCase() === activeName.toLowerCase()
+    ) ||
+    null
+  );
+}
+
+function resolveWrcPresetName(activeProject) {
+  const activeWrcNames = Array.isArray(activeProject?.wrcNames)
+    ? activeProject.wrcNames
+    : (activeProject?.wrcName ? [activeProject.wrcName] : []);
+  return String(activeWrcNames[0] || '').trim() || 'RemoteControlPreset';
+}
+
+function markHostAndLoopbackRunning(prevMap, fallbackMap, ip) {
+  const next = { ...(prevMap || fallbackMap || {}) };
+  const mark = (key) => {
+    const entry = next[key] || {};
+    next[key] = { ...entry, online: true, unrealRunning: true };
+  };
+  mark(ip);
+  mark('127.0.0.1');
+  return next;
+}
+
+async function probeWrcPreset({
+  ip,
+  port,
+  presetName,
+  map,
+  wrcReadyRef,
+  setStatusMsg,
+  setOnlineMap,
+  t,
+}) {
+  const ctrl = new AbortController();
+  const abortTimer = setTimeout(() => ctrl.abort(), 1200);
+
+  try {
+    const url = `http://${ip}:${port}/remote/preset/${encodeURIComponent(presetName)}`;
+    const resp = await fetch(url, { signal: ctrl.signal });
+
+    if (resp.ok) {
+      if (!wrcReadyRef.current) {
+        wrcReadyRef.current = true;
+        setStatusMsg(
+          t('launch.status.wrcConnected', { ip, port, preset: presetName }) ||
+            `WRC connecté (${ip}:${port}/${presetName})`
+        );
+      }
+      setOnlineMap((prev) => markHostAndLoopbackRunning(prev, map, ip));
+    }
+  } catch {
+    wrcReadyRef.current = false;
+  } finally {
+    clearTimeout(abortTimer);
+  }
 }
 
 function useLaunchControlPollingFlow({
@@ -55,38 +331,18 @@ function useLaunchControlPollingFlow({
         hostsSigRef.current = buildHostsSignature(hostsRaw);
         projSigRef.current = buildProjectsSignature(projectsRaw);
         setHosts(sortHosts(hostsRaw, sortLocale));
-        setProjectsData({
-          activeName: String(projectsRaw?.activeName || ''),
-          activeId: String(projectsRaw?.activeId || ''),
-          projects: Array.isArray(projectsRaw?.projects) ? projectsRaw.projects : [],
-          activeByHost:
-            projectsRaw?.activeByHost && typeof projectsRaw.activeByHost === 'object'
-              ? projectsRaw.activeByHost
-              : {},
+        setProjectsData(normalizeLaunchProjectsData(projectsRaw));
+        applyInitialCommonConfig({
+          commonRaw,
+          canUseEditorLaunch,
+          setRefreshSec,
+          setShowUeLaunch,
+          setAllowStartDesynced,
+          setUeVersions,
+          setLaunchMode,
+          setUseStartLayout,
+          setRcHttpPort,
         });
-        const refreshSeconds = Number(commonRaw?.refreshSec || 0);
-        if (refreshSeconds && refreshSeconds > 0) setRefreshSec(refreshSeconds);
-        setShowUeLaunch(canUseEditorLaunch && !!commonRaw?.show_start_new_ue);
-        setAllowStartDesynced(!!commonRaw?.allowStartDesynced);
-        const initialVersions =
-          Array.isArray(commonRaw?.unrealVersions) && commonRaw.unrealVersions.length
-            ? commonRaw.unrealVersions.map((v) => String(v || '').trim()).filter(Boolean)
-            : [];
-        setUeVersions(sortVersionsList(initialVersions));
-
-        const mode = String(commonRaw?.launchMode || '').toLowerCase();
-        if (mode === 'integration' && canUseEditorLaunch) {
-          setLaunchMode('integration');
-        } else {
-          setLaunchMode('production');
-        }
-
-        if (typeof commonRaw?.useStartLayout === 'boolean') {
-          setUseStartLayout(!!commonRaw.useStartLayout);
-        }
-
-        const rcPort = Number(commonRaw?.rcHttpPort || 0);
-        if (rcPort) setRcHttpPort(rcPort);
       } catch (error) {
         showErrorMessage(error?.message || String(error));
       } finally {
@@ -110,10 +366,10 @@ function useLaunchControlPollingFlow({
   ]);
 
   React.useEffect(() => {
-    let timer = null;
     let stopped = false;
 
     async function tick() {
+      if (stopped) return null;
       const tickStartedAt = Date.now();
       try {
         const [map, hostsRaw, projectsRaw, commonRaw] = await Promise.all([
@@ -122,6 +378,10 @@ function useLaunchControlPollingFlow({
           getProjects({ light: true }).catch(() => null),
           getCommon().catch(() => null),
         ]);
+        const normalizedProjectsData =
+          projectsRaw && typeof projectsRaw === 'object'
+            ? normalizeLaunchProjectsData(projectsRaw)
+            : null;
 
         setOnlineMap(map || {});
 
@@ -135,14 +395,7 @@ function useLaunchControlPollingFlow({
         }
 
         if (Array.isArray(hostsRaw)) {
-          const syncTargets = hostsRaw.filter(
-            (host) =>
-              host &&
-              host.renderAvailability !== 'excluded' &&
-              host.eligible !== false &&
-              host.syncEnabled &&
-              String(host.syncRoot || '').trim()
-          );
+          const syncTargets = hostsRaw.filter(canRunHostSyncCheck);
           if (syncTargets.length) {
             const results = await Promise.all(
               syncTargets.map(async (host) => {
@@ -156,53 +409,28 @@ function useLaunchControlPollingFlow({
                 }
               })
             );
-            setSyncStatusMap((prev) => {
-              const next = { ...(prev || {}) };
-              for (const entry of results) {
-                if (!entry?.ip) continue;
-                next[entry.ip] = entry.res || {};
-              }
-              return next;
-            });
+            setSyncStatusMap((prev) => mergeSyncStatusResults(prev, results));
           }
         }
 
-        if (projectsRaw && typeof projectsRaw === 'object') {
+        if (normalizedProjectsData) {
           const sigP = buildProjectsSignature(projectsRaw);
           if (sigP !== projSigRef.current) {
             projSigRef.current = sigP;
-            setProjectsData({
-              activeName: String(projectsRaw?.activeName || ''),
-              activeId: String(projectsRaw?.activeId || ''),
-              projects: Array.isArray(projectsRaw?.projects) ? projectsRaw.projects : [],
-              activeByHost:
-                projectsRaw?.activeByHost && typeof projectsRaw.activeByHost === 'object'
-                  ? projectsRaw.activeByHost
-                  : {},
-            });
-            const pid = String(projectsRaw?.activeId || projectsRaw?.activeName || '').trim();
+            setProjectsData(normalizedProjectsData);
+            const pid = String(
+              normalizedProjectsData.activeId || normalizedProjectsData.activeName || ''
+            ).trim();
             refreshHasStartLayout(pid);
           }
         }
 
-        const activeId = String(projectsRaw?.activeId || '').trim();
-        const activeByHost =
-          projectsRaw?.activeByHost && typeof projectsRaw.activeByHost === 'object'
-            ? projectsRaw.activeByHost
-            : {};
+        const activeId = String(normalizedProjectsData?.activeId || '').trim();
+        const activeByHost = normalizedProjectsData?.activeByHost || {};
         const needsQuickRefresh =
           Array.isArray(hostsRaw) &&
           activeId &&
-          hostsRaw.some((host) => {
-            if (!host || host.renderAvailability === 'excluded' || host.eligible === false) return false;
-            const ip = String(host.ip || '').trim();
-            if (!ip || ip === localIp) return false;
-            if (host.syncEnabled) return false;
-            const perHost = activeByHost[ip] || {};
-            const assoc = typeof perHost[activeId] === 'string' ? perHost[activeId].trim() : '';
-            const uproj = typeof host.uproject === 'string' ? host.uproject.trim() : '';
-            return !assoc && !uproj;
-          });
+          hostsRaw.some((host) => needsQuickRefreshForHost(host, localIp, activeByHost, activeId));
         if (needsQuickRefresh && !quickRefreshPendingRef.current) {
           quickRefreshPendingRef.current = true;
           if (quickRefreshTimerRef.current) clearTimeout(quickRefreshTimerRef.current);
@@ -214,46 +442,21 @@ function useLaunchControlPollingFlow({
         }
 
         if (commonRaw && typeof commonRaw === 'object') {
-          commonCfgRef.current = commonRaw;
-          setShowUeLaunch(canUseEditorLaunch && !!commonRaw?.show_start_new_ue);
-          setAllowStartDesynced(!!commonRaw?.allowStartDesynced);
-          const versions =
-            Array.isArray(commonRaw?.unrealVersions) && commonRaw.unrealVersions.length
-              ? commonRaw.unrealVersions.map((v) => String(v || '').trim()).filter(Boolean)
-              : [];
-          setUeVersions((prev) => {
-            const next = sortVersionsList(versions);
-            const same =
-              prev.length === next.length &&
-              prev.every((v, i) => v === next[i]);
-            return same ? prev : next;
+          applyPolledCommonConfig({
+            commonRaw,
+            commonCfgRef,
+            canUseEditorLaunch,
+            setShowUeLaunch,
+            setAllowStartDesynced,
+            setUeVersions,
+            refreshSecRef,
+            setRefreshSec,
+            rcHttpPortRef,
+            setRcHttpPort,
+            setLaunchMode,
+            useStartLayoutRef,
+            setUseStartLayout,
           });
-
-          const refreshSeconds = Number(commonRaw.refreshSec || 0);
-          if (refreshSeconds && refreshSeconds > 0 && refreshSeconds !== refreshSecRef.current) {
-            setRefreshSec(refreshSeconds);
-          }
-
-          const portCfg = Number(commonRaw.rcHttpPort || 0);
-          if (portCfg && portCfg !== rcHttpPortRef.current) {
-            setRcHttpPort(portCfg);
-          }
-
-          const mode = String(commonRaw.launchMode || '').toLowerCase();
-          if (mode === 'integration' && canUseEditorLaunch) {
-            setLaunchMode('integration');
-          } else if (mode === 'production') {
-            setLaunchMode('production');
-          } else if (!canUseEditorLaunch) {
-            setLaunchMode('production');
-          }
-
-          if (
-            typeof commonRaw.useStartLayout === 'boolean' &&
-            commonRaw.useStartLayout !== useStartLayoutRef.current
-          ) {
-            setUseStartLayout(!!commonRaw.useStartLayout);
-          }
         }
 
         const localHost = (Array.isArray(hostsRaw) ? hostsRaw : []).find(
@@ -262,78 +465,46 @@ function useLaunchControlPollingFlow({
         const ip = localHost?.ip || localIp || '127.0.0.1';
         const port = Number(rcHttpPortRef.current || 30010);
 
-        const list = Array.isArray(projectsDataRef.current?.projects)
-          ? projectsDataRef.current.projects
-          : [];
-        const activePid = String(projectsDataRef.current?.activeId || '').trim();
-        const activeName = String(projectsDataRef.current?.activeName || '').trim();
-        const activeProject =
-          list.find((project) => String(project?.id || '').trim() === activePid) ||
-          list.find(
-            (project) =>
-              activeName &&
-              String(project?.name || '').trim().toLowerCase() === activeName.toLowerCase()
-          ) ||
-          null;
-
-        const activeWrcNames = Array.isArray(activeProject?.wrcNames)
-          ? activeProject.wrcNames
-          : (activeProject?.wrcName ? [activeProject.wrcName] : []);
-        const presetName = String(activeWrcNames[0] || '').trim() || 'RemoteControlPreset';
+        const activeProject = resolveActiveProjectFromData(projectsDataRef.current);
+        const presetName = resolveWrcPresetName(activeProject);
         const entry = (map || {})[ip] || {};
         const alreadyRunning = !!entry.unrealRunning;
 
         if (!alreadyRunning && ip) {
-          const ctrl = new AbortController();
-          const abortTimer = setTimeout(() => ctrl.abort(), 1200);
-          try {
-            const url = `http://${ip}:${port}/remote/preset/${encodeURIComponent(presetName)}`;
-            const resp = await fetch(url, { signal: ctrl.signal });
-            if (resp.ok) {
-              if (!wrcReadyRef.current) {
-                wrcReadyRef.current = true;
-                setStatusMsg(
-                  t('launch.status.wrcConnected', { ip, port, preset: presetName }) ||
-                    `WRC connecté (${ip}:${port}/${presetName})`
-                );
-              }
-              setOnlineMap((prev) => {
-                const cur = { ...(prev || map || {}) };
-                const mark = (key) => {
-                  const e = cur[key] || {};
-                  cur[key] = { ...e, online: true, unrealRunning: true };
-                };
-                mark(ip);
-                mark('127.0.0.1');
-                return cur;
-              });
-            }
-          } catch {
-            wrcReadyRef.current = false;
-          } finally {
-            clearTimeout(abortTimer);
-          }
+          await probeWrcPreset({
+            ip,
+            port,
+            presetName,
+            map,
+            wrcReadyRef,
+            setStatusMsg,
+            setOnlineMap,
+            t,
+          });
         }
       } catch {
         // Keep current UI state on network errors.
       } finally {
-        if (!stopped) {
-          const everyMs = Math.max(2, Number(refreshSecRef.current || 5)) * 1000;
-          const elapsed = Date.now() - tickStartedAt;
-          const waitMs = Math.max(150, everyMs - elapsed);
-          timer = setTimeout(tick, waitMs);
-        }
+        if (stopped) return null;
+        const everyMs = readPollingIntervalMs(refreshSecRef);
+        const elapsed = Date.now() - tickStartedAt;
+        return Math.max(150, everyMs - elapsed);
       }
     }
 
-    tick();
+    const stopLoop = startPostprodAsyncLoop({
+      intervalMs: readPollingIntervalMs(refreshSecRef),
+      tick,
+    });
+
     return () => {
       stopped = true;
-      if (timer) clearTimeout(timer);
+      stopLoop();
       if (quickRefreshTimerRef.current) {
         clearTimeout(quickRefreshTimerRef.current);
         quickRefreshTimerRef.current = null;
       }
+      quickRefreshPendingRef.current = false;
     };
   }, [
     canUseEditorLaunch,

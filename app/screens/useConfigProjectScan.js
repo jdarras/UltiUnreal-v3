@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { postProjectsScan, postProjectsImport } from '../utils/agent';
 import { normalizePathKey, normalizeProjectRoots } from './configurationHelpers';
+import { useTransientInfo } from './hooks/useTransientInfo';
 
 function deriveNameFromPath(p) {
   const file = String(p || '').split(/[\\/]/).pop() || '';
@@ -8,8 +9,12 @@ function deriveNameFromPath(p) {
 }
 
 function useConfigProjectScan({ t, projectRootsRef, refreshCatalogStats, onNavigate }) {
-  const [projectScanMsg, setProjectScanMsg] = useState('');
-  const [projectScanMsgType, setProjectScanMsgType] = useState('');
+  const {
+    infoMsg: projectScanMsg,
+    infoMsgType: projectScanMsgType,
+    showInfo: showProjectScanMsg,
+    clearInfo: clearProjectScanMsg,
+  } = useTransientInfo({ defaultType: 'error', clearAfterMs: 3000 });
   const [projectScanBusy, setProjectScanBusy] = useState(false);
   const [projectScanRecursive, setProjectScanRecursive] = useState(true);
   const [projectScanResults, setProjectScanResults] = useState([]);
@@ -35,19 +40,13 @@ function useConfigProjectScan({ t, projectRootsRef, refreshCatalogStats, onNavig
   async function handleProjectScan() {
     const cleaned = normalizeProjectRoots(projectRootsRef.current);
     if (cleaned.length === 0) {
-      setProjectScanMsgType('error');
-      setProjectScanMsg(t('setup.server.projectRoots.empty'));
+      showProjectScanMsg(t('setup.server.projectRoots.empty'), 'error', 2500);
       setProjectScanResults([]);
-      setTimeout(() => {
-        setProjectScanMsg('');
-        setProjectScanMsgType('');
-      }, 2500);
       return;
     }
 
     setProjectScanBusy(true);
-    setProjectScanMsg('');
-    setProjectScanMsgType('');
+    clearProjectScanMsg();
 
     try {
       const res = await postProjectsScan({
@@ -70,38 +69,27 @@ function useConfigProjectScan({ t, projectRootsRef, refreshCatalogStats, onNavig
       const found = normalized.length;
       const existing = normalized.filter((it) => it.exists).length;
       setProjectScanResults(normalized);
-      setProjectScanMsgType('ok');
-      setProjectScanMsg(
-        t('setup.server.projectRoots.scanResult', { found, existing })
+      showProjectScanMsg(
+        t('setup.server.projectRoots.scanResult', { found, existing }),
+        'ok'
       );
     } catch {
       setProjectScanResults([]);
-      setProjectScanMsgType('error');
-      setProjectScanMsg(t('setup.server.projectRoots.scanError'));
+      showProjectScanMsg(t('setup.server.projectRoots.scanError'), 'error');
     } finally {
       setProjectScanBusy(false);
-      setTimeout(() => {
-        setProjectScanMsg('');
-        setProjectScanMsgType('');
-      }, 3000);
     }
   }
 
   async function handleProjectImport() {
     const selected = projectScanResults.filter((it) => it.selected && !it.exists);
     if (selected.length === 0) {
-      setProjectScanMsgType('error');
-      setProjectScanMsg(t('setup.server.projectRoots.noSelection'));
-      setTimeout(() => {
-        setProjectScanMsg('');
-        setProjectScanMsgType('');
-      }, 2500);
+      showProjectScanMsg(t('setup.server.projectRoots.noSelection'), 'error', 2500);
       return;
     }
 
     setProjectImportBusy(true);
-    setProjectScanMsg('');
-    setProjectScanMsgType('');
+    clearProjectScanMsg();
 
     try {
       const res = await postProjectsImport({
@@ -128,23 +116,18 @@ function useConfigProjectScan({ t, projectRootsRef, refreshCatalogStats, onNavig
           return it;
         })
       );
-      setProjectScanMsgType('ok');
-      setProjectScanMsg(
-        t('setup.server.projectRoots.importResult', { imported, skipped })
+      showProjectScanMsg(
+        t('setup.server.projectRoots.importResult', { imported, skipped }),
+        'ok'
       );
       refreshCatalogStats?.();
       if (imported > 0 && typeof onNavigate === 'function') {
         onNavigate('Projets', { force: true });
       }
     } catch {
-      setProjectScanMsgType('error');
-      setProjectScanMsg(t('setup.server.projectRoots.importError'));
+      showProjectScanMsg(t('setup.server.projectRoots.importError'), 'error');
     } finally {
       setProjectImportBusy(false);
-      setTimeout(() => {
-        setProjectScanMsg('');
-        setProjectScanMsgType('');
-      }, 3000);
     }
   }
 

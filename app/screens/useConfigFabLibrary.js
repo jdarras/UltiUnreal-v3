@@ -3,6 +3,7 @@ import {
   postLibraryImportRemote,
   postLibraryImportRemotePreview,
 } from '../utils/agent';
+import { useTransientInfo } from './hooks/useTransientInfo';
 
 function normalizeUid(uid) {
   return String(uid || '').trim().toLowerCase();
@@ -20,8 +21,12 @@ function normalizeFabPreviewStatus(item) {
 function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavigate }) {
   const [fabAuthConnected, setFabAuthConnected] = useState(false);
   const [fabAuthBusy, setFabAuthBusy] = useState(false);
-  const [fabAuthMsg, setFabAuthMsg] = useState('');
-  const [fabAuthMsgType, setFabAuthMsgType] = useState('');
+  const {
+    infoMsg: fabAuthMsg,
+    infoMsgType: fabAuthMsgType,
+    showInfo: showFabAuthMsg,
+    clearInfo: clearFabAuthMsg,
+  } = useTransientInfo({ defaultType: 'error', clearAfterMs: 3000 });
   const [fabPreviewItems, setFabPreviewItems] = useState([]);
   const [fabSelection, setFabSelection] = useState({});
   const [fabPreviewBusy, setFabPreviewBusy] = useState(false);
@@ -29,8 +34,12 @@ function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavi
   const [fabImporting, setFabImporting] = useState(false);
   const [fabImportDone, setFabImportDone] = useState(0);
   const [fabImportTotal, setFabImportTotal] = useState(0);
-  const [fabRemoteImportMsg, setFabRemoteImportMsg] = useState('');
-  const [fabRemoteImportMsgType, setFabRemoteImportMsgType] = useState('');
+  const {
+    infoMsg: fabRemoteImportMsg,
+    infoMsgType: fabRemoteImportMsgType,
+    showInfo: showFabRemoteImportMsg,
+    clearInfo: clearFabRemoteImportMsg,
+  } = useTransientInfo({ defaultType: 'error', clearAfterMs: 3000 });
   const [fabRemoteImportBusy, setFabRemoteImportBusy] = useState(false);
 
   async function refreshFabAuthStatus() {
@@ -53,38 +62,27 @@ function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavi
   async function handleFabLogin() {
     if (fabAuthBusy) return;
     if (typeof window.electron?.fabLogin !== 'function') {
-      setFabAuthMsgType('error');
-      setFabAuthMsg(t('config.resources.loginUnavailable'));
-      setTimeout(() => {
-        setFabAuthMsg('');
-        setFabAuthMsgType('');
-      }, 2500);
+      showFabAuthMsg(t('config.resources.loginUnavailable'), 'error', 2500);
       return;
     }
 
     setFabAuthBusy(true);
-    setFabAuthMsg('');
-    setFabAuthMsgType('');
+    clearFabAuthMsg();
 
     try {
       const res = await window.electron.fabLogin();
       const connected = !!res?.connected;
       setFabAuthConnected(connected);
-      setFabAuthMsgType(connected ? 'ok' : 'error');
-      setFabAuthMsg(
+      showFabAuthMsg(
         connected
           ? t('config.resources.loginOk')
-          : t('config.resources.loginError')
+          : t('config.resources.loginError'),
+        connected ? 'ok' : 'error'
       );
     } catch {
-      setFabAuthMsgType('error');
-      setFabAuthMsg(t('config.resources.loginError'));
+      showFabAuthMsg(t('config.resources.loginError'), 'error');
     } finally {
       setFabAuthBusy(false);
-      setTimeout(() => {
-        setFabAuthMsg('');
-        setFabAuthMsgType('');
-      }, 3000);
     }
   }
 
@@ -112,18 +110,12 @@ function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavi
   async function handleFabPreview() {
     if (fabPreviewBusy || fabRemoteImportBusy) return;
     if (!fabAuthConnected) {
-      setFabRemoteImportMsgType('error');
-      setFabRemoteImportMsg(t('config.resources.loginRequired'));
-      setTimeout(() => {
-        setFabRemoteImportMsg('');
-        setFabRemoteImportMsgType('');
-      }, 2500);
+      showFabRemoteImportMsg(t('config.resources.loginRequired'), 'error', 2500);
       return;
     }
 
     setFabPreviewBusy(true);
-    setFabRemoteImportMsg('');
-    setFabRemoteImportMsgType('');
+    clearFabRemoteImportMsg();
     setFabImporting(false);
     setFabImportDone(0);
     setFabImportTotal(0);
@@ -137,8 +129,7 @@ function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavi
       if (!ok) {
         const detail = String(res?.detail || res?.error || res?.status || '').trim();
         const base = t('resources.fabImport.previewError');
-        setFabRemoteImportMsgType('error');
-        setFabRemoteImportMsg(detail ? `${base} (${detail})` : base);
+        showFabRemoteImportMsg(detail ? `${base} (${detail})` : base, 'error');
         return;
       }
 
@@ -156,42 +147,31 @@ function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavi
       setFabPreviewToken(String(res?.token || res?.previewToken || res?.cacheToken || ''));
 
       if (!list.length) {
-        setFabRemoteImportMsgType('info');
-        setFabRemoteImportMsg(t('resources.fabImport.empty'));
+        showFabRemoteImportMsg(t('resources.fabImport.empty'), 'info');
       } else {
         const selectedCount = Object.values(selection).filter(Boolean).length;
-        setFabRemoteImportMsgType('ok');
-        setFabRemoteImportMsg(
+        showFabRemoteImportMsg(
           t('resources.fabImport.selectionCount', {
             selected: selectedCount,
             total: list.length,
-          })
+          }),
+          'ok'
         );
       }
     } catch (e) {
       const detail = String(e?.message || e || '').trim();
       const base = t('resources.fabImport.previewError');
-      setFabRemoteImportMsgType('error');
-      setFabRemoteImportMsg(detail ? `${base} (${detail})` : base);
+      showFabRemoteImportMsg(detail ? `${base} (${detail})` : base, 'error');
       setFabPreviewToken('');
     } finally {
       setFabPreviewBusy(false);
-      setTimeout(() => {
-        setFabRemoteImportMsg('');
-        setFabRemoteImportMsgType('');
-      }, 3000);
     }
   }
 
   async function handleFabRemoteImport() {
     if (fabRemoteImportBusy || fabImporting) return;
     if (!fabAuthConnected) {
-      setFabRemoteImportMsgType('error');
-      setFabRemoteImportMsg(t('config.resources.loginRequired'));
-      setTimeout(() => {
-        setFabRemoteImportMsg('');
-        setFabRemoteImportMsgType('');
-      }, 2500);
+      showFabRemoteImportMsg(t('config.resources.loginRequired'), 'error', 2500);
       return;
     }
 
@@ -206,12 +186,7 @@ function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavi
 
     if (selected.length === 0) {
       setFabRemoteImportBusy(false);
-      setFabRemoteImportMsgType('error');
-      setFabRemoteImportMsg(t('resources.fabImport.noSelection'));
-      setTimeout(() => {
-        setFabRemoteImportMsg('');
-        setFabRemoteImportMsgType('');
-      }, 2500);
+      showFabRemoteImportMsg(t('resources.fabImport.noSelection'), 'error', 2500);
       return;
     }
 
@@ -222,8 +197,7 @@ function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavi
     let failed = false;
 
     setFabRemoteImportBusy(true);
-    setFabRemoteImportMsg('');
-    setFabRemoteImportMsgType('');
+    clearFabRemoteImportMsg();
     setFabImporting(true);
     setFabImportDone(0);
     setFabImportTotal(selected.length);
@@ -241,8 +215,7 @@ function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavi
         if (!ok) {
           const detail = String(res?.detail || res?.error || res?.status || '').trim();
           const base = t('config.resources.remoteImportError');
-          setFabRemoteImportMsgType('error');
-          setFabRemoteImportMsg(detail ? `${base} (${detail})` : base);
+          showFabRemoteImportMsg(detail ? `${base} (${detail})` : base, 'error');
           failed = true;
           break;
         }
@@ -262,12 +235,12 @@ function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavi
       }
 
       if (!failed) {
-        setFabRemoteImportMsgType('ok');
-        setFabRemoteImportMsg(
+        showFabRemoteImportMsg(
           t('config.resources.remoteImportResult', {
             imported: importedTotal,
             skipped: skippedTotal,
-          })
+          }),
+          'ok'
         );
         refreshCatalogStats?.();
         if (typeof onLibraryImported === 'function' && importedTotal > 0) {
@@ -280,16 +253,11 @@ function useConfigFabLibrary({ t, refreshCatalogStats, onLibraryImported, onNavi
       }
     } catch {
       if (!failed) {
-        setFabRemoteImportMsgType('error');
-        setFabRemoteImportMsg(t('config.resources.remoteImportError'));
+        showFabRemoteImportMsg(t('config.resources.remoteImportError'), 'error');
       }
     } finally {
       setFabRemoteImportBusy(false);
       setFabImporting(false);
-      setTimeout(() => {
-        setFabRemoteImportMsg('');
-        setFabRemoteImportMsgType('');
-      }, 3000);
     }
   }
 

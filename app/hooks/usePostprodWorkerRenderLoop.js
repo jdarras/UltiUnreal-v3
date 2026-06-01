@@ -27,6 +27,7 @@ import {
   summarizeProcessFailure,
 } from "../utils/renderProcessHelpers";
 import { isPostprodQueueRuntimeActive } from "../utils/postprodAuthHelpers";
+import { startPostprodAsyncLoop } from "./postprodAsyncLoop";
 
 function usePostprodWorkerRenderLoop({
   postprodAuth, t, showNotice,
@@ -44,8 +45,6 @@ function usePostprodWorkerRenderLoop({
     const workerKey = String(renderWorkerKey || '').trim();
     if (!token || !workerKey) return;
 
-    let stopped = false;
-    let timer = null;
     const payloadBase = {
       workerKey,
       displayName: renderWorkerDisplayName,
@@ -55,19 +54,17 @@ function usePostprodWorkerRenderLoop({
       isActive: true,
     };
 
-    const beat = async () => {
-      try {
-        await postprodUpsertRenderWorker(token, { ...payloadBase, isOnline: true });
-      } catch {}
-      if (!stopped) {
-        timer = setTimeout(beat, 30000);
-      }
-    };
+    const stopLoop = startPostprodAsyncLoop({
+      intervalMs: 30000,
+      tick: async () => {
+        try {
+          await postprodUpsertRenderWorker(token, { ...payloadBase, isOnline: true });
+        } catch {}
+      },
+    });
 
-    beat();
     return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
+      stopLoop();
       // Ne pas forcer offline sur chaque rerender/transition UI.
       // Le sweep backend marque offline automatiquement si heartbeat stale.
     };
@@ -92,18 +89,13 @@ function usePostprodWorkerRenderLoop({
     const currentUserId = Number.isFinite(currentUserIdRaw) && currentUserIdRaw > 0
       ? Math.trunc(currentUserIdRaw)
       : null;
-
     let stopped = false;
-    let timer = null;
-    let inFlight = false;
 
-    const tick = async () => {
-      if (stopped) return;
-      if (inFlight) {
-        timer = setTimeout(tick, 5000);
-        return;
-      }
-      inFlight = true;
+    const stopLoop = startPostprodAsyncLoop({
+      intervalMs: 5000,
+      initialDelayMs: 2500,
+      inFlightDelayMs: 5000,
+      tick: async () => {
       try {
         await replayPostprodWorkerCompletionOutbox();
         const pendingCompletionRenderIds = new Set(
@@ -493,18 +485,13 @@ function usePostprodWorkerRenderLoop({
             }
           }
         }
-      } catch {} finally {
-        inFlight = false;
-        if (!stopped) {
-          timer = setTimeout(tick, 5000);
-        }
-      }
-    };
+      } catch {}
+      },
+    });
 
-    timer = setTimeout(tick, 2500);
     return () => {
       stopped = true;
-      if (timer) clearTimeout(timer);
+      stopLoop();
     };
   }, [
     postprodAuthenticated,
@@ -529,62 +516,53 @@ function usePostprodWorkerRenderLoop({
   const renderReturnNotifiedRef = useRef({}); // { `${ip}:${threshold}` -> true }
   useEffect(() => {
     const THRESHOLDS_MIN = [15, 5, 1];
-    let stopped = false;
-    let timer = null;
+    const stopLoop = startPostprodAsyncLoop({
+      intervalMs: 60000,
+      tick: async () => {
+        try {
+          const map = await getOnlineMap();
+          const now = Date.now();
+          for (const [ip, entry] of Object.entries(map || {})) {
+            if (entry?.renderAvailability !== 'busy') continue;
+            const rat = entry?.renderReturnAt;
+            if (!rat || typeof rat !== 'string') continue;
+            const returnMs = Date.parse(rat);
+            if (!Number.isFinite(returnMs)) continue;
+            const diffMin = (returnMs - now) / 60000;
+            if (diffMin < 0) continue; // already past
 
-    const tick = async () => {
-      if (stopped) return;
-      try {
-        const map = await getOnlineMap();
-        const now = Date.now();
-        for (const [ip, entry] of Object.entries(map || {})) {
-          if (entry?.renderAvailability !== 'busy') continue;
-          const rat = entry?.renderReturnAt;
-          if (!rat || typeof rat !== 'string') continue;
-          const returnMs = Date.parse(rat);
-          if (!Number.isFinite(returnMs)) continue;
-          const diffMin = (returnMs - now) / 60000;
-          if (diffMin < 0) continue; // already past
-
-          const name = String(entry?.name || ip || '').trim() || ip;
-          for (const thresh of THRESHOLDS_MIN) {
-            if (diffMin <= thresh + 0.5 && diffMin > thresh - 1.5) {
-              const key = `${ip}:${thresh}`;
-              if (!renderReturnNotifiedRef.current[key]) {
-                renderReturnNotifiedRef.current[key] = true;
-                const msgKey = thresh === 15
-                  ? 'renderReturnAt.notify.15min'
-                  : thresh === 5
-                    ? 'renderReturnAt.notify.5min'
-                    : 'renderReturnAt.notify.1min';
-                showNotice(t(msgKey, { name }), 'info');
+            const name = String(entry?.name || ip || '').trim() || ip;
+            for (const thresh of THRESHOLDS_MIN) {
+              if (diffMin <= thresh + 0.5 && diffMin > thresh - 1.5) {
+                const key = `${ip}:${thresh}`;
+                if (!renderReturnNotifiedRef.current[key]) {
+                  renderReturnNotifiedRef.current[key] = true;
+                  const msgKey = thresh === 15
+                    ? 'renderReturnAt.notify.15min'
+                    : thresh === 5
+                      ? 'renderReturnAt.notify.5min'
+                      : 'renderReturnAt.notify.1min';
+                  showNotice(t(msgKey, { name }), 'info');
+                }
+              }
+            }
+            // Clear stale notified keys for entries no longer busy
+            const stalePrefix = `${ip}:`;
+            for (const k of Object.keys(renderReturnNotifiedRef.current)) {
+              if (k.startsWith(stalePrefix)) {
+                const thresh = Number(k.split(':')[1]);
+                const diffMin2 = (returnMs - Date.now()) / 60000;
+                if (diffMin2 < thresh - 2) {
+                  // threshold is safely behind us — allow re-notification next cycle if needed
+                  delete renderReturnNotifiedRef.current[k];
+                }
               }
             }
           }
-          // Clear stale notified keys for entries no longer busy
-          const stalePrefix = `${ip}:`;
-          for (const k of Object.keys(renderReturnNotifiedRef.current)) {
-            if (k.startsWith(stalePrefix)) {
-              const thresh = Number(k.split(':')[1]);
-              const diffMin2 = (returnMs - Date.now()) / 60000;
-              if (diffMin2 < thresh - 2) {
-                // threshold is safely behind us — allow re-notification next cycle if needed
-                delete renderReturnNotifiedRef.current[k];
-              }
-            }
-          }
-        }
-      } catch {}
-      if (!stopped) {
-        timer = setTimeout(tick, 60000); // check once per minute
-      }
-    };
-
-    tick();
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-    };
+        } catch {}
+      },
+    });
+    return stopLoop;
   }, [showNotice, t]);
 }
 

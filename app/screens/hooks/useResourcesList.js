@@ -20,6 +20,23 @@ import {
   normalizeValue,
 } from '../../utils/resources-helpers';
 
+const OPTION_SORT_COMPARE = { numeric: true };
+
+function pushUniqueNormalizedOption(seen, rawValue) {
+  const normalized = normalizeValue(rawValue);
+  if (!normalized) return;
+  const key = normalized.toLowerCase();
+  if (!seen.has(key)) seen.set(key, normalized);
+}
+
+function buildUniqueSortedOptions(sourceItems, collect) {
+  const seen = new Map();
+  for (const item of Array.isArray(sourceItems) ? sourceItems : []) {
+    collect(item, seen);
+  }
+  return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, undefined, OPTION_SORT_COMPARE));
+}
+
 export function useResourcesList({ t, id, refreshKey = 0 }) {
   const favoritesUserScope = useMemo(() => resolveFavoritesUserScope(id), [id]);
   const favoriteFilterStorageKey = useMemo(
@@ -163,69 +180,41 @@ export function useResourcesList({ t, id, refreshKey = 0 }) {
   }, [searchAdvanced]);
 
   const sellerOptions = useMemo(() => {
-    const seen = new Map();
-    for (const item of Array.isArray(items) ? items : []) {
-      const raw = normalizeValue(item?.seller);
-      if (!raw) continue;
-      const key = raw.toLowerCase();
-      if (!seen.has(key)) seen.set(key, raw);
-    }
-    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return buildUniqueSortedOptions(items, (item, seen) => {
+      pushUniqueNormalizedOption(seen, item?.seller);
+    });
   }, [items]);
 
   const epicAccountOptions = useMemo(() => {
-    const seen = new Map();
-    for (const item of Array.isArray(items) ? items : []) {
-      const pushAcc = (raw) => {
-        const acc = normalizeValue(raw);
-        if (!acc) return;
-        const key = acc.toLowerCase();
-        if (!seen.has(key)) seen.set(key, acc);
-      };
-      pushAcc(item?.epicAccount);
-      pushAcc(item?.user?.displayName);
-      pushAcc(item?.user?.name);
+    return buildUniqueSortedOptions(items, (item, seen) => {
+      pushUniqueNormalizedOption(seen, item?.epicAccount);
+      pushUniqueNormalizedOption(seen, item?.user?.displayName);
+      pushUniqueNormalizedOption(seen, item?.user?.name);
       if (Array.isArray(item?.epicAccounts)) {
-        item.epicAccounts.forEach(pushAcc);
+        item.epicAccounts.forEach((raw) => pushUniqueNormalizedOption(seen, raw));
       }
-    }
-    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    });
   }, [items]);
 
   const typeOptions = useMemo(() => {
-    const seen = new Map();
-    for (const item of Array.isArray(items) ? items : []) {
-      const raw = normalizeValue(item?.listingType);
-      if (!raw) continue;
-      const key = raw.toLowerCase();
-      if (!seen.has(key)) seen.set(key, raw);
-    }
-    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return buildUniqueSortedOptions(items, (item, seen) => {
+      pushUniqueNormalizedOption(seen, item?.listingType);
+    });
   }, [items]);
 
   const distributionOptions = useMemo(() => {
-    const seen = new Map();
-    for (const item of Array.isArray(items) ? items : []) {
-      const raw = normalizeValue(item?.distribution || item?.listingRaw?.distribution);
-      if (!raw) continue;
-      const key = raw.toLowerCase();
-      if (!seen.has(key)) seen.set(key, raw);
-    }
-    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return buildUniqueSortedOptions(items, (item, seen) => {
+      pushUniqueNormalizedOption(seen, item?.distribution || item?.listingRaw?.distribution);
+    });
   }, [items]);
 
   const ueOptions = useMemo(() => {
-    const seen = new Map();
-    for (const item of Array.isArray(items) ? items : []) {
+    return buildUniqueSortedOptions(items, (item, seen) => {
       const versions = Array.isArray(item?.ueVersions) ? item.ueVersions : [];
       for (const val of versions) {
-        const raw = normalizeValue(val);
-        if (!raw) continue;
-        const key = raw.toLowerCase();
-        if (!seen.has(key)) seen.set(key, raw);
+        pushUniqueNormalizedOption(seen, val);
       }
-    }
-    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    });
   }, [items]);
 
   const userUeVersionSet = useMemo(() => new Set(userUeVersions), [userUeVersions]);

@@ -5,6 +5,7 @@ import {
   POSTPROD_TAB_PROFILES,
   POSTPROD_TAB_RENDERS_CREATE,
 } from "../utils/appConstants";
+import { startPostprodAsyncLoop } from "./postprodAsyncLoop";
 
 function usePostprodTabRefreshPolling({
   appMode, postprodAuthenticated, current, postprodRefreshMs,
@@ -123,22 +124,12 @@ function usePostprodTabRefreshPolling({
     if (current === 'Datas' || current === 'Logs' || current === 'Rendus' || current === POSTPROD_TAB_RENDERS_CREATE) return;
     if (current === POSTPROD_TAB_USERS && !postprodCanManageUsers) return;
 
-    let stopped = false;
-    let timer = null;
-
-    const tick = async () => {
-      await refreshPostprodCurrentTab();
-      if (!stopped) {
-        timer = setTimeout(tick, postprodRefreshMs);
-      }
-    };
-
-    timer = setTimeout(tick, postprodRefreshMs);
-
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-    };
+    const stopLoop = startPostprodAsyncLoop({
+      intervalMs: postprodRefreshMs,
+      initialDelayMs: postprodRefreshMs,
+      tick: refreshPostprodCurrentTab,
+    });
+    return stopLoop;
   }, [
     appMode,
     postprodAuthenticated,
@@ -152,28 +143,20 @@ function usePostprodTabRefreshPolling({
     if (appMode !== APP_MODE_POSTPROD || !postprodAuthenticated) return;
     if (current !== 'Rendus') return;
 
-    let stopped = false;
-    let timer = null;
     const intervalMs = 10000;
-
-    const tick = async () => {
-      const isVisible = typeof document === 'undefined'
-        ? true
-        : document.visibilityState === 'visible';
-      if (isVisible) {
-        await refreshPostprodCurrentTab();
-      }
-      if (!stopped) {
-        timer = setTimeout(tick, intervalMs);
-      }
-    };
-
-    timer = setTimeout(tick, intervalMs);
-
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-    };
+    const stopLoop = startPostprodAsyncLoop({
+      intervalMs,
+      initialDelayMs: intervalMs,
+      tick: async () => {
+        const isVisible = typeof document === 'undefined'
+          ? true
+          : document.visibilityState === 'visible';
+        if (isVisible) {
+          await refreshPostprodCurrentTab();
+        }
+      },
+    });
+    return stopLoop;
   }, [
     appMode,
     postprodAuthenticated,

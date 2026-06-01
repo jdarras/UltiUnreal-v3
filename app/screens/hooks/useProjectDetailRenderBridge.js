@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { getProjectRenderBridgeStatus, installProjectRenderBridge } from '../../utils/agent';
+import { clearMessagePair, setTypedMessage } from './projectDetailFeedbackHelpers';
 
 export function useProjectDetailRenderBridge({
   t,
@@ -12,6 +13,14 @@ export function useProjectDetailRenderBridge({
   setRenderBridgeMsg,
   setRenderBridgeMsgType,
 } = {}) {
+  const clearRenderBridgeFeedback = useCallback(() => {
+    clearMessagePair(setRenderBridgeMsg, setRenderBridgeMsgType);
+  }, [setRenderBridgeMsg, setRenderBridgeMsgType]);
+
+  const showRenderBridgeFeedback = useCallback((type, key) => {
+    setTypedMessage(setRenderBridgeMsg, setRenderBridgeMsgType, type, t(key));
+  }, [setRenderBridgeMsg, setRenderBridgeMsgType, t]);
+
   const isRenderBridgeUsage = useCallback((usageMode) => {
     const mode = String(usageMode || '').trim();
     return mode === 'auto_render' || mode === 'live_auto_render';
@@ -24,8 +33,7 @@ export function useProjectDetailRenderBridge({
       return { ok: false, error: 'missing projectId' };
     }
     setRenderBridgeBusy(true);
-    setRenderBridgeMsg('');
-    setRenderBridgeMsgType('');
+    clearRenderBridgeFeedback();
     try {
       const res = await getProjectRenderBridgeStatus(pid);
       if (res && res.ok) {
@@ -33,46 +41,52 @@ export function useProjectDetailRenderBridge({
         return res;
       }
       setRenderBridgeStatus(null);
-      setRenderBridgeMsg(t('projects.detail.renderBridge.statusError'));
-      setRenderBridgeMsgType('error');
+      showRenderBridgeFeedback('error', 'projects.detail.renderBridge.statusError');
       return res || { ok: false, error: 'status_failed' };
     } catch {
       setRenderBridgeStatus(null);
-      setRenderBridgeMsg(t('projects.detail.renderBridge.statusError'));
-      setRenderBridgeMsgType('error');
+      showRenderBridgeFeedback('error', 'projects.detail.renderBridge.statusError');
       return { ok: false, error: 'status_failed' };
     } finally {
       setRenderBridgeBusy(false);
     }
-  }, [setRenderBridgeBusy, setRenderBridgeMsg, setRenderBridgeMsgType, setRenderBridgeStatus, t]);
+  }, [
+    clearRenderBridgeFeedback,
+    setRenderBridgeBusy,
+    setRenderBridgeStatus,
+    showRenderBridgeFeedback,
+  ]);
 
   const installRenderBridgeForDetail = useCallback(async (projectIdOverride = '', options = {}) => {
     const pid = String(projectIdOverride || detailId || '').trim();
     const silentSuccess = options?.silentSuccess === true;
     if (!pid) return;
     setRenderBridgeBusy(true);
-    setRenderBridgeMsg('');
-    setRenderBridgeMsgType('');
+    clearRenderBridgeFeedback();
     try {
       const res = await installProjectRenderBridge(pid);
       if (res && res.ok) {
         setRenderBridgeStatus(res);
         if (!silentSuccess) {
-          setRenderBridgeMsg(t('projects.detail.renderBridge.installOk'));
-          setRenderBridgeMsgType('ok');
+          showRenderBridgeFeedback('ok', 'projects.detail.renderBridge.installOk');
         }
       } else {
-        setRenderBridgeMsg(t('projects.detail.renderBridge.installError'));
-        setRenderBridgeMsgType('error');
+        showRenderBridgeFeedback('error', 'projects.detail.renderBridge.installError');
       }
     } catch {
-      setRenderBridgeMsg(t('projects.detail.renderBridge.installError'));
-      setRenderBridgeMsgType('error');
+      showRenderBridgeFeedback('error', 'projects.detail.renderBridge.installError');
     } finally {
       setRenderBridgeBusy(false);
       await loadRenderBridgeStatus(pid);
     }
-  }, [detailId, loadRenderBridgeStatus, setRenderBridgeBusy, setRenderBridgeMsg, setRenderBridgeMsgType, setRenderBridgeStatus, t]);
+  }, [
+    clearRenderBridgeFeedback,
+    detailId,
+    loadRenderBridgeStatus,
+    setRenderBridgeBusy,
+    setRenderBridgeStatus,
+    showRenderBridgeFeedback,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,8 +94,7 @@ export function useProjectDetailRenderBridge({
     const usageMode = String(detailUsageMode || '').trim();
     if (!pid || detailIsNew || !isRenderBridgeUsage(usageMode)) {
       setRenderBridgeStatus(null);
-      setRenderBridgeMsg('');
-      setRenderBridgeMsgType('');
+      clearRenderBridgeFeedback();
       setRenderBridgeBusy(false);
       return () => {
         cancelled = true;
@@ -113,9 +126,8 @@ export function useProjectDetailRenderBridge({
     isRenderBridgeUsage,
     loadRenderBridgeStatus,
     renderBridgeAutoInstallAttemptRef,
+    clearRenderBridgeFeedback,
     setRenderBridgeBusy,
-    setRenderBridgeMsg,
-    setRenderBridgeMsgType,
     setRenderBridgeStatus,
   ]);
 

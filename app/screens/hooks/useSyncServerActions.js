@@ -8,12 +8,103 @@ import {
   getHosts,
 } from '../../utils/agent';
 import {
-  safeStr,
   normalizeRel,
   normalizeKey,
   normalizeRenderScopeProjects,
   normalizeRenderCopyProjects,
 } from '../synchronisationHelpers';
+import { normalizeSyncHosts } from './syncDataNormalization';
+import { useSyncMessagePublisher } from './useSyncMessagePublisher';
+
+const DIFF_TYPES = ['added', 'modified', 'removed'];
+
+function withRenderProjectCount(text, isRenderMode, projectCount) {
+  if (isRenderMode && Number(projectCount || 0) > 0) {
+    return `${text} (${Number(projectCount || 0)} projet(s))`;
+  }
+  return text;
+}
+
+function buildSyncCheckOutcome({
+  status,
+  res,
+  diffRaw,
+  diffEffective,
+  isRenderMode,
+  t,
+}) {
+  if (status === 'in_sync') {
+    const displayDiff = diffRaw;
+    const diffText =
+      displayDiff === 0
+        ? t('sync.server.msg.checkNoDiff')
+        : displayDiff != null
+        ? t('sync.server.msg.checkWithDiff').replace('{diff}', String(displayDiff))
+        : t('sync.server.msg.checkResult');
+    return {
+      status: 'in_sync',
+      detail: withRenderProjectCount(diffText, isRenderMode, res?.projectCount),
+    };
+  }
+
+  if (status === 'desync') {
+    const displayDiff = diffEffective != null ? diffEffective : diffRaw;
+    const diffText =
+      displayDiff != null
+        ? t('sync.server.msg.checkDesyncWithDiff').replace('{diff}', String(displayDiff))
+        : t('sync.server.msg.checkDesyncGeneric');
+    return {
+      status: 'desync',
+      detail: withRenderProjectCount(diffText, isRenderMode, res?.projectCount),
+    };
+  }
+
+  if (status === 'no_root') {
+    return { status: 'no_root', detail: res?.message || t('sync.server.msg.checkNoRoot') };
+  }
+
+  if (status === 'no_projects') {
+    return { status: 'in_sync', detail: res?.message || 'Aucun projet en rendu automatique.' };
+  }
+
+  if (status === 'no_source') {
+    return {
+      status: 'desync',
+      detail: res?.message || 'Source de verite absente pour au moins un projet.',
+    };
+  }
+
+  if (status === 'error') {
+    return { status: 'error', detail: res?.message || t('sync.server.msg.checkErrorGeneric') };
+  }
+
+  return { status: 'unknown', detail: res?.message || t('sync.server.msg.checkUnknown') };
+}
+
+function normalizeHostDiffsFromCheckResult(res, isRenderMode) {
+  if (isRenderMode) {
+    return {
+      renderProjects: normalizeRenderScopeProjects(res),
+      added: [],
+      modified: [],
+      removed: [],
+    };
+  }
+  return {
+    renderProjects: [],
+    added: Array.isArray(res?.added) ? res.added : [],
+    modified: Array.isArray(res?.modified) ? res.modified : [],
+    removed: Array.isArray(res?.removed) ? res.removed : [],
+  };
+}
+
+function buildDiffSelectionMap(list = [], isRenderMode, ignoreSet) {
+  const map = {};
+  list.forEach((rel) => {
+    map[rel] = isRenderMode ? true : !ignoreSet.has(normalizeKey(rel));
+  });
+  return map;
+}
 
 function useSyncServerActions({
   isRenderMode,
@@ -30,21 +121,165 @@ function useSyncServerActions({
   const [syncDiffs, setSyncDiffs] = React.useState({});
   const [diffFoldState, setDiffFoldState] = React.useState({});
   const [selectionState, setSelectionState] = React.useState({});
+  const showSyncMessage = useSyncMessagePublisher({ setMessage, scheduleMessageClear });
+  const createEmptyDiffState = React.useCallback(
+    () => ({ added: [], modified: [], removed: [], renderProjects: [] }),
+    []
+  );
+  const createEmptySelectionState = React.useCallback(
+    () => ({ added: {}, modified: {}, removed: {} }),
+    []
+  );
+  const showCheckErrorMessage = React.useCallback((error, delayMs = 2000) => {
+    showSyncMessage(
+      'error',
+      `${t('sync.server.msg.checkErrorGeneric')} (${error?.message || error})`,
+      delayMs
+    );
+  }, [showSyncMessage, t]);
+  const setHostStatusAndDetail = React.useCallback((ip, status, detail = '') => {
+    setSyncStatus((prev) => ({ ...prev, [ip]: status }));
+    setSyncDetails((prev) => ({ ...prev, [ip]: detail }));
+  }, []);
+  const reportCopyFailure = React.useCallback((ip, detail, { prefixed = false, delayMs = 4000 } = {}) => {
+    const safeDetail = String(detail || t('sync.server.msg.copyErrorGeneric'));
+    setHostStatusAndDetail(ip, 'error', safeDetail);
+    const message = prefixed
+      ? `${t('sync.server.msg.copyErrorPrefix')}${safeDetail}`
+      : safeDetail;
+    showSyncMessage('error', message, delayMs);
+  }, [setHostStatusAndDetail, showSyncMessage, t]);
+  const startCopyStatus = React.useCallback((ip) => {
+    setHostStatusAndDetail(ip, 'copying', '');
+    showSyncMessage('info', t('sync.server.msg.copyStart').replace('{ip}', String(ip)));
+  }, [setHostStatusAndDetail, showSyncMessage, t]);
+  const resetHostDiffSelection = React.useCallback((ip) => {
+    setSyncDiffs((prev) => ({ ...prev, [ip]: createEmptyDiffState() }));
+    setSelectionState((prev) => ({ ...prev, [ip]: createEmptySelectionState() }));
+  }, [createEmptyDiffState, createEmptySelectionState]);
+  const createIgnoreDeltaLists = React.useCallback(() => ({ addList: [], removeList: [] }), []);
+  const pushIgnoreDelta = React.useCallback((delta, rel, nextVal) => {
+    const norm = normalizeRel(rel);
+    if (!norm) return;
+    if (nextVal === false) delta.addList.push(norm);
+    else delta.removeList.push(norm);
+  }, []);
+  const collectIgnoredSelectionPaths = React.useCallback((selectionByType = {}) => {
+    const addList = [];
+    DIFF_TYPES.forEach((type) => {
+      const map = selectionByType?.[type] || {};
+      Object.entries(map).forEach(([rel, state]) => {
+        if (state === false) {
+          const norm = normalizeRel(rel);
+          if (norm) addList.push(norm);
+        }
+      });
+    });
+    return addList;
+  }, []);
+  const getDiffListByType = React.useCallback((diffs, type) => {
+    const list = diffs?.[type];
+    return Array.isArray(list) ? list : [];
+  }, []);
+  const cloneSelectionByType = React.useCallback((selection = {}) => {
+    return {
+      added: { ...(selection.added || {}) },
+      modified: { ...(selection.modified || {}) },
+      removed: { ...(selection.removed || {}) },
+    };
+  }, []);
+  const selectDiffFilesBySelection = React.useCallback((list = [], selectionMap = {}) => {
+    return list.filter((rel) => selectionMap?.[rel] !== false);
+  }, []);
+  const updateSyncIgnoreSafely = React.useCallback(async ({
+    ip,
+    addList = [],
+    removeList = [],
+    onRollback = null,
+    warnContext = 'updateSyncIgnore',
+  } = {}) => {
+    if (!addList.length && !removeList.length) return true;
+    try {
+      const resp = await updateSyncIgnore(ip, addList, removeList);
+      if (resp && resp.ok === false) {
+        throw new Error(resp.message || 'updateSyncIgnore failed');
+      }
+      return true;
+    } catch (error) {
+      console.warn(`${warnContext} failed`, error);
+      if (typeof onRollback === 'function') onRollback();
+      showCheckErrorMessage(error);
+      return false;
+    }
+  }, [showCheckErrorMessage]);
+  const ensureSyncIgnoreSelectionUpToDate = React.useCallback(async (ip, selectionByType = {}) => {
+    try {
+      const addList = collectIgnoredSelectionPaths(selectionByType);
+      if (!addList.length) return true;
+      console.debug('[sync] updateSyncIgnore (UI) addList', ip, addList);
+      return await updateSyncIgnoreSafely({
+        ip,
+        addList,
+        removeList: [],
+        warnContext: 'updateSyncIgnore pre-copy',
+      });
+    } catch (err) {
+      console.warn('updateSyncIgnore pre-copy uncaught:', err);
+      showCheckErrorMessage(err);
+      return false;
+    }
+  }, [collectIgnoredSelectionPaths, showCheckErrorMessage, updateSyncIgnoreSafely]);
+  const buildCopyPayloadFromSelection = React.useCallback(async ({
+    ip,
+    added = [],
+    modified = [],
+    removed = [],
+    selection = {},
+  } = {}) => {
+    const hasDiffs = added.length > 0 || modified.length > 0 || removed.length > 0;
+    if (!hasDiffs) {
+      return { proceed: true, payload: null };
+    }
+
+    const selAdded = selection.added || {};
+    const selModified = selection.modified || {};
+    const selRemoved = selection.removed || {};
+
+    const toAdd = selectDiffFilesBySelection(added, selAdded);
+    const toMod = selectDiffFilesBySelection(modified, selModified);
+    const toRem = selectDiffFilesBySelection(removed, selRemoved);
+
+    if (toRem.length > 0) {
+      const msg =
+        toRem.length === 1
+          ? `Cette synchronisation va supprimer 1 fichier sur ${ip}. Continuer ?`
+          : `Cette synchronisation va supprimer ${toRem.length} fichiers sur ${ip}. Continuer ?`;
+
+      const ok = await requestConfirm(msg);
+      if (!ok) return { proceed: false, payload: null };
+    }
+
+    if (toAdd.length === 0 && toMod.length === 0 && toRem.length === 0) {
+      showSyncMessage('info', t('sync.server.noFilesSelected'), 3000);
+      return { proceed: false, payload: null };
+    }
+
+    return {
+      proceed: true,
+      payload: {
+        added: toAdd,
+        modified: toMod,
+        removed: toRem,
+      },
+    };
+  }, [requestConfirm, selectDiffFilesBySelection, showSyncMessage, t]);
 
   const handleCheckHost = React.useCallback(
     async (ip) => {
       if (!ip) return;
 
-      setSyncStatus((prev) => ({ ...prev, [ip]: 'checking' }));
-      setSyncDetails((prev) => ({ ...prev, [ip]: '' }));
-      setSyncDiffs((prev) => ({
-        ...prev,
-        [ip]: { added: [], modified: [], removed: [], renderProjects: [] },
-      }));
-      setSelectionState((prev) => ({
-        ...prev,
-        [ip]: { added: {}, modified: {}, removed: {} },
-      }));
+      setHostStatusAndDetail(ip, 'checking', '');
+      resetHostDiffSelection(ip);
 
       try {
         const checkPromise = isRenderMode
@@ -68,11 +303,12 @@ function useSyncServerActions({
             : typeof res?.diffCount === 'number'
             ? res.diffCount
             : null;
-
-        const renderProjects = isRenderMode ? normalizeRenderScopeProjects(res) : [];
-        const added = isRenderMode ? [] : Array.isArray(res?.added) ? res.added : [];
-        const modified = isRenderMode ? [] : Array.isArray(res?.modified) ? res.modified : [];
-        const removed = isRenderMode ? [] : Array.isArray(res?.removed) ? res.removed : [];
+        const {
+          renderProjects,
+          added,
+          modified,
+          removed,
+        } = normalizeHostDiffsFromCheckResult(res, isRenderMode);
 
         setSyncDiffs((prev) => ({
           ...prev,
@@ -81,102 +317,36 @@ function useSyncServerActions({
 
         const ignoreSet = new Set((ignoredList || []).map((s) => normalizeKey(s)).filter(Boolean));
 
-        const makeSelectionMap = (list) =>
-          list.reduce(
-            (m, rel) => ({
-              ...m,
-              [rel]: isRenderMode ? true : ignoreSet.has(normalizeKey(rel)) ? false : true,
-            }),
-            {}
-          );
-
         setSelectionState((prev) => ({
           ...prev,
           [ip]: {
-            added: makeSelectionMap(added),
-            modified: makeSelectionMap(modified),
-            removed: makeSelectionMap(removed),
+            added: buildDiffSelectionMap(added, isRenderMode, ignoreSet),
+            modified: buildDiffSelectionMap(modified, isRenderMode, ignoreSet),
+            removed: buildDiffSelectionMap(removed, isRenderMode, ignoreSet),
           },
         }));
 
-        if (status === 'in_sync') {
-          setSyncStatus((prev) => ({ ...prev, [ip]: 'in_sync' }));
-          const displayDiff = diffRaw;
-          const diffText =
-            displayDiff === 0
-              ? t('sync.server.msg.checkNoDiff')
-              : displayDiff != null
-              ? t('sync.server.msg.checkWithDiff').replace('{diff}', String(displayDiff))
-              : t('sync.server.msg.checkResult');
-          setSyncDetails((prev) => ({
-            ...prev,
-            [ip]:
-              isRenderMode && Number(res?.projectCount || 0) > 0
-                ? `${diffText} (${Number(res?.projectCount || 0)} projet(s))`
-                : diffText,
-          }));
-        } else if (status === 'desync') {
-          setSyncStatus((prev) => ({ ...prev, [ip]: 'desync' }));
-          const displayDiff = diffEffective != null ? diffEffective : diffRaw;
-          const diffText =
-            displayDiff != null
-              ? t('sync.server.msg.checkDesyncWithDiff').replace('{diff}', String(displayDiff))
-              : t('sync.server.msg.checkDesyncGeneric');
-          setSyncDetails((prev) => ({
-            ...prev,
-            [ip]:
-              isRenderMode && Number(res?.projectCount || 0) > 0
-                ? `${diffText} (${Number(res?.projectCount || 0)} projet(s))`
-                : diffText,
-          }));
-        } else if (status === 'no_root') {
-          setSyncStatus((prev) => ({ ...prev, [ip]: 'no_root' }));
-          setSyncDetails((prev) => ({
-            ...prev,
-            [ip]: res?.message || t('sync.server.msg.checkNoRoot'),
-          }));
-        } else if (status === 'no_projects') {
-          setSyncStatus((prev) => ({ ...prev, [ip]: 'in_sync' }));
-          setSyncDetails((prev) => ({
-            ...prev,
-            [ip]: res?.message || 'Aucun projet en rendu automatique.',
-          }));
-        } else if (status === 'no_source') {
-          setSyncStatus((prev) => ({ ...prev, [ip]: 'desync' }));
-          setSyncDetails((prev) => ({
-            ...prev,
-            [ip]: res?.message || 'Source de verite absente pour au moins un projet.',
-          }));
-        } else if (status === 'error') {
-          setSyncStatus((prev) => ({ ...prev, [ip]: 'error' }));
-          setSyncDetails((prev) => ({
-            ...prev,
-            [ip]: res?.message || t('sync.server.msg.checkErrorGeneric'),
-          }));
-        } else {
-          setSyncStatus((prev) => ({ ...prev, [ip]: 'unknown' }));
-          setSyncDetails((prev) => ({
-            ...prev,
-            [ip]: res?.message || t('sync.server.msg.checkUnknown'),
-          }));
-        }
+        const outcome = buildSyncCheckOutcome({
+          status,
+          res,
+          diffRaw,
+          diffEffective,
+          isRenderMode,
+          t,
+        });
+        setHostStatusAndDetail(ip, outcome.status, outcome.detail);
       } catch (e) {
-        setSyncStatus((prev) => ({ ...prev, [ip]: 'error' }));
-        setSyncDetails((prev) => ({
-          ...prev,
-          [ip]: e?.message || t('sync.server.msg.checkErrorGeneric'),
-        }));
-        setSyncDiffs((prev) => ({
-          ...prev,
-          [ip]: { added: [], modified: [], removed: [], renderProjects: [] },
-        }));
-        setSelectionState((prev) => ({
-          ...prev,
-          [ip]: { added: {}, modified: {}, removed: {} },
-        }));
+        setHostStatusAndDetail(ip, 'error', e?.message || t('sync.server.msg.checkErrorGeneric'));
+        resetHostDiffSelection(ip);
       }
     },
-    [isRenderMode, syncScopeOptions, t]
+    [
+      isRenderMode,
+      resetHostDiffSelection,
+      setHostStatusAndDetail,
+      syncScopeOptions,
+      t,
+    ]
   );
 
   const toggleFileSelection = React.useCallback(
@@ -184,27 +354,18 @@ function useSyncServerActions({
       if (isRenderMode) return;
       if (!ip || !type || !rel) return;
 
-      const current = selectionState[ip] || { added: {}, modified: {}, removed: {} };
-      const original = {
-        added: { ...(current.added || {}) },
-        modified: { ...(current.modified || {}) },
-        removed: { ...(current.removed || {}) },
-      };
-
-      const next = {
-        added: { ...original.added },
-        modified: { ...original.modified },
-        removed: { ...original.removed },
-      };
+      const current = selectionState[ip] || createEmptySelectionState();
+      const original = cloneSelectionByType(current);
+      const next = cloneSelectionByType(original);
 
       const map = next[type] || {};
       const prevVal = map[rel] !== undefined ? map[rel] : true;
       const nextVal = !prevVal;
       map[rel] = nextVal;
 
-      const norm = normalizeRel(rel);
-      const addList = nextVal === false ? [norm] : [];
-      const removeList = nextVal === false ? [] : [norm];
+      const delta = createIgnoreDeltaLists();
+      pushIgnoreDelta(delta, rel, nextVal);
+      const { addList, removeList } = delta;
 
       setSelectionState((prev) => ({
         ...prev,
@@ -216,23 +377,24 @@ function useSyncServerActions({
 
       if (addList.length || removeList.length) {
         console.debug('[sync] toggle selection -> updateSyncIgnore', ip, { addList, removeList });
-        try {
-          const resp = await updateSyncIgnore(ip, addList, removeList);
-          if (resp && resp.ok === false) {
-            throw new Error(resp.message || 'updateSyncIgnore failed');
-          }
-        } catch (e) {
-          console.warn('updateSyncIgnore toggleFileSelection failed', e);
-          setSelectionState((prev) => ({ ...prev, [ip]: original }));
-          setMessage({
-            type: 'error',
-            text: `${t('sync.server.msg.checkErrorGeneric')} (${e?.message || e})`,
-          });
-          scheduleMessageClear(2000);
-        }
+        await updateSyncIgnoreSafely({
+          ip,
+          addList,
+          removeList,
+          onRollback: () => setSelectionState((prev) => ({ ...prev, [ip]: original })),
+          warnContext: 'updateSyncIgnore toggleFileSelection',
+        });
       }
     },
-    [isRenderMode, selectionState, setMessage, scheduleMessageClear, t]
+    [
+      cloneSelectionByType,
+      createEmptySelectionState,
+      createIgnoreDeltaLists,
+      isRenderMode,
+      pushIgnoreDelta,
+      selectionState,
+      updateSyncIgnoreSafely,
+    ]
   );
 
   const toggleDiffSection = React.useCallback((ip, type) => {
@@ -255,35 +417,24 @@ function useSyncServerActions({
       if (isRenderMode) return;
       if (!ip || !type) return;
 
-      const current = selectionState[ip] || { added: {}, modified: {}, removed: {} };
-      const original = {
-        added: { ...(current.added || {}) },
-        modified: { ...(current.modified || {}) },
-        removed: { ...(current.removed || {}) },
-      };
+      const current = selectionState[ip] || createEmptySelectionState();
+      const original = cloneSelectionByType(current);
 
       const diffs = syncDiffs[ip] || {};
-      const list =
-        type === 'added'
-          ? diffs.added || []
-          : type === 'modified'
-          ? diffs.modified || []
-          : diffs.removed || [];
+      const list = getDiffListByType(diffs, type);
 
       const nextType = { ...(current[type] || {}) };
-      const addList = [];
-      const removeList = [];
+      const delta = createIgnoreDeltaLists();
 
       for (const rel of list) {
         const prevVal = nextType[rel] !== undefined ? nextType[rel] : true;
         const nextVal = !!check;
         nextType[rel] = nextVal;
         if (prevVal !== nextVal) {
-          const norm = normalizeRel(rel);
-          if (nextVal === false) addList.push(norm);
-          else removeList.push(norm);
+          pushIgnoreDelta(delta, rel, nextVal);
         }
       }
+      const { addList, removeList } = delta;
 
       const nextSelection = {
         added: type === 'added' ? nextType : { ...(current.added || {}) },
@@ -297,23 +448,26 @@ function useSyncServerActions({
       }));
 
       if (addList.length || removeList.length) {
-        try {
-          const resp = await updateSyncIgnore(ip, addList, removeList);
-          if (resp && resp.ok === false) {
-            throw new Error(resp.message || 'updateSyncIgnore failed');
-          }
-        } catch (e) {
-          console.warn('updateSyncIgnore bulkSelectDiff failed', e);
-          setSelectionState((prev) => ({ ...prev, [ip]: original }));
-          setMessage({
-            type: 'error',
-            text: `${t('sync.server.msg.checkErrorGeneric')} (${e?.message || e})`,
-          });
-          scheduleMessageClear(2000);
-        }
+        await updateSyncIgnoreSafely({
+          ip,
+          addList,
+          removeList,
+          onRollback: () => setSelectionState((prev) => ({ ...prev, [ip]: original })),
+          warnContext: 'updateSyncIgnore bulkSelectDiff',
+        });
       }
     },
-    [isRenderMode, selectionState, setMessage, scheduleMessageClear, syncDiffs, t]
+    [
+      cloneSelectionByType,
+      createEmptySelectionState,
+      createIgnoreDeltaLists,
+      getDiffListByType,
+      isRenderMode,
+      pushIgnoreDelta,
+      selectionState,
+      syncDiffs,
+      updateSyncIgnoreSafely,
+    ]
   );
 
   const handleCopyHost = React.useCallback(
@@ -321,20 +475,12 @@ function useSyncServerActions({
       if (!ip) return;
 
       if (isRenderMode) {
-        setSyncStatus((prev) => ({ ...prev, [ip]: 'copying' }));
-        setSyncDetails((prev) => ({ ...prev, [ip]: '' }));
-        setMessage({
-          type: 'info',
-          text: t('sync.server.msg.copyStart').replace('{ip}', String(ip)),
-        });
+        startCopyStatus(ip);
         try {
           const res = await copySync(ip, null, syncScopeOptions || undefined);
           if (!res || res.ok === false) {
             const msg = (res && (res.message || res.error)) || t('sync.server.msg.copyError');
-            setSyncStatus((prev) => ({ ...prev, [ip]: 'error' }));
-            setSyncDetails((prev) => ({ ...prev, [ip]: msg }));
-            setMessage({ type: 'error', text: msg });
-            scheduleMessageClear(4000);
+            reportCopyFailure(ip, msg);
             return;
           }
 
@@ -349,18 +495,11 @@ function useSyncServerActions({
 
           const projectCount = Number(res?.projectCount || 0);
           const summary = `Sync rendu OK: ${projectCount} projet(s), ${Number(res?.addedCount ?? 0)} nouveaux, ${Number(res?.modifiedCount ?? 0)} modifies, ${Number(res?.deletedCount ?? 0)} supprimes.`;
-          setMessage({ type: 'ok', text: summary });
-          scheduleMessageClear(3500);
+          showSyncMessage('ok', summary, 3500);
           await handleCheckHost(ip);
         } catch (e) {
           const detail = String(e?.message || t('sync.server.msg.copyErrorGeneric'));
-          setSyncStatus((prev) => ({ ...prev, [ip]: 'error' }));
-          setSyncDetails((prev) => ({ ...prev, [ip]: detail }));
-          setMessage({
-            type: 'error',
-            text: `${t('sync.server.msg.copyErrorPrefix')}${detail}`,
-          });
-          scheduleMessageClear(4000);
+          reportCopyFailure(ip, detail, { prefixed: true });
         }
         return;
       }
@@ -368,108 +507,39 @@ function useSyncServerActions({
       const diffs = syncDiffs[ip] || {};
       const sel = selectionState[ip] || {};
 
-      const added = Array.isArray(diffs.added) ? diffs.added : [];
-      const modified = Array.isArray(diffs.modified) ? diffs.modified : [];
-      const removed = Array.isArray(diffs.removed) ? diffs.removed : [];
+      const added = getDiffListByType(diffs, 'added');
+      const modified = getDiffListByType(diffs, 'modified');
+      const removed = getDiffListByType(diffs, 'removed');
 
-      try {
-        const sel2 = selectionState[ip] || {};
-        const addList = [];
-
-        const lists = [
-          { list: sel2.added || {} },
-          { list: sel2.modified || {} },
-          { list: sel2.removed || {} },
-        ];
-
-        lists.forEach(({ list }) => {
-          Object.entries(list).forEach(([rel, state]) => {
-            const boolState = state !== false;
-            if (boolState === false) addList.push(normalizeRel(rel));
-          });
-        });
-
-        if (addList.length > 0) {
-          console.debug('[sync] updateSyncIgnore (UI) addList', ip, addList);
-          const resp = await updateSyncIgnore(ip, addList, []);
-          if (resp && resp.ok === false) {
-            throw new Error(resp.message || 'updateSyncIgnore failed');
-          }
-        }
-      } catch (err) {
-        console.warn('updateSyncIgnore échoué:', err);
-        setMessage({
-          type: 'error',
-          text: `${t('sync.server.msg.checkErrorGeneric')} (${err?.message || err})`,
-        });
-        scheduleMessageClear(2000);
+      const okSyncIgnore = await ensureSyncIgnoreSelectionUpToDate(ip, sel);
+      if (!okSyncIgnore) {
         return;
       }
 
-      const hasDiffs = added.length > 0 || modified.length > 0 || removed.length > 0;
-      let payload = null;
-
-      if (hasDiffs) {
-        const selAdded = sel.added || {};
-        const selModified = sel.modified || {};
-        const selRemoved = sel.removed || {};
-
-        const toAdd = added.filter((rel) => selAdded[rel] !== false);
-        const toMod = modified.filter((rel) => selModified[rel] !== false);
-        const toRem = removed.filter((rel) => selRemoved[rel] !== false);
-
-        if (toRem.length > 0) {
-          const msg =
-            toRem.length === 1
-              ? `Cette synchronisation va supprimer 1 fichier sur ${ip}. Continuer ?`
-              : `Cette synchronisation va supprimer ${toRem.length} fichiers sur ${ip}. Continuer ?`;
-
-          const ok = await requestConfirm(msg);
-          if (!ok) return;
-        }
-
-        if (toAdd.length === 0 && toMod.length === 0 && toRem.length === 0) {
-          setMessage({
-            type: 'info',
-            text: t('sync.server.noFilesSelected'),
-          });
-          scheduleMessageClear(3000);
-          return;
-        }
-
-        payload = {
-          added: toAdd,
-          modified: toMod,
-          removed: toRem,
-        };
-      }
-
-      setSyncStatus((prev) => ({ ...prev, [ip]: 'copying' }));
-      setSyncDetails((prev) => ({ ...prev, [ip]: '' }));
-      setMessage({
-        type: 'info',
-        text: t('sync.server.msg.copyStart').replace('{ip}', String(ip)),
+      const payloadResult = await buildCopyPayloadFromSelection({
+        ip,
+        added,
+        modified,
+        removed,
+        selection: sel,
       });
+      if (!payloadResult.proceed) return;
+      const payload = payloadResult.payload;
+
+      startCopyStatus(ip);
 
       try {
         const res = await copySync(ip, payload || undefined);
 
         if (!res || res.ok === false) {
           const msg = (res && (res.message || res.error)) || t('sync.server.msg.copyError');
-
-          setSyncStatus((prev) => ({ ...prev, [ip]: 'error' }));
-          setSyncDetails((prev) => ({ ...prev, [ip]: msg }));
-          setMessage({ type: 'error', text: msg });
-          scheduleMessageClear(4000);
+          reportCopyFailure(ip, msg);
           return;
         }
 
         try {
           const refreshed = await getHosts();
-          const list = (Array.isArray(refreshed) ? refreshed : []).filter(
-            (h) => h && typeof h === 'object' && safeStr(h.ip || h.address, '')
-          );
-          setHosts(list);
+          setHosts(normalizeSyncHosts(refreshed));
         } catch (e) {
           console.warn('getHosts after copy failed', e);
         }
@@ -482,16 +552,10 @@ function useSyncServerActions({
           (res && res.summaryText && String(res.summaryText)) ||
           t('sync.server.msg.copyDone');
 
-        setMessage({
-          type: 'ok',
-          text: summary,
-        });
-        scheduleMessageClear(3000);
+        showSyncMessage('ok', summary, 3000);
 
         await handleCheckHost(ip);
       } catch (e) {
-        setSyncStatus((prev) => ({ ...prev, [ip]: 'error' }));
-
         let detail = '';
         if (e && typeof e === 'object') {
           const errCode = e.error || e.code || '';
@@ -504,26 +568,21 @@ function useSyncServerActions({
         if (!detail) {
           detail = t('sync.server.msg.copyErrorGeneric');
         }
-
-        setSyncDetails((prev) => ({
-          ...prev,
-          [ip]: detail,
-        }));
-        setMessage({
-          type: 'error',
-          text: `${t('sync.server.msg.copyErrorPrefix')}${detail}`,
-        });
-        scheduleMessageClear(4000);
+        reportCopyFailure(ip, detail, { prefixed: true });
       }
     },
     [
+      buildCopyPayloadFromSelection,
+      ensureSyncIgnoreSelectionUpToDate,
       handleCheckHost,
       isRenderMode,
-      requestConfirm,
-      scheduleMessageClear,
       selectionState,
+      getDiffListByType,
+      setHostStatusAndDetail,
       setHosts,
-      setMessage,
+      startCopyStatus,
+      reportCopyFailure,
+      showSyncMessage,
       syncDiffs,
       syncScopeOptions,
       t,

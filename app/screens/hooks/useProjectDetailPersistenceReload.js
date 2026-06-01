@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { getProjectMeta } from '../../utils/agent';
+import { clearMessagePair } from './projectDetailFeedbackHelpers';
 import {
   buildMergedProjectMeta,
   buildProjectListPatchFromMergedMeta,
@@ -33,8 +34,7 @@ export function useProjectDetailPersistenceReload({
         setDetailInsights(res.insights || {});
         const pvFromScan = String(res.insights?.projectVersion ?? metaRaw.fileVersion ?? '').trim();
         setProjectVersion(pvFromScan);
-        setProjectVersionMsg('');
-        setProjectVersionMsgType('');
+        clearMessagePair(setProjectVersionMsg, setProjectVersionMsgType);
         const patch = buildProjectListPatchFromMergedMeta({ pathValue, wrcNamesValue, mergedMeta });
         setProjects((prev) => mapProjectById(prev, pid, (current) => ({
           ...patch,

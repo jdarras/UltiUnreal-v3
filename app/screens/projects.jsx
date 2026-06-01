@@ -1,5 +1,5 @@
 // app/screens/projects.jsx
-import React, { Suspense } from 'react';
+import React from 'react';
 import {
   getCommon,
   saveProjectMeta,
@@ -12,7 +12,6 @@ import {
   padId,
   mapRelToAssetPath,
   mapRelToAssetPathNoDot,
-  formatFixed2,
 } from '../utils/projects-helpers';
 import {
   SORT_STORAGE_KEY,
@@ -31,15 +30,8 @@ import { useProjectDetail } from './hooks/useProjectDetail';
 import { usePromiseConfirmDialog } from './hooks/usePromiseConfirmDialog';
 import { useProjectsNoticeEffect } from './hooks/useProjectsNoticeEffect';
 import { useProjectsServerUiHandlers } from './hooks/useProjectsServerUiHandlers';
-import ProjectsSnapshotLightbox from '../components/ProjectsSnapshotLightbox';
-import ProjectsDetailActionsBar from '../components/ProjectsDetailActionsBar';
-import ProjectsDetailHeaderBar from '../components/ProjectsDetailHeaderBar';
-import ProjectsDetailIndexationCard from '../components/ProjectsDetailIndexationCard';
-
-const HttpBindBlock = React.lazy(() => import('../components/HttpBindBlock'));
-const ProjectsActiveBanner = React.lazy(() => import('../components/ProjectsActiveBanner'));
-const ProjectsClientSection = React.lazy(() => import('../components/ProjectsClientSection'));
-const ProjectsServerSection = React.lazy(() => import('../components/ProjectsServerSection'));
+import ProjectsDetailView from '../components/ProjectsDetailView';
+import ProjectsMainView from '../components/ProjectsMainView';
 
 function createInitialAdvanced() {
   return {
@@ -72,42 +64,6 @@ function createDefaultDetailMeta({ includeFavorite = false } = {}) {
   return base;
 }
 
-const DETAIL_SECTION_TITLE_ROW_STYLE = { marginBottom: '12px' };
-const FLEX_1_300_STYLE = { flex: '1 1 300px' };
-const LABEL_CLICKABLE_STYLE = { cursor: 'pointer', userSelect: 'none' };
-const TEXT_ELLIPSIS_STYLE = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-const PROJECT_DETAIL_FIELDSET_STYLE = {
-  border: 'none',
-  padding: 0,
-  margin: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '12px',
-};
-const WORD_BREAK_ALL_STYLE = { wordBreak: 'break-all' };
-const SNAPSHOT_GRID_STYLE = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-  gap: '12px',
-};
-const SNAPSHOT_TILE_STYLE = { padding: '6px', cursor: 'pointer' };
-const SNAPSHOT_TILE_PREVIEW_STYLE = {
-  width: '100%',
-  aspectRatio: '16 / 9',
-  background: '#1c1f24',
-  borderRadius: '6px',
-  overflow: 'hidden',
-};
-const SNAPSHOT_TILE_IMAGE_STYLE = { width: '100%', height: '100%', objectFit: 'cover' };
-const SNAPSHOT_TILE_EMPTY_STYLE = { padding: '8px' };
-const WIDTH_180_STYLE = { width: '180px' };
-const WIDTH_120_STYLE = { width: '120px' };
-const WIDTH_48_STYLE = { width: '48px' };
-const WIDTH_520_STYLE = { width: '520px' };
-const WIDTH_60_PERCENT_STYLE = { width: '60%' };
-const RENDER_BRIDGE_STATE_READY_STYLE = { color: 'var(--uu-ok)' };
-const RENDER_BRIDGE_STATE_DEFAULT_STYLE = { color: 'var(--uu-color-text)' };
-const RENDER_BRIDGE_STATE_ERROR_STYLE = { color: 'var(--uu-error)' };
 
 /* ===================================================== */
 export default function ProjectsScreen({
@@ -546,6 +502,78 @@ export default function ProjectsScreen({
     addKeywordToDraft(keywordsInput);
   }, [addKeywordToDraft, keywordsInput]);
 
+  const handleSelectDefaultGameMap = React.useCallback((e) => {
+    const v = String(e?.target?.value || '').trim();
+    if (!v) return;
+    applyDefaultMapsPatch({ gameDefaultMap: v });
+  }, [applyDefaultMapsPatch]);
+
+  const handleSelectDefaultEditorMap = React.useCallback((e) => {
+    const v = String(e?.target?.value || '').trim();
+    if (!v) return;
+    applyDefaultMapsPatch({ editorStartupMap: v });
+  }, [applyDefaultMapsPatch]);
+
+  const handleToggleWrcPreset = React.useCallback((name, isChecked) => {
+    const next = isChecked
+      ? detailWrcNames.filter(n => n !== name)
+      : [...detailWrcNames, name];
+    setDetailWrcNames(next);
+    scheduleSave(null, null, { wrcNames: next });
+  }, [detailWrcNames, setDetailWrcNames, scheduleSave]);
+
+  const handleIntervenantChange = React.useCallback((field, value) => {
+    const next = updateDetailField(`referents.${field}`, value);
+    scheduleSave(next, 'intervenants');
+  }, [updateDetailField, scheduleSave]);
+
+  const handleRefreshRenderBridgeStatus = React.useCallback(() => {
+    if (!detailId) return;
+    loadRenderBridgeStatus(detailId);
+  }, [loadRenderBridgeStatus, detailId]);
+
+  const handleInstallOrUpdateRenderBridge = React.useCallback(() => {
+    installRenderBridgeForDetail();
+  }, [installRenderBridgeForDetail]);
+
+  const handleActivateDetailProject = React.useCallback(() => {
+    if (!detailId) return;
+    activateOne(detailId);
+  }, [activateOne, detailId]);
+
+  const handleStartDetailIntegration = React.useCallback(() => {
+    if (!detailId) return;
+    startIntegration(detailId);
+  }, [startIntegration, detailId]);
+
+  const canCreateTaskFromProject = React.useMemo(() => (
+    canCreateTasks === true && typeof onCreateTaskFromProject === 'function'
+  ), [canCreateTasks, onCreateTaskFromProject]);
+  const isAutoRenderUsage = React.useCallback((usageMode, metaStatus) => {
+    const mode = String(usageMode || '').trim();
+    if (mode !== 'auto_render' && mode !== 'live_auto_render') return false;
+    const status = String(metaStatus || '').trim();
+    if (canBypassPadForTasks) return status === 'PAD' || status === 'Test';
+    return status === 'PAD';
+  }, [canBypassPadForTasks]);
+  const createTaskFromProject = React.useCallback((projectRef) => {
+    if (!canCreateTaskFromProject) return;
+    const ref = String(projectRef || '').trim();
+    if (!ref) return;
+    onCreateTaskFromProject(ref);
+  }, [canCreateTaskFromProject, onCreateTaskFromProject]);
+
+  const handleCreateTaskFromDetail = React.useCallback(() => {
+    if (!detailId) return;
+    createTaskFromProject(detailId);
+  }, [createTaskFromProject, detailId]);
+
+  const handleDeleteDetailProject = React.useCallback(() => {
+    if (!detailId) return;
+    removeOne(detailId);
+    setDetailId('');
+  }, [removeOne, detailId, setDetailId]);
+
   const noticeCandidates = React.useMemo(() => ([
     integrationMsg ? { text: integrationMsg, type: integrationMsgType } : null,
     httpBindMsg ? { text: httpBindMsg, type: httpBindMsgType } : null,
@@ -784,22 +812,6 @@ export default function ProjectsScreen({
     () => Object.entries(searchAdvanced || {}).some(([, v]) => (Array.isArray(v) ? v.length > 0 : !!v)),
     [searchAdvanced]
   );
-  const canCreateTaskFromProject = React.useMemo(() => (
-    canCreateTasks === true && typeof onCreateTaskFromProject === 'function'
-  ), [canCreateTasks, onCreateTaskFromProject]);
-  const isAutoRenderUsage = React.useCallback((usageMode, metaStatus) => {
-    const mode = String(usageMode || '').trim();
-    if (mode !== 'auto_render' && mode !== 'live_auto_render') return false;
-    const status = String(metaStatus || '').trim();
-    if (canBypassPadForTasks) return status === 'PAD' || status === 'Test';
-    return status === 'PAD';
-  }, [canBypassPadForTasks]);
-  const createTaskFromProject = React.useCallback((projectRef) => {
-    if (!canCreateTaskFromProject) return;
-    const ref = String(projectRef || '').trim();
-    if (!ref) return;
-    onCreateTaskFromProject(ref);
-  }, [canCreateTaskFromProject, onCreateTaskFromProject]);
   const noneLabel = React.useMemo(() => {
     const raw = t('common.none');
     const stripped = raw ? raw.replace(/[()]/g, '').trim() : '';
@@ -1001,824 +1013,106 @@ export default function ProjectsScreen({
     clientSyncEnabled,
     onAssociate: handleAssociateForClientActive,
   };
-
   if (detailId) {
-    const proj = projects.find(p => String(p.id || '').trim() === String(detailId));
-    const meta = detailMeta || { status:'', type:'', usageMode:'', category:'', fileVersion:'', referents:{}, keywords:[], note:'' };
-    const refs = meta.referents || {};
-    const isActiveDetail = String(activeId || '').trim() === String(detailId || '').trim();
-    const pluginsList = (Array.isArray(detailInsights?.plugins) ? detailInsights.plugins : [])
-      .filter((pl) => pl && pl.enabled !== false);
-    const hasPlugins = pluginsList.length > 0;
-    const {
-      hasMaps,
-      options: mapOptions,
-      selectedGame,
-      selectedEditor,
-      listDisplay: mapListDisplay,
-    } = detailMapsView;
-    const sequencesList = Array.isArray(detailInsights?.sequences?.list)
-      ? detailInsights.sequences.list
-      : [];
-    const hasSequences = sequencesList.length > 0;
-    const renderPresetsList = Array.isArray(detailInsights?.renderPresets?.list)
-      ? detailInsights.renderPresets.list
-      : [];
-    const hasRenderPresets = renderPresetsList.length > 0;
-    const wrcPresetsList = Array.isArray(detailInsights?.wrcPresets?.list)
-      ? detailInsights.wrcPresets.list
-      : [];
-    const renderBridgeEligible = isPostprodMode && isRenderBridgeUsage(meta?.usageMode);
-    const renderBridgeInstalled = renderBridgeStatus?.installedInProject === true;
-    const renderBridgeEnabled = renderBridgeStatus?.enabledInProject === true;
-    const renderBridgeReady = renderBridgeStatus?.ready === true;
-    const renderBridgePackageAvailable = renderBridgeStatus?.packageAvailable === true;
-    const renderBridgeStateLabel = renderBridgeReady
-      ? t('projects.detail.renderBridge.state.ready')
-      : (
-          renderBridgeInstalled
-            ? (renderBridgeEnabled
-              ? t('projects.detail.renderBridge.state.ready')
-              : t('projects.detail.renderBridge.state.notEnabled'))
-            : t('projects.detail.renderBridge.state.notInstalled')
-        );
-    const hasWrcPresets = wrcPresetsList.length > 0;
-    const setupUnreal = (detailInsights && typeof detailInsights === 'object') ? detailInsights.setupUnreal : null;
-    const suRenderer = Array.isArray(setupUnreal?.renderer) ? setupUnreal.renderer : [];
-    const suPlatform = setupUnreal && typeof setupUnreal.platform === 'object' ? setupUnreal.platform : {};
-    const suWin = Array.isArray(suPlatform?.windows) ? suPlatform.windows : [];
-    const suLinux = Array.isArray(suPlatform?.linux) ? suPlatform.linux : [];
-    const suMac = Array.isArray(suPlatform?.mac) ? suPlatform.mac : [];
-    const suHw = Array.isArray(suPlatform?.hardware) ? suPlatform.hardware : [];
-    const hasSetupUnreal = !!(suRenderer.length || suWin.length || suLinux.length || suMac.length || suHw.length);
-
-    const setupVP = (detailInsights && typeof detailInsights === 'object') ? detailInsights.setupVideoProduction : null;
-    const vpCadence = setupVP && typeof setupVP.cadence === 'object' ? setupVP.cadence : {};
-    const vpTimecode = setupVP && typeof setupVP.timecode === 'object' ? setupVP.timecode : {};
-    const vpAnim = setupVP && typeof setupVP.animation === 'object' ? setupVP.animation : {};
-    const vpSeq = setupVP && typeof setupVP.levelSequence === 'object' ? setupVP.levelSequence : {};
-    const hasSetupVP = !!(
-      setupVP &&
-      (Object.values(vpCadence).some(Boolean) ||
-        Object.values(vpTimecode).some(Boolean) ||
-        Object.values(vpAnim).some(Boolean) ||
-        Object.values(vpSeq).some(Boolean))
-    );
-    const snapshotsList = Array.isArray(detailInsights?.snapshots?.items)
-      ? detailInsights.snapshots.items
-      : [];
-    const hasSnapshots = snapshotsList.length > 0;
-
-    return (
-      <div className="uu-page uu-page-compact">
-        <ProjectsDetailHeaderBar
-          t={t}
-          detailId={detailId}
-          detailName={detailName}
-          onDetailNameChange={handleDetailNameInputChange}
-          isFavorite={detailMeta?.favorite === true}
-          onToggleFavorite={handleDetailFavoriteToggle}
-          engineVersionElement={versionEl(proj?.engineVersion)}
-          detailIsNew={detailIsNew}
-          onCreateProject={createProjectFromDraft}
-          onBack={handleCloseDetail}
-        />
-
-        <div className="uu-section uu-col uu-gap-16">
-          {detailLoading ? (
-            <div className="uu-muted">{t('projects.detail.loading')}</div>
-          ) : (
-            <fieldset
-              className="uu-project-detail-stack"
-              disabled={!canEditFields}
-              style={PROJECT_DETAIL_FIELDSET_STYLE}
-            >
-              {/* Bloc : Chemin (sans titre) */}
-              <div className="uu-card">
-                <div className="uu-row wrap">
-                  <div className="uu-label w-160">{t('projects.detail.labels.path')}</div>
-                  <div className="uu-value">
-                    <div className="uu-row uu-gap-6 uu-wrap uu-align-center">
-                      <input
-                        className="uu-input"
-                        style={FLEX_1_300_STYLE}
-                        value={detailPath}
-                        onChange={handleDetailPathInputChange}
-                        onBlur={handleDetailPathInputBlur}
-                      />
-                      <button
-                        type="button"
-                        className="uu-btn"
-                        onClick={handleBrowseDetailPath}
-                      >
-                        {t('common.browse')}
-                      </button>
-                      <button
-                        type="button"
-                        className="uu-btn"
-                        onClick={handleViewDetailPath}
-                      >
-                        {t('common.view')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <ProjectsDetailIndexationCard
-                t={t}
-                meta={meta}
-                noneLabel={noneLabel}
-                detailIsNew={detailIsNew}
-                detailLoading={detailLoading}
-                projectVersion={projectVersion}
-                projectVersionBusy={projectVersionBusy}
-                markProjectDropdownDirty={markProjectDropdownDirty}
-                onUpdateDetailField={updateDetailField}
-                onProjectVersionChange={handleProjectVersionInputChange}
-                onProjectVersionBlur={handleProjectVersionInputBlur}
-                onProjectVersionKeyDown={handleProjectVersionInputKeyDown}
-                detailNoteRef={detailNoteRef}
-                onDetailNoteChange={handleDetailNoteChange}
-                keywordsInput={keywordsInput}
-                onKeywordsInputChange={handleKeywordsInputChange}
-                onKeywordsKeyDown={handleKeywordKeyDown}
-                onKeywordsBlur={handleKeywordsInputBlur}
-                detailKeywordsList={detailKeywordsList}
-                onRemoveKeyword={removeKeywordFromDraft}
-              />
-
-              {/* Bloc : Plugin Rendu (Bridge) */}
-              {!detailIsNew && renderBridgeEligible ? (
-                <div className="uu-card">
-                  <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
-                    <strong className="uu-block-title">{t('projects.detail.blocks.renderBridge')}</strong>
-                  </div>
-                  <div className="uu-col uu-gap-10">
-                    <div className="uu-row wrap uu-align-center uu-gap-8">
-                      <div className="uu-label w-160">{t('projects.detail.renderBridge.stateLabel')}</div>
-                      <div
-                        className="uu-value"
-                        style={renderBridgeReady ? RENDER_BRIDGE_STATE_READY_STYLE : RENDER_BRIDGE_STATE_DEFAULT_STYLE}
-                      >
-                        {renderBridgeStateLabel}
-                      </div>
-                    </div>
-                    {!renderBridgePackageAvailable ? (
-                      <div className="uu-row wrap uu-align-center uu-gap-8">
-                        <div className="uu-label w-160">{t('projects.detail.renderBridge.packageLabel')}</div>
-                        <div className="uu-value" style={RENDER_BRIDGE_STATE_ERROR_STYLE}>
-                          {t('projects.detail.renderBridge.compatibilityHint')}
-                        </div>
-                      </div>
-                    ) : null}
-                    {renderBridgeStatus?.packageDir ? (
-                      <div className="uu-row wrap uu-align-center uu-gap-8">
-                        <div className="uu-label w-160">{t('projects.detail.renderBridge.packagePathLabel')}</div>
-                        <div className="uu-value uu-muted" style={WORD_BREAK_ALL_STYLE}>
-                          {String(renderBridgeStatus.packageDir || '')}
-                        </div>
-                      </div>
-                    ) : null}
-                    {!renderBridgeReady ? (
-                      <div className="uu-row wrap uu-align-center uu-gap-8">
-                        <div className="uu-label w-160">{t('projects.detail.renderBridge.actionsLabel')}</div>
-                        <div className="uu-row uu-gap-8">
-                          <button
-                            type="button"
-                            className="uu-btn"
-                            disabled={renderBridgeBusy}
-                            onClick={() => { loadRenderBridgeStatus(detailId); }}
-                          >
-                            {t('projects.detail.renderBridge.refresh')}
-                          </button>
-                          <button
-                            type="button"
-                            className="uu-btn"
-                            disabled={renderBridgeBusy || !renderBridgePackageAvailable}
-                            onClick={() => { installRenderBridgeForDetail(); }}
-                          >
-                            {renderBridgeInstalled
-                              ? t('projects.detail.renderBridge.update')
-                              : t('projects.detail.renderBridge.install')}
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Bloc : Maps (si info) */}
-              {hasMaps ? (
-                <div className="uu-card">
-                  <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
-                    <strong className="uu-block-title">{t('projects.detail.blocks.maps')}</strong>
-                  </div>
-
-                  <div className="uu-col uu-gap-16">
-                    <div className="uu-row wrap">
-                      <div className="uu-label w-160">{t('projects.detail.maps.defaultGame')}</div>
-                      <div className="uu-value">
-                        <select
-                          className="uu-select"
-                          style={WIDTH_520_STYLE}
-                          value={selectedGame}
-                          onChange={(e) => {
-                            const v = String(e.target.value || '').trim();
-                            if (!v) return;
-                            applyDefaultMapsPatch({ gameDefaultMap: v });
-                          }}
-                          disabled={mapsBusy || detailLoading}
-                        >
-                          <option value="">{t('common.none')}</option>
-                          {mapOptions.map((option) => (
-                            <option key={`g-${option.assetFull}`} value={option.assetFull}>
-                              {option.display}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="uu-row wrap">
-                      <div className="uu-label w-160">{t('projects.detail.maps.defaultEditor')}</div>
-                      <div className="uu-value">
-                        <select
-                          className="uu-select"
-                          style={WIDTH_520_STYLE}
-                          value={selectedEditor}
-                          onChange={(e) => {
-                            const v = String(e.target.value || '').trim();
-                            if (!v) return;
-                            applyDefaultMapsPatch({ editorStartupMap: v });
-                          }}
-                          disabled={mapsBusy || detailLoading}
-                        >
-                          <option value="">{t('common.none')}</option>
-                          {mapOptions.map((option) => (
-                            <option key={`e-${option.assetFull}`} value={option.assetFull}>
-                              {option.display}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="uu-row wrap">
-                    <div className="uu-label w-160" />
-                    <div className="uu-value uu-muted">
-                      {mapListDisplay.length ? (
-                        <div className="uu-small mt-4">
-                          {mapListDisplay.map((displayPath, idx) => (
-                            <div key={idx}>{displayPath}</div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Bloc : Sequences Unreal */}
-              <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
-                  <strong className="uu-block-title">{t('projects.detail.blocks.sequences')}</strong>
-                  {!hasSequences ? (
-                    <div className="uu-muted">{t('projects.detail.sequences.noInfo')}</div>
-                  ) : null}
-                </div>
-                <div className="uu-row wrap">
-                  <div className="uu-label w-160">{t('projects.detail.sequences.count')}</div>
-                  <div className="uu-value">{sequencesList.length}</div>
-                </div>
-                {hasSequences ? (
-                  <div className="uu-row wrap">
-                    <div className="uu-label w-160" />
-                    <div className="uu-value uu-small mt-4">
-                      {sequencesList.map((entry, idx) => {
-                        const assetPath = String(entry?.assetPath || '').trim();
-                        const relativePath = String(entry?.relativePath || '').trim();
-                        const name = String(entry?.name || '').trim();
-                        const key = assetPath || relativePath || `${name}-${idx}`;
-                        return (
-                          <div key={`project-sequence-${key}`}>
-                            {assetPath || relativePath || name || '-'}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Bloc : Parametres de rendu */}
-              <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
-                  <strong className="uu-block-title">{t('projects.detail.blocks.renderPresets')}</strong>
-                  {!hasRenderPresets ? (
-                    <div className="uu-muted">{t('projects.detail.renderPresets.noInfo')}</div>
-                  ) : null}
-                </div>
-                <div className="uu-row wrap">
-                  <div className="uu-label w-160">{t('projects.detail.renderPresets.count')}</div>
-                  <div className="uu-value">{renderPresetsList.length}</div>
-                </div>
-                {hasRenderPresets ? (
-                  <div className="uu-row wrap">
-                    <div className="uu-label w-160" />
-                    <div className="uu-value uu-small mt-4">
-                      {renderPresetsList.map((entry, idx) => {
-                        const assetPath = String(entry?.assetPath || '').trim();
-                        const relativePath = String(entry?.relativePath || '').trim();
-                        const name = String(entry?.name || '').trim();
-                        const key = assetPath || relativePath || `${name}-${idx}`;
-                        return (
-                          <div key={`project-render-preset-${key}`}>
-                            {assetPath || relativePath || name || '-'}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Bloc : WRC */}
-              <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
-                  <strong className="uu-block-title">{t('projects.detail.blocks.wrc')}</strong>
-                </div>
-                <Suspense fallback={lazyBlockFallback}>
-                  <HttpBindBlock
-                    t={t}
-                    visible={httpBindVisible}
-                    httpBindEditing={httpBindEditing}
-                    httpBindDraft={httpBindDraft}
-                    setHttpBindDraft={setHttpBindDraft}
-                    httpBindDraftValid={httpBindDraftValid}
-                    httpBindBusy={httpBindBusy}
-                    httpBindDisplay={httpBindDisplay}
-                    httpBindDisplayClass={httpBindDisplayClass}
-                    httpBindInlineMsg={httpBindInlineMsg}
-                    httpBindInlineClass={httpBindInlineClass}
-                    canEditHttpBind={canEditHttpBind}
-                    startHttpBindEdit={startHttpBindEdit}
-                    cancelHttpBindEdit={cancelHttpBindEdit}
-                    saveHttpBindAddress={saveHttpBindAddress}
-                  />
-                </Suspense>
-                <div className="uu-row wrap mt-12">
-                  <div className="uu-label w-160">{t('projects.detail.wrcPresets.count')}</div>
-                  <div className="uu-value">{wrcPresetsList.length}</div>
-                </div>
-                {hasWrcPresets ? (
-                  <div className="uu-row wrap mt-4">
-                    <div className="uu-label w-160">{t('projects.detail.wrcPresets.active')}</div>
-                    <div className="uu-value">
-                      {wrcPresetsList.map((entry, idx) => {
-                        const assetPath = String(entry?.assetPath || '').trim();
-                        const relativePath = String(entry?.relativePath || '').trim();
-                        const name = String(entry?.name || '').trim();
-                        const key = assetPath || relativePath || `${name}-${idx}`;
-                        const isChecked = detailWrcNames.includes(name);
-                        return (
-                          <div key={`project-wrc-preset-${key}`} className="uu-row uu-align-center uu-gap-8 mt-4">
-                            <input
-                              type="checkbox"
-                              id={`wrc-preset-${key}`}
-                              checked={isChecked}
-                              disabled={!canEditFields}
-                              onChange={() => {
-                                const next = isChecked
-                                  ? detailWrcNames.filter(n => n !== name)
-                                  : [...detailWrcNames, name];
-                                setDetailWrcNames(next);
-                                scheduleSave(null, null, { wrcNames: next });
-                              }}
-                            />
-                            <label htmlFor={`wrc-preset-${key}`} className="uu-small" style={LABEL_CLICKABLE_STYLE}>
-                              {assetPath || relativePath || name || '-'}
-                            </label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="uu-row wrap mt-4">
-                    <div className="uu-label w-160" />
-                    <div className="uu-value uu-muted">{t('projects.detail.wrcPresets.noInfo')}</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Bloc : Setup Video Production */}
-              <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8 uu-row-nowrap" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
-                  <strong className="uu-block-title">{t('projects.detail.blocks.setupVideoProduction')}</strong>
-                  {!hasSetupVP ? (
-                    <div className="uu-muted">
-                      {t('projects.detail.vp.noInfo')}
-                    </div>
-                  ) : null}
-                </div>
-
-                  <div className="uu-col uu-gap-16">
-                    <div className="uu-row wrap">
-                      <div className="uu-label w-160">{t('projects.detail.vp.minDesiredFrameRate')}</div>
-                      <div className="uu-value">
-                        <input
-                          className="uu-input"
-                          style={WIDTH_180_STYLE}
-                          value={vpDraft?.minDesiredFrameRate ?? ''}
-                          onChange={(e) => {
-                            const next = { ...(vpDraft || {}), minDesiredFrameRate: e.target.value };
-                            setVpDraft(next);
-                            scheduleVpSave(next);
-                          }}
-                          onBlur={(e) => {
-                            const formatted = formatFixed2(e.target.value);
-                            if (formatted !== String(e.target.value || '')) {
-                              const next = { ...(vpDraft || {}), minDesiredFrameRate: formatted };
-                              setVpDraft(next);
-                              scheduleVpSave(next);
-                            }
-                          }}
-                          disabled={vpBusy}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="uu-row wrap">
-                      <div className="uu-label w-160">{t('projects.detail.vp.fixedFrameRate')}</div>
-                      <div className="uu-value">
-                        <div className="uu-row uu-align-center uu-gap-12 uu-wrap">
-                          <label className="uu-check">
-                            <input
-                              type="checkbox"
-                              checked={!!vpDraft?.useFixedFrameRate}
-                              onChange={(e) => {
-                                const next = { ...(vpDraft || {}), useFixedFrameRate: !!e.target.checked };
-                                setVpDraft(next);
-                                scheduleVpSave(next);
-                              }}
-                              disabled={vpBusy}
-                            />
-                            <span>{t('projects.detail.vp.enabled')}</span>
-                          </label>
-                          <input
-                            className="uu-input"
-                            style={WIDTH_180_STYLE}
-                            value={vpDraft?.fixedFrameRate ?? ''}
-                            onChange={(e) => {
-                              const next = { ...(vpDraft || {}), fixedFrameRate: e.target.value };
-                              setVpDraft(next);
-                              scheduleVpSave(next);
-                            }}
-                            onBlur={(e) => {
-                              const formatted = formatFixed2(e.target.value);
-                              if (formatted !== String(e.target.value || '')) {
-                                const next = { ...(vpDraft || {}), fixedFrameRate: formatted };
-                                setVpDraft(next);
-                                scheduleVpSave(next);
-                              }
-                            }}
-                            disabled={vpBusy || !vpDraft?.useFixedFrameRate}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="uu-row wrap">
-                      <div className="uu-label w-160">{t('projects.detail.vp.smoothFrameRate')}</div>
-                      <div className="uu-value">
-                        <div className="uu-row uu-align-center uu-gap-12 uu-wrap">
-                          <label className="uu-check">
-                            <input
-                              type="checkbox"
-                              checked={!!vpDraft?.smoothEnabled}
-                              onChange={(e) => {
-                                const next = { ...(vpDraft || {}), smoothEnabled: !!e.target.checked };
-                                setVpDraft(next);
-                                scheduleVpSave(next);
-                              }}
-                              disabled={vpBusy}
-                            />
-                            <span>{t('projects.detail.vp.enabled')}</span>
-                          </label>
-                          <div className="uu-row uu-align-center uu-gap-8 uu-wrap">
-                            <div className="uu-label" style={WIDTH_48_STYLE}>{t('projects.detail.vp.min')}</div>
-                            <input
-                              className="uu-input"
-                              style={WIDTH_120_STYLE}
-                              value={vpDraft?.smoothMin ?? ''}
-                              onChange={(e) => {
-                                const next = { ...(vpDraft || {}), smoothMin: e.target.value };
-                                setVpDraft(next);
-                                scheduleVpSave(next);
-                              }}
-                              onBlur={(e) => {
-                                const formatted = formatFixed2(e.target.value);
-                                if (formatted !== String(e.target.value || '')) {
-                                  const next = { ...(vpDraft || {}), smoothMin: formatted };
-                                  setVpDraft(next);
-                                  scheduleVpSave(next);
-                                }
-                              }}
-                              disabled={vpBusy || !vpDraft?.smoothEnabled}
-                            />
-                            <div className="uu-label" style={WIDTH_48_STYLE}>{t('projects.detail.vp.max')}</div>
-                            <input
-                              className="uu-input"
-                              style={WIDTH_120_STYLE}
-                              value={vpDraft?.smoothMax ?? ''}
-                              onChange={(e) => {
-                                const next = { ...(vpDraft || {}), smoothMax: e.target.value };
-                                setVpDraft(next);
-                                scheduleVpSave(next);
-                              }}
-                              onBlur={(e) => {
-                                const formatted = formatFixed2(e.target.value);
-                                if (formatted !== String(e.target.value || '')) {
-                                  const next = { ...(vpDraft || {}), smoothMax: formatted };
-                                  setVpDraft(next);
-                                  scheduleVpSave(next);
-                                }
-                              }}
-                              disabled={vpBusy || !vpDraft?.smoothEnabled}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="uu-row wrap">
-                      <div className="uu-label w-160">{t('projects.detail.setupVideoProduction.timecode')}</div>
-                      <div className="uu-value uu-muted">
-                        {vpTimecode?.GenerateDefaultTimecodeFrameRate ? (
-                          <div>GenerateDefaultTimecodeFrameRate={vpTimecode.GenerateDefaultTimecodeFrameRate}</div>
-                        ) : null}
-                        {vpTimecode?.TimecodeProviderClassName ? (
-                          <div>TimecodeProviderClassName={vpTimecode.TimecodeProviderClassName}</div>
-                        ) : null}
-                        {vpTimecode?.CustomTimeStepClassName ? (
-                          <div>CustomTimeStepClassName={vpTimecode.CustomTimeStepClassName}</div>
-                        ) : null}
-                        {vpAnim?.DefaultFrameRate ? (
-                          <div>DefaultFrameRate={vpAnim.DefaultFrameRate}</div>
-                        ) : null}
-                        {vpSeq?.DefaultDisplayRate ? (
-                          <div>LevelSequence.DefaultDisplayRate={vpSeq.DefaultDisplayRate}</div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              {/* Bloc : Snapshots (si info) */}
-              {hasSnapshots ? (
-                <div className="uu-card">
-                  <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
-                    <strong className="uu-block-title">{t('projects.detail.blocks.snapshots')}</strong>
-                  </div>
-                  <div className="uu-row wrap">
-                    <div className="uu-label w-160" />
-                    <div className="uu-value">
-                      <div style={SNAPSHOT_GRID_STYLE}>
-                        {snapshotsList.map((it, idx) => {
-                          const rel = String(it?.rel || '').trim();
-                          const full = String(it?.path || '').trim();
-                          const relOrPath = rel || full;
-                          const mtime = String(it?.mtime || '').trim();
-                          const src = snapshotSrc(detailId, relOrPath, mtime);
-                          const fileName = (relOrPath.split('/').filter(Boolean).slice(-1)[0] || relOrPath || `#${idx + 1}`);
-                          return (
-                            <div
-                              key={relOrPath || idx}
-                              className="uu-card"
-                              style={SNAPSHOT_TILE_STYLE}
-                              onClick={() => openSnapshotViewer({ rel: relOrPath, path: full, mtime })}
-                              title={relOrPath}
-                            >
-                              <div style={SNAPSHOT_TILE_PREVIEW_STYLE}>
-                                {src ? (
-                                  <img
-                                    src={src}
-                                    alt=""
-                                    style={SNAPSHOT_TILE_IMAGE_STYLE}
-                                  />
-                                ) : (
-                                  <div className="uu-muted" style={SNAPSHOT_TILE_EMPTY_STYLE}>{t('common.none')}</div>
-                                )}
-                              </div>
-                              <div className="uu-muted uu-small mt-4" style={TEXT_ELLIPSIS_STYLE}>
-                                {fileName}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Bloc : Plugins (si info) */}
-              {hasPlugins ? (
-                <div className="uu-card">
-                  <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
-                    <strong className="uu-block-title">{t('projects.detail.blocks.plugins')}</strong>
-                  </div>
-                  <div className="uu-row wrap">
-                    <div className="uu-label w-160" />
-                    <div className="uu-value uu-muted">
-                      {(pluginsList || []).map((pl, idx) => (
-                        <div key={idx}>
-                          {pl.name} {pl.marketplace ? t('projects.detail.plugins.marketplace') : ''}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Bloc : Intervenants */}
-              <div className="uu-card">
-                <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
-                  <strong className="uu-block-title">{t('projects.detail.blocks.intervenants')}</strong>
-                </div>
-                <div className="uu-col uu-gap-16">
-                  <div className="uu-row wrap">
-                    <div className="uu-label w-160">{t('projects.detail.labels.director')}</div>
-                    <div className="uu-value">
-                      <input
-                        className="uu-input"
-                        style={WIDTH_60_PERCENT_STYLE}
-                        value={refs.director || ''}
-                        onChange={(e) => {
-                          const next = updateDetailField('referents.director', e.target.value);
-                          scheduleSave(next, 'intervenants');
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="uu-row wrap">
-                    <div className="uu-label w-160">{t('projects.detail.labels.technician')}</div>
-                    <div className="uu-value">
-                      <input
-                        className="uu-input"
-                        style={WIDTH_60_PERCENT_STYLE}
-                        value={refs.technician || ''}
-                        onChange={(e) => {
-                          const next = updateDetailField('referents.technician', e.target.value);
-                          scheduleSave(next, 'intervenants');
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="uu-row wrap">
-                    <div className="uu-label w-160">{t('projects.detail.labels.operator')}</div>
-                    <div className="uu-value">
-                      <input
-                        className="uu-input"
-                        style={WIDTH_60_PERCENT_STYLE}
-                        value={refs.operator || ''}
-                        onChange={(e) => {
-                          const next = updateDetailField('referents.operator', e.target.value);
-                          scheduleSave(next, 'intervenants');
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="uu-row wrap">
-                    <div className="uu-label w-160">{t('projects.detail.labels.journalist')}</div>
-                    <div className="uu-value">
-                      <input
-                        className="uu-input"
-                        style={WIDTH_60_PERCENT_STYLE}
-                        value={refs.journalist || ''}
-                        onChange={(e) => {
-                          const next = updateDetailField('referents.journalist', e.target.value);
-                          scheduleSave(next, 'intervenants');
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bloc : Setup Unreal (si info) */}
-              {hasSetupUnreal ? (
-                <div className="uu-card">
-                  <div className="uu-row uu-align-center uu-gap-8" style={DETAIL_SECTION_TITLE_ROW_STYLE}>
-                    <strong className="uu-block-title">{t('projects.detail.blocks.setupUnreal')}</strong>
-                  </div>
-                  <div className="uu-col uu-gap-16">
-                    {suRenderer.length ? (
-                      <div className="uu-row wrap">
-                        <div className="uu-label w-160">{t('projects.detail.setupUnreal.renderer')}</div>
-                        <div className="uu-value uu-muted">
-                          {suRenderer.map((it, idx) => (
-                            <div key={`${it.key}-${idx}`}>{it.key}={it.value}</div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {(suWin.length || suLinux.length || suMac.length || suHw.length) ? (
-                      <div className="uu-row wrap">
-                        <div className="uu-label w-160">{t('projects.detail.setupUnreal.platform')}</div>
-                        <div className="uu-value uu-muted">
-                          {suWin.length ? (
-                            <>
-                              <div><strong>{t('projects.detail.setupUnreal.platform.windows')}</strong></div>
-                              {suWin.map((it, idx) => <div key={`win-${it.key}-${idx}`}>{it.key}={it.value}</div>)}
-                            </>
-                          ) : null}
-                          {suLinux.length ? (
-                            <>
-                              <div className="mt-8"><strong>{t('projects.detail.setupUnreal.platform.linux')}</strong></div>
-                              {suLinux.map((it, idx) => <div key={`linux-${it.key}-${idx}`}>{it.key}={it.value}</div>)}
-                            </>
-                          ) : null}
-                          {suMac.length ? (
-                            <>
-                              <div className="mt-8"><strong>{t('projects.detail.setupUnreal.platform.mac')}</strong></div>
-                              {suMac.map((it, idx) => <div key={`mac-${it.key}-${idx}`}>{it.key}={it.value}</div>)}
-                            </>
-                          ) : null}
-                          {suHw.length ? (
-                            <>
-                              <div className="mt-8"><strong>{t('projects.detail.setupUnreal.platform.hardware')}</strong></div>
-                              {suHw.map((it, idx) => <div key={`hw-${it.key}-${idx}`}>{it.key}={it.value}</div>)}
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-            </fieldset>
-          )}
-        </div>
-
-        <ProjectsDetailActionsBar
-          t={t}
-          detailIsNew={detailIsNew}
-          canManageUnrealProjects={canManageUnrealProjects}
-          showProjectActivation={showProjectActivation}
-          isActiveDetail={isActiveDetail}
-          canCreateTaskFromProject={canCreateTaskFromProject}
-          detailMeta={detailMeta}
-          isAutoRenderUsage={isAutoRenderUsage}
-          onCreateProject={createProjectFromDraft}
-          onActivateProject={() => activateOne(detailId)}
-          onStartIntegration={() => startIntegration(detailId)}
-          onCreateTaskFromProject={() => createTaskFromProject(detailId)}
-          onDeleteProject={() => { removeOne(detailId); setDetailId(''); }}
-        />
-
-        <ProjectsSnapshotLightbox
-          t={t}
-          snapshotOpen={snapshotOpen}
-          detailId={detailId}
-          snapshotBusy={snapshotBusy}
-          snapshotSrc={snapshotSrc}
-          onClose={closeSnapshotViewer}
-          onSetAsThumbnail={setAutoScreenshotFromSnapshot}
-        />
-        {renderConfirmDialog()}
-      </div>
-    );
+    const detailViewProps = {
+      t,
+      detailId,
+      projects,
+      detailMeta,
+      detailInsights,
+      detailMapsView,
+      activeId,
+      isPostprodMode,
+      isRenderBridgeUsage,
+      renderBridgeStatus,
+      detailName,
+      onDetailNameChange: handleDetailNameInputChange,
+      onToggleDetailFavorite: handleDetailFavoriteToggle,
+      versionEl,
+      detailIsNew,
+      onCreateProject: createProjectFromDraft,
+      onBack: handleCloseDetail,
+      detailLoading,
+      canEditFields,
+      detailPath,
+      onDetailPathChange: handleDetailPathInputChange,
+      onDetailPathBlur: handleDetailPathInputBlur,
+      onBrowseDetailPath: handleBrowseDetailPath,
+      onViewDetailPath: handleViewDetailPath,
+      noneLabel,
+      projectVersion,
+      projectVersionBusy,
+      markProjectDropdownDirty,
+      onUpdateDetailField: updateDetailField,
+      onProjectVersionChange: handleProjectVersionInputChange,
+      onProjectVersionBlur: handleProjectVersionInputBlur,
+      onProjectVersionKeyDown: handleProjectVersionInputKeyDown,
+      detailNoteRef,
+      onDetailNoteChange: handleDetailNoteChange,
+      keywordsInput,
+      onKeywordsInputChange: handleKeywordsInputChange,
+      onKeywordsKeyDown: handleKeywordKeyDown,
+      onKeywordsBlur: handleKeywordsInputBlur,
+      detailKeywordsList,
+      onRemoveKeyword: removeKeywordFromDraft,
+      renderBridgeBusy,
+      onRefreshRenderBridgeStatus: handleRefreshRenderBridgeStatus,
+      onInstallOrUpdateRenderBridge: handleInstallOrUpdateRenderBridge,
+      mapsBusy,
+      onSelectDefaultGame: handleSelectDefaultGameMap,
+      onSelectDefaultEditor: handleSelectDefaultEditorMap,
+      lazyBlockFallback,
+      httpBindVisible,
+      httpBindEditing,
+      httpBindDraft,
+      setHttpBindDraft,
+      httpBindDraftValid,
+      httpBindBusy,
+      httpBindDisplay,
+      httpBindDisplayClass,
+      httpBindInlineMsg,
+      httpBindInlineClass,
+      canEditHttpBind,
+      onStartHttpBindEdit: startHttpBindEdit,
+      onCancelHttpBindEdit: cancelHttpBindEdit,
+      onSaveHttpBindAddress: saveHttpBindAddress,
+      detailWrcNames,
+      onToggleWrcPreset: handleToggleWrcPreset,
+      vpDraft,
+      setVpDraft,
+      scheduleVpSave,
+      vpBusy,
+      snapshotSrc,
+      onOpenSnapshotViewer: openSnapshotViewer,
+      onIntervenantChange: handleIntervenantChange,
+      canManageUnrealProjects,
+      showProjectActivation,
+      isAutoRenderUsage,
+      canCreateTaskFromProject,
+      onActivateProject: handleActivateDetailProject,
+      onStartIntegration: handleStartDetailIntegration,
+      onCreateTaskFromProject: handleCreateTaskFromDetail,
+      onDeleteProject: handleDeleteDetailProject,
+      snapshotOpen,
+      snapshotBusy,
+      onCloseSnapshotViewer: closeSnapshotViewer,
+      onSetAsThumbnail: setAutoScreenshotFromSnapshot,
+      confirmDialogNode: renderConfirmDialog(),
+    };
+    return <ProjectsDetailView {...detailViewProps} />;
   }
 
   /* ---------------- Rendu principal ---------------- */
   return (
-    <div className="uu-page uu-page-compact">
-      
-      {role === 'server' && showProjectActivation ? (
-        <Suspense fallback={lazyBlockFallback}>
-          <ProjectsActiveBanner {...activeBannerProps} />
-        </Suspense>
-      ) : null}
-
-      {role === 'server' ? (
-        <Suspense fallback={lazyBlockFallback}>
-          <ProjectsServerSection {...serverSectionProps} />
-        </Suspense>
-      ) : (
-        <Suspense fallback={lazyBlockFallback}>
-          <ProjectsClientSection {...clientSectionProps} />
-        </Suspense>
-      )}
-
-      {renderConfirmDialog()}
-    </div>
+    <ProjectsMainView
+      role={role}
+      showProjectActivation={showProjectActivation}
+      lazyBlockFallback={lazyBlockFallback}
+      activeBannerProps={activeBannerProps}
+      serverSectionProps={serverSectionProps}
+      clientSectionProps={clientSectionProps}
+      confirmDialogNode={renderConfirmDialog()}
+    />
   );
 }
 
