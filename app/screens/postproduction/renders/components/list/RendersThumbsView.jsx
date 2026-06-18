@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { formatDate, safeT, simplifyUnrealAssetDisplayName } from "../../../shared/helpers";
 import { renderReviewStatusClassName } from "../../helpers";
+import {
+  toPositiveInt,
+  firstNonEmptyString,
+  firstPositiveInt,
+} from "../../../../../utils/coerce";
 
 const RENDERS_THUMB_CARD_CLICKABLE_STYLE = { cursor: "pointer" };
 const RENDERS_THUMB_HEADER_ROW_STYLE = { justifyContent: "space-between", alignItems: "baseline", gap: "8px" };
@@ -19,31 +24,6 @@ const RENDERS_THUMB_DELETE_BUTTON_STYLE = {
   alignItems: "center",
   justifyContent: "center",
 };
-
-function firstNonEmptyString(values = []) {
-  for (const value of Array.isArray(values) ? values : []) {
-    const normalized = String(value || "").trim();
-    if (normalized) return normalized;
-  }
-  return "";
-}
-
-function toPositiveInt(value = 0) {
-  if (Number.isFinite(Number(value)) && Number(value) > 0) return Math.trunc(Number(value));
-  const raw = String(value || "").trim();
-  if (!raw) return 0;
-  if (/^\#?\d+$/.test(raw)) return Math.trunc(Number(raw.replace(/^#/, "")));
-  return 0;
-}
-
-function firstPositiveInt(values = []) {
-  const list = Array.isArray(values) ? values : [];
-  for (const value of list) {
-    const parsed = toPositiveInt(value);
-    if (parsed > 0) return parsed;
-  }
-  return 0;
-}
 
 function extractFormIdFromTemplateLike(value = "") {
   const raw = String(value || "").trim();

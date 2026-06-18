@@ -1,4 +1,7 @@
 // Drag and lasso logic extracted from timelineeditor.jsx
+import { applyTimelineGroupDragToTrack } from '../timelineDragGroupHelpers.js';
+import { resolveTimelineDragValueFromY } from '../timelineDragValueHelpers.js';
+
 export function useTimelineDrag(options) {
   const {
     svgRef,
@@ -360,14 +363,6 @@ export function useTimelineDrag(options) {
     const localFrame = Math.max(0, localRaw);
     const targetFrame = Math.round(localFrame);
 
-    const isTaken = (list, targetFrame, key) => {
-      const ignoreSet = ignoreMap.get(key);
-      return list.some((kf, i) => {
-        if (ignoreSet && ignoreSet.has(i)) return false;
-        return Number(kf?.frame) === targetFrame;
-      });
-    };
-
     if (groupMove) {
       const primaryKey =
         selection.find((item) =>
@@ -387,105 +382,31 @@ export function useTimelineDrag(options) {
           ? trackInfo.channels?.[primaryKey.channelId] || []
           : trackInfo.keyframes
       );
-      const ratio =
-        bounds && bounds.bottom !== bounds.top
-          ? 1 - (y - bounds.top) / (bounds.bottom - bounds.top)
-          : 0;
-      const rawValue = range.min + ratio * (range.max - range.min);
-      const coerced = coerceNumericValue(
-        rawValue,
-        { numericKind: 'float' },
-        range
-      );
+      const coerced = resolveTimelineDragValueFromY({
+        y,
+        bounds,
+        range,
+        meta: { numericKind: 'float' },
+        coerceNumericValue,
+      });
       if (coerced !== null && Number.isFinite(primaryKey.startValueNum)) {
         deltaValue = coerced - primaryKey.startValueNum;
       }
 
       let blockedReason = '';
       updateTrack(trackId, (track) => {
-        const channels =
-          track.channels && typeof track.channels === 'object'
-            ? { ...track.channels }
-            : {};
-        let keyframes = Array.isArray(track.keyframes)
-          ? [...track.keyframes]
-          : [];
-
-        for (const sel of selection) {
-          const targetFrame = Math.max(
-            0,
-            Math.round(sel.startLocalFrame + deltaFrame)
-          );
-          const key = `${sel.trackId}:${sel.channelId || ''}`;
-          if (sel.channelId) {
-            const list = Array.isArray(channels[sel.channelId])
-              ? [...channels[sel.channelId]]
-              : [];
-            if (isTaken(list, targetFrame, key)) {
-              blockedReason = 'Frame deja utilisee.';
-              return track;
-            }
-          } else if (isTaken(keyframes, targetFrame, key)) {
-            blockedReason = 'Frame deja utilisee.';
-            return track;
-          }
-        }
-
-        for (const sel of selection) {
-          const targetFrame = Math.max(
-            0,
-            Math.round(sel.startLocalFrame + deltaFrame)
-          );
-          if (sel.channelId) {
-            const list = Array.isArray(channels[sel.channelId])
-              ? [...channels[sel.channelId]]
-              : [];
-            if (!list[sel.idx]) continue;
-            const nextKf = { ...list[sel.idx], frame: targetFrame };
-            if (deltaValue !== null && Number.isFinite(sel.startValueNum)) {
-              const range =
-                trackInfo.channelRanges?.[sel.channelId] ||
-                trackInfo.sharedRange ||
-                getNumericRange(
-                  { numericKind: 'float' },
-                  list
-                );
-              const rawVal = sel.startValueNum + deltaValue;
-              const coerced = coerceNumericValue(
-                rawVal,
-                { numericKind: 'float' },
-                range
-              );
-              if (coerced === null) {
-                blockedReason = 'Valeur hors limite.';
-                return track;
-              }
-              nextKf.value = coerced;
-            }
-            list[sel.idx] = nextKf;
-            channels[sel.channelId] = list;
-          } else {
-            if (!keyframes[sel.idx]) continue;
-            const nextKf = { ...keyframes[sel.idx], frame: targetFrame };
-            if (deltaValue !== null && Number.isFinite(sel.startValueNum)) {
-              const range =
-                trackInfo.numericRange ||
-                getNumericRange(trackInfo.meta, keyframes);
-              const rawVal = sel.startValueNum + deltaValue;
-              const coerced = coerceNumericValue(rawVal, trackInfo.meta, range);
-              if (coerced === null) {
-                blockedReason = 'Valeur hors limite.';
-                return track;
-              }
-              nextKf.value = coerced;
-            }
-            keyframes[sel.idx] = nextKf;
-          }
-        }
-
-        return trackInfo.meta.kind === 'multi'
-          ? { ...track, channels }
-          : { ...track, keyframes };
+        const result = applyTimelineGroupDragToTrack({
+          track,
+          trackInfo,
+          selection,
+          deltaFrame,
+          deltaValue,
+          ignoreMap,
+          getNumericRange,
+          coerceNumericValue,
+        });
+        blockedReason = result.blockedReason;
+        return result.track;
       });
 
       if (blockedReason) {
@@ -509,12 +430,13 @@ export function useTimelineDrag(options) {
         { numericKind: 'float' },
         list
       );
-      const ratio =
-        bounds.bottom === bounds.top
-          ? 0
-          : 1 - (y - bounds.top) / (bounds.bottom - bounds.top);
-      const rawValue = range.min + ratio * (range.max - range.min);
-      const coerced = coerceNumericValue(rawValue, { numericKind: 'float' }, range);
+      const coerced = resolveTimelineDragValueFromY({
+        y,
+        bounds,
+        range,
+        meta: { numericKind: 'float' },
+        coerceNumericValue,
+      });
       if (coerced === null) {
         showStatus('Valeur hors limite.');
         return;
@@ -537,12 +459,13 @@ export function useTimelineDrag(options) {
         trackInfo.meta,
         trackInfo.keyframes
       );
-      const ratio =
-        bounds.bottom === bounds.top
-          ? 0
-          : 1 - (y - bounds.top) / (bounds.bottom - bounds.top);
-      const rawValue = range.min + ratio * (range.max - range.min);
-      const coerced = coerceNumericValue(rawValue, trackInfo.meta, range);
+      const coerced = resolveTimelineDragValueFromY({
+        y,
+        bounds,
+        range,
+        meta: trackInfo.meta,
+        coerceNumericValue,
+      });
       if (coerced === null) {
         showStatus('Valeur hors limite.');
         return;

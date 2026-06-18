@@ -9,6 +9,7 @@ import { RendersAssignmentsPanel } from "./renders/components/RendersAssignments
 import { RendersListPanel } from "./renders/components/RendersListPanel";
 import { RendersQueuePanel } from "./renders/components/RendersQueuePanel";
 import { RendersAdvancedSearchPanel, RendersToolbar } from "./renders/components/RendersToolbar";
+import { firstNonEmptyString } from "../../utils/coerce";
 
 function normalizeProjectLookupKey(value = "") {
   return String(value || "").trim().toLowerCase();
@@ -57,15 +58,6 @@ function normalizeIdentityToken(value = "") {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-}
-
-function firstNonEmptyString(values = []) {
-  const list = Array.isArray(values) ? values : [];
-  for (const value of list) {
-    const normalized = String(value || "").trim();
-    if (normalized) return normalized;
-  }
-  return "";
 }
 
 function normalizeTimestamp(value = "") {

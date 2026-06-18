@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeThumbnailPath } from "../../../../../utils/projects-helpers";
 import { safeT } from "../../../shared/helpers";
 import { startPostprodAsyncLoop } from "../../../../../hooks/postprodAsyncLoop";
+import { joinWindowsPath } from "../../hooks/renderDetail/renderDetailHelpers";
 
 const VIEW_MODE_RGB = "rgb";
 const VIEW_MODE_ALPHA = "alpha";
@@ -77,14 +78,6 @@ function resolveOutputDirFromRender(render = null) {
   const idx = normalized.lastIndexOf("\\");
   if (idx <= 0) return "";
   return normalized.slice(0, idx);
-}
-
-function joinWindowsPath(base = "", leaf = "") {
-  const left = String(base || "").trim().replace(/[\\/]+$/g, "");
-  const right = String(leaf || "").trim().replace(/^[\\/]+/g, "");
-  if (!left) return right;
-  if (!right) return left;
-  return `${left}\\${right}`;
 }
 
 function pickFirstString(values = []) {

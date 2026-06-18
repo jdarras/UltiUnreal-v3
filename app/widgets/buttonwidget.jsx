@@ -5,6 +5,7 @@ import { getCompanionBaseUrl } from "../utils/agent";
 import { ColorWheelPopover } from "./colorwidget.jsx";
 import { getColorPickLabel } from "./widgetI18n.js";
 import { getWidgetT } from "./widgetTranslator.js";
+import { clamp01 } from "../utils/colors";
 
 function buildButtonWidgetBackgroundStyle(background) {
   return { background };
@@ -14,12 +15,6 @@ function clampByte(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return 0;
   return Math.max(0, Math.min(255, Math.round(num)));
-}
-
-function clamp01(value) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return 0;
-  return Math.max(0, Math.min(1, num));
 }
 
 function bytesToHex(rByte, gByte, bByte) {

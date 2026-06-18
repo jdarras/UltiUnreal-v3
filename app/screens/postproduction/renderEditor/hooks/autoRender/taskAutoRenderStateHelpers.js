@@ -4,6 +4,12 @@ import {
   resolveAutoRenderPayload,
   resolveAutoRenderTargetWorkerKey,
 } from "../../../shared/autoRenderHelpers";
+import {
+  toTrimmedString,
+  toPositiveInt,
+  firstNonEmptyString,
+  firstPositiveInt,
+} from "../../../../../utils/coerce";
 
 export const DEFAULT_AUTO_RENDER_STATE = Object.freeze({
   expectedRenderCountInput: "1",
@@ -19,36 +25,6 @@ export const DEFAULT_AUTO_RENDER_STATE = Object.freeze({
   autoRenderOffscreen: false,
   autoRenderExportDestinationIds: [],
 });
-
-function toTrimmedString(value = "") {
-  return String(value || "").trim();
-}
-
-function firstNonEmptyString(values = []) {
-  const list = Array.isArray(values) ? values : [];
-  for (const value of list) {
-    const normalized = toTrimmedString(value);
-    if (normalized) return normalized;
-  }
-  return "";
-}
-
-function toPositiveInt(value = 0) {
-  if (Number.isFinite(Number(value)) && Number(value) > 0) return Math.trunc(Number(value));
-  const raw = toTrimmedString(value);
-  if (!raw) return 0;
-  if (/^\#?\d+$/.test(raw)) return Math.trunc(Number(raw.replace(/^#/, "")));
-  return 0;
-}
-
-function firstPositiveInt(values = []) {
-  const list = Array.isArray(values) ? values : [];
-  for (const value of list) {
-    const normalized = toPositiveInt(value);
-    if (normalized > 0) return normalized;
-  }
-  return 0;
-}
 
 function extractFormIdFromTemplateLike(value = "") {
   const raw = toTrimmedString(value);

@@ -4,6 +4,7 @@ import './colorwidget.css';
 import BindingPicker from './bindingpicker.jsx';
 import { getCompanionBaseUrl } from '../utils/agent';
 import { getWidgetT } from './widgetTranslator.js';
+import { clamp01, hexToRgb } from '../utils/colors';
 
 function buildColorWidgetBackgroundStyle(background) {
   return { background };
@@ -14,23 +15,6 @@ function buildColorWheelKnobStyle(knobX, knobY) {
 }
 
 /* ===== Helpers de couleur ===== */
-
-function clamp01(v) {
-  if (Number.isNaN(v)) return 0;
-  if (v < 0) return 0;
-  if (v > 1) return 1;
-  return v;
-}
-
-function hexToRgb(hex) {
-  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex || '');
-  if (!m) return { r: 255, g: 255, b: 255 };
-  const intVal = parseInt(m[1], 16);
-  const r = (intVal >> 16) & 255;
-  const g = (intVal >> 8) & 255;
-  const b = intVal & 255;
-  return { r, g, b };
-}
 
 function rgbToHex(r, g, b) {
   const toHex = (v) =>

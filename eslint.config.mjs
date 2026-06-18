@@ -59,4 +59,13 @@ export default [
       sourceType: 'commonjs',
     },
   },
+  {
+    files: ['app/widgets/timeline/**/*.{js,jsx}'],
+    rules: {
+      'no-use-before-define': [
+        'error',
+        { functions: false, classes: true, variables: true },
+      ],
+    },
+  },
 ];

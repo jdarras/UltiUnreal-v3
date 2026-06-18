@@ -45,7 +45,7 @@ export default function WelcomeScreen({
       mode: normalizeMode(saved.mode),
       role: String(saved.role || '').trim().toLowerCase() === 'client' ? 'client' : 'server',
       localIp: saved.localIp || '',
-      serverIp: '',
+      serverIp: saved.serverIp || '',
       agentPort: resolveAgentPortDefault(saved.agentPort),
       localIpChoice: saved.localIpChoice || '',
     };
@@ -70,6 +70,8 @@ export default function WelcomeScreen({
     : null;
   const normalizedMode = normalizeMode(identity.mode);
   const effectiveMode = forcedMode || normalizedMode;
+  const selectedRole = String(identity.role || '').trim().toLowerCase() === 'client' ? 'client' : 'server';
+  const showServerIpInput = effectiveMode === APP_MODE_LIVE && selectedRole === 'client';
   const currentRoleName = String(currentUser?.role || '').trim();
 
   // message sous les boutons
@@ -101,6 +103,7 @@ export default function WelcomeScreen({
   // refs pour focus
   const localIpSelectRef = React.useRef(null);
   const localIpManualRef = React.useRef(null);
+  const serverIpRef = React.useRef(null);
   const agentPortRef = React.useRef(null);
   const msgTimerRef = React.useRef(null);
 
@@ -183,6 +186,10 @@ export default function WelcomeScreen({
     localIpSelectRef.current?.focus();
   }
 
+  function focusServerIp() {
+    serverIpRef.current?.focus();
+  }
+
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -239,10 +246,11 @@ export default function WelcomeScreen({
     if (busy) return;
     const mode = effectiveMode;
     const effectiveRole = mode === APP_MODE_LIVE
-      ? (String(identity.role || '').trim().toLowerCase() === 'client' ? 'client' : 'server')
+      ? selectedRole
       : 'server';
     const desired = String(identity.agentPort || '').trim();
     const locIp = String(identity.localIp || '').trim();
+    const srvIp = effectiveRole === 'client' ? String(identity.serverIp || '').trim() : '';
     if (!locIp) {
       showMsg(t('welcome.validation.localIpRequired'), 'error');
       focusLocalIp();
@@ -251,6 +259,16 @@ export default function WelcomeScreen({
     if (!isValidHost(locIp)) {
       showMsg(t('welcome.validation.localIpInvalid'), 'error');
       focusLocalIp();
+      return;
+    }
+    if (effectiveRole === 'client' && !srvIp) {
+      showMsg(t('welcome.validation.serverIpRequired'), 'error');
+      focusServerIp();
+      return;
+    }
+    if (effectiveRole === 'client' && !isValidHost(srvIp)) {
+      showMsg(t('welcome.validation.serverIpInvalid'), 'error');
+      focusServerIp();
       return;
     }
     if (!desired) {
@@ -312,7 +330,7 @@ export default function WelcomeScreen({
           ...identity,
           mode,
           role: effectiveRole,
-          serverIp: '',
+          serverIp: srvIp,
         });
       }
     } catch (e) {
@@ -418,13 +436,34 @@ export default function WelcomeScreen({
               <label className="uu-label w-160">{t('welcome.role.label')}</label>
               <select
                 className="uu-input"
-                value={String(identity.role || '').trim().toLowerCase() === 'client' ? 'client' : 'server'}
-                onChange={(e) => saveIdentity({ role: e.target.value === 'client' ? 'client' : 'server' })}
+                value={selectedRole}
+                onChange={(e) => {
+                  const nextRole = e.target.value === 'client' ? 'client' : 'server';
+                  saveIdentity({
+                    role: nextRole,
+                    ...(nextRole === 'server' ? { serverIp: '' } : {}),
+                  });
+                }}
                 disabled={busy}
               >
                 <option value="server">{t('welcome.role.server')}</option>
                 <option value="client">{t('welcome.role.client')}</option>
               </select>
+            </div>
+          ) : null}
+
+          {showServerIpInput ? (
+            <div className="welcome-row uu-row-nowrap">
+              <label className="uu-label w-160">{t('welcome.serverIp.label')}</label>
+              <input
+                ref={serverIpRef}
+                className="uu-input"
+                type="text"
+                placeholder={t('welcome.serverIp.placeholder')}
+                value={identity.serverIp || ''}
+                onChange={(e) => saveIdentity({ serverIp: e.target.value })}
+                disabled={busy}
+              />
             </div>
           ) : null}
 

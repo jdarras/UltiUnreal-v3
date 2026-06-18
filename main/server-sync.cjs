@@ -42,6 +42,30 @@ const SYNC_IGNORE_DIRS = [
   "Binaries",
 ];
 
+const SYNC_MTIME_TOLERANCE_MS = 2;
+
+function fileMtimeMs(file) {
+  const raw = Number(file?.mtimeMs);
+  return Number.isFinite(raw) ? raw : null;
+}
+
+function fileMetadataMatches(srcFile, dstFile) {
+  if (!srcFile || !dstFile) return false;
+  if (srcFile.size !== dstFile.size) return false;
+  const srcMtimeMs = fileMtimeMs(srcFile);
+  const dstMtimeMs = fileMtimeMs(dstFile);
+  if (srcMtimeMs === null || dstMtimeMs === null) {
+    return srcMtimeMs === dstMtimeMs;
+  }
+  return Math.abs(srcMtimeMs - dstMtimeMs) <= SYNC_MTIME_TOLERANCE_MS;
+}
+
+function addMtimeParam(url, mtimeMs) {
+  const raw = Number(mtimeMs);
+  if (!Number.isFinite(raw) || raw <= 0) return url;
+  return `${url}&mtimeMs=${encodeURIComponent(String(raw))}`;
+}
+
 function computeDiffs(srcFiles, dstFiles) {
   const added = [];
   const modified = [];
@@ -63,7 +87,7 @@ function computeDiffs(srcFiles, dstFiles) {
       added.push(rel);
     } else if (!fa && fb) {
       removed.push(rel);
-    } else if (fa && fb && (fa.size !== fb.size || fa.mtimeMs !== fb.mtimeMs)) {
+    } else if (fa && fb && !fileMetadataMatches(fa, fb)) {
       modified.push(rel);
     }
   }
@@ -724,6 +748,9 @@ async function handleSync(req, res, url, context) {
     const destDir = (url.searchParams.get("destDir") || "").trim();
     let rel = (url.searchParams.get("rel") || "").trim();
     const op = (url.searchParams.get("op") || "").trim(); // '', 'delete'
+    const requestedMtimeMs = Number(url.searchParams.get("mtimeMs"));
+    const hasRequestedMtime =
+      Number.isFinite(requestedMtimeMs) && requestedMtimeMs > 0;
 
     if (!destDir || !rel) {
       return sendJSON(res, 400, {
@@ -734,21 +761,22 @@ async function handleSync(req, res, url, context) {
     }
 
     rel = rel.replace(/^[/\\]+/, "");
-    const fullPath = path.join(destDir, rel);
+    const absDest = path.resolve(destDir || "");
+    const fullPath = path.resolve(absDest, rel);
+    const relFromDest = path.relative(absDest, fullPath);
+    if (!relFromDest || relFromDest.startsWith("..") || path.isAbsolute(relFromDest)) {
+      return sendJSON(res, 400, {
+        ok: false,
+        error: "invalid_path",
+        message: "Chemin hors de destDir interdit",
+      });
+    }
 
     // Mode suppression : on supprime le fichier, puis on tente de nettoyer
     // les répertoires vides parents jusqu'à destDir (prune).
     if (op === "delete") {
       // Défense : éviter les sorties de destDir via des chemins "../../"
-      const absDest = path.resolve(destDir || "");
-      const absFull = path.resolve(fullPath);
-      if (!absFull.startsWith(absDest)) {
-        return sendJSON(res, 400, {
-          ok: false,
-          error: "invalid_path",
-          message: "Chemin hors de destDir interdit",
-        });
-      }
+      const absFull = fullPath;
 
       // Helper: tenter de supprimer des répertoires vides en remontant
       async function pruneEmptyDirs(baseDir, startRel) {
@@ -836,7 +864,16 @@ async function handleSync(req, res, url, context) {
       for await (const c of req) chunks.push(c);
       const buf = Buffer.concat(chunks);
       await fsp.writeFile(fullPath, buf);
-      return sendJSON(res, 200, { ok: true, rel, size: buf.length });
+      if (hasRequestedMtime) {
+        const mtime = new Date(requestedMtimeMs);
+        await fsp.utimes(fullPath, mtime, mtime);
+      }
+      return sendJSON(res, 200, {
+        ok: true,
+        rel,
+        size: buf.length,
+        ...(hasRequestedMtime ? { mtimeMs: requestedMtimeMs } : {}),
+      });
     } catch (e) {
       return sendJSON(res, 200, { ok: false, error: "write_error", message: e.message });
     }
@@ -931,10 +968,11 @@ async function handleSync(req, res, url, context) {
       let totalRemovedCount = 0;
       const projectRows = [];
 
-      const sendFileToHost = async (destDir, rel, buf) => {
-        const urlFile = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
+      const sendFileToHost = async (destDir, rel, buf, mtimeMs) => {
+        const urlFileBase = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
           destDir
         )}&rel=${encodeURIComponent(rel)}`;
+        const urlFile = addMtimeParam(urlFileBase, mtimeMs);
         const resp = await fetch(urlFile, { method: "POST", body: buf });
         const txt = await resp.text();
         try {
@@ -1015,7 +1053,7 @@ async function handleSync(req, res, url, context) {
             try {
               const srcPath = path.join(sourceDir, rel);
               const buf = await fsp.readFile(srcPath);
-              const parsed = await sendFileToHost(destDir, rel, buf);
+              const parsed = await sendFileToHost(destDir, rel, buf, srcFiles[rel]?.mtimeMs);
               if (parsed && parsed.ok) copied += 1;
               else copyErrors += 1;
             } catch {
@@ -1275,9 +1313,10 @@ async function handleSync(req, res, url, context) {
         const srcPath = path.join(sourceDir, rel);
         try {
           const buf = await fsp.readFile(srcPath);
-          const urlFile = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
+          const urlFileBase = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
             destDir
           )}&rel=${encodeURIComponent(rel)}`;
+          const urlFile = addMtimeParam(urlFileBase, srcFiles[rel]?.mtimeMs);
 
           const resp = await fetch(urlFile, {
             method: "POST",
@@ -1502,4 +1541,4 @@ async function handleSync(req, res, url, context) {
   return false;
 }
 
-module.exports = { handleSync };
+module.exports = { handleSync, computeDiffs };

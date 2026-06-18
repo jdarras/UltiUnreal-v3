@@ -6,6 +6,7 @@ import {
 import { normalizeRenderReviewStatus } from "../../../shared/reviewStatusHelpers.js";
 import { normalizeMultiFilterValues } from "../../../shared/filterValues";
 import { toSortTimestamp } from "../../../shared/sortUtils";
+import { firstNonEmptyString } from "../../../../../utils/coerce";
 
 export const RENDER_LIST_ALLOWED_SORT_KEYS = new Set([
   "updatedAt",
@@ -28,14 +29,6 @@ function resolveRenderPayload(render = null) {
   const payload = render?.payload;
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
   return payload;
-}
-
-function firstNonEmptyString(values = []) {
-  for (const value of Array.isArray(values) ? values : []) {
-    const normalized = String(value || "").trim();
-    if (normalized) return normalized;
-  }
-  return "";
 }
 
 function normalizeFilterValue(value = "") {

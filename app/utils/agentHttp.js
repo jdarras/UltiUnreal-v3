@@ -298,66 +298,6 @@ export async function __agentRequest(method, url, body) {
   return { ok:res.ok, status:res.status, text, data, error:res.ok ? '' : `HTTP ${res.status}` };
 }
 
-export async function __requestAbsoluteJson(url, {
-  method = 'GET',
-  body = undefined,
-  timeoutMs = 5000,
-} = {}) {
-  if (typeof window?.electron?.httpJson === 'function') {
-    const r = await window.electron.httpJson(url, {
-      method,
-      headers: {
-        ...(body == null ? {} : { 'Content-Type': 'application/json' }),
-      },
-      body,
-      timeout: timeoutMs,
-    });
-    const text = typeof r?.text === 'string' ? r.text : '';
-    let json = null;
-    try { json = JSON.parse(text || '{}'); } catch {}
-    return {
-      ok: !!r?.ok,
-      status: Number(r?.status || 0),
-      text,
-      json,
-      error: String(r?.error || ''),
-    };
-  }
-
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), Math.max(0, Number(timeoutMs) || 0));
-  try {
-    const res = await fetch(url, {
-      method,
-      headers: {
-        ...(body == null ? {} : { 'Content-Type': 'application/json' }),
-      },
-      body: body == null ? undefined : JSON.stringify(body),
-      signal: ctrl.signal,
-    });
-    const text = await res.text();
-    let json = null;
-    try { json = JSON.parse(text || '{}'); } catch {}
-    return {
-      ok: res.ok,
-      status: Number(res.status || 0),
-      text,
-      json,
-      error: '',
-    };
-  } catch (e) {
-    return {
-      ok: false,
-      status: 0,
-      text: '',
-      json: null,
-      error: String(e?.message || e),
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 export function __parseAgentError(res) {
   let data = res?.data || null;
   if (!data && typeof res?.text === 'string' && res.text) {

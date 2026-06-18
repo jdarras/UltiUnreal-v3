@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { safeT } from "../../../shared/helpers";
 import { renderReviewStatusClassName } from "../../helpers";
+import { firstNonEmptyString } from "../../../../../utils/coerce";
 
 const RENDERS_LIST_ROW_CLICKABLE_STYLE = { cursor: "pointer" };
 const RENDERS_LIST_FILE_ROW_STYLE = { display: "flex", alignItems: "baseline", gap: "8px" };
@@ -31,14 +32,6 @@ const RENDERS_LIST_DELETE_BUTTON_STYLE = {
   alignItems: "center",
   justifyContent: "center",
 };
-
-function firstNonEmptyString(values = []) {
-  for (const value of Array.isArray(values) ? values : []) {
-    const normalized = String(value || "").trim();
-    if (normalized) return normalized;
-  }
-  return "";
-}
 
 function resolveRenderPayload(render = null) {
   const payload = render?.payload;

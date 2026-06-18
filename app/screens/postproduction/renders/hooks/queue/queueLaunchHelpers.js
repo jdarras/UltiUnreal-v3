@@ -4,15 +4,13 @@ import {
   resolveAutoRenderTargetWorkerKey,
   withRenderOffscreenExecution,
 } from "../../../shared/autoRenderHelpers";
+import { toTrimmedString } from "../../../../../utils/coerce";
 
+// Variante locale avec fallback : sémantique distincte du toPositiveInt partagé.
 function toPositiveInt(value, fallback = 0) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return Math.trunc(fallback);
   return Math.trunc(parsed);
-}
-
-function toTrimmedString(value) {
-  return String(value || "").trim();
 }
 
 function resolveLinkedQueuedRender(queueEntry = null) {

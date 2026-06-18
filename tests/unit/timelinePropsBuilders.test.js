@@ -7,6 +7,7 @@ import { buildTimelineToolbarProps } from '../../app/widgets/timeline/timelineTo
 import { buildTimelineGraphSectionProps } from '../../app/widgets/timeline/timelineGraphSectionProps.js';
 import { buildTimelineInspectorProps } from '../../app/widgets/timeline/timelineInspectorProps.js';
 import { buildTimelineInspectorNonLinkedSectionProps } from '../../app/widgets/timeline/timelineInspectorNonLinkedSectionProps.js';
+import { buildTimelineEditorComponentProps } from '../../app/widgets/timeline/timelineEditorComponentProps.js';
 
 function sortedKeys(obj) {
   return Object.keys(obj).sort();
@@ -229,6 +230,161 @@ test('buildTimelineInspectorProps reports missing selected widget', () => {
   assert.equal(result.hasSelectedTargets, false);
   assert.deepEqual(result.selectedTargets, {});
   assert.equal(result.isNumericValue, false);
+});
+
+test('buildTimelineEditorComponentProps assembles child prop bags', () => {
+  const noop = () => {};
+  const handleAddTrackType = () => {};
+  const handleZoomCenter = () => {};
+  const setSelectedTrackId = () => {};
+  const setSelectedChannelId = () => {};
+  const setSelectedKey = () => {};
+  const editorState = {
+    selectedTrackId: 'track-1',
+    selectedKey: { trackId: 'track-1', idx: 2 },
+    multiSelection: [],
+    selectedChannelId: 'x',
+    playheadFrame: 24,
+    editorPlaying: true,
+    editorPaused: false,
+    timecodeInput: '24',
+    setTimecodeInput: noop,
+    useTimecodeView: true,
+    timecodeEditing: false,
+    setTimecodeEditing: noop,
+    keyframeFrameDraft: '24',
+    setKeyframeFrameDraft: noop,
+    keyframeValueDraft: '42',
+    setKeyframeValueDraft: noop,
+    keyframeInTanDraft: '1',
+    keyframeOutTanDraft: '2',
+    keyframeInSpanDraft: '3',
+    keyframeOutSpanDraft: '4',
+    keyframeType: 'bezier',
+    zoomFactor: 2,
+    viewStart: 12,
+    bundleFrameDraft: '24',
+    setBundleFrameDraft: noop,
+    bundleValueDrafts: { x: '42' },
+    setBundleValueDrafts: noop,
+    showAddMenu: true,
+    setShowAddMenu: noop,
+    lassoBox: null,
+    colorPickerOpen: false,
+    setColorPickerOpen: noop,
+    colorPickerState: { hex: '#ffffff', alpha: 1 },
+    argColorPicker: { open: false },
+    setArgColorPicker: noop,
+    setSelectedTrackId,
+    setSelectedChannelId,
+    setSelectedKey,
+  };
+  const editorRefs = {
+    addMenuRef: { current: null },
+    browseFileInputRef: { current: null },
+    timecodeRef: { current: null },
+    svgRef: { current: null },
+  };
+
+  const result = buildTimelineEditorComponentProps({
+    t: () => '',
+    widget: { id: 'timeline-1', label: 'Timeline' },
+    layoutId: 'layout-1',
+    hosts: [],
+    presetData: {},
+    editorState,
+    editorRefs,
+    typeOptions: [{ id: 'number', label: 'Number' }],
+    mode: 'single',
+    selectedWidget: { targets: {} },
+    selectedTrack: { track: { widgetId: 'track-1' }, meta: { kind: 'number' } },
+    selectedMeta: { kind: 'number' },
+    selectedKeyframe: { frame: 24, value: 42 },
+    selectedKeyframeArgs: {},
+    selectedBundle: null,
+    isLinkedSelected: false,
+    fps: 24,
+    fpsWarnings: [],
+    clampedMaxFrame: 100,
+    viewFrames: 50,
+    graphHeight: 300,
+    innerWidth: 800,
+    trackAreaHeight: 200,
+    frameLines: [],
+    layoutEntries: [],
+    xTicks: [],
+    frameToX: (frame) => frame,
+    getChannelBounds: noop,
+    getTrackValueSummary: noop,
+    getInlineDraftValue: noop,
+    getInlineDraftKey: noop,
+    formatNumber: (value) => String(value),
+    getWidgetLabel: () => 'Widget',
+    getNumericRange: noop,
+    shouldRenderSquare: () => false,
+    shouldShowEye: () => true,
+    isCurveHidden: () => false,
+    renderCollapseToggle: noop,
+    renderHeaderRow: noop,
+    renderKeyControls: noop,
+    commitBundleFrameDraft: noop,
+    commitBundleValueDraft: noop,
+    removeChannelKeyframeAt: noop,
+    addChannelKeyframeAt: noop,
+    commitKeyframeFrameDraft: noop,
+    commitKeyframeValueDraft: noop,
+    handleRemoveKeyframe: noop,
+    handleValueChange: noop,
+    applyColorToBundle: noop,
+    updateSelectedBinding: noop,
+    updateSelectedWidget: noop,
+    updateSelectedKeyframeArgs: noop,
+    commitTimecodeInput: noop,
+    toggleTimecodeView: noop,
+    onTimecodeDown: noop,
+    onTimecodeMove: noop,
+    onTimecodeUp: noop,
+    handleViewportPointerDown: noop,
+    toggleCurveVisibility: noop,
+    registerPoint: noop,
+    handleSvgPointerDown: noop,
+    updateFromPointer: noop,
+    handlePointerUp: noop,
+    handleClipPointerDown: noop,
+    handlePointerDown: noop,
+    handleWheel: noop,
+    handleInlineChannelValueChange: noop,
+    inlineDrafts: {},
+    setInlineDrafts: noop,
+    lockKeyframeTypes: false,
+    applyKeyframeType: noop,
+    handleZoomOut: noop,
+    handleZoomIn: noop,
+    handleZoomCenter,
+    handleTimelineHeaderLabelChange: noop,
+    handleTimelineModeChange: noop,
+    handleBezierTangentChange: noop,
+    handleBezierSpanChange: noop,
+    handleEditorCue: noop,
+    handleEditorPlay: noop,
+    handleEditorPause: noop,
+    handleEditorContinue: noop,
+    handleEditorStop: noop,
+    handleEditorStep: noop,
+    durationDisplay: '00:00:01:00',
+    handleDurationChange: noop,
+    handleAddTrackType,
+  });
+
+  assert.equal(result.timelineHeaderControlsProps.label, 'Timeline');
+  assert.equal(result.timelineHeaderControlsProps.onAddTrackType, handleAddTrackType);
+  assert.equal(result.timelineToolbarProps.onZoomCenter, handleZoomCenter);
+  assert.equal(result.timelineInspectorProps.timelineWidgetId, 'timeline-1');
+  assert.equal(result.timelineInspectorProps.layoutId, 'layout-1');
+  assert.equal(result.timelineGraphSectionProps.timecodeBarProps.viewStart, 12);
+  assert.equal(result.timelineGraphSectionProps.tracksProps.setSelectedTrackId, setSelectedTrackId);
+  assert.equal(result.timelineGraphSectionProps.tracksProps.setSelectedChannelId, setSelectedChannelId);
+  assert.equal(result.timelineGraphSectionProps.tracksProps.setSelectedKey, setSelectedKey);
 });
 
 test('buildTimelineInspectorNonLinkedSectionProps builds multi and non-multi prop bags', () => {

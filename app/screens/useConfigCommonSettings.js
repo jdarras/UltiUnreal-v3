@@ -15,10 +15,7 @@ import {
   normalizeProxyCrf,
   normalizeProjectRoots,
 } from './configurationHelpers';
-
-function toTrimmedString(value) {
-  return String(value || '').trim();
-}
+import { toTrimmedString } from '../utils/coerce';
 
 function toSafeNumber(value, fallback = 0) {
   const next = Number(value);

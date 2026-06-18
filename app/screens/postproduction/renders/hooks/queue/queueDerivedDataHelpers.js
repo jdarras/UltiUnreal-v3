@@ -1,24 +1,12 @@
 import { resolveAutoRenderTargetWorkerKey } from "../../../shared/autoRenderHelpers";
 import { safeT } from "../../../shared/helpers";
-
-function toTrimmedString(value = "") {
-  return String(value || "").trim();
-}
+import { toTrimmedString, firstNonEmptyString } from "../../../../../utils/coerce";
 
 function toScheduleTimestamp(value = "") {
   const raw = toTrimmedString(value);
   if (!raw) return 0;
   const parsed = Date.parse(raw);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function firstNonEmptyString(values = []) {
-  const list = Array.isArray(values) ? values : [];
-  for (const value of list) {
-    const normalized = toTrimmedString(value);
-    if (normalized) return normalized;
-  }
-  return "";
 }
 
 function normalizeLaunchMode(value = "") {

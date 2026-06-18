@@ -31,3 +31,22 @@ export function colorClass(hex) {
   const key = String(hex || '').trim().toUpperCase();
   return HEX_TO_CLASS[key] || 'c-none';
 }
+
+/** Borne une valeur numérique dans l'intervalle [0, 1] (0 si non finie). */
+export function clamp01(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  return Math.max(0, Math.min(1, num));
+}
+
+/** Convertit une couleur hex (#RRGGBB) en { r, g, b } ; blanc si invalide. */
+export function hexToRgb(hex) {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex || '');
+  if (!m) return { r: 255, g: 255, b: 255 };
+  const intVal = parseInt(m[1], 16);
+  return {
+    r: (intVal >> 16) & 255,
+    g: (intVal >> 8) & 255,
+    b: intVal & 255,
+  };
+}

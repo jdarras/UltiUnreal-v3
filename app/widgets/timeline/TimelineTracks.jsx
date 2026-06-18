@@ -1,27 +1,17 @@
 import React from 'react';
+import {
+  buildTimelineCurvePath,
+  buildTimelineKeyframePoints,
+  buildTimelineStrokeStyle,
+  extendTimelineCurvePoints,
+  resolveTimelinePointSelection,
+} from './timelineCurveHelpers.js';
+import { TimelinePointMarker } from './TimelinePointMarker.jsx';
+import { TimelineTrackClip } from './TimelineTrackClip.jsx';
 import { hasMissingBinding } from './timelineTrackBindingHelpers.js';
-
-function buildTimelineStrokeStyle(stroke) {
-  return { stroke };
-}
-
-function buildTimelinePointStyle(stroke, fill, strokeWidth) {
-  return { stroke, fill, strokeWidth };
-}
-
-const TRANSFORM_GROUP_MAP = {
-  tx: 'location',
-  ty: 'location',
-  tz: 'location',
-  rroll: 'rotation',
-  rpitch: 'rotation',
-  ryaw: 'rotation',
-  sx: 'scale',
-  sy: 'scale',
-  sz: 'scale'
-};
-
-const COLOR_GROUP_MAP = { r: 'rgb', g: 'rgb', b: 'rgb', a: 'alpha' };
+import { buildTimelineCollapsedFrameModel } from './timelineCollapsedTrackHelpers.js';
+import { buildTimelineClipModel } from './timelineClipHelpers.js';
+import { buildTimelineZeroLineModels } from './timelineZeroLineHelpers.js';
 
 export function TimelineTracks({
   // refs
@@ -162,9 +152,12 @@ export function TimelineTracks({
           entry.meta.kind === 'multi' && !entry.collapsed
             ? entry.channelRows || []
             : [];
-        const shape = String(entry.meta?.shape || '').toLowerCase();
-        const isSharedGraph =
-          entry.meta?.kind === 'multi' && shape === 'vector';
+        const zeroLineModels = buildTimelineZeroLineModels({
+          entry,
+          rowLines,
+          contentBounds,
+          getNumericRange,
+        });
         return (
           <g key={`track-bg-${entry.track.widgetId}`}>
             <rect
@@ -180,106 +173,16 @@ export function TimelineTracks({
                 setSelectedKey(null);
               }}
             />
-            {rowLines.length ? (
-              isSharedGraph ? (
-                (() => {
-                  const range =
-                    entry.sharedRange ||
-                    entry.channelRanges?.[rowLines[0].channel?.id] ||
-                    { min: -1, max: 1 };
-                  if (!(Number.isFinite(range.min) && Number.isFinite(range.max))) return null;
-                  if (range.min > 0 || range.max < 0) return null;
-                  const ratio =
-                    range.max === range.min
-                      ? 0.5
-                      : (0 - range.min) / (range.max - range.min);
-                  const y =
-                    contentBounds.bottom - ratio * (contentBounds.bottom - contentBounds.top);
-                  return (
-                    <line
-                      key={`zero-${entry.track.widgetId}`}
-                      className="uu-timeline-track-line"
-                      x1={GRAPH_LEFT}
-                      x2={GRAPH_LEFT + innerWidth}
-                      y1={y}
-                      y2={y}
-                    />
-                  );
-                })()
-              ) : (
-                (() => {
-                  const drawnZero = new Set();
-                  return rowLines.map((row) => {
-                    const channelId = row.channel?.id;
-                    const range =
-                      entry.channelRanges?.[channelId] ||
-                      entry.sharedRange ||
-                      { min: -1, max: 1 };
-                    const channelShape = String(entry.meta?.shape || '').toLowerCase();
-                    let groupKey = channelId;
-                    if (channelShape === 'transform') {
-                      groupKey = TRANSFORM_GROUP_MAP[channelId] || channelId;
-                    } else if (channelShape === 'color') {
-                      groupKey = COLOR_GROUP_MAP[channelId] || channelId;
-                    }
-                    if (
-                      Number.isFinite(range.min) &&
-                      Number.isFinite(range.max) &&
-                      range.min <= 0 &&
-                      range.max >= 0
-                    ) {
-                      if (
-                        (channelShape === 'transform' || channelShape === 'color') &&
-                        drawnZero.has(groupKey)
-                      ) {
-                        return null;
-                      }
-                      if (channelShape === 'transform' || channelShape === 'color') {
-                        drawnZero.add(groupKey);
-                      }
-                      const ratio =
-                        range.max === range.min
-                          ? 0.5
-                          : (0 - range.min) / (range.max - range.min);
-                      const y =
-                        row.bounds.bottom - ratio * (row.bounds.bottom - row.bounds.top);
-                      return (
-                        <line
-                          key={`zero-${entry.track.widgetId}-${channelId}`}
-                          className="uu-timeline-track-line"
-                          x1={GRAPH_LEFT}
-                          x2={GRAPH_LEFT + innerWidth}
-                          y1={y}
-                          y2={y}
-                        />
-                      );
-                    }
-                    return null;
-                  });
-                })()
-              )
-            ) : (() => {
-              const range =
-                entry.meta.kind === 'number'
-                  ? getNumericRange(entry.meta, entry.keyframes)
-                  : { min: -1, max: 1 };
-              if (!(Number.isFinite(range.min) && Number.isFinite(range.max))) return null;
-              if (range.min > 0 || range.max < 0) return null;
-              const ratio =
-                range.max === range.min ? 0.5 : (0 - range.min) / (range.max - range.min);
-              const y =
-                contentBounds.bottom - ratio * (contentBounds.bottom - contentBounds.top);
-              return (
+            {zeroLineModels.map((line) => (
                 <line
-                  key={`zero-${entry.track.widgetId}`}
+                  key={line.key}
                   className="uu-timeline-track-line"
                   x1={GRAPH_LEFT}
                   x2={GRAPH_LEFT + innerWidth}
-                  y1={y}
-                  y2={y}
+                  y1={line.y}
+                  y2={line.y}
                 />
-              );
-            })()}
+            ))}
           </g>
         );
       })}
@@ -290,63 +193,22 @@ export function TimelineTracks({
           const bounds = entry.bounds;
           const isSelected = entry.track.widgetId === selectedTrackId;
           const contentBounds = entry.contentBounds || bounds;
-          const clipStartFrame = toGlobalFrame(entry, entry.localMinFrame);
-          const clipEndFrame = toGlobalFrame(entry, entry.localMaxFrame);
-          const clipStartX = frameToX(clipStartFrame);
-          const clipEndX = frameToX(clipEndFrame);
-          const rawWidth = clipEndX - clipStartX;
-          const minWidth = MIN_CLIP_PX;
-          let visualStartX = clipStartX;
-          let visualEndX = clipEndX;
-          if (rawWidth < minWidth) {
-            visualStartX = clipStartX - minWidth / 2;
-            visualEndX = clipStartX + minWidth / 2;
-          }
-          const width = Math.max(minWidth, visualEndX - visualStartX);
-          const clipHeight = Math.max(12, contentBounds.bottom - contentBounds.top - 12);
-          const clipY =
-            contentBounds.top + (contentBounds.bottom - contentBounds.top - clipHeight) / 2;
-          const handleWidth = Math.min(8, width);
-          const showHandles = entry.localDuration > 0;
+          const clipModel = buildTimelineClipModel({
+            entry,
+            contentBounds,
+            frameToX,
+            toGlobalFrame,
+            minClipPx: MIN_CLIP_PX,
+          });
 
           return (
-            <g key={`track-clip-${entry.track.widgetId}`}>
-              <rect
-                className={`uu-timeline-clip${isSelected ? ' is-selected' : ''}`}
-                x={visualStartX}
-                y={clipY}
-                width={width}
-                height={clipHeight}
-                rx={6}
-                onPointerDown={(evt) => handleClipPointerDown(entry.track.widgetId, 'move', evt)}
-              />
-              {showHandles && (
-                <>
-                  <rect
-                    className="uu-timeline-clip-handle"
-                    x={visualStartX - handleWidth / 2}
-                    y={clipY}
-                    width={handleWidth}
-                    height={clipHeight}
-                    rx={4}
-                    onPointerDown={(evt) =>
-                      handleClipPointerDown(entry.track.widgetId, 'resize-start', evt)
-                    }
-                  />
-                  <rect
-                    className="uu-timeline-clip-handle"
-                    x={visualStartX + width - handleWidth / 2}
-                    y={clipY}
-                    width={handleWidth}
-                    height={clipHeight}
-                    rx={4}
-                    onPointerDown={(evt) =>
-                      handleClipPointerDown(entry.track.widgetId, 'resize-end', evt)
-                    }
-                  />
-                </>
-              )}
-            </g>
+            <TimelineTrackClip
+              key={`track-clip-${entry.track.widgetId}`}
+              trackId={entry.track.widgetId}
+              model={clipModel}
+              selected={isSelected}
+              onClipPointerDown={handleClipPointerDown}
+            />
           );
         })}
 
@@ -568,43 +430,16 @@ export function TimelineTracks({
             entry.headerRow?.bounds?.mid ||
             entry.bounds?.mid ||
             GRAPH_TOP + CHANNEL_ROW_HEIGHT / 2;
-          const frames = [];
-          if (entry.meta?.kind === 'multi') {
-            const channels = Array.isArray(entry.meta?.channels)
-              ? entry.meta.channels
-              : [];
-            channels.forEach((channel) => {
-              const list = entry.channels?.[channel.id] || [];
-              list.forEach((kf) => {
-                const frame = Number(kf?.frame);
-                if (!Number.isFinite(frame)) return;
-                const globalFrame = toGlobalFrame(entry, frame);
-                frames.push(globalFrame);
-              });
-            });
-          } else {
-            (entry.keyframes || []).forEach((kf) => {
-              const frame = Number(kf?.frame);
-              if (!Number.isFinite(frame)) return;
-              const globalFrame = toGlobalFrame(entry, frame);
-              frames.push(globalFrame);
-            });
-          }
-          const hasFrames = frames.length > 0;
-          let minF = null;
-          let maxF = null;
-          frames.forEach((f) => {
-            minF = minF === null ? f : Math.min(minF, f);
-            maxF = maxF === null ? f : Math.max(maxF, f);
-          });
+          const { frames, minFrame, maxFrame, hasRange } =
+            buildTimelineCollapsedFrameModel(entry, toGlobalFrame);
 
           return (
             <g key={`collapsed-${entry.track.widgetId}`} clipPath={`url(#${clipId})`}>
-              {hasFrames && minF !== null && maxF !== null && minF !== maxF && (
+              {hasRange && (
                 <line
-                  x1={frameToX(minF)}
+                  x1={frameToX(minFrame)}
                   y1={y}
-                  x2={frameToX(maxF)}
+                  x2={frameToX(maxFrame)}
                   y2={y}
                   stroke="#475569"
                   strokeWidth="1"
@@ -641,106 +476,38 @@ export function TimelineTracks({
                   getNumericRange({ numericKind: 'float' }, list);
                 const color = getChannelColor(entry, channel, channelIdx);
                 // For single-channel widgets (slider), getChannelColor returns red; multi keeps per-channel colors
-                const points = list
-                  .map((kf, idx) => {
-                    const frame = Number(kf?.frame);
-                    if (!Number.isFinite(frame)) return null;
-                    const globalFrame = toGlobalFrame(entry, frame);
-                    const globalFrameRounded = Math.round(globalFrame);
-                    const x = frameToX(globalFrameRounded);
-                    const valueNum = Number(kf?.value);
-                    if (!Number.isFinite(valueNum)) return null;
-                    const ratio =
-                      range.max === range.min ? 0 : (valueNum - range.min) / (range.max - range.min);
-                    const y = rowBounds.bottom - ratio * (rowBounds.bottom - rowBounds.top);
-                    const interp = kf && kf.interp ? kf.interp : 'linear';
-                    const shape =
-                      interp === 'constant' ? 'square' : interp === 'bezier' ? 'diamond' : 'circle';
-                    return {
-                      idx,
-                      x,
-                      y,
-                      value: valueNum,
-                      shape,
-                      inTangent: Number.isFinite(kf?.inTangent) ? Number(kf.inTangent) : undefined,
-                      outTangent: Number.isFinite(kf?.outTangent) ? Number(kf.outTangent) : undefined,
-                      inSpan: Number.isFinite(kf?.inSpan) ? Number(kf.inSpan) : undefined,
-                      outSpan: Number.isFinite(kf?.outSpan) ? Number(kf.outSpan) : undefined
-                    };
-                  })
-                  .filter(Boolean)
-                  .sort((a, b) => a.x - b.x);
+                const points = buildTimelineKeyframePoints({
+                  keyframes: list,
+                  entry,
+                  bounds: rowBounds,
+                  range,
+                  frameToX,
+                  toGlobalFrame,
+                  requireFiniteValue: true,
+                });
 
-                // start/end extension + bezier support
-                const pointsWithExt = [];
-                if (points.length) {
-                  const first = points[0];
-                  const last = points[points.length - 1];
-                  pointsWithExt.push({ x: GRAPH_LEFT, y: first.y, shape: first.shape });
-                  points.forEach((p) => pointsWithExt.push(p));
-                  pointsWithExt.push({
-                    x: GRAPH_LEFT + innerWidth,
-                    y: last.y,
-                    shape: last.shape
-                  });
-                }
-
-                let pathEl = null;
-                if (pointsWithExt.length > 1) {
-                  let d = `M ${pointsWithExt[0].x} ${pointsWithExt[0].y}`;
-                  for (let i = 1; i < pointsWithExt.length; i += 1) {
-                    const a = pointsWithExt[i - 1];
-                    const b = pointsWithExt[i];
-                    const dx = b.x - a.x || 1;
-                    // constant holds / steps
-                    if (a.shape === 'square') {
-                      if (b.shape === 'square') {
-                        d += ` L ${b.x} ${a.y} L ${b.x} ${b.y}`;
-                        continue;
-                      }
-                      if (b.shape === 'diamond') {
-                        d += ` L ${b.x} ${a.y} L ${b.x} ${b.y}`;
-                        continue;
-                      }
-                      d += ` L ${b.x} ${a.y} L ${b.x} ${b.y}`;
-                      continue;
-                    }
-                    if (a.shape === 'diamond' || b.shape === 'diamond') {
-                      const m1 = Number.isFinite(a.outTangent) ? a.outTangent : 0;
-                      const m2 = Number.isFinite(b.inTangent) ? b.inTangent : 0;
-                      const spanOutRaw = Number.isFinite(a.outSpan) ? a.outSpan : dx / 3;
-                      const spanInRaw = Number.isFinite(b.inSpan) ? b.inSpan : dx / 3;
-                      const spanOut = Math.max(0, Math.min(dx, spanOutRaw));
-                      const spanIn = Math.max(0, Math.min(dx, spanInRaw));
-                      const cx1 = a.x + spanOut;
-                      const cy1 = a.y + m1 * spanOut;
-                      const cx2 = b.x - spanIn;
-                      const cy2 = b.y - m2 * spanIn;
-                      d += ` C ${cx1} ${cy1} ${cx2} ${cy2} ${b.x} ${b.y}`;
-                      continue;
-                    }
-                    d += ` L ${b.x} ${b.y}`;
-                  }
-                  pathEl = <path className="uu-timeline-line" d={d} style={buildTimelineStrokeStyle(color)} />;
-                }
+                const path = buildTimelineCurvePath(
+                  extendTimelineCurvePoints(points, GRAPH_LEFT, innerWidth)
+                );
+                const pathEl = path ? (
+                  <path
+                    className="uu-timeline-line"
+                    d={path}
+                    style={buildTimelineStrokeStyle(color)}
+                  />
+                ) : null;
 
                 return (
                   <g key={`track-pts-${entry.track.widgetId}-${channel.id}`}>
                     {pathEl}
                     {points.map((p) => {
-                      const active =
-                        selectedKey?.trackId === entry.track.widgetId &&
-                        selectedKey?.channelId === channel.id &&
-                        selectedKey?.idx === p.idx;
-                      const multiActive =
-                        !active &&
-                        Array.isArray(multiSelection) &&
-                        multiSelection.some(
-                          (k) =>
-                            k.trackId === entry.track.widgetId &&
-                            k.channelId === channel.id &&
-                            k.idx === p.idx
-                        );
+                      const { active, multiActive } = resolveTimelinePointSelection({
+                        selectedKey,
+                        multiSelection,
+                        trackId: entry.track.widgetId,
+                        channelId: channel.id,
+                        idx: p.idx,
+                      });
                       const showLabel = selectedTrackId === entry.track.widgetId;
                       registerPoint({
                         trackId: entry.track.widgetId,
@@ -751,50 +518,18 @@ export function TimelineTracks({
                         bounds: rowBounds,
                         active
                       });
-                      const shape = p.shape === 'square' ? 'square' : p.shape === 'diamond' ? 'diamond' : 'circle';
-                      const fillColor = active || multiActive ? '#dc2626' : '#0f172a';
-                      const strokeWidth = active || multiActive ? 2.5 : 2;
                       return (
-                        <g key={`pt-${entry.track.widgetId}-${channel.id}-${p.idx}`}>
-                          {shape === 'square' ? (
-                            <rect
-                              className={`uu-timeline-point-square${active ? ' active' : ''}`}
-                              x={p.x - 6}
-                              y={p.y - 6}
-                              width={12}
-                              height={12}
-                              style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
-                              onPointerDown={(evt) =>
-                                handlePointerDown(entry.track.widgetId, p.idx, evt, channel.id)
-                              }
-                            />
-                          ) : shape === 'diamond' ? (
-                            <polygon
-                              className="uu-timeline-point"
-                              points={`${p.x},${p.y - 7} ${p.x + 7},${p.y} ${p.x},${p.y + 7} ${p.x - 7},${p.y}`}
-                              style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
-                              onPointerDown={(evt) =>
-                                handlePointerDown(entry.track.widgetId, p.idx, evt, channel.id)
-                              }
-                            />
-                          ) : (
-                            <circle
-                              className="uu-timeline-point"
-                              cx={p.x}
-                              cy={p.y}
-                              r={active ? 7 : 6}
-                              style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
-                              onPointerDown={(evt) =>
-                                handlePointerDown(entry.track.widgetId, p.idx, evt, channel.id)
-                              }
-                            />
-                          )}
-                          {showLabel && (
-                            <text className="uu-timeline-point-label" x={p.x} y={p.y - 10} textAnchor="middle">
-                              {formatNumber(p.value, 'float')}
-                            </text>
-                          )}
-                        </g>
+                        <TimelinePointMarker
+                          key={`pt-${entry.track.widgetId}-${channel.id}-${p.idx}`}
+                          point={p}
+                          color={color}
+                          active={active}
+                          multiActive={multiActive}
+                          label={showLabel ? formatNumber(p.value, 'float') : null}
+                          onPointerDown={(evt) =>
+                            handlePointerDown(entry.track.widgetId, p.idx, evt, channel.id)
+                          }
+                        />
                       );
                     })}
                   </g>
@@ -811,121 +546,42 @@ export function TimelineTracks({
           entry.meta.kind === 'number' ? getNumericRange(entry.meta, list) : { min: -1, max: 1 };
         if (!list.length) return null;
 
-        const points = list
-          .map((kf, idx) => {
-            const frame = Number(kf?.frame);
-            if (!Number.isFinite(frame)) return null;
-            const globalFrame = toGlobalFrame(entry, frame);
-            const globalFrameRounded = Math.round(globalFrame);
-            const x = frameToX(globalFrameRounded);
-            const valueNum = Number(kf?.value);
-            const interp = kf && kf.interp ? kf.interp : 'linear';
-            const shape = isSquareKind
-              ? 'square'
-              : interp === 'constant'
-              ? 'square'
-              : interp === 'bezier'
-              ? 'diamond'
-              : 'circle';
-            // For discrete/square kinds, lock Y to mid row to keep squares centered
-            if (isSquareKind) {
-              return { idx, x, y: contentBounds.mid, value: kf?.value, shape };
-            }
-            const ratio =
-              metaRange.max === metaRange.min
-                ? 0
-                : (valueNum - metaRange.min) / (metaRange.max - metaRange.min);
-            const y = Number.isFinite(valueNum)
-              ? contentBounds.bottom - ratio * (contentBounds.bottom - contentBounds.top)
-              : contentBounds.mid;
-            return {
-              idx,
-              x,
-              y,
-              value: Number.isFinite(valueNum) ? valueNum : kf?.value,
-              shape,
-              inTangent: Number.isFinite(kf?.inTangent) ? Number(kf.inTangent) : undefined,
-              outTangent: Number.isFinite(kf?.outTangent) ? Number(kf.outTangent) : undefined,
-              inSpan: Number.isFinite(kf?.inSpan) ? Number(kf.inSpan) : undefined,
-              outSpan: Number.isFinite(kf?.outSpan) ? Number(kf.outSpan) : undefined
-            };
-          })
-          .filter(Boolean)
-          .sort((a, b) => a.x - b.x);
-
-        const pointsWithExt = [];
-        if (points.length) {
-          const first = points[0];
-          const last = points[points.length - 1];
-          pointsWithExt.push({ x: GRAPH_LEFT, y: first.y, shape: first.shape });
-          points.forEach((p) => pointsWithExt.push(p));
-          pointsWithExt.push({
-            x: GRAPH_LEFT + innerWidth,
-            y: last.y,
-            shape: last.shape
-          });
-        }
+        const points = buildTimelineKeyframePoints({
+          keyframes: list,
+          entry,
+          bounds: contentBounds,
+          range: metaRange,
+          frameToX,
+          toGlobalFrame,
+          isSquareKind,
+        });
 
         const color = getChannelColor(entry, null, 0) || '#38bdf8';
-        let pathEl = null;
-        if (pointsWithExt.length > 1 && entry.meta.kind === 'number') {
-          let d = `M ${pointsWithExt[0].x} ${pointsWithExt[0].y}`;
-          for (let i = 1; i < pointsWithExt.length; i += 1) {
-            const a = pointsWithExt[i - 1];
-            const b = pointsWithExt[i];
-            const dx = b.x - a.x || 1;
-            // Constant (square) segments: keep flat until next point
-            if (a.shape === 'square') {
-              // square -> square : step
-              if (b.shape === 'square') {
-                d += ` L ${b.x} ${a.y} L ${b.x} ${b.y}`;
-                continue;
-              }
-              // square -> bezier : keep constant until the keyframe, then jump vertically
-              if (b.shape === 'diamond') {
-                d += ` L ${b.x} ${a.y} L ${b.x} ${b.y}`;
-                continue;
-              }
-              // square -> linear/other : step then straight line
-              d += ` L ${b.x} ${a.y} L ${b.x} ${b.y}`;
-              continue;
-            }
-            if (a.shape === 'diamond' || b.shape === 'diamond') {
-              const m1 = Number.isFinite(a.outTangent) ? a.outTangent : 0;
-              const m2 = Number.isFinite(b.inTangent) ? b.inTangent : 0;
-              const spanOutRaw = Number.isFinite(a.outSpan) ? a.outSpan : dx / 3;
-              const spanInRaw = Number.isFinite(b.inSpan) ? b.inSpan : dx / 3;
-              const spanOut = Math.max(0, Math.min(dx, spanOutRaw));
-              const spanIn = Math.max(0, Math.min(dx, spanInRaw));
-              const cx1 = a.x + spanOut;
-              const cy1 = a.y + m1 * spanOut;
-              const cx2 = b.x - spanIn;
-              const cy2 = b.y - m2 * spanIn;
-              d += ` C ${cx1} ${cy1} ${cx2} ${cy2} ${b.x} ${b.y}`;
-              continue;
-            }
-            d += ` L ${b.x} ${b.y}`;
-          }
-          pathEl = <path className="uu-timeline-line" d={d} style={buildTimelineStrokeStyle(color)} />;
-        }
+        const path =
+          entry.meta.kind === 'number'
+            ? buildTimelineCurvePath(
+                extendTimelineCurvePoints(points, GRAPH_LEFT, innerWidth)
+              )
+            : '';
+        const pathEl = path ? (
+          <path
+            className="uu-timeline-line"
+            d={path}
+            style={buildTimelineStrokeStyle(color)}
+          />
+        ) : null;
 
         return (
           <g key={`track-pts-${entry.track.widgetId}`} clipPath={`url(#${clipId})`}>
             {pathEl}
             {points.map((p) => {
-                      const active =
-                        selectedKey?.trackId === entry.track.widgetId &&
-                        selectedKey?.channelId === null &&
-                        selectedKey?.idx === p.idx;
-                      const multiActive =
-                        !active &&
-                        Array.isArray(multiSelection) &&
-                        multiSelection.some(
-                          (k) =>
-                            k.trackId === entry.track.widgetId &&
-                            (k.channelId === null || k.channelId === undefined) &&
-                            k.idx === p.idx
-                        );
+              const { active, multiActive } = resolveTimelinePointSelection({
+                selectedKey,
+                multiSelection,
+                trackId: entry.track.widgetId,
+                channelId: null,
+                idx: p.idx,
+              });
               const showLabel = selectedTrackId === entry.track.widgetId && !isSquareKind;
               registerPoint({
                 trackId: entry.track.widgetId,
@@ -936,46 +592,18 @@ export function TimelineTracks({
                 bounds: contentBounds,
                 active
               });
-              const shape = p.shape === 'square' ? 'square' : p.shape === 'diamond' ? 'diamond' : 'circle';
-              const fillColor = active || multiActive ? '#dc2626' : '#0f172a';
-              const strokeWidth = active || multiActive ? 2.5 : 2;
               return (
-                <g key={`pt-${entry.track.widgetId}-${p.idx}`}>
-                  {shape === 'square' ? (
-                    <rect
-                      className={`uu-timeline-point-square${active ? ' active' : ''}`}
-                      x={p.x - 6}
-                      y={p.y - 6}
-                      width={12}
-                      height={12}
-                      style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
-                      onPointerDown={(evt) => handlePointerDown(entry.track.widgetId, p.idx, evt, null)}
-                    />
-                  ) : shape === 'diamond' ? (
-                    <polygon
-                      className="uu-timeline-point"
-                      points={`${p.x},${p.y - 7} ${p.x + 7},${p.y} ${p.x},${p.y + 7} ${p.x - 7},${p.y}`}
-                      style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
-                      onPointerDown={(evt) =>
-                        handlePointerDown(entry.track.widgetId, p.idx, evt, null)
-                      }
-                    />
-                  ) : (
-                    <circle
-                      className="uu-timeline-point"
-                      cx={p.x}
-                      cy={p.y}
-                      r={active ? 7 : 6}
-                      style={buildTimelinePointStyle(color, fillColor, strokeWidth)}
-                      onPointerDown={(evt) => handlePointerDown(entry.track.widgetId, p.idx, evt, null)}
-                    />
-                  )}
-                  {showLabel && (
-                    <text className="uu-timeline-point-label" x={p.x} y={p.y - 10} textAnchor="middle">
-                      {formatNumber(p.value, entry.meta.numericKind)}
-                    </text>
-                  )}
-                </g>
+                <TimelinePointMarker
+                  key={`pt-${entry.track.widgetId}-${p.idx}`}
+                  point={p}
+                  color={color}
+                  active={active}
+                  multiActive={multiActive}
+                  label={showLabel ? formatNumber(p.value, entry.meta.numericKind) : null}
+                  onPointerDown={(evt) =>
+                    handlePointerDown(entry.track.widgetId, p.idx, evt, null)
+                  }
+                />
               );
             })}
           </g>

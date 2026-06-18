@@ -178,6 +178,7 @@ export {
   buildPreviewStateOnOpen,
   buildTransitionLoadError,
   collectRenderThumbCandidates,
+  joinWindowsPath,
   resolveDetailPreview,
   resolveDetailPreviewState,
   resolveDetailRender,

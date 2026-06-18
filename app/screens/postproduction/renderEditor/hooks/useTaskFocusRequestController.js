@@ -1,36 +1,14 @@
 import { useEffect, useMemo, useRef } from "react";
+import {
+  toTrimmedString,
+  toPositiveInt,
+  firstNonEmptyString,
+  firstPositiveInt,
+} from "../../../../utils/coerce";
 
 function asRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value;
-}
-
-function toTrimmedString(value = "") {
-  return String(value || "").trim();
-}
-
-function firstNonEmptyString(values = []) {
-  for (const value of Array.isArray(values) ? values : []) {
-    const normalized = toTrimmedString(value);
-    if (normalized) return normalized;
-  }
-  return "";
-}
-
-function toPositiveInt(value = 0) {
-  if (Number.isFinite(Number(value)) && Number(value) > 0) return Math.trunc(Number(value));
-  const raw = String(value || "").trim();
-  if (!raw) return 0;
-  if (/^\#?\d+$/.test(raw)) return Math.trunc(Number(raw.replace(/^#/, "")));
-  return 0;
-}
-
-function firstPositiveInt(values = []) {
-  for (const value of Array.isArray(values) ? values : []) {
-    const normalized = toPositiveInt(value);
-    if (normalized > 0) return normalized;
-  }
-  return 0;
 }
 
 function extractFormIdFromTemplateLike(value = "") {

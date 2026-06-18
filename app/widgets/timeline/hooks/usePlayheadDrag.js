@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 
 export function usePlayheadDrag({
   timecodeRef,
+  timecodeDragRef,
   clampedMaxFrame,
   fps,
   useTimecodeView,
@@ -52,10 +53,24 @@ export function usePlayheadDrag({
     dragRef.current = false;
   }, []);
 
+  const onTimecodeDown = useCallback(
+    (evt) => handleTimecodeDown(evt, timecodeDragRef),
+    [handleTimecodeDown, timecodeDragRef]
+  );
+
+  const onTimecodeMove = useCallback(
+    (evt) => handleTimecodeMove(evt, timecodeDragRef),
+    [handleTimecodeMove, timecodeDragRef]
+  );
+
+  const onTimecodeUp = useCallback(
+    (evt) => handleTimecodeUp(evt, timecodeDragRef),
+    [handleTimecodeUp, timecodeDragRef]
+  );
+
   return {
-    updatePlayheadFromPointer,
-    handleTimecodeDown,
-    handleTimecodeMove,
-    handleTimecodeUp
+    onTimecodeDown,
+    onTimecodeMove,
+    onTimecodeUp,
   };
 }

@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import MultiSelectDropdown from "../../../../../components/MultiSelectDropdown";
 import { formatDate, safeT, simplifyUnrealAssetDisplayName } from "../../../shared/helpers";
 import { renderReviewStatusClassName } from "../../helpers";
+import {
+  toPositiveInt,
+  firstNonEmptyString,
+  firstPositiveInt,
+} from "../../../../../utils/coerce";
 
 const DESTINATION_DROPDOWN_STYLE = {
   flex: "none",
@@ -19,14 +24,6 @@ const RENDER_DETAIL_SCHEDULE_EDIT_ROW_STYLE = { gap: "6px", alignItems: "center"
 const RENDER_DETAIL_SCHEDULE_INPUT_STYLE = { height: "30px", fontSize: "0.9em" };
 const RENDER_DETAIL_SCHEDULE_BUTTON_STYLE = { height: "30px", padding: "0 10px", fontSize: "0.85em" };
 const RENDER_DETAIL_SCHEDULE_DISPLAY_STYLE = { padding: "2px 6px", fontSize: "0.9em", textAlign: "left" };
-
-function firstNonEmptyString(values = []) {
-  for (const value of Array.isArray(values) ? values : []) {
-    const normalized = String(value || "").trim();
-    if (normalized) return normalized;
-  }
-  return "";
-}
 
 function normalizeProjectLookupKey(value = "") {
   return String(value || "").trim().toLowerCase();
@@ -145,23 +142,6 @@ function resolveLinkedRenderFormEntry(formId = 0, renderForms = []) {
   if (normalizedFormId <= 0) return null;
   const list = Array.isArray(renderForms) ? renderForms : [];
   return list.find((entry) => Number(entry?.id || 0) === normalizedFormId) || null;
-}
-
-function toPositiveInt(value = 0) {
-  if (Number.isFinite(Number(value)) && Number(value) > 0) return Math.trunc(Number(value));
-  const raw = String(value || "").trim();
-  if (!raw) return 0;
-  if (/^\#?\d+$/.test(raw)) return Math.trunc(Number(raw.replace(/^#/, "")));
-  return 0;
-}
-
-function firstPositiveInt(values = []) {
-  const list = Array.isArray(values) ? values : [];
-  for (const value of list) {
-    const parsed = toPositiveInt(value);
-    if (parsed > 0) return parsed;
-  }
-  return 0;
 }
 
 function extractFormIdFromTemplateLike(value = "") {

@@ -53,3 +53,37 @@ export const buildIgnoreMap = (selection) => {
   });
   return map;
 };
+
+export const deleteSelectedKeyframesFromTrack = (track, selection = []) => {
+  const next = { ...track };
+  const isMulti = track?.meta?.kind === 'multi';
+
+  if (isMulti) {
+    const grouped = {};
+    selection.forEach((sel) => {
+      if (!sel || sel.channelId === null || sel.channelId === undefined) return;
+      grouped[sel.channelId] = grouped[sel.channelId] || [];
+      grouped[sel.channelId].push(sel.idx);
+    });
+
+    Object.entries(grouped).forEach(([channelId, indices]) => {
+      const list = Array.isArray(next.channels?.[channelId]) ? [...next.channels[channelId]] : [];
+      indices
+        .filter((i) => i >= 0 && i < list.length)
+        .sort((a, b) => b - a)
+        .forEach((i) => list.splice(i, 1));
+      if (!next.channels) next.channels = {};
+      next.channels[channelId] = list;
+    });
+    return next;
+  }
+
+  const list = Array.isArray(track?.keyframes) ? [...track.keyframes] : [];
+  selection
+    .map((sel) => sel?.idx)
+    .filter((i) => Number.isInteger(i) && i >= 0 && i < list.length)
+    .sort((a, b) => b - a)
+    .forEach((i) => list.splice(i, 1));
+  next.keyframes = list;
+  return next;
+};
