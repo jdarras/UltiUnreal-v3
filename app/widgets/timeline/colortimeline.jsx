@@ -1,4 +1,12 @@
 import BindingPicker from '../bindingpicker.jsx';
+import { getWidgetT } from '../widgetTranslator.js';
+import {
+  getLimitsRgbLabel,
+  getLimitsAlphaLabel,
+  getMinLabel,
+  getMaxLabel,
+  getStepLabel,
+} from '../widgetI18n.js';
 import { TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE } from './timelineEditorStyles.js';
 import {
   collectChannelKeyframes,
@@ -56,8 +64,8 @@ export function ColorTimelineEditor({
       />
 
       <div className="uu-row uu-slider-editor-row" style={TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE}>
-        <label className="uu-label w-160">Limites RGB</label>
-        <span className="uu-muted">Min</span>
+        <label className="uu-label w-160">{getLimitsRgbLabel(getWidgetT())}</label>
+        <span className="uu-muted">{getMinLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -66,7 +74,7 @@ export function ColorTimelineEditor({
           value={range.min ?? 0}
           onChange={handleRangeChange('range', 'min')}
         />
-        <span className="uu-muted">Max</span>
+        <span className="uu-muted">{getMaxLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -75,7 +83,7 @@ export function ColorTimelineEditor({
           value={range.max ?? 1}
           onChange={handleRangeChange('range', 'max')}
         />
-        <span className="uu-muted">Step</span>
+        <span className="uu-muted">{getStepLabel(getWidgetT())}</span>
         <input
           type="number"
           className="uu-input uu-input-arg uu-slider-editor-input"
@@ -85,8 +93,8 @@ export function ColorTimelineEditor({
       </div>
 
       <div className="uu-row uu-slider-editor-row" style={TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE}>
-        <label className="uu-label w-160">Limites Alpha</label>
-        <span className="uu-muted">Min</span>
+        <label className="uu-label w-160">{getLimitsAlphaLabel(getWidgetT())}</label>
+        <span className="uu-muted">{getMinLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -95,7 +103,7 @@ export function ColorTimelineEditor({
           value={rangeAlpha.min ?? 0}
           onChange={handleRangeChange('rangeAlpha', 'min')}
         />
-        <span className="uu-muted">Max</span>
+        <span className="uu-muted">{getMaxLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -104,7 +112,7 @@ export function ColorTimelineEditor({
           value={rangeAlpha.max ?? 1}
           onChange={handleRangeChange('rangeAlpha', 'max')}
         />
-        <span className="uu-muted">Step</span>
+        <span className="uu-muted">{getStepLabel(getWidgetT())}</span>
         <input
           type="number"
           className="uu-input uu-input-arg uu-slider-editor-input"

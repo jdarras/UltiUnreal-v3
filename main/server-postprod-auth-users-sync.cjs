@@ -43,6 +43,7 @@ function createUsersSyncHelpers(deps = {}) {
     MAX_USERS_SYNC_POLL_INTERVAL_MS = 60000,
     DEFAULT_USERS_SYNC_POLL_INTERVAL_MS = 8000,
     DEFAULT_USERS_SYNC_AGENT_PORT = 4000,
+    listDiscoveredUsersSyncPeers = () => [],
     nowIso = () => new Date().toISOString(),
     safeParseObjectJson = () => ({}),
     refreshRolesCache = () => {},
@@ -608,18 +609,20 @@ function resolveUsersSyncAgentPort() {
 function listUsersSyncPeers() {
   const hostsRaw = readHostsServerConfigFile(hostsServerFile);
   const hostList = hostsToList(hostsRaw);
+  const common = readCommonServerConfigFile(commonServerFile);
   const commonPort = resolveUsersSyncAgentPort();
   const peers = [];
   const seen = new Set();
-  for (const host of hostList) {
-    const stationIp = normalizeHostCandidate(host?.ip || host?.address || '');
-    if (!stationIp) continue;
+
+  const addPeer = (peer) => {
+    const stationIp = normalizeHostCandidate(peer?.ip || peer?.address || peer?.stationIp || '');
+    if (!stationIp) return;
     const stationIpKey = stationIp.toLowerCase();
-    if (usersSyncIdentity.localHostSet.has(stationIpKey)) continue;
-    if (seen.has(stationIpKey)) continue;
+    if (usersSyncIdentity.localHostSet.has(stationIpKey)) return;
+    if (seen.has(stationIpKey)) return;
     seen.add(stationIpKey);
-    const stationName = String(host?.name || host?.stationName || stationIp).trim() || stationIp;
-    const portRaw = Number(host?.agentPort ?? host?.agent_port ?? commonPort);
+    const stationName = String(peer?.name || peer?.stationName || stationIp).trim() || stationIp;
+    const portRaw = Number(peer?.agentPort ?? peer?.agent_port ?? commonPort);
     const agentPort = Number.isFinite(portRaw) && portRaw > 0
       ? Math.max(1, Math.trunc(portRaw))
       : commonPort;
@@ -629,7 +632,19 @@ function listUsersSyncPeers() {
       stationName,
       agentPort,
     });
+  };
+
+  for (const host of hostList) {
+    addPeer(host);
   }
+
+  if (common?.usersSyncDetectedPeers !== false) {
+    const discoveredPeers = listDiscoveredUsersSyncPeers();
+    for (const peer of Array.isArray(discoveredPeers) ? discoveredPeers : []) {
+      addPeer(peer);
+    }
+  }
+
   peers.sort((a, b) => String(a.stationName || '').localeCompare(String(b.stationName || '')));
   return peers;
 }

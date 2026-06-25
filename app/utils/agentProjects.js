@@ -70,6 +70,20 @@ export async function getProjectRenderBridgeStatus(projectId) {
   return await httpGet(`/agent/project-render-bridge-status?projectId=${pid}`);
 }
 
+export async function getProjectLivePluginsStatus(projectId) {
+  const pid = encodeURIComponent(String(projectId || '').trim());
+  if (!pid) return { ok: false, error: 'missing projectId' };
+  return await httpGet(`/agent/project-live-plugins-status?projectId=${pid}`);
+}
+
+export async function installProjectPlugin(projectId, plugin) {
+  const pid = String(projectId || '').trim();
+  const pluginKey = String(plugin || '').trim();
+  if (!pid) return { ok: false, error: 'missing projectId' };
+  if (!pluginKey) return { ok: false, error: 'missing plugin' };
+  return await httpPost('/agent/project-plugin-install', { projectId: pid, plugin: pluginKey });
+}
+
 export async function installProjectRenderBridge(projectId) {
   const pid = String(projectId || '').trim();
   if (!pid) return { ok: false, error: 'missing projectId' };

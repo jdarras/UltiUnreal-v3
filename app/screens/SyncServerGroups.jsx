@@ -24,6 +24,7 @@ function SyncServerGroups({
   onToggleSection,
   onBulkSelect,
   onToggleFileSelection,
+  onSourceChange,
 }) {
   const {
     syncHostsTitle,
@@ -48,6 +49,7 @@ function SyncServerGroups({
     onToggleSection,
     onBulkSelect,
     onToggleFileSelection,
+    onSourceChange,
   };
 
   return (

@@ -1,0 +1,32 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "UltiUnreal Camera",
+	"Description": "Camera actor that outputs alpha-separated render for external keyers (AJA / Blackmagic).",
+	"Category": "Other",
+	"CreatedBy": "JDarrasVP",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "com.epicgames.launcher://ue/Fab/product/05862c52-c401-4060-a03d-090f9693efc0",
+	"SupportURL": "",
+	"EngineVersion": "5.7.0",
+	"CanContainContent": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "UltiUnrealCamera",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64"
+			]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "CineCameraSceneCapture",
+			"Enabled": true
+		}
+	]
+}

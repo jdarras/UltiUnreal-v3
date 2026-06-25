@@ -24,9 +24,11 @@ import { useConfigFabLibrary } from './useConfigFabLibrary';
 import { useConfigProjectScan } from './useConfigProjectScan';
 import { useConfigCommonSettings } from './useConfigCommonSettings';
 import { useConfigUserPreferences } from './useConfigUserPreferences';
+import { useConfigLocalSyncSettings } from './useConfigLocalSyncSettings';
 import ConfigCommonSection from '../components/ConfigCommonSection';
 import ConfigPostprodDestinationsSection from '../components/ConfigPostprodDestinationsSection';
 import ConfigPostprodSection from '../components/ConfigPostprodSection';
+import ConfigSyncSection from '../components/ConfigSyncSection';
 import ConfigProjectRootsSection from '../components/ConfigProjectRootsSection';
 import ConfigUnrealVersionsSection from '../components/ConfigUnrealVersionsSection';
 import ConfigResourcesSection from '../components/ConfigResourcesSection';
@@ -57,12 +59,14 @@ export default function ConfigurationScreen({
   canManageProjects = true,
   canManageConfiguration = true,
   canLaunchUnrealEditor = true,
+  postprodToken = '',
   notificationPrefs = null,
 }) {
   const canUseEditorLaunch = canLaunchUnrealEditor === true;
   // identité + langue courante
   const identity = React.useMemo(readIdentity, []);
   const localIp = String(identity?.localIp || '').trim();
+  const localName = String(identity?.hostName || identity?.name || '').trim();
   const initialInterfaceLanguage = normalizeInterfaceLanguage(identity?.lang);
   const [lang, setLang] = React.useState(initialInterfaceLanguage);
 
@@ -193,6 +197,21 @@ export default function ConfigurationScreen({
     onLanguageChanged: setLang,
   });
 
+  const {
+    syncEnabled: localSyncEnabled,
+    setSyncEnabled: setLocalSyncEnabled,
+    syncRoot: localSyncRoot,
+    setSyncRoot: setLocalSyncRoot,
+    loading: localSyncLoading,
+    message: localSyncMsg,
+    browseSyncRoot,
+  } = useConfigLocalSyncSettings({
+    localIp,
+    localName,
+    t,
+    enabled: isPostprodMode,
+  });
+
   React.useEffect(() => {
     if (!noticeApi) return;
     if (projectScanMsg) {
@@ -207,6 +226,10 @@ export default function ConfigurationScreen({
       noticeApi.showNotice?.(userPrefsMsg.text, userPrefsMsg.type || '');
       return;
     }
+    if (localSyncMsg?.text) {
+      noticeApi.showNotice?.(localSyncMsg.text, localSyncMsg.type || '');
+      return;
+    }
     if (fabAuthMsg) {
       noticeApi.showNotice?.(fabAuthMsg, fabAuthMsgType || '');
       return;
@@ -219,6 +242,7 @@ export default function ConfigurationScreen({
     projectScanMsgType,
     infoMsg,
     userPrefsMsg,
+    localSyncMsg,
     fabAuthMsg,
     fabAuthMsgType,
     fabRemoteImportMsg,
@@ -236,6 +260,21 @@ export default function ConfigurationScreen({
     if (!licenseLine) return;
     noticeApi.showNotice?.(licenseLine, 'error');
   }, [noticeApi, licenseWarn, licenseLine]);
+
+  // Défilement vers le bloc Synchronisation quand on y arrive via un lien externe.
+  React.useEffect(() => {
+    if (!loaded || !isPostprodMode) return;
+    let pending = '';
+    try { pending = localStorage.getItem('uu_pending_config_section') || ''; } catch {}
+    if (pending !== 'sync') return;
+    try { localStorage.removeItem('uu_pending_config_section'); } catch {}
+    const frame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById('config-sync')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loaded, isPostprodMode]);
 
   async function pickFolderPath() {
     if (!window.electron?.chooseFolder) return '';
@@ -339,7 +378,7 @@ export default function ConfigurationScreen({
     setProxyRegenResult('');
     try {
       const currentCfg = cfgRef.current || {};
-      const res = await postprodRegenerateAllProxies({
+      const res = await postprodRegenerateAllProxies(postprodToken, {
         proxyResolution: normalizeProxyResolution(currentCfg.proxyResolution, 50),
         proxyCrf: normalizeProxyCrf(currentCfg.proxyCrf, 23),
       });
@@ -359,7 +398,7 @@ export default function ConfigurationScreen({
     } finally {
       setProxyRegenBusy(false);
     }
-  }, [proxyRegenBusy, t, showInfoFeedback]);
+  }, [postprodToken, proxyRegenBusy, t, showInfoFeedback]);
 
   const handleScanDetectedRenders = React.useCallback(async () => {
     if (detectedScanBusy) return;
@@ -448,6 +487,7 @@ export default function ConfigurationScreen({
         SectionTitleComponent={ConfigSectionTitle}
         cfg={cfg}
         onUpdateField={updateField}
+        showAllowStartDesynced={!isPostprodMode}
       />
       <ConfigPostprodSection
         t={t}
@@ -470,6 +510,20 @@ export default function ConfigurationScreen({
         proxyRegenResult={proxyRegenResult}
       />
 
+      {isPostprodMode ? (
+      <ConfigSyncSection
+        t={t}
+        SectionTitleComponent={ConfigSectionTitle}
+        syncEnabled={localSyncEnabled}
+        syncRoot={localSyncRoot}
+        loading={localSyncLoading}
+        message={localSyncMsg}
+        onToggleSyncEnabled={setLocalSyncEnabled}
+        onChangeSyncRoot={setLocalSyncRoot}
+        onBrowseSyncRoot={browseSyncRoot}
+      />
+      ) : null}
+
       <ConfigPostprodDestinationsSection
         t={t}
         SectionTitleComponent={ConfigSectionTitle}
@@ -484,6 +538,7 @@ export default function ConfigurationScreen({
         t={t}
         SectionTitleComponent={ConfigSectionTitle}
         canUseEditorLaunch={canUseEditorLaunch}
+        showLaunchButtonsToggle={!isPostprodMode}
         showUnrealLaunchButtons={!!cfg.showUnrealLaunchButtons}
         onToggleShowUnrealLaunchButtons={(checked) => updateField('showUnrealLaunchButtons', !!checked)}
         onAddVersionEntry={addVersionEntry}

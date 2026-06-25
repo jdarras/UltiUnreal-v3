@@ -99,7 +99,9 @@ function Sidebar({
   logsAlert = null,
   usersAlert = null,
   rendersAlert = null,
+  syncAlert = null,
   postprodUser = null,
+  postprodAuthenticated = false,
   onUserClick = null,
 }) {
   const configGearMissingTooltip = getConfigGearMissingTooltipLabel(t);
@@ -174,9 +176,10 @@ function Sidebar({
           const isLogs = item === 'Logs';
           const isUsers = item === 'Utilisateurs';
           const isRenders = item === 'Rendus';
+          const isSync = item === 'Synchronisation';
           const activeAlert = isLogs
             ? logsAlert
-            : (isUsers ? usersAlert : (isRenders ? rendersAlert : null));
+            : (isUsers ? usersAlert : (isRenders ? rendersAlert : (isSync ? syncAlert : null)));
           const logsClass = activeAlert?.level === 'error'
             ? ' logs-alert-error'
             : (activeAlert?.level === 'warn' ? ' logs-alert-warn' : '');
@@ -242,7 +245,8 @@ function Sidebar({
             </button>
           ) : null}
 
-          {role === "server" && (
+          {(role === "server" || appMode === APP_MODE_POSTPROD)
+            && (appMode !== APP_MODE_POSTPROD || postprodAuthenticated) && (
             <div className="uu-sidebar-footer">
               <button
                 type="button"

@@ -54,8 +54,14 @@
 const http = require('http');
 const { URL } = require('url');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
+const { evaluateBrowserOrigin } = require('./server-request-security.cjs');
+const {
+  isAllowedPeerAddress,
+  collectPeerAddressCandidates,
+} = require('./server-peer-security.cjs');
 const {
   readJSON,
   writeJSON,
@@ -67,6 +73,8 @@ const {
   loadProjects,
   saveProjects,
   enrichProjectForClient,
+  enrichProjectForClientAsync,
+  getProjectFsInfoAsync,
   findProjectId,
   zp4,
   isValidId,
@@ -85,7 +93,12 @@ const { handleLogs } = require('./server-logs.cjs');
 const { handleLibraryRoutes } = require('./server-library.cjs');
 const { handleLayoutRoutes } = require('./server-layout.cjs');
 const { handleProjectConfigRoutes, ensureHttpServerBindAddress } = require('./server-project-config.cjs');
-const { handleHostsOnlineRoutes, heartbeatLoop, getOnlineState } = require('./server-hosts-online.cjs');
+const {
+  handleHostsOnlineRoutes,
+  heartbeatLoop,
+  getOnlineState,
+  getPresenceVolatile,
+} = require('./server-hosts-online.cjs');
 const { resolveRenderAvailability, RENDER_AVAILABILITY_VALUES } = require('./server-normalize.cjs');
 const { createPostprodAuth, applyAuditStorageLimitsFromCommon } = require('./server-postprod-auth.cjs');
 const { handlePostprodRemoteJobRoutes } = require('./server-postprod-routes-remote-jobs.cjs');
@@ -102,6 +115,8 @@ const CACHE_TTL_MS = 10 * 1000;
 let cacheCommon = { ts: 0, data: null };
 let cacheProjects = { ts: 0, data: null };
 let cacheProjectsLight = { ts: 0, data: null };
+let cacheProjectsPromise = null;
+let cacheProjectsGeneration = 0;
 
 function getCommonCached() {
   const now = Date.now();
@@ -119,27 +134,57 @@ function setCommonCache(data) {
   cacheCommon = { ts: Date.now(), data: data || {} };
 }
 
-function getProjectsCached() {
+async function mapWithConcurrency(items, limit, mapper) {
+  const source = Array.isArray(items) ? items : [];
+  const output = new Array(source.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, limit), source.length) }, async () => {
+    while (nextIndex < source.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      output[index] = await mapper(source[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return output;
+}
+
+async function getProjectsCached() {
   const now = Date.now();
   if (cacheProjects.data && now - cacheProjects.ts < CACHE_TTL_MS) {
     return cacheProjects.data;
   }
-  const pj = loadProjects();
-  const active = pj.projects.find(p => p.id === pj.activeId);
-  const payload = {
-    activeId: pj.activeId || '',
-    activeName: active?.name || pj.activeName || '',
-    nextId: pj.nextId || 1,
-    projects: pj.projects.map(enrichProjectForClient),
-    activeByHost: (pj.activeByHost && typeof pj.activeByHost === 'object') ? pj.activeByHost : {},
-  };
-  cacheProjects = { ts: now, data: payload };
-  return payload;
+  if (cacheProjectsPromise) return await cacheProjectsPromise;
+  const generation = cacheProjectsGeneration;
+  const pending = (async () => {
+    const pj = loadProjects();
+    const active = pj.projects.find(p => p.id === pj.activeId);
+    const projects = await mapWithConcurrency(pj.projects, 4, enrichProjectForClientAsync);
+    const payload = {
+      activeId: pj.activeId || '',
+      activeName: active?.name || pj.activeName || '',
+      nextId: pj.nextId || 1,
+      projects,
+      activeByHost: (pj.activeByHost && typeof pj.activeByHost === 'object') ? pj.activeByHost : {},
+    };
+    if (generation === cacheProjectsGeneration) {
+      cacheProjects = { ts: Date.now(), data: payload };
+    }
+    return payload;
+  })();
+  cacheProjectsPromise = pending;
+  try {
+    return await pending;
+  } finally {
+    if (cacheProjectsPromise === pending) cacheProjectsPromise = null;
+  }
 }
 
 function invalidateProjectsCache() {
   cacheProjects = { ts: 0, data: null };
   cacheProjectsLight = { ts: 0, data: null };
+  cacheProjectsPromise = null;
+  cacheProjectsGeneration += 1;
 }
 
 function getProjectsLight() {
@@ -1034,6 +1079,17 @@ const postprodAuth = createPostprodAuth({
 const server = http.createServer(async (req, res) => {
   let url = null;
   try {
+    const browserOrigin = evaluateBrowserOrigin(req.headers?.origin);
+    if (!browserOrigin.allowed) {
+      res.writeHead(403, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+      res.end(JSON.stringify({ ok: false, error: 'origin_not_allowed' }));
+      return;
+    }
+    res._corsOrigin = browserOrigin.origin;
+
     req.setTimeout(REQUEST_TIMEOUT_MS, () => {
       const err = createHttpError(
         408,
@@ -1069,6 +1125,8 @@ const server = http.createServer(async (req, res) => {
 
     // ---- Routes Post-production auth (/agent/postprod/*) ----
     if (req.method === 'POST' && url.pathname === '/agent/postprod/proxy/regenerate-all') {
+      const authorization = postprodAuth?.remoteBridge?.requireConfigurationAccess?.(req, res, sendJSON);
+      if (!authorization) return;
       const body = await parseBody(req).catch(() => ({}));
       const commonCfg = getCommonCached() || {};
       const stmts = postprodAuth?.remoteBridge?.stmts;
@@ -1110,6 +1168,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     const commonCfgForRemoteRoutes = getCommonCached() || {};
+    if (url.pathname.startsWith('/agent/postprod/remote/')) {
+      const knownPeerAddresses = collectPeerAddressCandidates(
+        readJSON(HOSTS_FILE) || {},
+        getPresenceVolatile() || {}
+      );
+      if (!isAllowedPeerAddress(req?.socket?.remoteAddress, knownPeerAddresses)) {
+        return sendJSON(res, 403, { ok: false, error: 'remote_station_forbidden' });
+      }
+    }
     const handledRemote = await handlePostprodRemoteJobRoutes({
       req,
       res,
@@ -1145,9 +1212,11 @@ const server = http.createServer(async (req, res) => {
       const handled = await handleSync(req, res, url, {
         logLine,
         sendJSON,
+        parseBody,
         COMMON_FILE,
         HOSTS_FILE,
         loadProjects,
+        stationIp: String(commonCfgForRemoteRoutes?.localIp || '127.0.0.1').trim() || '127.0.0.1',
       });
       if (handled !== false) return; // déjà traité par server-sync.cjs
     }
@@ -1226,9 +1295,25 @@ const server = http.createServer(async (req, res) => {
         pid = null;
         CURRENT_PID = null;
       }
+      const commonForPing = getCommonCached() || {};
+      const stationName = String(
+        commonForPing.hostName ||
+        commonForPing.stationName ||
+        os.hostname() ||
+        ''
+      ).trim();
+      const stationIp = String(
+        commonForPing.localIp ||
+        commonForPing.hostIp ||
+        ''
+      ).trim();
       return sendJSON(res, 200, {
         ok: true,
         name: NAME,
+        stationName,
+        hostName: stationName,
+        stationIp,
+        localIp: stationIp,
         version: VERSION,
         port: PORT,
         unrealRunning: running,
@@ -1717,7 +1802,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/agent/projects') {
       if (req.method === 'GET') {
         const light = url.searchParams.get('light') === '1' || url.searchParams.get('light') === 'true';
-        const payload = light ? getProjectsLight() : getProjectsCached();
+        const payload = light ? getProjectsLight() : await getProjectsCached();
         return sendJSONWithEtag(req, res, 200, payload);
       }
         if (req.method === 'POST') {
@@ -1880,6 +1965,9 @@ const server = http.createServer(async (req, res) => {
       }
     // ---- Quitter l'agent (optionnellement purge des logs) ----
     if (url.pathname === '/agent/quit' && req.method === 'POST') {
+      if (!isAllowedPeerAddress(req?.socket?.remoteAddress, [])) {
+        return sendJSON(res, 403, { ok: false, error: 'loopback_required' });
+      }
       const body = await parseBody(req);
       const doPurge = body?.purge !== false;
 
@@ -1902,6 +1990,58 @@ const server = http.createServer(async (req, res) => {
 
       // On ne force pas l'extinction du process ici (géré par l'hôte Electron)
       return sendJSON(res, 200, { ok: true, purged: doPurge });
+    }
+
+    if (req.method === 'GET' && url.pathname === '/agent/project-thumbnail') {
+      const pj = loadProjects();
+      const projectId = findProjectId(pj, url.searchParams.get('projectId') || '');
+      const project = projectId
+        ? pj.projects.find((entry) => String(entry?.id || '') === projectId)
+        : null;
+      if (!project) return sendJSON(res, 404, { ok: false, error: 'unknown_project' });
+      const info = await getProjectFsInfoAsync(
+        project.uproject || project.projectPath || '',
+        project.name || ''
+      );
+      const thumbnailPath = String(info?.thumbPath || '').trim();
+      if (!thumbnailPath) return sendJSON(res, 404, { ok: false, error: 'thumbnail_not_found' });
+      let stat = null;
+      try {
+        stat = await fs.promises.stat(thumbnailPath);
+      } catch {
+        return sendJSON(res, 404, { ok: false, error: 'thumbnail_not_found' });
+      }
+      if (!stat?.isFile() || stat.size > 16 * 1024 * 1024) {
+        return sendJSON(res, 413, { ok: false, error: 'thumbnail_too_large' });
+      }
+      const etag = '"' + Math.trunc(stat.size) + '-' + Math.trunc(stat.mtimeMs || 0) + '"';
+      if (String(req.headers?.['if-none-match'] || '') === etag) {
+        res.writeHead(304, {
+          ETag: etag,
+          'Cache-Control': 'private, max-age=60',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end();
+        return;
+      }
+      const ext = path.extname(thumbnailPath).toLowerCase();
+      res.writeHead(200, {
+        'Content-Type': ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png',
+        'Content-Length': stat.size,
+        'Cache-Control': 'private, max-age=60',
+        ETag: etag,
+        'Access-Control-Allow-Origin': '*',
+      });
+      const stream = fs.createReadStream(thumbnailPath);
+      stream.on('error', () => {
+        if (!res.headersSent) {
+          sendJSON(res, 500, { ok: false, error: 'thumbnail_read_failed' });
+          return;
+        }
+        res.destroy();
+      });
+      stream.pipe(res);
+      return;
     }
 
     // ---- 404 ----

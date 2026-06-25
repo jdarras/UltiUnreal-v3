@@ -22,6 +22,7 @@ function SyncServerHostCard({
   onToggleSection,
   onBulkSelect,
   onToggleFileSelection,
+  onSourceChange,
 }) {
   const {
     ip,
@@ -67,7 +68,13 @@ function SyncServerHostCard({
       />
 
       {isRenderMode && (
-        <SyncRenderProjectsGrid renderProjects={renderProjects} copyState={copyState} />
+        <SyncRenderProjectsGrid
+          renderProjects={renderProjects}
+          copyState={copyState}
+          targetIp={ip}
+          onSourceChange={onSourceChange}
+          t={t}
+        />
       )}
 
       <SyncDiffsPanel

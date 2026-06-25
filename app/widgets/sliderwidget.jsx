@@ -4,6 +4,13 @@ import { useRef } from 'react';
 import './sliderwidget.css';
 import { getCompanionBaseUrl } from '../utils/agent';
 import { getWidgetT } from './widgetTranslator.js';
+import {
+  getMinLabel,
+  getMaxLabel,
+  getStepLabel,
+  getHorizontalLabel,
+  getVerticalLabel,
+} from './widgetI18n.js';
 
 export default function SliderWidget({
   widget,
@@ -17,12 +24,12 @@ export default function SliderWidget({
   onDuplicate,
   targetsSlot
 }) {
-  if (!widget) return null;
-
   const t = getWidgetT();
 
   const lastCommitRef = useRef(0);
   const LIVE_THROTTLE_MS = 50; // tempo d'envoi en mode live (ms)
+
+  if (!widget) return null;
 
   const w = widget || {};
   const ui = w.ui || {};
@@ -376,7 +383,7 @@ export function SliderEditorRight({ selected, updateSelected }) {
       <div className="uu-row uu-slider-editor-row">
         <label className="uu-label w-160">{t('widgets.slider.boundsLabel')}</label>
 
-        <span className="uu-muted">Min</span>
+        <span className="uu-muted">{getMinLabel(getWidgetT())}</span>
         <input
           type="number"
           className="uu-input uu-input-arg uu-slider-editor-input"
@@ -384,7 +391,7 @@ export function SliderEditorRight({ selected, updateSelected }) {
           onChange={handleMinChange}
         />
 
-        <span className="uu-muted">Max</span>
+        <span className="uu-muted">{getMaxLabel(getWidgetT())}</span>
         <input
           type="number"
           className="uu-input uu-input-arg uu-slider-editor-input"
@@ -392,7 +399,7 @@ export function SliderEditorRight({ selected, updateSelected }) {
           onChange={handleMaxChange}
         />
 
-        <span className="uu-muted">Step</span>
+        <span className="uu-muted">{getStepLabel(getWidgetT())}</span>
         <input
           type="number"
           className="uu-input uu-input-arg uu-slider-editor-input"
@@ -601,8 +608,8 @@ export function SliderEditorLeftExtras({ selected, updateSelected, layoutId = ''
             })
           }
         >
-          <option value="horizontal">Horizontale</option>
-          <option value="vertical">Verticale</option>
+          <option value="horizontal">{getHorizontalLabel(getWidgetT())}</option>
+          <option value="vertical">{getVerticalLabel(getWidgetT())}</option>
         </select>
       </div>
 

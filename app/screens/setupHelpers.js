@@ -1,4 +1,4 @@
-import { normalizeMachineColor } from '../utils/colors';
+import { normalizeMachineColor } from '../utils/colors.js';
 
 // Couleurs possibles pour les machines (10 au total)
 const MACHINE_COLORS = [
@@ -87,6 +87,10 @@ function hostArrayToEditList(list, locale = 'fr') {
       status: 'unknown',
       lastMsg: '',
       lastMsgType: '',
+      syncRoot: h.syncRoot || h.sync_root || '',
+      syncEnabled: typeof h.syncEnabled === 'boolean'
+        ? h.syncEnabled
+        : !!(h.syncRoot || h.sync_root),
       renderAvailability: (() => {
         if (RENDER_AVAILABILITY_VALUES.includes(h.renderAvailability)) return h.renderAvailability;
         if (h.eligible === false || h.renderEnabled === false) return 'excluded';

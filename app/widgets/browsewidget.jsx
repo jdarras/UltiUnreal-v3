@@ -580,7 +580,6 @@ export function BrowseLabelEditor({ selected, updateSelected }) {
 }
 
 export function BrowseEditorRight({ selected, updateSelected, updateBinding, presetData }) {
-  if (!selected) return null;
   const t = getWidgetT();
   const browsePlaceholder = getBrowsePlaceholderLabel(t);
   const browseActionLabel = getBrowseActionLabel(t);
@@ -631,6 +630,8 @@ export function BrowseEditorRight({ selected, updateSelected, updateBinding, pre
       cancelled = true;
     };
   }, [selected?.defaultValue]);
+
+  if (!selected) return null;
 
   const pickDefault = async () => {
     const preferredType = inferBrowseType(

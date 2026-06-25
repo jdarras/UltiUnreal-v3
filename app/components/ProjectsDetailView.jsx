@@ -4,6 +4,7 @@ import ProjectsDetailHeaderBar from './ProjectsDetailHeaderBar';
 import ProjectsDetailIndexationCard from './ProjectsDetailIndexationCard';
 import ProjectsDetailPathCard from './ProjectsDetailPathCard';
 import ProjectsDetailRenderBridgeCard from './ProjectsDetailRenderBridgeCard';
+import ProjectsDetailLivePluginsCard from './ProjectsDetailLivePluginsCard';
 import ProjectsDetailMapsCard from './ProjectsDetailMapsCard';
 import ProjectsDetailSequencesCard from './ProjectsDetailSequencesCard';
 import ProjectsDetailRenderPresetsCard from './ProjectsDetailRenderPresetsCard';
@@ -34,6 +35,7 @@ export default function ProjectsDetailView({
   isPostprodMode,
   isRenderBridgeUsage,
   renderBridgeStatus,
+  livePluginsStatus,
   detailName,
   onDetailNameChange,
   onToggleDetailFavorite,
@@ -67,6 +69,9 @@ export default function ProjectsDetailView({
   renderBridgeBusy,
   onRefreshRenderBridgeStatus,
   onInstallOrUpdateRenderBridge,
+  livePluginsBusy,
+  onRefreshLivePluginsStatus,
+  onInstallLiveProjectPlugin,
   mapsBusy,
   onSelectDefaultGame,
   onSelectDefaultEditor,
@@ -109,7 +114,7 @@ export default function ProjectsDetailView({
   confirmDialogNode,
 }) {
   const proj = projects.find((p) => String(p.id || '').trim() === String(detailId));
-  const meta = detailMeta || { status: '', type: '', usageMode: '', category: '', fileVersion: '', referents: {}, keywords: [], note: '' };
+  const meta = detailMeta || { status: '', type: '', usageMode: '', syncIncluded: false, category: '', fileVersion: '', referents: {}, keywords: [], note: '' };
   const refs = meta.referents || {};
   const isActiveDetail = String(activeId || '').trim() === String(detailId || '').trim();
   const pluginsList = (Array.isArray(detailInsights?.plugins) ? detailInsights.plugins : [])
@@ -131,6 +136,7 @@ export default function ProjectsDetailView({
     ? detailInsights.wrcPresets.list
     : [];
   const renderBridgeEligible = isPostprodMode && isRenderBridgeUsage(meta?.usageMode);
+  const livePluginsEligible = !isPostprodMode;
   const renderBridgeInstalled = renderBridgeStatus?.installedInProject === true;
   const renderBridgeEnabled = renderBridgeStatus?.enabledInProject === true;
   const renderBridgeReady = renderBridgeStatus?.ready === true;
@@ -223,6 +229,7 @@ export default function ProjectsDetailView({
               onKeywordsBlur={onKeywordsBlur}
               detailKeywordsList={detailKeywordsList}
               onRemoveKeyword={onRemoveKeyword}
+              showSyncOption={isPostprodMode}
             />
 
             {!detailIsNew && renderBridgeEligible ? (
@@ -236,6 +243,16 @@ export default function ProjectsDetailView({
                 renderBridgeInstalled={renderBridgeInstalled}
                 onRefresh={onRefreshRenderBridgeStatus}
                 onInstallOrUpdate={onInstallOrUpdateRenderBridge}
+              />
+            ) : null}
+
+            {!detailIsNew && livePluginsEligible ? (
+              <ProjectsDetailLivePluginsCard
+                t={t}
+                livePluginsStatus={livePluginsStatus}
+                livePluginsBusy={livePluginsBusy}
+                onRefresh={onRefreshLivePluginsStatus}
+                onInstallPlugin={onInstallLiveProjectPlugin}
               />
             ) : null}
 

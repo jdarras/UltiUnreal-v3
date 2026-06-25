@@ -135,6 +135,7 @@ export function useProjectDetailLifecycle({
         if (meta.usageMode !== undefined) update.metaUsageMode = String(meta.usageMode || '');
         if (meta.category !== undefined) update.metaCategory = String(meta.category || '');
         if (meta.fileVersion !== undefined) update.metaFileVersion = meta.fileVersion;
+        if (res.engineVersion !== undefined) update.engineVersion = String(res.engineVersion || '').trim();
         if (meta.referents) update.metaReferents = meta.referents;
         if (meta.keywords) update.metaKeywords = Array.isArray(meta.keywords) ? meta.keywords : [];
         update.favorite = isFavorite;

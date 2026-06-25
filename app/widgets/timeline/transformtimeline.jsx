@@ -1,4 +1,10 @@
 import BindingPicker from '../bindingpicker.jsx';
+import { getWidgetT } from '../widgetTranslator.js';
+import {
+  getMinLabel,
+  getMaxLabel,
+  getStepLabel,
+} from '../widgetI18n.js';
 import { TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE } from './timelineEditorStyles.js';
 import {
   collectChannelKeyframes,
@@ -80,7 +86,7 @@ export function TransformTimelineEditor({
     return (
       <div className="uu-row uu-slider-editor-row" style={TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE}>
         <label className="uu-label w-160">{label}</label>
-        <span className="uu-muted">Min</span>
+        <span className="uu-muted">{getMinLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -89,7 +95,7 @@ export function TransformTimelineEditor({
           value={current.min ?? defaults.min}
           onChange={handleRangeChange(target, 'min')}
         />
-        <span className="uu-muted">Max</span>
+        <span className="uu-muted">{getMaxLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -98,7 +104,7 @@ export function TransformTimelineEditor({
           value={current.max ?? defaults.max}
           onChange={handleRangeChange(target, 'max')}
         />
-        <span className="uu-muted">Step</span>
+        <span className="uu-muted">{getStepLabel(getWidgetT())}</span>
         <input
           type="number"
           className="uu-input uu-input-arg uu-slider-editor-input"

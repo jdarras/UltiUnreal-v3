@@ -39,6 +39,8 @@ export function useProjectDetailEditor({
       next.type = value;
     } else if (path === 'usageMode') {
       next.usageMode = value;
+    } else if (path === 'syncIncluded') {
+      next.syncIncluded = value === true;
     } else if (path === 'category') {
       next.category = value;
     } else if (path === 'fileVersion') {

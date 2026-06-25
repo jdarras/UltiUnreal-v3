@@ -50,3 +50,12 @@ export function hexToRgb(hex) {
     b: intVal & 255,
   };
 }
+
+/** Convertit { r, g, b } en couleur hex #RRGGBB (valeurs bornées 0-255). */
+export function rgbToHex(r, g, b) {
+  const toHex = (v) =>
+    Math.max(0, Math.min(255, Math.round(v)))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}

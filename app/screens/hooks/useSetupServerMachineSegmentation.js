@@ -24,6 +24,8 @@ function useSetupServerMachineSegmentation({
         status: 'unknown',
         lastMsg: '',
         lastMsgType: '',
+        syncRoot: '',
+        syncEnabled: false,
         renderAvailability: 'capable',
         sortIndex: base.length,
         prevIp: '',

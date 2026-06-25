@@ -1,4 +1,8 @@
-import { resolveAutoRenderTargetWorkerKey } from "../../../shared/autoRenderHelpers";
+import {
+  resolveAutoRenderTargetWorkerKey,
+  normalizeLaunchMode,
+  normalizeScheduledMode,
+} from "../../../shared/autoRenderHelpers";
 import { safeT } from "../../../shared/helpers";
 import { toTrimmedString, firstNonEmptyString } from "../../../../../utils/coerce";
 
@@ -7,21 +11,6 @@ function toScheduleTimestamp(value = "") {
   if (!raw) return 0;
   const parsed = Date.parse(raw);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function normalizeLaunchMode(value = "") {
-  const normalized = toTrimmedString(value).toLowerCase();
-  if (normalized === "now" || normalized === "scheduled") return normalized;
-  return "";
-}
-
-function normalizeScheduledMode(value = "") {
-  const normalized = toTrimmedString(value).toLowerCase();
-  if (normalized === "specific_station") return "any_station";
-  if (normalized === "datetime" || normalized === "any_station") {
-    return normalized;
-  }
-  return "";
 }
 
 function resolveQueueScheduleMeta(queueEntry = null) {

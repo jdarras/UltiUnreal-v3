@@ -14,6 +14,7 @@ export function buildProjectDetailPayload({
     status: normalizeProjectMetaStatus(meta?.status),
     type: meta?.type || '',
     usageMode: meta?.usageMode || '',
+    syncIncluded: meta?.syncIncluded === true,
     category: meta?.category || '',
     fileVersion: pvValue || meta?.fileVersion || '',
     referents: meta?.referents || {},
@@ -24,7 +25,7 @@ export function buildProjectDetailPayload({
 }
 
 export function buildProjectDetailPreserved(meta) {
-  return {
+  const preserved = {
     status: meta?.status,
     type: meta?.type,
     usageMode: meta?.usageMode,
@@ -32,6 +33,10 @@ export function buildProjectDetailPreserved(meta) {
     keywords: meta?.keywords,
     referents: meta?.referents,
   };
+  if (Object.prototype.hasOwnProperty.call(meta || {}, 'syncIncluded')) {
+    preserved.syncIncluded = meta?.syncIncluded === true;
+  }
+  return preserved;
 }
 
 export function buildMergedProjectMeta({
@@ -41,7 +46,7 @@ export function buildMergedProjectMeta({
 } = {}) {
   const raw = metaRaw || {};
   const keep = preserved || {};
-  return {
+  const merged = {
     ...raw,
     status: keep.status ?? raw.status,
     type: keep.type ?? raw.type,
@@ -51,6 +56,13 @@ export function buildMergedProjectMeta({
     referents: { ...(raw.referents || {}), ...(keep.referents || {}) },
     favorite: isFavorite === true,
   };
+  if (
+    Object.prototype.hasOwnProperty.call(keep, 'syncIncluded')
+    || Object.prototype.hasOwnProperty.call(raw, 'syncIncluded')
+  ) {
+    merged.syncIncluded = (keep.syncIncluded ?? raw.syncIncluded) === true;
+  }
+  return merged;
 }
 
 export function buildProjectListPatchFromPayload({
@@ -58,7 +70,7 @@ export function buildProjectListPatchFromPayload({
   wrcNamesValue,
   payload,
 } = {}) {
-  return {
+  const patch = {
     uproject: pathValue ? normPath(pathValue) : undefined,
     wrcNames: wrcNamesValue,
     note: payload?.note,
@@ -70,6 +82,10 @@ export function buildProjectListPatchFromPayload({
     metaReferents: payload?.referents || {},
     metaKeywords: payload?.keywords || [],
   };
+  if (Object.prototype.hasOwnProperty.call(payload || {}, 'syncIncluded')) {
+    patch.syncIncluded = payload?.syncIncluded === true;
+  }
+  return patch;
 }
 
 export function buildProjectListPatchFromMergedMeta({
@@ -78,7 +94,7 @@ export function buildProjectListPatchFromMergedMeta({
   mergedMeta,
 } = {}) {
   const meta = mergedMeta || {};
-  return {
+  const patch = {
     uproject: pathValue ? normPath(pathValue) : undefined,
     wrcNames: wrcNamesValue,
     note: meta.note,
@@ -90,6 +106,10 @@ export function buildProjectListPatchFromMergedMeta({
     metaReferents: meta.referents || {},
     metaKeywords: Array.isArray(meta.keywords) ? meta.keywords : [],
   };
+  if (Object.prototype.hasOwnProperty.call(meta, 'syncIncluded')) {
+    patch.syncIncluded = meta.syncIncluded === true;
+  }
+  return patch;
 }
 
 export function mapProjectById(projects, pid, patchBuilder) {

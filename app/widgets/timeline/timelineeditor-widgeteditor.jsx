@@ -1,4 +1,6 @@
 import { ButtonTimelineEditor } from './buttontimeline.jsx';
+import { getWidgetT } from '../widgetTranslator.js';
+import { getUnsupportedTypeLabel } from '../widgetI18n.js';
 import { TextTimelineEditor } from './texttimeline.jsx';
 import { SliderTimelineEditor } from './slidertimeline.jsx';
 import { VectorTimelineEditor } from './vectortimeline.jsx';
@@ -61,5 +63,5 @@ export function TimelineWidgetEditorPanel({
     return <JoystickTimelineEditor {...commonProps} />;
   }
 
-  return <div className="uu-muted">Type non gere.</div>;
+  return <div className="uu-muted">{getUnsupportedTypeLabel(getWidgetT())}</div>;
 }

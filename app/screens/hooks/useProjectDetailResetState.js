@@ -10,6 +10,10 @@ export function useProjectDetailResetState({
   setRenderBridgeMsg,
   setRenderBridgeMsgType,
   setRenderBridgeBusy,
+  setLivePluginsStatus,
+  setLivePluginsMsg,
+  setLivePluginsMsgType,
+  setLivePluginsBusy,
   setIntervenantsMsg,
   setIntervenantsMsgType,
   setProjectVersion,
@@ -39,6 +43,9 @@ export function useProjectDetailResetState({
     setRenderBridgeStatus(null);
     clearMessagePair(setRenderBridgeMsg, setRenderBridgeMsgType);
     setRenderBridgeBusy(false);
+    setLivePluginsStatus([]);
+    clearMessagePair(setLivePluginsMsg, setLivePluginsMsgType);
+    setLivePluginsBusy(false);
     clearMessagePair(setIntervenantsMsg, setIntervenantsMsgType);
     if (projectVersionTimer.current) clearTimeout(projectVersionTimer.current);
     setProjectVersion('');
@@ -80,6 +87,10 @@ export function useProjectDetailResetState({
     setRenderBridgeMsg,
     setRenderBridgeMsgType,
     setRenderBridgeStatus,
+    setLivePluginsBusy,
+    setLivePluginsMsg,
+    setLivePluginsMsgType,
+    setLivePluginsStatus,
     setSnapshotBusy,
     setSnapshotMsg,
     setSnapshotMsgType,

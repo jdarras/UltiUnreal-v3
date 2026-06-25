@@ -155,6 +155,8 @@ function useSetupServerPersistence({
         name: String(stateMatch.name ?? machine.name ?? '').trim(),
         color: String(stateMatch.color ?? machine.color ?? '').trim(),
         args,
+        syncRoot: String(stateMatch.syncRoot ?? machine.syncRoot ?? '').trim(),
+        syncEnabled: !!(stateMatch.syncEnabled ?? machine.syncEnabled),
         renderAvailability,
         renderReturnAt,
         sortIndex: Number.isFinite(sortIndex) ? sortIndex : undefined,

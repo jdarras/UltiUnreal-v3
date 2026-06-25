@@ -15,6 +15,8 @@ export function useRoleAutosave({
   const timerRef = useRef(null);
   const lastNonTextSignatureRef = useRef("");
   const draftRef = useRef(draft);
+  const saveQueueRef = useRef(Promise.resolve());
+  const autosaveEntityRef = useRef("");
   draftRef.current = draft;
 
   // Keep always-current refs for async callbacks (avoids stale closure issues)
@@ -39,7 +41,11 @@ export function useRoleAutosave({
     setRoleAutosaveError("");
     setRoleAutosaveInfo("");
     try {
-      const ok = await update(rk, payload);
+      const operation = saveQueueRef.current
+        .catch(() => undefined)
+        .then(() => update(rk, payload));
+      saveQueueRef.current = operation.then(() => undefined, () => undefined);
+      const ok = await operation;
       if (ok === false) {
         const msg = safeT(tFn, "postprod.roles.form.autosaveFailed", "Enregistrement automatique impossible.");
         setRoleAutosaveError(msg);
@@ -75,6 +81,7 @@ export function useRoleAutosave({
   // Auto-save effect: only re-runs when permissions change (not on text field edits)
   useEffect(() => {
     if (editorMode !== "edit") {
+      autosaveEntityRef.current = "";
       lastNonTextSignatureRef.current = "";
       if (timerRef.current) {
         clearTimeout(timerRef.current);
@@ -83,6 +90,11 @@ export function useRoleAutosave({
       return;
     }
     if (!nonTextSignature) return;
+    if (autosaveEntityRef.current !== editingRoleKey) {
+      autosaveEntityRef.current = editingRoleKey;
+      lastNonTextSignatureRef.current = nonTextSignature;
+      return;
+    }
 
     // First render in edit mode: initialize baseline, no save needed
     if (!lastNonTextSignatureRef.current) {
@@ -103,7 +115,7 @@ export function useRoleAutosave({
         timerRef.current = null;
       }
     };
-  }, [editorMode, nonTextSignature]); // draft not in deps — effect only runs on permission changes
+  }, [editingRoleKey, editorMode, nonTextSignature]); // draft not in deps — effect only runs on permission changes
 
   // Called on blur of text fields (displayName, note)
   function saveNow() {

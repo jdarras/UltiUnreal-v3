@@ -16,56 +16,79 @@ const SYNC_RENDER_PROJECT_GRID_STYLE = {
   alignItems: 'center',
 };
 
-function SyncRenderProjectsGrid({ renderProjects, copyState }) {
-  if (!Array.isArray(renderProjects) || renderProjects.length === 0) return null;
+function SyncRenderProjectsGrid({ renderProjects, copyState, targetIp, onSourceChange, t }) {
+  const copyRows = Array.isArray(copyState?.rows) ? copyState.rows : null;
 
-  const renderCopyRows = Array.isArray(copyState?.rows) ? copyState.rows : [];
-  const copyRowsByProjectId = new Map();
-  const copyRowsByProjectName = new Map();
-  renderCopyRows.forEach((item) => {
-    const projectIdKey = String(item?.projectId || '').trim();
-    if (projectIdKey && !copyRowsByProjectId.has(projectIdKey)) {
-      copyRowsByProjectId.set(projectIdKey, item);
-    }
-    const projectNameKey = String(item?.projectName || '').trim().toLowerCase();
-    if (projectNameKey && !copyRowsByProjectName.has(projectNameKey)) {
-      copyRowsByProjectName.set(projectNameKey, item);
-    }
-  });
+  const { copyRowsByProjectId, copyRowsByProjectName } = React.useMemo(() => {
+    const byId = new Map();
+    const byName = new Map();
+    (copyRows || []).forEach((item) => {
+      const projectIdKey = String(item?.projectId || '').trim();
+      if (projectIdKey && !byId.has(projectIdKey)) {
+        byId.set(projectIdKey, item);
+      }
+      const projectNameKey = String(item?.projectName || '').trim().toLowerCase();
+      if (projectNameKey && !byName.has(projectNameKey)) {
+        byName.set(projectNameKey, item);
+      }
+    });
+    return { copyRowsByProjectId: byId, copyRowsByProjectName: byName };
+  }, [copyRows]);
+
+  if (!Array.isArray(renderProjects) || renderProjects.length === 0) return null;
 
   return (
     <div className="uu-sync-diffs mt-8">
       <div className="uu-sync-diff-block">
         {copyState?.at ? (
           <div className="uu-hint" style={SYNC_LAST_COPY_HINT_STYLE}>
-            Derniere synchro: {new Date(copyState.at).toLocaleString('fr-FR')}
+            {t('sync.render.grid.lastSyncAt', {
+              date: new Date(copyState.at).toLocaleString(t('common.locale')),
+            })}
           </div>
         ) : null}
         <div className="uu-sync-diff-list" style={SYNC_RENDER_PROJECT_GRID_STYLE}>
-          <strong>Projet</strong>
-          <strong>Source</strong>
-          <strong>Statut</strong>
-          <strong>Derniere synchro</strong>
+          <strong>{t('sync.render.grid.project')}</strong>
+          <strong>{t('sync.render.grid.source')}</strong>
+          <strong>{t('sync.render.grid.status')}</strong>
+          <strong>{t('sync.render.grid.lastSync')}</strong>
           <strong>+</strong>
           <strong>~</strong>
           <strong>-</strong>
-          <strong>Dossier cible</strong>
+          <strong>{t('sync.render.grid.targetFolder')}</strong>
           {renderProjects.map((row, rowIndex) => {
             const key = `${row.projectId || row.projectName || 'p'}-${rowIndex}`;
             const sourceText = row.sourceHostName || row.sourceHostIp || '-';
+            const sourceOptions = Array.isArray(row.availableSources) ? row.availableSources : [];
             const projectText = `${row.projectName}${row.projectId ? ` [${row.projectId}]` : ''}`;
-            const statusText = getRenderProjectStatusLabel(row.status);
+            const statusText = getRenderProjectStatusLabel(row.status, t);
             const rowProjectId = String(row.projectId || '').trim();
             const rowProjectName = String(row.projectName || '').trim().toLowerCase();
             const copyRow =
               (rowProjectId ? copyRowsByProjectId.get(rowProjectId) : null) ||
               (rowProjectName ? copyRowsByProjectName.get(rowProjectName) : null) ||
               null;
-            const copyStatusText = copyRow ? getRenderCopyStatusLabel(copyRow.status) : '-';
+            const copyStatusText = copyRow ? getRenderCopyStatusLabel(copyRow.status, t) : '-';
             return (
               <React.Fragment key={key}>
                 <span>{projectText}</span>
-                <span className="uu-hint">{sourceText}</span>
+                <span className="uu-hint">
+                  {sourceOptions.length > 0 ? (
+                    <select
+                      className="uu-select"
+                      value={row.sourceHostIp || ''}
+                      onChange={(event) => onSourceChange?.(targetIp, row.projectId, event.target.value)}
+                      aria-label={t('sync.render.grid.sourceForProject', { project: row.projectName })}
+                    >
+                      {!row.sourceHostIp ? <option value="">{t('sync.render.grid.choose')}</option> : null}
+                      {sourceOptions.map((source) => (
+                        <option key={source.ip} value={source.ip}>
+                          {source.name || source.ip}
+                        </option>
+                      ))}
+                    </select>
+                  ) : sourceText}
+                </span>
                 <span className={getRenderProjectStatusClass(row.status)}>{statusText}</span>
                 <span
                   className={copyRow ? getRenderCopyStatusClass(copyRow.status) : 'uu-hint'}

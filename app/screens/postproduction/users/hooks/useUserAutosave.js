@@ -15,12 +15,15 @@ function useUserAutosave({
   const userAutosaveTimerRef = useRef(null);
   const userAutosaveLastSignatureRef = useRef("");
   const userAutosaveLastPulseRef = useRef(0);
+  const userAutosaveQueueRef = useRef(Promise.resolve());
+  const userAutosaveEntityRef = useRef(0);
   const [userAutosaveBusy, setUserAutosaveBusy] = useState(false);
   const [userAutosaveError, setUserAutosaveError] = useState("");
   const [userAutosaveInfo, setUserAutosaveInfo] = useState("");
 
   useEffect(() => {
     if (editorMode !== "edit") {
+      userAutosaveEntityRef.current = 0;
       userAutosaveLastSignatureRef.current = "";
       userAutosaveLastPulseRef.current = 0;
       if (userAutosaveTimerRef.current) {
@@ -46,6 +49,12 @@ function useUserAutosave({
     const payload = buildUserPayloadFromDraft(draft, { includeIsActive: true });
     const signature = JSON.stringify(payload);
     const pulse = Math.max(0, Math.trunc(Number(autosavePulse) || 0));
+    if (userAutosaveEntityRef.current !== editingUserId) {
+      userAutosaveEntityRef.current = editingUserId;
+      userAutosaveLastSignatureRef.current = signature;
+      userAutosaveLastPulseRef.current = pulse;
+      return;
+    }
     if (!userAutosaveLastSignatureRef.current) {
       userAutosaveLastSignatureRef.current = signature;
       userAutosaveLastPulseRef.current = pulse;
@@ -63,7 +72,11 @@ function useUserAutosave({
     setUserAutosaveInfo("");
     userAutosaveTimerRef.current = setTimeout(async () => {
       try {
-        const ok = await onUpdateUser(editingUserId, payload);
+        const operation = userAutosaveQueueRef.current
+          .catch(() => undefined)
+          .then(() => onUpdateUser(editingUserId, payload));
+        userAutosaveQueueRef.current = operation.then(() => undefined, () => undefined);
+        const ok = await operation;
         if (ok === false) {
           setUserAutosaveError(
             safeT(t, "postprod.users.form.autosaveFailed", "Enregistrement automatique impossible.")

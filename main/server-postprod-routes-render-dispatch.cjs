@@ -1,5 +1,55 @@
-const { getOnlineState } = require('./server-hosts-online.cjs');
+const { getOnlineState, listDetectedStations } = require('./server-hosts-online.cjs');
 const { RENDER_AVAILABILITY_VALUES } = require('./server-normalize.cjs');
+
+function mergeDetectedStationsIntoRenderWorkers(workers = [], now = new Date().toISOString()) {
+  const out = Array.isArray(workers) ? [...workers] : [];
+  const seenKeys = new Set(
+    out
+      .map((worker) => String(worker?.workerKey || worker?.worker_key || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+  const detectedStations = typeof listDetectedStations === 'function'
+    ? listDetectedStations()
+    : [];
+
+  for (const station of detectedStations) {
+    const ip = String(station?.ip || '').trim();
+    if (!ip) continue;
+    const key = ip.toLowerCase();
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    const renderAvailability = RENDER_AVAILABILITY_VALUES.includes(station?.renderAvailability)
+      ? station.renderAvailability
+      : 'capable';
+    out.push({
+      id: 0,
+      workerKey: ip,
+      displayName: String(station?.name || ip).trim() || ip,
+      capabilities: {
+        remote: true,
+        source: String(station?.source || 'presence').trim() || 'presence',
+        agentPort: Number(station?.agentPort || 0) || undefined,
+      },
+      canRender: renderAvailability !== 'excluded',
+      apte: true,
+      isActive: true,
+      isOnline: true,
+      currentRenderJobId: null,
+      currentRenderTemplateName: '',
+      currentRenderProjectName: '',
+      currentRenderStatus: '',
+      lastSeenAt: station?.ts || now,
+      createdAt: station?.ts || now,
+      updatedAt: station?.ts || now,
+      renderAvailability,
+      isDiscovered: true,
+      isRemote: true,
+      agentPort: Number(station?.agentPort || 0) || undefined,
+    });
+  }
+
+  return out;
+}
 
 async function handlePostprodRenderDispatchRoutes({
   req,
@@ -56,7 +106,7 @@ async function handlePostprodRenderDispatchRoutes({
           : (payload.canRender ? 'capable' : 'excluded');
         return { ...payload, renderAvailability };
       });
-      sendJSON(res, 200, { ok: true, workers });
+      sendJSON(res, 200, { ok: true, workers: mergeDetectedStationsIntoRenderWorkers(workers, now) });
       return true;
     }
 

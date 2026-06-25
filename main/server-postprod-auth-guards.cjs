@@ -79,6 +79,16 @@ function createPostprodAuthGuards(options = {}) {
     return perms;
   }
 
+  function requireManageConfiguration(sessionWrap, res, sendJSON) {
+    if (!sessionWrap || !sessionWrap.session) return false;
+    const perms = rolePermissions(sessionWrap.session.role, getRolesCache());
+    if (perms.canManageConfiguration !== true) {
+      sendJSON(res, 403, { ok: false, error: 'forbidden_configuration_manage' });
+      return false;
+    }
+    return perms;
+  }
+
   function requireRenderTemplateManage(sessionWrap, res, sendJSON) {
     if (!sessionWrap || !sessionWrap.session) return false;
     const perms = rolePermissions(sessionWrap.session.role, getRolesCache());
@@ -259,6 +269,7 @@ function createPostprodAuthGuards(options = {}) {
     requireBanUsers,
     requireManageProjectPermissions,
     requireManageRoles,
+    requireManageConfiguration,
     requireRenderTemplateManage,
     requireRenderTemplateManageForProject,
     requireRenderLaunchForProject,

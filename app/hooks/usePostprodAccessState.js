@@ -14,6 +14,7 @@ function usePostprodAccessState({
   postprodAuthenticated = false,
   commonCfg = null,
   appMode = "",
+  role = "server",
 } = {}) {
   const permissions = postprodAuth.user?.permissions || {};
   const postprodCanManageUsers = !!permissions.canManageUsers;
@@ -22,7 +23,7 @@ function usePostprodAccessState({
   const postprodCanManageMachines = permissions.canManageMachines === true;
   const postprodCanManageConfiguration = postprodAuthenticated
     ? permissions.canManageConfiguration === true
-    : true;
+    : String(appMode || '').trim().toLowerCase() !== APP_MODE_POSTPROD;
   const postprodCanBanUsers = permissions.canBanUsers === true;
   const postprodCanManageProjectPermissions = permissions.canManageProjectPermissions === true;
   const postprodCanViewResources = permissions.canViewResources !== false;
@@ -65,8 +66,10 @@ function usePostprodAccessState({
       authenticated: postprodAuthenticated,
       canManageUsers: postprodCanManageUsers,
       canManageRoles: postprodCanManageRoles,
+      role,
+      appMode,
     }),
-    [postprodAuthenticated, postprodCanManageUsers, postprodCanManageRoles]
+    [appMode, role, postprodAuthenticated, postprodCanManageUsers, postprodCanManageRoles]
   );
   const postprodLockedTabs = appMode === APP_MODE_POSTPROD && !postprodAuthenticated
     ? postprodVisibleTabs.filter((tab) => tab !== POSTPROD_TAB_USERS)

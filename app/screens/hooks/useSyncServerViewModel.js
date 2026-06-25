@@ -1,6 +1,16 @@
 import React from 'react';
 
-import { safeStr } from '../synchronisationHelpers';
+import { safeStr } from '../synchronisationHelpers.js';
+
+function filterSyncTargetHosts(hosts, serverIp, isRenderMode) {
+  return (Array.isArray(hosts) ? hosts : []).filter((host) => {
+    if (!host || typeof host !== 'object') return false;
+    const ip = safeStr(host.ip || host.address, '');
+    if (!ip) return false;
+    if (!isRenderMode && serverIp && ip === serverIp) return false;
+    return true;
+  });
+}
 
 function resolveSourceProjectInfo(projectsData) {
   let sourceUproject = '';
@@ -126,15 +136,8 @@ function useSyncServerViewModel({
   const serverIp = localIp || localHostIp;
 
   const clientHosts = React.useMemo(
-    () =>
-      (hosts || []).filter((host) => {
-        if (!host || typeof host !== 'object') return false;
-        const ip = safeStr(host.ip || host.address, '');
-        if (!ip) return false;
-        if (serverIp && ip === serverIp) return false;
-        return true;
-      }),
-    [hosts, serverIp]
+    () => filterSyncTargetHosts(hosts, serverIp, isRenderMode),
+    [hosts, isRenderMode, serverIp]
   );
 
   const hasClientHosts = clientHosts.length > 0;
@@ -175,8 +178,7 @@ function useSyncServerViewModel({
     clientHosts,
     hasClientHosts,
     groupedHosts,
-    isRenderMode,
   };
 }
 
-export { useSyncServerViewModel };
+export { filterSyncTargetHosts, useSyncServerViewModel };

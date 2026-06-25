@@ -39,6 +39,8 @@ function useSetupServerMachineCrud({
             status: 'unknown',
             lastMsg: '',
             lastMsgType: '',
+            syncRoot: '',
+            syncEnabled: false,
             renderAvailability: 'capable',
             sortIndex: nextIndex,
             prevIp: '',

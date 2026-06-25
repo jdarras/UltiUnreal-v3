@@ -52,6 +52,7 @@ function buildPostprodRouteDispatchGroups(options = {}) {
     buildUserPayload,
     getAuthToken,
     usersSyncFetchLimit,
+    isUsersSyncPeerAllowed,
     requireManageRoles,
     parseActivityFilters,
     buildUserActivityPayload,
@@ -294,6 +295,7 @@ function buildPostprodRouteDispatchGroups(options = {}) {
     buildUserPayload,
     getAuthToken,
     usersSyncFetchLimit,
+    isUsersSyncPeerAllowed,
   };
 
   const postprodRouteActivityAuditDeps = {

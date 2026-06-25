@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getHosts, getProjects as agentGetProjects, postProjects as agentPostProjects, setProjectAssociation } from '../../utils/agent';
+import {
+  getAgentBaseUrl,
+  getHosts,
+  getProjects as agentGetProjects,
+  postProjects as agentPostProjects,
+  setProjectAssociation,
+} from '../../utils/agent';
 import { normPath, normalizeThumbnailPath } from '../../utils/projects-helpers';
 import {
   FAVORITE_STORAGE_KEY,
@@ -114,6 +120,10 @@ export function normalizeProjectsPayload(parsed) {
 }
 
 function normalizeProjectListItem(x) {
+  const thumbnailRaw = String(x.thumbnail || x.thumbnailPath || '').trim();
+  const thumbnail = thumbnailRaw.startsWith('/')
+    ? getAgentBaseUrl() + thumbnailRaw
+    : thumbnailRaw;
   return {
     id: String(x.id || '').trim(),
     name: String(x.name || ''),
@@ -122,7 +132,7 @@ function normalizeProjectListItem(x) {
     note: String(x.note || ''),
     createdAt: String(x.createdAt || ''),
     lastModified: String(x.lastModified || ''),
-    thumbnail: normalizeThumbnailPath(x.thumbnail || x.thumbnailPath || ''),
+    thumbnail: normalizeThumbnailPath(thumbnail),
     engineVersion: String(x.engineVersion || ''),
     metaStatus: String(x.metaStatus || ''),
     metaType: String(x.metaType || ''),
@@ -172,6 +182,7 @@ function useProjectsList({
   const fullProjectsReloadAttemptedRef = useRef(false);
   const pendingDetailIdRef = useRef('');
   const pendingStartRef = useRef(false);
+  const saveQueueRef = useRef(Promise.resolve());
 
   useEffect(() => {
     projectFavoritesRef.current = projectFavorites;
@@ -320,35 +331,42 @@ function useProjectsList({
       activeByHost: nextABH || {},
     };
 
-    const r = await agentPostProjects(payload);
-    if (!r || r.ok === false) return false;
+    const operation = saveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const r = await agentPostProjects(payload);
+        if (!r || r.ok === false) return false;
 
-    const warnings = Array.isArray(r.httpBindWarnings) ? r.httpBindWarnings : [];
-    if (warnings.length > 0) {
-      const first = warnings[0] || {};
-      const name = String(first.name || first.id || '').trim();
-      const msg =
-        String(first.error || '').toLowerCase() === 'ini_not_found'
-          ? t('projects.httpBind.iniMissing', { name: name || '—' })
-          : t('projects.httpBind.updateError');
-      setHttpBindMsg(msg);
-    } else if (httpBindMsg) {
-      setHttpBindMsg('');
-    }
+        const warnings = Array.isArray(r.httpBindWarnings) ? r.httpBindWarnings : [];
+        if (warnings.length > 0) {
+          const first = warnings[0] || {};
+          const name = String(first.name || first.id || '').trim();
+          const msg =
+            String(first.error || '').toLowerCase() === 'ini_not_found'
+              ? t('projects.httpBind.iniMissing', { name: name || '—' })
+              : t('projects.httpBind.updateError');
+          setHttpBindMsg(msg);
+        } else {
+          setHttpBindMsg('');
+        }
 
-    try {
-      const fresh = await agentGetProjects();
-      const list = Array.isArray(fresh.projects)
-        ? fresh.projects.map(normalizeProjectListItem)
-        : [];
-      setProjects(applyFavoritesToProjects(list, projectFavoritesRef.current));
-      setActiveName(String(fresh.activeName || ''));
-      setActiveId(String(fresh.activeId || ''));
-      setActiveByHost((fresh.activeByHost && typeof fresh.activeByHost === 'object') ? fresh.activeByHost : {});
-      setNextId(Number(fresh.nextId || 1));
-    } catch {}
-    return true;
-  }, [activeName, activeByHost, activeId, t, httpBindMsg]);
+        try {
+          const fresh = await agentGetProjects();
+          const list = Array.isArray(fresh.projects)
+            ? fresh.projects.map(normalizeProjectListItem)
+            : [];
+          setProjects(applyFavoritesToProjects(list, projectFavoritesRef.current));
+          setActiveName(String(fresh.activeName || ''));
+          setActiveId(String(fresh.activeId || ''));
+          setActiveByHost((fresh.activeByHost && typeof fresh.activeByHost === 'object') ? fresh.activeByHost : {});
+          setNextId(Number(fresh.nextId || 1));
+        } catch {}
+        return true;
+      })
+      .catch(() => false);
+    saveQueueRef.current = operation.then(() => undefined);
+    return await operation;
+  }, [activeName, activeByHost, activeId, t]);
 
   const httpBindMsgType = httpBindMsg ? 'error' : '';
 

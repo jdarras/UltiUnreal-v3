@@ -36,12 +36,38 @@ export function normalizeThumbnailPath(raw) {
   const s = String(raw || '').trim();
   if (!s) return '';
 
+  const encodeLocalMediaPath = (value) =>
+    encodeURI(String(value || '').replace(/\\/g, '/'))
+      .replace(/#/g, '%23')
+      .replace(/\?/g, '%3F');
+
+  const toUuMediaFromWindowsPath = (value) => {
+    const norm = encodeLocalMediaPath(value);
+    return norm ? `uu-media:///${norm}` : '';
+  };
+
+  const toUuMediaFromFileUrl = (value) => {
+    try {
+      const parsed = new URL(value);
+      if (parsed.hostname) return value;
+      let pathname = decodeURIComponent(String(parsed.pathname || ''));
+      if (/^\/[A-Za-z]:/.test(pathname)) pathname = pathname.slice(1);
+      if (/^[A-Za-z]:\//.test(pathname)) {
+        return toUuMediaFromWindowsPath(pathname);
+      }
+    } catch {}
+    return value;
+  };
+
+  if (/^data:image\//i.test(s)) return s;
   if (/^https?:\/\//i.test(s)) return s;
+  if (/^file:\/\/\/[A-Za-z]:/i.test(s.replace(/\\/g, '/'))) {
+    return toUuMediaFromFileUrl(s);
+  }
   if (/^file:\/\//i.test(s)) return s;
 
   if (/^[A-Za-z]:[\\/]/.test(s)) {
-    const norm = s.replace(/\\/g, '/');
-    return `file:///${norm}`;
+    return toUuMediaFromWindowsPath(s);
   }
 
   if (/^\\\\/.test(s)) {

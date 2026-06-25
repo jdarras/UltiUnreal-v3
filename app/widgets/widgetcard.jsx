@@ -363,11 +363,9 @@ export default function WidgetCard({
   onSizeChange,
   onZoneHeaderHeightChange
 }) {
-  if (!w) return null;
-
   const t = getWidgetT();
   const baseClass = 'uu-card prod-widget';
-      const cardRef = useRef(null);
+  const cardRef = useRef(null);
 
   useEffect(() => {
     if (!cardRef.current || !onSizeChange || !w?.id) return;
@@ -397,6 +395,8 @@ export default function WidgetCard({
 
     return undefined;
   }, [onSizeChange, w?.id]);
+
+  if (!w) return null;
 
   const selectedClass = selectedId === w.id ? 'selected' : '';
   const boundOk = hasValidBinding ? hasValidBinding(w) : false;

@@ -3,6 +3,7 @@ const WIDTH_260_STYLE = { width: '260px' };
 const WIDTH_110_LEFT_LABEL_STYLE = { width: '110px', textAlign: 'left', marginLeft: '8px' };
 const WIDTH_90_LEFT_LABEL_STYLE = { width: '90px', textAlign: 'left', marginLeft: '8px' };
 const WIDTH_180_STYLE = { width: '180px' };
+const SYNC_OPTION_STYLE = { minWidth: '320px', marginLeft: '8px' };
 const OVERFLOW_HIDDEN_STYLE = { overflow: 'hidden' };
 const FLEX_1_AUTO_STYLE = { flex: '1 1 auto' };
 const KEYWORDS_INPUT_STYLE = { minWidth: '220px', flex: '1 1 260px' };
@@ -32,7 +33,10 @@ export default function ProjectsDetailIndexationCard({
   onKeywordsBlur,
   detailKeywordsList = [],
   onRemoveKeyword,
+  showSyncOption = false,
 }) {
+  const syncEligible = meta.usageMode === 'auto_render' || meta.usageMode === 'live_auto_render';
+
   return (
     <div className="uu-card">
       <div className="uu-row uu-align-center uu-gap-8" style={TITLE_ROW_STYLE}>
@@ -76,6 +80,23 @@ export default function ProjectsDetailIndexationCard({
             <option value="live_auto_render">{t('projects.detail.usageMode.live_auto_render')}</option>
             <option value="other">{t('projects.detail.usageMode.other')}</option>
           </select>
+
+          {!detailIsNew && (
+            <>
+              <div className="uu-label" style={WIDTH_90_LEFT_LABEL_STYLE}>
+                {t('projects.detail.labels.fileVersion')}
+              </div>
+              <input
+                className="uu-input"
+                style={WIDTH_180_STYLE}
+                value={projectVersion ?? ''}
+                disabled={detailLoading || projectVersionBusy}
+                onChange={onProjectVersionChange}
+                onBlur={onProjectVersionBlur}
+                onKeyDown={onProjectVersionKeyDown}
+              />
+            </>
+          )}
         </div>
 
         <div className="uu-row wrap uu-align-center uu-gap-8">
@@ -100,22 +121,19 @@ export default function ProjectsDetailIndexationCard({
             <option value="Movie Render Cue">{t('projects.detail.type.movie_render_cue')}</option>
           </select>
 
-          {!detailIsNew && (
-            <>
-              <div className="uu-label" style={WIDTH_90_LEFT_LABEL_STYLE}>
-                {t('projects.detail.labels.fileVersion')}
-              </div>
+          {showSyncOption && syncEligible && !detailIsNew ? (
+            <label className="uu-label uu-row uu-align-center uu-gap-8" style={SYNC_OPTION_STYLE}>
               <input
-                className="uu-input"
-                style={WIDTH_180_STYLE}
-                value={projectVersion ?? ''}
-                disabled={detailLoading || projectVersionBusy}
-                onChange={onProjectVersionChange}
-                onBlur={onProjectVersionBlur}
-                onKeyDown={onProjectVersionKeyDown}
+                type="checkbox"
+                checked={meta.syncIncluded === true}
+                onChange={(event) => {
+                  markProjectDropdownDirty?.();
+                  onUpdateDetailField?.('syncIncluded', event.target.checked);
+                }}
               />
-            </>
-          )}
+              {t('projects.detail.sync.include')}
+            </label>
+          ) : null}
         </div>
 
         <div className="uu-row wrap">

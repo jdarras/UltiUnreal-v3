@@ -1,4 +1,11 @@
 import BindingPicker from '../bindingpicker.jsx';
+import {
+  getLimitsXLabel,
+  getLimitsYLabel,
+  getMinLabel,
+  getMaxLabel,
+  getStepLabel,
+} from '../widgetI18n.js';
 import { getWidgetT } from '../widgetTranslator.js';
 import {
   getFiniteNumber,
@@ -129,8 +136,8 @@ export function JoystickTimelineEditor({
       )}
 
       <div className="uu-row uu-slider-editor-row" style={TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE}>
-        <label className="uu-label w-160">Limites X</label>
-        <span className="uu-muted">Min</span>
+        <label className="uu-label w-160">{getLimitsXLabel(getWidgetT())}</label>
+        <span className="uu-muted">{getMinLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -139,7 +146,7 @@ export function JoystickTimelineEditor({
           value={rangeX.min ?? -1}
           onChange={handleAxisRangeChange('x', 'min')}
         />
-        <span className="uu-muted">Max</span>
+        <span className="uu-muted">{getMaxLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -148,7 +155,7 @@ export function JoystickTimelineEditor({
           value={rangeX.max ?? 1}
           onChange={handleAxisRangeChange('x', 'max')}
         />
-        <span className="uu-muted">Step</span>
+        <span className="uu-muted">{getStepLabel(getWidgetT())}</span>
         <input
           type="number"
           className="uu-input uu-input-arg uu-slider-editor-input"
@@ -158,8 +165,8 @@ export function JoystickTimelineEditor({
       </div>
 
       <div className="uu-row uu-slider-editor-row" style={TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE}>
-        <label className="uu-label w-160">Limites Y</label>
-        <span className="uu-muted">Min</span>
+        <label className="uu-label w-160">{getLimitsYLabel(getWidgetT())}</label>
+        <span className="uu-muted">{getMinLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -168,7 +175,7 @@ export function JoystickTimelineEditor({
           value={rangeY.min ?? -1}
           onChange={handleAxisRangeChange('y', 'min')}
         />
-        <span className="uu-muted">Max</span>
+        <span className="uu-muted">{getMaxLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -177,7 +184,7 @@ export function JoystickTimelineEditor({
           value={rangeY.max ?? 1}
           onChange={handleAxisRangeChange('y', 'max')}
         />
-        <span className="uu-muted">Step</span>
+        <span className="uu-muted">{getStepLabel(getWidgetT())}</span>
         <input
           type="number"
           className="uu-input uu-input-arg uu-slider-editor-input"

@@ -6,6 +6,7 @@ export default function ConfigUnrealVersionsSection({
   t,
   SectionTitleComponent,
   canUseEditorLaunch = false,
+  showLaunchButtonsToggle = true,
   showUnrealLaunchButtons = false,
   onToggleShowUnrealLaunchButtons,
   onAddVersionEntry,
@@ -31,7 +32,7 @@ export default function ConfigUnrealVersionsSection({
     <div className="uu-section mt-16">
       {titleNode}
 
-      {canUseEditorLaunch ? (
+      {canUseEditorLaunch && showLaunchButtonsToggle ? (
         <label className="uu-check mt-8">
           <input
             type="checkbox"

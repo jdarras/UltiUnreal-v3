@@ -41,6 +41,7 @@ async function handlePostprodAuthAndHealthRoutes(options = {}) {
     buildUserPayload,
     getAuthToken,
     usersSyncFetchLimit,
+    isUsersSyncPeerAllowed = () => false,
   } = options;
 
   if (!req || !res || !pathname) return false;
@@ -61,6 +62,10 @@ async function handlePostprodAuthAndHealthRoutes(options = {}) {
   if (pathname === '/agent/postprod/remote/users-sync/events') {
     if (req.method !== 'GET') {
       sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
+      return true;
+    }
+    if (!isUsersSyncPeerAllowed(req)) {
+      sendJSON(res, 403, { ok: false, error: 'users_sync_peer_forbidden' });
       return true;
     }
     const requestUrl = new URL(String(req?.url || ''), 'http://127.0.0.1');

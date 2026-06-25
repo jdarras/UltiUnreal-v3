@@ -24,6 +24,7 @@ function SyncServerScreen({
   onToggleSection,
   onBulkSelect,
   onToggleFileSelection,
+  onSourceChange,
   message,
   confirmDialogNode,
 }) {
@@ -66,6 +67,7 @@ function SyncServerScreen({
             onToggleSection={onToggleSection}
             onBulkSelect={onBulkSelect}
             onToggleFileSelection={onToggleFileSelection}
+            onSourceChange={onSourceChange}
           />
         )}
 

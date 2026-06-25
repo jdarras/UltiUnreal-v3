@@ -7,6 +7,7 @@ export default function ConfigCommonSection({
   SectionTitleComponent,
   cfg,
   onUpdateField,
+  showAllowStartDesynced = true,
 }) {
   const titleNode = SectionTitleComponent
     ? (
@@ -140,14 +141,16 @@ export default function ConfigCommonSection({
             />
           </div>
 
-          <label className="uu-check mt-16">
-            <input
-              type="checkbox"
-              checked={!!cfg.allowStartDesynced}
-              onChange={(e) => onUpdateField?.('allowStartDesynced', !!e.target.checked)}
-            />
-            {t('config.unreal.allowStartDesynced')}
-          </label>
+          {showAllowStartDesynced ? (
+            <label className="uu-check mt-16">
+              <input
+                type="checkbox"
+                checked={!!cfg.allowStartDesynced}
+                onChange={(e) => onUpdateField?.('allowStartDesynced', !!e.target.checked)}
+              />
+              {t('config.unreal.allowStartDesynced')}
+            </label>
+          ) : null}
         </div>
       </div>
     </div>

@@ -73,8 +73,8 @@ export function useResourceDetailLaunchActions({
       if (fallbackUrl) handleOpen(fallbackUrl);
       return;
     }
-    if (typeof window.electron?.openExternal === 'function') {
-      window.electron.openExternal(exe);
+    if (typeof window.electron?.runProcess === 'function') {
+      window.electron.runProcess({ command: exe, detached: true });
     } else {
       window.location.assign(exe);
     }

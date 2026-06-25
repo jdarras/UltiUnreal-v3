@@ -5,7 +5,7 @@ import {
   POSTPROD_TAB_PROFILES,
   POSTPROD_TAB_RENDERS_CREATE,
   POSTPROD_TABS_BASE,
-} from "./appConstants";
+} from "./appConstants.js";
 
 function parseUserNotificationPreferencesValue(value = null) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -98,7 +98,18 @@ function normalizeAppMode(mode) {
     : APP_MODE_LIVE;
 }
 
-function getLiveAccountTabs({ authenticated = false, canManageUsers = false, canManageRoles = false } = {}) {
+function getLiveAccountTabs({
+  authenticated = false,
+  canManageUsers = false,
+  canManageRoles = false,
+  role = "server",
+  appMode = APP_MODE_LIVE,
+} = {}) {
+  const normalizedRole = String(role || "server").trim().toLowerCase();
+  const normalizedMode = normalizeAppMode(appMode);
+  if (normalizedMode === APP_MODE_LIVE && normalizedRole === "client") {
+    return [];
+  }
   if (!authenticated) return [];
   const tabs = [];
   if (canManageRoles) tabs.push(POSTPROD_TAB_PROFILES);

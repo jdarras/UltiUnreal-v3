@@ -52,6 +52,7 @@ function createDefaultDetailMeta({ includeFavorite = false } = {}) {
     status: '',
     type: '',
     usageMode: '',
+    syncIncluded: false,
     category: '',
     fileVersion: '',
     referents: {},
@@ -248,6 +249,10 @@ export default function ProjectsScreen({
     renderBridgeBusy,
     renderBridgeMsg,
     renderBridgeMsgType,
+    livePluginsStatus,
+    livePluginsBusy,
+    livePluginsMsg,
+    livePluginsMsgType,
     mapsMsg,
     mapsMsgType,
     mapsBusy,
@@ -257,6 +262,8 @@ export default function ProjectsScreen({
     isRenderBridgeUsage,
     loadRenderBridgeStatus,
     installRenderBridgeForDetail,
+    loadLivePluginsStatus,
+    installLiveProjectPlugin,
     updateDetailField,
     scheduleSave,
     scheduleProjectVersionSave,
@@ -303,6 +310,7 @@ export default function ProjectsScreen({
     activeByHost,
     saveToServer,
     projectFavoritesRef,
+    isPostprodMode,
   });
 
   const {
@@ -536,6 +544,15 @@ export default function ProjectsScreen({
     installRenderBridgeForDetail();
   }, [installRenderBridgeForDetail]);
 
+  const handleRefreshLivePluginsStatus = React.useCallback(() => {
+    if (!detailId) return;
+    loadLivePluginsStatus(detailId);
+  }, [loadLivePluginsStatus, detailId]);
+
+  const handleInstallLiveProjectPlugin = React.useCallback((pluginKey) => {
+    installLiveProjectPlugin(pluginKey);
+  }, [installLiveProjectPlugin]);
+
   const handleActivateDetailProject = React.useCallback(() => {
     if (!detailId) return;
     activateOne(detailId);
@@ -581,6 +598,7 @@ export default function ProjectsScreen({
     projectVersionMsg ? { text: projectVersionMsg, type: projectVersionMsgType } : null,
     indexationMsg ? { text: indexationMsg, type: indexationMsgType } : null,
     renderBridgeMsg ? { text: renderBridgeMsg, type: renderBridgeMsgType } : null,
+    livePluginsMsg ? { text: livePluginsMsg, type: livePluginsMsgType } : null,
     intervenantsMsg ? { text: intervenantsMsg, type: intervenantsMsgType } : null,
     snapshotMsg ? { text: snapshotMsg, type: snapshotMsgType } : null,
     mapsMsg ? { text: mapsMsg, type: mapsMsgType } : null,
@@ -591,6 +609,7 @@ export default function ProjectsScreen({
     projectVersionMsg, projectVersionMsgType,
     indexationMsg, indexationMsgType,
     renderBridgeMsg, renderBridgeMsgType,
+    livePluginsMsg, livePluginsMsgType,
     intervenantsMsg, intervenantsMsgType,
     snapshotMsg, snapshotMsgType,
     mapsMsg, mapsMsgType,
@@ -1025,6 +1044,7 @@ export default function ProjectsScreen({
       isPostprodMode,
       isRenderBridgeUsage,
       renderBridgeStatus,
+      livePluginsStatus,
       detailName,
       onDetailNameChange: handleDetailNameInputChange,
       onToggleDetailFavorite: handleDetailFavoriteToggle,
@@ -1058,6 +1078,9 @@ export default function ProjectsScreen({
       renderBridgeBusy,
       onRefreshRenderBridgeStatus: handleRefreshRenderBridgeStatus,
       onInstallOrUpdateRenderBridge: handleInstallOrUpdateRenderBridge,
+      livePluginsBusy,
+      onRefreshLivePluginsStatus: handleRefreshLivePluginsStatus,
+      onInstallLiveProjectPlugin: handleInstallLiveProjectPlugin,
       mapsBusy,
       onSelectDefaultGame: handleSelectDefaultGameMap,
       onSelectDefaultEditor: handleSelectDefaultEditorMap,

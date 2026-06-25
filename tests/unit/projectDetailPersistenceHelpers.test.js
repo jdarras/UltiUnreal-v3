@@ -38,6 +38,7 @@ test('buildProjectDetailPayload maps meta values with fallbacks and pv override'
     status: 'PAD',
     type: 'cinematic',
     usageMode: 'auto_render',
+    syncIncluded: false,
     category: 'A',
     fileVersion: 'v2',
     referents: { lead: 'julien' },

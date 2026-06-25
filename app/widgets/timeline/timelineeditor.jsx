@@ -61,8 +61,7 @@ export function TimelineEditorRight({
   common,
   layoutId = ''
 }) {
-  if (!widget) return null;
-
+  // widget est garanti non-null par l'appelant (rendu uniquement si type === 'timeline').
   const t = getT();
   const initial = useTimelineInitialDraft(widget.ui?.timeline);
   const editorState = useTimelineEditorState(initial);

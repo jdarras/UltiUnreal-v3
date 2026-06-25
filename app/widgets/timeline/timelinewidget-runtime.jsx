@@ -19,8 +19,7 @@ export default function TimelineWidget({
   editMode,
   onDelete
 }) {
-  if (!widget) return null;
-
+  // widget est garanti non-null par l'appelant (rendu uniquement si type === 'timeline').
   const t = getT();
   const transportLabels = buildTimelineRuntimeTransportLabels(t);
   const statusLabels = buildTimelineRuntimeStatusLabels(t);

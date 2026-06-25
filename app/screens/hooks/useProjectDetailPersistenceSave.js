@@ -79,6 +79,8 @@ export function useProjectDetailPersistenceSave({
       const listSaved = await saveToServer(updated, activeName, activeByHost, activeId);
       if (!listSaved) throw new Error('save_failed');
 
+      window.dispatchEvent(new CustomEvent('ultiunreal:sync-state-changed'));
+
       applySourceFeedback(source, 'ok');
     } catch {
       applySourceFeedback(source, 'error');

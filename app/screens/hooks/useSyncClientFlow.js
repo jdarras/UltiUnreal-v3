@@ -102,7 +102,7 @@ function useSyncClientFlow({
     }
 
     try {
-      await postHost(localIp, { syncRoot: root });
+      await postHost(localIp, { syncRoot: root, syncEnabled: !!clientSyncEnabled });
       writeCachedRoot(root);
       showClientMessage('ok', t('sync.client.msg.saved'), 2000);
     } catch (e) {
@@ -148,6 +148,11 @@ function useSyncClientFlow({
       return;
     }
 
+    if (!clientSyncEnabled) {
+      showClientMessage('info', t('sync.client.msg.mustEnableFirst'), 4000);
+      return;
+    }
+
     const root = String(clientRoot || '').trim();
     if (!root) {
       showClientMessage('info', t('sync.client.msg.mustSetRoot'), 4000);
@@ -180,6 +185,7 @@ function useSyncClientFlow({
     hosts,
     localIp,
     clientRoot,
+    clientSyncEnabled,
     t,
     syncScopeOptions,
     showClientMessage,
@@ -206,6 +212,8 @@ function useSyncClientFlow({
   return {
     clientRoot,
     setClientRoot,
+    clientSyncEnabled,
+    setClientSyncEnabled,
     handleTestClient,
     handleBrowseClient,
   };

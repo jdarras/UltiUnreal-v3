@@ -61,6 +61,19 @@ function MachineCardHeaderRow({
         onRemoveMachine={onRemoveMachine}
       />
 
+      {isRenderMode && machine.renderAvailability !== 'excluded' ? (
+        <button
+          type="button"
+          className="uu-link"
+          onClick={() => window.goToConfiguration?.('sync')}
+          title={t('setup.server.syncConfigureHint')}
+        >
+          {machine.syncEnabled
+            ? t('setup.server.syncStatusEnabled')
+            : t('setup.server.syncStatusDisabled')}
+        </button>
+      ) : null}
+
       {isRenderMode && machine.renderAvailability === 'busy' ? (
         <SetupRenderReturnPicker
           value={machine.renderReturnAt || null}

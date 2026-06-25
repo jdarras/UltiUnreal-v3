@@ -2,6 +2,7 @@
 // Gestion des données projets / layouts pour UltiUnreal Agent
 
 const fs = require('fs');
+const fsp = fs.promises;
 const path = require('path');
 const { getDataDir } = require('./data-path.cjs');
 const { getSharedStore } = require('./server-shared-sqlite.cjs');
@@ -66,6 +67,21 @@ function readEngineVersionFromUproject(uprojectPath) {
     engineCache.delete(path.resolve(String(uprojectPath || '').trim()));
     return '';
   }
+}
+
+function refreshProjectEngineVersion(project = {}) {
+  if (!project || typeof project !== 'object') return false;
+  const up = String(project.uproject || project.projectPath || project.path || '').trim();
+  if (!up) return false;
+  const detected = readEngineVersionFromUproject(up);
+  if (!detected || detected === String(project.engineVersion || '').trim()) return false;
+  project.engineVersion = detected;
+  return true;
+}
+
+function refreshMissingProjectEngineVersion(project = {}) {
+  if (String(project?.engineVersion || '').trim()) return false;
+  return refreshProjectEngineVersion(project);
 }
 
 function getProjectFsInfo(uprojectPath, projectName = '') {
@@ -198,6 +214,103 @@ function getProjectFsInfo(uprojectPath, projectName = '') {
   }
 }
 
+async function getProjectFsInfoAsync(uprojectPath, projectName = '') {
+  let up = '';
+  try {
+    up = path.resolve(String(uprojectPath || '').trim());
+  } catch {
+    return { mtimeMs: 0, lastModified: '', thumbPath: '', thumbData: '' };
+  }
+  if (!up) return { mtimeMs: 0, lastModified: '', thumbPath: '', thumbData: '' };
+
+  try {
+    const stat = await fsp.stat(up);
+    const mtimeMs = stat.mtimeMs || 0;
+    const projectDir = path.dirname(up);
+    const savedDir = path.join(projectDir, 'Saved');
+    const candidateDirs = [
+      savedDir,
+      path.join(savedDir, 'AutoScreenshot'),
+      path.join(savedDir, 'Screenshots'),
+    ];
+    const nameKey = String(projectName || '').trim().toLowerCase();
+    const dirStats = await Promise.all(
+      [projectDir, ...candidateDirs].map((directory) => (
+        fsp.stat(directory).then((entry) => entry.mtimeMs || 0).catch(() => 0)
+      ))
+    );
+    const dirMtimeMs = Math.max(0, ...dirStats);
+    const cached = projectFsCache.get(up);
+    if (cached && cached.mtimeMs === mtimeMs && cached.dirMtimeMs === dirMtimeMs && cached.nameKey === nameKey) {
+      return cached;
+    }
+
+    const info = {
+      mtimeMs,
+      dirMtimeMs,
+      nameKey,
+      lastModified: stat.mtime ? stat.mtime.toISOString() : '',
+      thumbPath: '',
+      thumbData: '',
+    };
+    const preferred = [
+      'AutoScreenshot.png',
+      'AutoScreenshot.jpg',
+      'Screenshot.png',
+      'Screenshot.jpg',
+    ];
+    const directoryEntries = await Promise.all(
+      candidateDirs.map((directory) => (
+        fsp.readdir(directory, { withFileTypes: true })
+          .then((entries) => ({ directory, entries }))
+          .catch(() => ({ directory, entries: [] }))
+      ))
+    );
+
+    for (const { directory, entries } of directoryEntries) {
+      const fileNames = new Set(entries.filter((entry) => entry.isFile()).map((entry) => entry.name));
+      const preferredName = preferred.find((name) => fileNames.has(name));
+      if (preferredName) {
+        info.thumbPath = path.join(directory, preferredName);
+        break;
+      }
+    }
+    if (!info.thumbPath) {
+      for (const { directory, entries } of directoryEntries) {
+        const fileName = entries
+          .filter((entry) => entry.isFile() && /\.(png|jpe?g)$/i.test(entry.name || ''))
+          .map((entry) => entry.name)
+          .sort()[0];
+        if (fileName) {
+          info.thumbPath = path.join(directory, fileName);
+          break;
+        }
+      }
+    }
+
+    if (!info.thumbPath) {
+      const rootEntries = await fsp.readdir(projectDir, { withFileTypes: true }).catch(() => []);
+      const rootFiles = rootEntries.filter((entry) => entry.isFile()).map((entry) => entry.name);
+      const upName = path.basename(up, path.extname(up));
+      const safeProjectName = String(projectName || '').replace(/[\\/]+/g, '').trim();
+      const preferredNames = [
+        safeProjectName ? safeProjectName + '.png' : '',
+        upName ? upName + '.png' : '',
+      ].filter(Boolean);
+      const preferredName = preferredNames.find((name) => rootFiles.includes(name));
+      const fallbackName = rootFiles.filter((name) => /\.png$/i.test(name)).sort()[0];
+      const selectedName = preferredName || fallbackName;
+      if (selectedName) info.thumbPath = path.join(projectDir, selectedName);
+    }
+
+    projectFsCache.set(up, info);
+    return info;
+  } catch {
+    projectFsCache.delete(up);
+    return { mtimeMs: 0, lastModified: '', thumbPath: '', thumbData: '' };
+  }
+}
+
 function loadProjects() {
   const pj = sharedStore.loadProjectsDoc();
   pj.projects = Array.isArray(pj.projects) ? pj.projects : [];
@@ -217,15 +330,11 @@ function loadProjects() {
     changed = true;
   }
 
-  // 3) récupérer la version d'Unreal si absente
+  // 3) récupérer la version d'Unreal uniquement pour les anciens projets sans version.
+  // Les associations existantes sont actualisées à l'ouverture du détail pour éviter
+  // de bloquer toute la liste sur des chemins réseau/OneDrive indisponibles.
   for (const pr of pj.projects) {
-    if (!pr.engineVersion) {
-      const eng = readEngineVersionFromUproject(pr.uproject || pr.projectPath || '');
-      if (eng) {
-        pr.engineVersion = eng;
-        changed = true;
-      }
-    }
+    if (refreshMissingProjectEngineVersion(pr)) changed = true;
   }
 
   // 4) valider/corriger activeId : s'il n'existe pas, essayer via activeName
@@ -289,9 +398,7 @@ function enrichProjectForClient(p, opts = {}) {
     (typeof out.projectPath === 'string' && normPath(out.projectPath)) ||
     '';
 
-  if (!out.engineVersion) {
-    out.engineVersion = readEngineVersionFromUproject(up);
-  }
+  refreshMissingProjectEngineVersion(out);
 
   // Meta (statut/type/référents/tags + thumbnailPath optionnel)
   let meta = {};
@@ -306,6 +413,7 @@ function enrichProjectForClient(p, opts = {}) {
     if (typeof mStatus === 'string') out.metaStatus = mStatus;
     if (typeof meta.type === 'string') out.metaType = meta.type;
     out.metaUsageMode = normalizeProjectUsageMode(meta.usageMode);
+    out.syncIncluded = meta.syncIncluded === true;
     if (typeof meta.category === 'string') out.metaCategory = meta.category;
     if (meta.fileVersion !== undefined) out.metaFileVersion = meta.fileVersion;
     if (Array.isArray(meta.keywords)) out.metaKeywords = meta.keywords;
@@ -368,6 +476,37 @@ function enrichProjectForClient(p, opts = {}) {
     } catch {}
   }
 
+  return out;
+}
+
+async function enrichProjectForClientAsync(p) {
+  const out = enrichProjectForClient(p, { skipFs: true, skipInsights: true });
+  const up = String(out.uproject || out.projectPath || '').trim();
+  if (!up) return out;
+  const [fsInfo, engineIni] = await Promise.all([
+    getProjectFsInfoAsync(up, out.name),
+    fsp.readFile(path.join(path.dirname(up), 'Config', 'DefaultEngine.ini'), 'utf8').catch(() => ''),
+  ]);
+  if (fsInfo.lastModified) out.lastModified = fsInfo.lastModified;
+  if (fsInfo.thumbPath) {
+    out.thumbnail = '/agent/project-thumbnail?projectId=' + encodeURIComponent(String(out.id || ''));
+    out.thumbnailPath = fsInfo.thumbPath;
+  }
+  if (engineIni) {
+    const readLastValue = (key) => {
+      const escaped = String(key || '').replace(/[.*+?^$(){}|[\]\\]/g, '\\$&');
+      const matcher = new RegExp('^\\s*' + escaped + '\\s*=\\s*(.+)\\s*$', 'img');
+      let value = '';
+      for (const match of engineIni.matchAll(matcher)) {
+        if (match?.[1]) value = String(match[1]).trim();
+      }
+      return value;
+    };
+    out.maps = {
+      defaultGame: readLastValue('GameDefaultMap'),
+      defaultEditor: readLastValue('EditorStartupMap'),
+    };
+  }
   return out;
 }
 
@@ -962,12 +1101,16 @@ module.exports = {
   loadProjects,
   saveProjects,
   enrichProjectForClient,
+  enrichProjectForClientAsync,
+  getProjectFsInfoAsync,
   findProjectId,
   readProjectDoc,
   writeProjectDoc,
   zp4,
   isValidId,
   readEngineVersionFromUproject,
+  refreshProjectEngineVersion,
+  refreshMissingProjectEngineVersion,
   readProjectMeta,
   writeProjectMeta,
   extractProjectInsights,

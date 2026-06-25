@@ -72,9 +72,9 @@ function isClientLiveAccountScreenActive(ctx) {
 
 function resolveScreenViewportKind(ctx) {
   if (!ctx || typeof ctx !== "object") return "none";
+  if (ctx.current === "Configuration") return "server_configuration";
   if (ctx.role === "server") {
     if (ctx.current === "Setup" && (ctx.appMode !== APP_MODE_POSTPROD || ctx.postprodCanManageMachines)) return "server_setup";
-    if (ctx.current === "Configuration") return "server_configuration";
     if (ctx.appMode === APP_MODE_LIVE && ctx.current === "Projets") return "server_live_projects";
     if (ctx.appMode === APP_MODE_LIVE && ctx.resourcesTabAvailable && ctx.current === "Ressources") return "server_live_resources";
     if (ctx.appMode === APP_MODE_LIVE && ctx.current === "Synchronisation") return "server_live_sync";
@@ -148,6 +148,7 @@ function areScreenViewportPropsEqual(prevProps, nextProps) {
         && prev.postprodCanManageConfiguration === next.postprodCanManageConfiguration
         && prev.liveCanLaunchEditorProjects === next.liveCanLaunchEditorProjects
         && prev.postprodUser === next.postprodUser
+        && prev.postprodToken === next.postprodToken
       );
     case "server_live_projects":
       return (
@@ -216,6 +217,7 @@ const ScreenViewport = React.memo(function ScreenViewport({ ctx }) {
     postprodServerOnlyProps,
     licenseStatus,
     postprodUser,
+    postprodToken,
     handleNavClick,
     handleCommonUpdated,
     handleLibraryImported,
@@ -229,7 +231,7 @@ const ScreenViewport = React.memo(function ScreenViewport({ ctx }) {
   return (
     <section className={`uu-screen ${offsetClass}`}>
       {role === "server" && current === "Setup" && (appMode !== APP_MODE_POSTPROD || postprodCanManageMachines) && <SetupScreen />}
-      {role === "server" && current === "Configuration" && (
+      {(role === "server" || appMode === APP_MODE_POSTPROD) && current === "Configuration" && (
         <Suspense fallback={ScreenFallback}>
           <ConfigurationScreen
             licenseStatus={licenseStatus}
@@ -245,6 +247,7 @@ const ScreenViewport = React.memo(function ScreenViewport({ ctx }) {
             canManageConfiguration={postprodCanManageConfiguration}
             canLaunchUnrealEditor={liveCanLaunchEditorProjects}
             notificationPrefs={postprodUser?.notificationPreferences || postprodUser?.notificationPrefsJson || {}}
+            postprodToken={postprodToken}
           />
         </Suspense>
       )}
@@ -403,7 +406,7 @@ function AppShell({ state, actions }) {
     sidebar: {
       postprodVisibleTabs, postprodCanManageMachines, liveAccountTabs,
       configMissing, resourcesTabAvailable, postprodLockedTabs,
-      logsNavAlert, usersNavAlert, rendersNavAlert, rendersTopNoticeText,
+      logsNavAlert, usersNavAlert, rendersNavAlert, syncNavAlert, rendersTopNoticeText,
     },
     permissions: {
       postprodCanManageUsers,
@@ -456,11 +459,14 @@ function AppShell({ state, actions }) {
   }, [role, current]);
 
   const handleSidebarUserClick = React.useCallback(() => {
+    if (role === "client" && appMode === APP_MODE_LIVE) return;
     handleNavClick('Utilisateurs');
     if (postprodCanManageUsers) {
       setPostprodEditUserRequest({ userId: postprodAuth.user?.id, reqKey: Date.now() });
     }
   }, [
+    role,
+    appMode,
     handleNavClick,
     postprodCanManageUsers,
     setPostprodEditUserRequest,
@@ -621,6 +627,7 @@ function AppShell({ state, actions }) {
     postprodServerOnlyProps,
     licenseStatus,
     postprodUser: postprodAuth?.user,
+    postprodToken: String(postprodAuth?.token || ''),
     handleNavClick,
     handleCommonUpdated,
     handleLibraryImported,
@@ -658,6 +665,7 @@ function AppShell({ state, actions }) {
     postprodServerOnlyProps,
     licenseStatus,
     postprodAuth?.user,
+    postprodAuth?.token,
     handleNavClick,
     handleCommonUpdated,
     handleLibraryImported,
@@ -752,7 +760,9 @@ function AppShell({ state, actions }) {
           logsAlert={logsNavAlert}
           usersAlert={usersNavAlert}
           rendersAlert={rendersNavAlert}
-          postprodUser={postprodAuthenticated ? postprodAuth.user : null}
+          syncAlert={syncNavAlert}
+          postprodUser={postprodAuthenticated && !(role === "client" && appMode === APP_MODE_LIVE) ? postprodAuth.user : null}
+          postprodAuthenticated={postprodAuthenticated}
           onUserClick={handleSidebarUserClick}
         />
 

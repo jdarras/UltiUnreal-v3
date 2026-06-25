@@ -4,6 +4,34 @@ import { httpGet, httpPost, resolveExeForVersion,
 } from './agentHttp.js';
 import { getCommon, getHosts, getProjects } from './agentSystem.js';
 
+// Parse l'argument surchargé (number = timeout, objet = options) commun à checkSync/copySync.
+function resolveSyncTimeoutAndOptions(timeoutOrOptions, maybeOptions, defaultTimeout) {
+  let timeoutMs = defaultTimeout;
+  let options = {};
+  if (typeof timeoutOrOptions === 'number') {
+    timeoutMs = timeoutOrOptions;
+    options = maybeOptions && typeof maybeOptions === 'object' ? maybeOptions : {};
+  } else if (timeoutOrOptions && typeof timeoutOrOptions === 'object') {
+    options = timeoutOrOptions;
+    timeoutMs =
+      typeof options.timeoutMs === 'number' && Number.isFinite(options.timeoutMs)
+        ? options.timeoutMs
+        : defaultTimeout;
+  }
+  return { timeoutMs, options };
+}
+
+// Construit la query string ip/scope/direction commune aux endpoints de sync.
+function buildSyncScopeQuery(hostIp, options = {}) {
+  const params = new URLSearchParams();
+  params.set('ip', String(hostIp || ''));
+  const scope = String(options.scope || '').trim();
+  if (scope) params.set('scope', scope);
+  const direction = String(options.direction || '').trim();
+  if (direction) params.set('direction', direction);
+  return params.toString();
+}
+
 export async function postHost(ip, body = {}) {
   const safeIp = encodeURIComponent(String(ip || '').trim());
   if (!safeIp) {
@@ -153,65 +181,31 @@ export async function postStop(ip, body = {}) {
 export async function checkSync(hostIp, timeoutOrOptions = 120000, maybeOptions = null) {
   if (!hostIp) throw new Error('hostIp manquant pour checkSync');
 
-  let timeoutMs = 120000;
-  let options = {};
-  if (typeof timeoutOrOptions === 'number') {
-    timeoutMs = timeoutOrOptions;
-    options = maybeOptions && typeof maybeOptions === 'object' ? maybeOptions : {};
-  } else if (timeoutOrOptions && typeof timeoutOrOptions === 'object') {
-    options = timeoutOrOptions;
-    timeoutMs =
-      typeof options.timeoutMs === 'number' && Number.isFinite(options.timeoutMs)
-        ? options.timeoutMs
-        : 120000;
-  }
+  const { timeoutMs, options } = resolveSyncTimeoutAndOptions(timeoutOrOptions, maybeOptions, 120000);
+  const query = buildSyncScopeQuery(hostIp, options);
 
-  const params = new URLSearchParams();
-  params.set('ip', String(hostIp || ''));
-  const scope = String(options.scope || '').trim();
-  if (scope) params.set('scope', scope);
-  const direction = String(options.direction || '').trim();
-  if (direction) params.set('direction', direction);
-
-  return await httpGet(
-    `/agent/sync/check?${params.toString()}`,
-    timeoutMs
-  );
+  return await httpGet(`/agent/sync/check?${query}`, timeoutMs);
 }
 
 export async function copySync(hostIp, payload = null, timeoutOrOptions = 600000, maybeOptions = null) {
   if (!hostIp) throw new Error('hostIp manquant pour copySync');
 
-  let timeoutMs = 600000;
-  let options = {};
-  if (typeof timeoutOrOptions === 'number') {
-    timeoutMs = timeoutOrOptions;
-    options = maybeOptions && typeof maybeOptions === 'object' ? maybeOptions : {};
-  } else if (timeoutOrOptions && typeof timeoutOrOptions === 'object') {
-    options = timeoutOrOptions;
-    timeoutMs =
-      typeof options.timeoutMs === 'number' && Number.isFinite(options.timeoutMs)
-        ? options.timeoutMs
-        : 600000;
-  }
+  const { timeoutMs, options } = resolveSyncTimeoutAndOptions(timeoutOrOptions, maybeOptions, 600000);
+  const body = payload && typeof payload === 'object' ? payload : {};
+  const query = buildSyncScopeQuery(hostIp, options);
 
-  const body =
-    payload && typeof payload === 'object'
-      ? payload
-      : {};
+  return await httpPost(`/agent/sync/copy?${query}`, body, timeoutMs);
+}
 
-  const params = new URLSearchParams();
-  params.set('ip', String(hostIp || ''));
-  const scope = String(options.scope || '').trim();
-  if (scope) params.set('scope', scope);
-  const direction = String(options.direction || '').trim();
-  if (direction) params.set('direction', direction);
+export async function setSyncProjectSource(projectId, sourceIp) {
+  const pid = String(projectId || '').trim();
+  const ip = String(sourceIp || '').trim();
+  if (!pid || !ip) throw new Error('Projet ou station source manquant');
+  return await httpPost('/agent/sync/source', { projectId: pid, sourceIp: ip }, 10000);
+}
 
-  return await httpPost(
-    `/agent/sync/copy?${params.toString()}`,
-    body,
-    timeoutMs
-  );
+export async function getSyncSummary({ refresh = false } = {}) {
+  return await httpGet(`/agent/sync/summary${refresh ? '?refresh=1' : ''}`, 120000);
 }
 
 export async function updateSyncIgnore(ip, add = [], remove = []) {
@@ -221,19 +215,11 @@ export async function updateSyncIgnore(ip, add = [], remove = []) {
   const addNorm = Array.isArray(add) ? add.map(normalize) : [];
   const removeNorm = Array.isArray(remove) ? remove.map(normalize) : [];
 
-  try {
-    console.debug('[sync] POST /agent/sync/update-ignore', { ip, add: addNorm, remove: removeNorm });
-    const resp = await httpPost('/agent/sync/update-ignore', {
-      ip,
-      add: addNorm,
-      remove: removeNorm,
-    });
-    console.debug('[sync] update-ignore response', resp);
-    return resp;
-  } catch (e) {
-    console.error('[sync] update-ignore failed', e);
-    throw e;
-  }
+  return await httpPost('/agent/sync/update-ignore', {
+    ip,
+    add: addNorm,
+    remove: removeNorm,
+  });
 }
 
 export async function getSyncIgnoreForHost(ip) {

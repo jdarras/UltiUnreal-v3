@@ -2,7 +2,7 @@
 import React from 'react';
 import './vectorwidget.css';
 import { getCompanionBaseUrl } from '../utils/agent';
-import { getVectorDefaultsTitleLabel } from './widgetI18n.js';
+import { getVectorDefaultsTitleLabel, getValuesLabel } from './widgetI18n.js';
 import { getWidgetT } from './widgetTranslator.js';
 
 /**
@@ -503,7 +503,7 @@ export function VectorEditorRight({ selected, updateSelected }) {
 
       {/* Une seule ligne : label principal + X / Y / Z */}
       <div className="uu-row mt-4 uu-vector-editor-row">
-        <label className="uu-label w-160">Valeurs</label>
+        <label className="uu-label w-160">{getValuesLabel(getWidgetT())}</label>
 
         <span className="uu-muted">X</span>
         <input

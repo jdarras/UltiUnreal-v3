@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 
 const { getDataDir } = require('./data-path.cjs');
+const { listDetectedStations } = require('./server-hosts-online.cjs');
 const { hostsToList } = require('./server-normalize.cjs');
 
 const DEFAULT_AGENT_PORT = 4000;
@@ -150,27 +151,41 @@ async function selectBestStation(excludeIp, agentPort) {
   const excluded = normalizeHostCandidate(excludeIp);
   const port = normalizePort(agentPort);
   const hosts = readKnownStations();
+  const detectedStations = typeof listDetectedStations === 'function'
+    ? listDetectedStations()
+    : [];
   const localIpCandidates = resolveLocalIpCandidates();
   if (excluded) localIpCandidates.add(excluded);
 
-  const candidates = hosts
-    .map((host) => {
-      const ip = normalizeHostCandidate(host?.ip || host?.address || '');
-      if (!ip) return null;
-      if (localIpCandidates.has(ip)) return null;
-      return {
-        ip,
-        stationName: String(host?.name || host?.stationName || ip).trim() || ip,
-      };
-    })
-    .filter(Boolean);
+  const byIp = new Map();
+  for (const host of [...hosts, ...detectedStations]) {
+    const ip = normalizeHostCandidate(host?.ip || host?.address || '');
+    if (!ip || localIpCandidates.has(ip)) continue;
+    const candidate = {
+      ip,
+      stationName: String(host?.name || host?.stationName || ip).trim() || ip,
+      agentPort: normalizePort(host?.agentPort || host?.port || port),
+    };
+    if (!byIp.has(ip)) {
+      byIp.set(ip, candidate);
+      continue;
+    }
+    const previous = byIp.get(ip);
+    byIp.set(ip, {
+      ...previous,
+      stationName: previous.stationName || candidate.stationName,
+      agentPort: previous.agentPort || candidate.agentPort,
+    });
+  }
+  const candidates = [...byIp.values()];
 
   if (candidates.length <= 0) return null;
 
   const checks = candidates.map(async (candidate) => {
     const hostForUrl = formatHostForHttpUrl(candidate.ip);
     if (!hostForUrl) throw new Error('invalid_station_ip');
-    const requestUrl = `http://${hostForUrl}:${port}/agent/postprod/remote/queue-length`;
+    const candidatePort = normalizePort(candidate.agentPort || port);
+    const requestUrl = `http://${hostForUrl}:${candidatePort}/agent/postprod/remote/queue-length`;
     const res = await fetchJsonWithTimeout(requestUrl, { method: 'GET', timeoutMs: QUEUE_LENGTH_TIMEOUT_MS });
     if (!res.ok || !res.json || res.json.ok !== true) {
       const errMsg = String(res?.json?.error || `http_${Number(res?.status || 0)}`).trim();

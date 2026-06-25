@@ -21,6 +21,10 @@ export function useProjectDetailState() {
   const [renderBridgeBusy, setRenderBridgeBusy] = useState(false);
   const [renderBridgeMsg, setRenderBridgeMsg] = useState('');
   const [renderBridgeMsgType, setRenderBridgeMsgType] = useState('');
+  const [livePluginsStatus, setLivePluginsStatus] = useState([]);
+  const [livePluginsBusy, setLivePluginsBusy] = useState(false);
+  const [livePluginsMsg, setLivePluginsMsg] = useState('');
+  const [livePluginsMsgType, setLivePluginsMsgType] = useState('');
   const [mapsMsg, setMapsMsg] = useState('');
   const [mapsMsgType, setMapsMsgType] = useState('');
   const [mapsBusy, setMapsBusy] = useState(false);
@@ -67,6 +71,14 @@ export function useProjectDetailState() {
     setRenderBridgeMsg,
     renderBridgeMsgType,
     setRenderBridgeMsgType,
+    livePluginsStatus,
+    setLivePluginsStatus,
+    livePluginsBusy,
+    setLivePluginsBusy,
+    livePluginsMsg,
+    setLivePluginsMsg,
+    livePluginsMsgType,
+    setLivePluginsMsgType,
     mapsMsg,
     setMapsMsg,
     mapsMsgType,

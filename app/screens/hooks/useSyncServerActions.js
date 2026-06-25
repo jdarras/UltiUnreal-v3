@@ -18,9 +18,9 @@ import { useSyncMessagePublisher } from './useSyncMessagePublisher';
 
 const DIFF_TYPES = ['added', 'modified', 'removed'];
 
-function withRenderProjectCount(text, isRenderMode, projectCount) {
+function withRenderProjectCount(text, isRenderMode, projectCount, t) {
   if (isRenderMode && Number(projectCount || 0) > 0) {
-    return `${text} (${Number(projectCount || 0)} projet(s))`;
+    return `${text}${t('sync.render.msg.projectCountSuffix', { count: Number(projectCount || 0) })}`;
   }
   return text;
 }
@@ -43,7 +43,7 @@ function buildSyncCheckOutcome({
         : t('sync.server.msg.checkResult');
     return {
       status: 'in_sync',
-      detail: withRenderProjectCount(diffText, isRenderMode, res?.projectCount),
+      detail: withRenderProjectCount(diffText, isRenderMode, res?.projectCount, t),
     };
   }
 
@@ -55,7 +55,20 @@ function buildSyncCheckOutcome({
         : t('sync.server.msg.checkDesyncGeneric');
     return {
       status: 'desync',
-      detail: withRenderProjectCount(diffText, isRenderMode, res?.projectCount),
+      detail: withRenderProjectCount(diffText, isRenderMode, res?.projectCount, t),
+    };
+  }
+
+  if (status === 'conflict') {
+    const displayDiff = diffEffective != null ? diffEffective : diffRaw;
+    return {
+      status: 'conflict',
+      detail: withRenderProjectCount(
+        t('sync.server.msg.checkConflict', { diff: displayDiff ?? 0 }),
+        isRenderMode,
+        res?.projectCount,
+        t
+      ),
     };
   }
 
@@ -64,13 +77,13 @@ function buildSyncCheckOutcome({
   }
 
   if (status === 'no_projects') {
-    return { status: 'in_sync', detail: res?.message || 'Aucun projet en rendu automatique.' };
+    return { status: 'in_sync', detail: res?.message || t('sync.render.msg.noAutoProjects') };
   }
 
   if (status === 'no_source') {
     return {
-      status: 'desync',
-      detail: res?.message || 'Source de verite absente pour au moins un projet.',
+      status: 'no_source',
+      detail: res?.message || t('sync.render.msg.noSourceTruth'),
     };
   }
 
@@ -121,6 +134,8 @@ function useSyncServerActions({
   const [syncDiffs, setSyncDiffs] = React.useState({});
   const [diffFoldState, setDiffFoldState] = React.useState({});
   const [selectionState, setSelectionState] = React.useState({});
+  const checkInFlightRef = React.useRef(new Set());
+  const copyInFlightRef = React.useRef(new Set());
   const showSyncMessage = useSyncMessagePublisher({ setMessage, scheduleMessageClear });
   const createEmptyDiffState = React.useCallback(
     () => ({ added: [], modified: [], removed: [], renderProjects: [] }),
@@ -216,7 +231,6 @@ function useSyncServerActions({
     try {
       const addList = collectIgnoredSelectionPaths(selectionByType);
       if (!addList.length) return true;
-      console.debug('[sync] updateSyncIgnore (UI) addList', ip, addList);
       return await updateSyncIgnoreSafely({
         ip,
         addList,
@@ -252,8 +266,8 @@ function useSyncServerActions({
     if (toRem.length > 0) {
       const msg =
         toRem.length === 1
-          ? `Cette synchronisation va supprimer 1 fichier sur ${ip}. Continuer ?`
-          : `Cette synchronisation va supprimer ${toRem.length} fichiers sur ${ip}. Continuer ?`;
+          ? t('sync.server.msg.confirmDeleteOne', { ip })
+          : t('sync.server.msg.confirmDeleteMany', { count: toRem.length, ip });
 
       const ok = await requestConfirm(msg);
       if (!ok) return { proceed: false, payload: null };
@@ -277,6 +291,8 @@ function useSyncServerActions({
   const handleCheckHost = React.useCallback(
     async (ip) => {
       if (!ip) return;
+      if (checkInFlightRef.current.has(ip)) return;
+      checkInFlightRef.current.add(ip);
 
       setHostStatusAndDetail(ip, 'checking', '');
       resetHostDiffSelection(ip);
@@ -338,6 +354,8 @@ function useSyncServerActions({
       } catch (e) {
         setHostStatusAndDetail(ip, 'error', e?.message || t('sync.server.msg.checkErrorGeneric'));
         resetHostDiffSelection(ip);
+      } finally {
+        checkInFlightRef.current.delete(ip);
       }
     },
     [
@@ -376,7 +394,6 @@ function useSyncServerActions({
       }));
 
       if (addList.length || removeList.length) {
-        console.debug('[sync] toggle selection -> updateSyncIgnore', ip, { addList, removeList });
         await updateSyncIgnoreSafely({
           ip,
           addList,
@@ -473,29 +490,53 @@ function useSyncServerActions({
   const handleCopyHost = React.useCallback(
     async (ip) => {
       if (!ip) return;
+      if (copyInFlightRef.current.has(ip)) return;
+      copyInFlightRef.current.add(ip);
 
+      try {
       if (isRenderMode) {
+        const renderRows = Array.isArray(syncDiffs?.[ip]?.renderProjects)
+          ? syncDiffs[ip].renderProjects
+          : [];
+        const removalCount = renderRows.reduce((total, row) => total + Number(row?.removedCount || 0), 0);
+        const hasConflict = renderRows.some((row) => String(row?.status || '') === 'conflict');
+        if (removalCount > 0 || hasConflict) {
+          const confirmation = removalCount > 0
+            ? t('sync.render.msg.confirmRemoval', { count: removalCount, ip })
+            : t('sync.render.msg.confirmOverwriteNewer', { ip });
+          const confirmed = await requestConfirm(confirmation);
+          if (!confirmed) return;
+        }
         startCopyStatus(ip);
         try {
-          const res = await copySync(ip, null, syncScopeOptions || undefined);
+          const res = await copySync(ip, {
+            allowDelete: removalCount > 0,
+            allowOverwriteNewer: hasConflict,
+          }, syncScopeOptions || undefined);
+          const copyRows = normalizeRenderCopyProjects(res);
+          if (copyRows.length > 0) {
+            setSyncCopyProjects((prev) => ({
+              ...prev,
+              [ip]: {
+                at: new Date().toISOString(),
+                rows: copyRows,
+              },
+            }));
+          }
           if (!res || res.ok === false) {
             const msg = (res && (res.message || res.error)) || t('sync.server.msg.copyError');
             reportCopyFailure(ip, msg);
             return;
           }
 
-          const copyRows = normalizeRenderCopyProjects(res);
-          setSyncCopyProjects((prev) => ({
-            ...prev,
-            [ip]: {
-              at: new Date().toISOString(),
-              rows: copyRows,
-            },
-          }));
-
-          const projectCount = Number(res?.projectCount || 0);
-          const summary = `Sync rendu OK: ${projectCount} projet(s), ${Number(res?.addedCount ?? 0)} nouveaux, ${Number(res?.modifiedCount ?? 0)} modifies, ${Number(res?.deletedCount ?? 0)} supprimes.`;
+          const summary = t('sync.render.msg.copySummary', {
+            count: Number(res?.projectCount || 0),
+            added: Number(res?.addedCount ?? 0),
+            modified: Number(res?.modifiedCount ?? 0),
+            deleted: Number(res?.deletedCount ?? 0),
+          });
           showSyncMessage('ok', summary, 3500);
+          window.dispatchEvent(new CustomEvent('ultiunreal:sync-state-changed'));
           await handleCheckHost(ip);
         } catch (e) {
           const detail = String(e?.message || t('sync.server.msg.copyErrorGeneric'));
@@ -570,15 +611,18 @@ function useSyncServerActions({
         }
         reportCopyFailure(ip, detail, { prefixed: true });
       }
+      } finally {
+        copyInFlightRef.current.delete(ip);
+      }
     },
     [
       buildCopyPayloadFromSelection,
       ensureSyncIgnoreSelectionUpToDate,
       handleCheckHost,
       isRenderMode,
+      requestConfirm,
       selectionState,
       getDiffListByType,
-      setHostStatusAndDetail,
       setHosts,
       startCopyStatus,
       reportCopyFailure,

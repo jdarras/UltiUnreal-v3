@@ -1,4 +1,13 @@
 import BindingPicker from '../bindingpicker.jsx';
+import { getWidgetT } from '../widgetTranslator.js';
+import {
+  getOptionsFromUnrealLabel,
+  getOptionsLabel,
+  getEnumLabelPlaceholder,
+  getEnumValuePlaceholder,
+  getLabelValueRequiredLabel,
+  getSelectBindingFirstLabel,
+} from '../widgetI18n.js';
 
 export function EnumTimelineEditor({
   selected,
@@ -63,13 +72,13 @@ export function EnumTimelineEditor({
       />
 
       {!hasBindingPath ? (
-        <div className="uu-muted">Sélectionnez d'abord une liaison propriété.</div>
+        <div className="uu-muted">{getSelectBindingFirstLabel(getWidgetT())}</div>
       ) : bindingEnumValues ? (
-        <div className="uu-muted">Options depuis Unreal.</div>
+        <div className="uu-muted">{getOptionsFromUnrealLabel(getWidgetT())}</div>
       ) : (
         <>
           <div className="uu-row mt-8">
-            <label className="uu-label w-160">Options</label>
+            <label className="uu-label w-160">{getOptionsLabel(getWidgetT())}</label>
             <div className="uu-col uu-enum-options">
               {options.map((opt, idx) => {
                 const label = String(opt.label ?? '');
@@ -80,7 +89,7 @@ export function EnumTimelineEditor({
                   <div key={idx} className="uu-row uu-enum-option-row">
                     <input
                       className="uu-input uu-enum-option-label"
-                      placeholder="Label"
+                      placeholder={getEnumLabelPlaceholder(getWidgetT())}
                       value={label}
                       onChange={(e) =>
                         handleOptionChange(idx, 'label', e.target.value)
@@ -88,7 +97,7 @@ export function EnumTimelineEditor({
                     />
                     <input
                       className="uu-input uu-enum-option-value"
-                      placeholder="Valeur envoyee a Unreal"
+                      placeholder={getEnumValuePlaceholder(getWidgetT())}
                       value={value}
                       onChange={(e) =>
                         handleOptionChange(idx, 'value', e.target.value)
@@ -103,7 +112,7 @@ export function EnumTimelineEditor({
                     </button>
 
                     {hasError && (
-                      <div className="uu-error-text">Label et valeur requis.</div>
+                      <div className="uu-error-text">{getLabelValueRequiredLabel(getWidgetT())}</div>
                     )}
                   </div>
                 );

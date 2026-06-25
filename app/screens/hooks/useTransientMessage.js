@@ -19,6 +19,7 @@ function normalizeMessagePayload(next) {
 }
 
 function useTransientMessage() {
+  const messageRef = React.useRef(null);
   const {
     infoMsg,
     infoMsgType,
@@ -34,6 +35,7 @@ function useTransientMessage() {
 
   const setMessage = React.useCallback((next) => {
     const normalized = normalizeMessagePayload(next);
+    messageRef.current = normalized;
     if (!normalized) {
       clearInfo();
       return;
@@ -42,9 +44,10 @@ function useTransientMessage() {
   }, [clearInfo, showInfo]);
 
   const scheduleMessageClear = React.useCallback((delayMs = 2000) => {
-    if (!message) return;
-    showInfo(message.text, message.type || '', delayMs);
-  }, [message, showInfo]);
+    const current = messageRef.current;
+    if (!current) return;
+    showInfo(current.text, current.type || '', delayMs);
+  }, [showInfo]);
 
   return {
     message,

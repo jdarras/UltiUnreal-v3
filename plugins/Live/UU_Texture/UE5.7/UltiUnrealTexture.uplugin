@@ -1,0 +1,36 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "UltiUnrealTexture",
+	"Description": "UltiUnreal Texture lets you swap textures and play videos on any mesh at runtime",
+	"Category": "Other",
+	"CreatedBy": "JDarrasVP",
+	"CreatedByURL": "https://www.jdarrasvp.fr",
+	"DocsURL": "",
+	"MarketplaceURL": "com.epicgames.launcher://ue/Fab/product/6fe74581-b953-4a7b-b4ef-99d58d885316",
+	"SupportURL": "mailto:contact@jdarrasvp.fr",
+	"EngineVersion": "5.7.0",
+	"CanContainContent": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "UltiUnrealTexture",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64"
+			]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "MediaPlate",
+			"Enabled": true
+		},
+		{
+			"Name": "ElectraPlayer",
+			"Enabled": true
+		}
+	]
+}

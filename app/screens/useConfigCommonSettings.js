@@ -132,45 +132,58 @@ function useCommonPersistence({
   showInfoFeedback,
 }) {
   const saveTimer = React.useRef(null);
+  const saveQueue = React.useRef(Promise.resolve());
 
   const handleSave = React.useCallback(async (section = 'common', forceShowFlag = null) => {
     if (!loaded) return;
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
 
     const currentCfg = cfgRef.current || {};
-    const currentVersions = Array.isArray(versionsRef.current) ? versionsRef.current : [];
+    const currentVersions = Array.isArray(versionsRef.current)
+      ? versionsRef.current.map((version) => ({ ...(version || {}) }))
+      : [];
     const currentRoots = normalizeProjectRoots(projectRootsRef.current);
     const versionNames = buildVersionNames(currentVersions);
     const body = buildCommonBody(currentCfg, versionNames, currentRoots, forceShowFlag);
 
-    try {
-      const response = await postCommon(body);
-      const ok = response && response.ok !== false;
-      showInfoFeedback(
-        ok ? t('setup.server.msg.commonSaved') : t('setup.server.msg.commonError'),
-        ok ? 'ok' : 'error',
-        section,
-        2500
-      );
-
-      if (ok && typeof onCommonUpdated === 'function') {
-        onCommonUpdated(response?.common || body);
-      }
-
-      if (ok && localIp && versionNames.length > 0) {
+    const operation = saveQueue.current
+      .catch(() => undefined)
+      .then(async () => {
         try {
-          await postHost(localIp, buildHostEditorsPayload(currentVersions));
+          const response = await postCommon(body);
+          const ok = response && response.ok !== false;
+          showInfoFeedback(
+            ok ? t('setup.server.msg.commonSaved') : t('setup.server.msg.commonError'),
+            ok ? 'ok' : 'error',
+            section,
+            2500
+          );
+
+          if (ok && typeof onCommonUpdated === 'function') {
+            onCommonUpdated(response?.common || body);
+          }
+
+          if (ok && localIp && versionNames.length > 0) {
+            try {
+              await postHost(localIp, buildHostEditorsPayload(currentVersions));
+            } catch {}
+          }
+          return ok;
         } catch {
-          // Primary feedback already handled by common save result.
+          showInfoFeedback(
+            t('setup.server.msg.commonError'),
+            'error',
+            section,
+            2500
+          );
+          return false;
         }
-      }
-    } catch {
-      showInfoFeedback(
-        t('setup.server.msg.commonError'),
-        'error',
-        section,
-        2500
-      );
-    }
+      });
+    saveQueue.current = operation.then(() => undefined);
+    return await operation;
   }, [loaded, cfgRef, versionsRef, projectRootsRef, t, onCommonUpdated, showInfoFeedback, localIp]);
 
   const scheduleSave = React.useCallback((section = 'common') => {
@@ -205,6 +218,7 @@ function useCommonCollections({
 }) {
   const updateField = React.useCallback((field, value, sectionOverride = null) => {
     const section = getSectionForField(field, sectionOverride);
+    cfgRef.current = { ...(cfgRef.current || {}), [field]: value };
     setCfg((prev) => {
       const next = { ...prev, [field]: value };
       cfgRef.current = next;

@@ -12,6 +12,7 @@ const {
   writeProjectMeta,
   extractProjectInsights,
   isValidId,
+  refreshProjectEngineVersion,
 } = require('./server-projects.cjs');
 const {
   rewriteIniSectionContent,
@@ -21,7 +22,60 @@ const {
 } = require('./server-ini.cjs');
 
 const RENDER_BRIDGE_PLUGIN_NAME = 'UltiUnrealRenderBridge';
-const RENDER_BRIDGE_PLUGIN_FILE = `${RENDER_BRIDGE_PLUGIN_NAME}.uplugin`;
+const PROJECT_PLUGIN_CATALOG = Object.freeze({
+  UltiUnrealRenderBridge: Object.freeze({
+    key: 'UltiUnrealRenderBridge',
+    category: 'Rendu',
+    displayName: 'UltiUnrealRenderBridge',
+    packageName: 'UltiUnrealRenderBridge',
+    installFolderName: 'UltiUnrealRenderBridge',
+    pluginName: 'UltiUnrealRenderBridge',
+    upluginFile: 'UltiUnrealRenderBridge.uplugin',
+    fallbackVersionTags: ['UE5.8', 'UE5.7', 'UE5.6'],
+    aliases: ['renderBridge', 'render_bridge', 'render-bridge', 'UltiUnrealRenderBridge'],
+  }),
+  UU_Camera: Object.freeze({
+    key: 'UU_Camera',
+    category: 'Live',
+    displayName: 'UU_Camera',
+    packageName: 'UU_Camera',
+    installFolderName: 'UU_Camera',
+    pluginName: 'UltiUnrealCamera',
+    upluginFile: 'UltiUnrealCamera.uplugin',
+    fallbackVersionTags: ['UE5.8', 'UE5.7'],
+    aliases: ['UU_Camera', 'UltiUnrealCamera', 'camera'],
+    manualFiles: Object.freeze({
+      fr: 'UU_Camera_User_Guide_Fr.pdf',
+      en: 'UU_Camera_User_Guide_En.pdf',
+    }),
+  }),
+  UU_Texture: Object.freeze({
+    key: 'UU_Texture',
+    category: 'Live',
+    displayName: 'UU_Texture',
+    packageName: 'UU_Texture',
+    installFolderName: 'UU_Texture',
+    pluginName: 'UltiUnrealTexture',
+    upluginFile: 'UltiUnrealTexture.uplugin',
+    fallbackVersionTags: ['UE5.8', 'UE5.7'],
+    aliases: ['UU_Texture', 'UltiUnrealTexture', 'texture'],
+    manualFiles: Object.freeze({
+      fr: 'UU_Texture_User_Guide_Fr.pdf',
+      en: 'UU_Texture_User_Guide_En.pdf',
+    }),
+  }),
+});
+const PROJECT_PLUGIN_ALIAS_MAP = (() => {
+  const out = new Map();
+  for (const spec of Object.values(PROJECT_PLUGIN_CATALOG)) {
+    const aliases = [spec.key, spec.pluginName, spec.packageName, ...(Array.isArray(spec.aliases) ? spec.aliases : [])];
+    for (const alias of aliases) {
+      const key = String(alias || '').trim().toLowerCase();
+      if (key) out.set(key, spec.key);
+    }
+  }
+  return out;
+})();
 
 function readJsonFileSafe(filePath = '') {
   const p = path.resolve(String(filePath || '').trim());
@@ -104,66 +158,144 @@ function resolveEngineVersionTag(rawVersion = '') {
   return `UE${match[1]}`;
 }
 
-function listRenderBridgePackageCandidates(engineVersion = '') {
+function resolveEngineVersionTagVariants(rawVersion = '') {
+  const match = String(rawVersion || '').match(/(\d+\.\d+)/);
+  if (!match || !match[1]) return [];
+  return [`UE${match[1]}`, `UE_${match[1]}`];
+}
+
+function normalizeProjectPluginKey(pluginKey = '') {
+  const raw = String(pluginKey || '').trim();
+  if (!raw) return '';
+  return PROJECT_PLUGIN_ALIAS_MAP.get(raw.toLowerCase()) || '';
+}
+
+function resolveProjectPluginSpec(pluginKey = '') {
+  const key = normalizeProjectPluginKey(pluginKey);
+  return key ? PROJECT_PLUGIN_CATALOG[key] || null : null;
+}
+
+function collectVersionTagVariants(engineVersion = '', fallbackVersionTags = []) {
+  const out = [];
+  const addTag = (tag) => {
+    const raw = String(tag || '').trim();
+    if (!raw) return;
+    for (const variant of resolveEngineVersionTagVariants(raw)) {
+      if (!out.includes(variant)) out.push(variant);
+    }
+    if (!out.includes(raw)) out.push(raw);
+  };
+  if (resolveEngineVersionTag(engineVersion)) {
+    addTag(engineVersion);
+    return out;
+  }
+  for (const tag of fallbackVersionTags) addTag(tag);
+  return out;
+}
+
+function listProjectPluginPackageCandidates(pluginKey = '', engineVersion = '') {
+  const spec = resolveProjectPluginSpec(pluginKey);
+  if (!spec) return [];
   const repoRoot = path.resolve(__dirname, '..');
   const cwdRoot = path.resolve(process.cwd() || '.');
   const rootCandidates = Array.from(new Set([repoRoot, cwdRoot]));
+  const versionTags = collectVersionTagVariants(engineVersion, spec.fallbackVersionTags || []);
   const out = [];
-  const versionTag = resolveEngineVersionTag(engineVersion);
+
   for (const root of rootCandidates) {
     const pluginsRoot = path.join(root, 'plugins');
     const toolsRoot = path.join(root, 'tools');
     const toolsPluginsRoot = path.join(toolsRoot, 'plugins');
 
-    if (versionTag) {
+    for (const versionTag of versionTags) {
       out.push({
         versionTag,
-        packageDir: path.join(pluginsRoot, versionTag, RENDER_BRIDGE_PLUGIN_NAME),
+        packageDir: path.join(pluginsRoot, spec.category, spec.packageName, versionTag),
       });
       out.push({
         versionTag,
-        packageDir: path.join(toolsPluginsRoot, versionTag, RENDER_BRIDGE_PLUGIN_NAME),
+        packageDir: path.join(toolsPluginsRoot, spec.category, spec.packageName, versionTag),
       });
     }
 
     out.push({
-      versionTag: 'UE5.6',
-      packageDir: path.join(pluginsRoot, 'UE5.6', RENDER_BRIDGE_PLUGIN_NAME),
-    });
-    out.push({
-      versionTag: 'UE5.6',
-      packageDir: path.join(toolsPluginsRoot, 'UE5.6', RENDER_BRIDGE_PLUGIN_NAME),
+      versionTag: '',
+      packageDir: path.join(pluginsRoot, spec.category, spec.packageName),
     });
     out.push({
       versionTag: '',
-      packageDir: path.join(pluginsRoot, RENDER_BRIDGE_PLUGIN_NAME),
+      packageDir: path.join(toolsPluginsRoot, spec.category, spec.packageName),
     });
-    out.push({
-      versionTag: '',
-      packageDir: path.join(toolsRoot, RENDER_BRIDGE_PLUGIN_NAME),
-    });
-    out.push({
-      versionTag: 'UE5.6',
-      packageDir: path.join(toolsRoot, `${RENDER_BRIDGE_PLUGIN_NAME}56`),
-    });
+
+    if (spec.key === RENDER_BRIDGE_PLUGIN_NAME) {
+      for (const versionTag of versionTags) {
+        out.push({
+          versionTag,
+          packageDir: path.join(pluginsRoot, versionTag, spec.packageName),
+        });
+        out.push({
+          versionTag,
+          packageDir: path.join(toolsPluginsRoot, versionTag, spec.packageName),
+        });
+      }
+      out.push({
+        versionTag: '',
+        packageDir: path.join(pluginsRoot, spec.packageName),
+      });
+      out.push({
+        versionTag: '',
+        packageDir: path.join(toolsRoot, spec.packageName),
+      });
+      out.push({
+        versionTag: 'UE5.6',
+        packageDir: path.join(toolsRoot, `${spec.packageName}56`),
+      });
+    }
   }
   return out;
 }
 
-function resolveRenderBridgePackage(engineVersion = '') {
-  const candidates = listRenderBridgePackageCandidates(engineVersion);
+function listRenderBridgePackageCandidates(engineVersion = '') {
+  return listProjectPluginPackageCandidates(RENDER_BRIDGE_PLUGIN_NAME, engineVersion);
+}
+
+function resolveProjectPluginManuals(spec = null, packageDir = '') {
+  if (!spec?.manualFiles || !packageDir) return {};
+  const packageRoot = path.dirname(path.resolve(packageDir));
+  const manuals = {};
+  for (const [lang, filename] of Object.entries(spec.manualFiles || {})) {
+    const filePath = path.join(packageRoot, String(filename || ''));
+    if (fs.existsSync(filePath)) manuals[lang] = filePath;
+  }
+  return manuals;
+}
+
+function resolveProjectPluginPackage(pluginKey = '', engineVersion = '') {
+  const spec = resolveProjectPluginSpec(pluginKey);
+  if (!spec) {
+    return {
+      packageAvailable: false,
+      packageDir: '',
+      packageUpluginPath: '',
+      packageVersionTag: '',
+      manuals: {},
+      error: 'unknown_plugin',
+    };
+  }
+  const candidates = listProjectPluginPackageCandidates(spec.key, engineVersion);
   const seen = new Set();
   for (const candidate of candidates) {
     const packageDir = path.resolve(candidate.packageDir);
     if (seen.has(packageDir)) continue;
     seen.add(packageDir);
-    const upluginPath = path.join(packageDir, RENDER_BRIDGE_PLUGIN_FILE);
+    const upluginPath = path.join(packageDir, spec.upluginFile);
     if (fs.existsSync(packageDir) && fs.existsSync(upluginPath)) {
       return {
         packageAvailable: true,
         packageDir,
         packageUpluginPath: upluginPath,
         packageVersionTag: candidate.versionTag || '',
+        manuals: resolveProjectPluginManuals(spec, packageDir),
       };
     }
   }
@@ -172,10 +304,40 @@ function resolveRenderBridgePackage(engineVersion = '') {
     packageDir: '',
     packageUpluginPath: '',
     packageVersionTag: '',
+    manuals: {},
   };
 }
 
-function resolveRenderBridgeProjectStatus(proj = {}) {
+function resolveRenderBridgePackage(engineVersion = '') {
+  return resolveProjectPluginPackage(RENDER_BRIDGE_PLUGIN_NAME, engineVersion);
+}
+
+function findInstalledProjectPlugin(projectPluginsRoot = '', spec = null) {
+  if (!projectPluginsRoot || !spec) return { dir: '', upluginPath: '' };
+  const names = Array.from(new Set([
+    spec.installFolderName,
+    spec.packageName,
+    spec.pluginName,
+  ].map((name) => String(name || '').trim()).filter(Boolean)));
+  for (const name of names) {
+    const dir = path.join(projectPluginsRoot, name);
+    const upluginPath = path.join(dir, spec.upluginFile);
+    if (fs.existsSync(upluginPath)) return { dir, upluginPath };
+  }
+  return { dir: '', upluginPath: '' };
+}
+
+function resolveProjectPluginStatus(proj = {}, pluginKey = '') {
+  const spec = resolveProjectPluginSpec(pluginKey);
+  if (!spec) {
+    return {
+      ok: false,
+      error: 'unknown_plugin',
+      installedInProject: false,
+      enabledInProject: false,
+      ready: false,
+    };
+  }
   const up = String(proj?.uproject || proj?.projectPath || proj?.path || '').trim();
   if (!up) {
     return {
@@ -189,42 +351,69 @@ function resolveRenderBridgeProjectStatus(proj = {}) {
 
   const projectDir = path.resolve(path.dirname(up));
   const projectPluginsRoot = path.join(projectDir, 'Plugins');
-  const projectPluginDir = path.join(projectPluginsRoot, RENDER_BRIDGE_PLUGIN_NAME);
-  const projectPluginUpluginPath = path.join(projectPluginDir, RENDER_BRIDGE_PLUGIN_FILE);
-  const installedInProject = fs.existsSync(projectPluginUpluginPath);
+  const projectPluginDir = path.join(projectPluginsRoot, spec.installFolderName);
+  const installed = findInstalledProjectPlugin(projectPluginsRoot, spec);
+  const projectInstalledPluginDir = installed.dir || '';
+  const projectPluginUpluginPath = installed.upluginPath || path.join(projectPluginDir, spec.upluginFile);
+  const installedInProject = !!installed.upluginPath;
 
+  let declaredInProject = false;
   let enabledInProject = false;
+  let marketplaceReference = false;
   let uprojectReadError = '';
   try {
     const parsed = readJsonFileSafe(up);
     if (Array.isArray(parsed?.Plugins)) {
       const row = parsed.Plugins.find(
-        (entry) => String(entry?.Name || '').trim().toLowerCase() === RENDER_BRIDGE_PLUGIN_NAME.toLowerCase()
+        (entry) => String(entry?.Name || '').trim().toLowerCase() === spec.pluginName.toLowerCase()
       );
+      declaredInProject = !!row;
       enabledInProject = row?.Enabled === true;
+      marketplaceReference = !!String(row?.MarketplaceURL || '').trim();
     }
   } catch (e) {
     uprojectReadError = String(e?.message || e || '');
   }
 
-  const packageInfo = resolveRenderBridgePackage(proj?.engineVersion || '');
+  const packageInfo = resolveProjectPluginPackage(spec.key, proj?.engineVersion || '');
+  const availableInProject = installedInProject || marketplaceReference;
+  const installationSource = installedInProject
+    ? 'project'
+    : (marketplaceReference ? 'marketplace' : '');
   return {
     ok: true,
+    key: spec.key,
+    category: spec.category,
+    displayName: spec.displayName,
+    pluginName: spec.pluginName,
+    installFolderName: spec.installFolderName,
     projectPath: up,
     projectPluginDir,
+    projectInstalledPluginDir,
     projectPluginUpluginPath,
     installedInProject,
+    declaredInProject,
     enabledInProject,
-    ready: installedInProject && enabledInProject,
+    marketplaceReference,
+    availableInProject,
+    installationSource,
+    ready: availableInProject && enabledInProject,
     packageAvailable: packageInfo.packageAvailable === true,
     packageDir: packageInfo.packageDir || '',
     packageUpluginPath: packageInfo.packageUpluginPath || '',
     packageVersionTag: packageInfo.packageVersionTag || '',
+    manuals: packageInfo.manuals || {},
     uprojectReadError,
   };
 }
 
-function enableRenderBridgeInUproject(uprojectPath = '') {
+function resolveRenderBridgeProjectStatus(proj = {}) {
+  return resolveProjectPluginStatus(proj, RENDER_BRIDGE_PLUGIN_NAME);
+}
+
+function enableProjectPluginInUproject(uprojectPath = '', pluginKey = '') {
+  const spec = resolveProjectPluginSpec(pluginKey);
+  if (!spec) return { ok: false, error: 'unknown_plugin' };
   const up = path.resolve(String(uprojectPath || '').trim());
   if (!up) return { ok: false, error: 'missing_uproject' };
   if (!fs.existsSync(up)) return { ok: false, error: 'missing_uproject' };
@@ -240,15 +429,15 @@ function enableRenderBridgeInUproject(uprojectPath = '') {
 
   let changed = false;
   const index = parsed.Plugins.findIndex(
-    (entry) => String(entry?.Name || '').trim().toLowerCase() === RENDER_BRIDGE_PLUGIN_NAME.toLowerCase()
+    (entry) => String(entry?.Name || '').trim().toLowerCase() === spec.pluginName.toLowerCase()
   );
   if (index >= 0) {
     if (parsed.Plugins[index]?.Enabled !== true) {
-      parsed.Plugins[index] = { ...(parsed.Plugins[index] || {}), Name: RENDER_BRIDGE_PLUGIN_NAME, Enabled: true };
+      parsed.Plugins[index] = { ...(parsed.Plugins[index] || {}), Name: spec.pluginName, Enabled: true };
       changed = true;
     }
   } else {
-    parsed.Plugins.push({ Name: RENDER_BRIDGE_PLUGIN_NAME, Enabled: true });
+    parsed.Plugins.push({ Name: spec.pluginName, Enabled: true });
     changed = true;
   }
 
@@ -256,6 +445,30 @@ function enableRenderBridgeInUproject(uprojectPath = '') {
     fs.writeFileSync(up, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
   }
   return { ok: true, changed };
+}
+
+function enableRenderBridgeInUproject(uprojectPath = '') {
+  return enableProjectPluginInUproject(uprojectPath, RENDER_BRIDGE_PLUGIN_NAME);
+}
+
+function resolveProjectPluginInstallTarget(baseStatus = {}) {
+  const projectPath = String(baseStatus?.projectPath || '').trim();
+  if (!projectPath) return { ok: false, error: 'missing_project_path' };
+  const projectPluginsRoot = path.resolve(path.join(path.dirname(projectPath), 'Plugins'));
+  const projectPluginDir = path.resolve(
+    baseStatus.projectInstalledPluginDir || baseStatus.projectPluginDir || ''
+  );
+  if (!projectPluginDir || !projectPluginDir.startsWith(projectPluginsRoot + path.sep)) {
+    return { ok: false, error: 'invalid_plugin_destination', projectPluginsRoot, projectPluginDir };
+  }
+  return { ok: true, projectPluginsRoot, projectPluginDir };
+}
+
+function listProjectPluginStatuses(proj = {}, category = '') {
+  const cat = String(category || '').trim().toLowerCase();
+  return Object.values(PROJECT_PLUGIN_CATALOG)
+    .filter((spec) => !cat || String(spec.category || '').trim().toLowerCase() === cat)
+    .map((spec) => resolveProjectPluginStatus(proj, spec.key));
 }
 
 
@@ -272,6 +485,10 @@ async function handleProjectConfigRoutes(req, res, url, ctx = {}) {
         return sendJSON(res, 400, { ok: false, error: 'unknown_project' });
       }
       const proj = pj.projects.find(p => p.id === pid);
+      const engineVersionChanged = refreshProjectEngineVersion(proj || {});
+      if (engineVersionChanged) {
+        try { saveProjects(pj, { onlyIfChanged: false }); } catch {}
+      }
       const meta = readProjectMeta(pid) || {};
       const normalizedUsageMode = normalizeProjectUsageMode(meta.usageMode);
       if (meta && meta.status === 'PAS') {
@@ -283,7 +500,16 @@ async function handleProjectConfigRoutes(req, res, url, ctx = {}) {
         try { writeProjectMeta(pid, meta); } catch {}
       }
       const insights = extractProjectInsights(proj?.uproject || proj?.projectPath || proj?.path || '');
-      return sendJSON(res, 200, { ok: true, projectId: pid, meta, insights });
+      if (engineVersionChanged && typeof invalidateProjectsCache === 'function') {
+        invalidateProjectsCache();
+      }
+      return sendJSON(res, 200, {
+        ok: true,
+        projectId: pid,
+        engineVersion: String(proj?.engineVersion || '').trim(),
+        meta,
+        insights,
+      });
     }
     if (req.method === 'POST') {
       const body = await parseBody(req);
@@ -317,6 +543,10 @@ async function handleProjectConfigRoutes(req, res, url, ctx = {}) {
       const usageMode = hasUsageMode
         ? normalizeProjectUsageMode(incoming.usageMode)
         : normalizeProjectUsageMode(prevMeta.usageMode);
+      const hasSyncIncluded = Object.prototype.hasOwnProperty.call(incoming, 'syncIncluded');
+      const syncIncluded = hasSyncIncluded
+        ? incoming.syncIncluded === true
+        : prevMeta.syncIncluded === true;
       const hasReferents = Object.prototype.hasOwnProperty.call(incoming, 'referents');
       const referents = hasReferents
         ? (
@@ -378,6 +608,7 @@ async function handleProjectConfigRoutes(req, res, url, ctx = {}) {
         status,
         type,
         usageMode,
+        syncIncluded,
         category,
         fileVersion,
         referents,
@@ -390,6 +621,109 @@ async function handleProjectConfigRoutes(req, res, url, ctx = {}) {
       return sendJSON(res, 200, { ok: true, projectId: pid, meta });
     }
     return sendJSON(res, 405, { ok: false, error: 'method not allowed' });
+  }
+
+  // ---- Project plugin status ----
+  // GET /agent/project-plugin-status?projectId=<id|name>&plugin=<pluginKey>
+  if (url.pathname === '/agent/project-plugin-status') {
+    if (req.method !== 'GET') {
+      return sendJSON(res, 405, { ok: false, error: 'method not allowed' });
+    }
+    const pluginKey = String(url.searchParams.get('plugin') || '').trim();
+    const spec = resolveProjectPluginSpec(pluginKey);
+    if (!spec) return sendJSON(res, 400, { ok: false, error: 'unknown_plugin' });
+    const pj = loadProjects();
+    const q = String(url.searchParams.get('projectId') || '').trim();
+    const pid = findProjectId(pj, q) || '';
+    if (!pid) return sendJSON(res, 400, { ok: false, error: 'unknown_project' });
+    const proj = (pj.projects || []).find((p) => String(p?.id || '').trim() === pid) || null;
+    const status = resolveProjectPluginStatus(proj || {}, spec.key);
+    if (!status.ok) {
+      return sendJSON(res, 400, { ok: false, error: status.error || 'invalid_project' });
+    }
+    return sendJSON(res, 200, { ok: true, projectId: pid, ...status });
+  }
+
+  // ---- Live project plugins status ----
+  // GET /agent/project-live-plugins-status?projectId=<id|name>
+  if (url.pathname === '/agent/project-live-plugins-status') {
+    if (req.method !== 'GET') {
+      return sendJSON(res, 405, { ok: false, error: 'method not allowed' });
+    }
+    const pj = loadProjects();
+    const q = String(url.searchParams.get('projectId') || '').trim();
+    const pid = findProjectId(pj, q) || '';
+    if (!pid) return sendJSON(res, 400, { ok: false, error: 'unknown_project' });
+    const proj = (pj.projects || []).find((p) => String(p?.id || '').trim() === pid) || null;
+    const statuses = listProjectPluginStatuses(proj || {}, 'Live');
+    const invalid = statuses.find((status) => !status.ok);
+    if (invalid) {
+      return sendJSON(res, 400, { ok: false, error: invalid.error || 'invalid_project' });
+    }
+    return sendJSON(res, 200, { ok: true, projectId: pid, plugins: statuses });
+  }
+
+  // ---- Project plugin install/update ----
+  // POST /agent/project-plugin-install { projectId, plugin }
+  if (url.pathname === '/agent/project-plugin-install') {
+    if (req.method !== 'POST') {
+      return sendJSON(res, 405, { ok: false, error: 'method not allowed' });
+    }
+    const body = await parseBody(req);
+    const spec = resolveProjectPluginSpec(body?.plugin || '');
+    if (!spec) return sendJSON(res, 400, { ok: false, error: 'unknown_plugin' });
+    const pj = loadProjects();
+    const pid = findProjectId(pj, body?.projectId || '') || '';
+    if (!pid) return sendJSON(res, 400, { ok: false, error: 'unknown_project' });
+    const proj = (pj.projects || []).find((p) => String(p?.id || '').trim() === pid) || null;
+    const baseStatus = resolveProjectPluginStatus(proj || {}, spec.key);
+    if (!baseStatus.ok) {
+      return sendJSON(res, 400, { ok: false, error: baseStatus.error || 'invalid_project' });
+    }
+    if (!baseStatus.packageAvailable || !baseStatus.packageDir) {
+      return sendJSON(res, 404, { ok: false, error: 'missing_plugin_package', plugin: spec.key });
+    }
+
+    const target = resolveProjectPluginInstallTarget(baseStatus);
+    if (!target.ok) {
+      return sendJSON(res, 400, { ok: false, error: target.error || 'invalid_plugin_destination' });
+    }
+
+    try {
+      fs.mkdirSync(target.projectPluginsRoot, { recursive: true });
+      fs.rmSync(target.projectPluginDir, { recursive: true, force: true });
+      copyDirectoryRecursive(baseStatus.packageDir, target.projectPluginDir);
+      const enableRes = enableProjectPluginInUproject(baseStatus.projectPath, spec.key);
+      if (!enableRes.ok) {
+        return sendJSON(res, 500, { ok: false, error: enableRes.error || 'enable_plugin_failed' });
+      }
+      if (typeof invalidateProjectsCache === 'function') invalidateProjectsCache();
+      const finalStatus = resolveProjectPluginStatus(proj || {}, spec.key);
+      logLine?.({
+        level: 'success',
+        action: 'project_plugin_install',
+        message: `Plugin ${spec.pluginName} installe/mis a jour`,
+        data: {
+          projectId: pid,
+          plugin: spec.key,
+          packageDir: baseStatus.packageDir,
+          projectPluginDir: target.projectPluginDir,
+        },
+      });
+      return sendJSON(res, 200, {
+        ok: true,
+        projectId: pid,
+        restartRequired: true,
+        ...finalStatus,
+      });
+    } catch (e) {
+      return sendJSON(res, 500, {
+        ok: false,
+        error: 'project_plugin_install_failed',
+        plugin: spec.key,
+        message: String(e?.message || e || ''),
+      });
+    }
   }
 
   // ---- Render Bridge plugin status ----
@@ -808,4 +1142,17 @@ async function handleProjectConfigRoutes(req, res, url, ctx = {}) {
   return false;
 }
 
-module.exports = { handleProjectConfigRoutes, ensureHttpServerBindAddress };
+module.exports = {
+  handleProjectConfigRoutes,
+  ensureHttpServerBindAddress,
+  PROJECT_PLUGIN_CATALOG,
+  resolveProjectPluginSpec,
+  resolveProjectPluginPackage,
+  resolveProjectPluginStatus,
+  listProjectPluginPackageCandidates,
+  listProjectPluginStatuses,
+  listRenderBridgePackageCandidates,
+  resolveRenderBridgePackage,
+  resolveEngineVersionTag,
+  resolveEngineVersionTagVariants,
+};

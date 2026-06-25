@@ -4,7 +4,13 @@ import './colorwidget.css';
 import BindingPicker from './bindingpicker.jsx';
 import { getCompanionBaseUrl } from '../utils/agent';
 import { getWidgetT } from './widgetTranslator.js';
-import { clamp01, hexToRgb } from '../utils/colors';
+import { clamp01, hexToRgb, rgbToHex } from '../utils/colors';
+import {
+  getColorLabel,
+  getHexLabel,
+  getAlphaLabel,
+  getColorDefaultLabel,
+} from './widgetI18n.js';
 
 function buildColorWidgetBackgroundStyle(background) {
   return { background };
@@ -15,15 +21,6 @@ function buildColorWheelKnobStyle(knobX, knobY) {
 }
 
 /* ===== Helpers de couleur ===== */
-
-function rgbToHex(r, g, b) {
-  const toHex = (v) =>
-    Math.max(0, Math.min(255, Math.round(v)))
-      .toString(16)
-      .padStart(2, '0');
-
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
 
 function rgbToHsv(r, g, b) {
   let rr = r / 255;
@@ -335,7 +332,7 @@ export function ColorWheelPopover({ hex, alpha: _alpha, onChange, onClose }) {
     >
       <div className="uu-color-popover-inner">
         <div className="uu-color-popover-header">
-          <span>Couleur</span>
+          <span>{getColorLabel(getWidgetT())}</span>
           <button
             type="button"
             className="uu-btn-delete"
@@ -435,7 +432,7 @@ export function ColorWheelPopover({ hex, alpha: _alpha, onChange, onClose }) {
                   />
                 </div>
                 <div className="uu-color-field">
-                  <label>Hex</label>
+                  <label>{getHexLabel(getWidgetT())}</label>
                   <input
                     type="text"
                     value={hex}
@@ -625,7 +622,7 @@ export default function ColorWidget({
           />
         </button>
 
-        <span className="uu-muted">Alpha</span>
+        <span className="uu-muted">{getAlphaLabel(getWidgetT())}</span>
 
         <input
           type="number"
@@ -741,7 +738,7 @@ export function ColorEditorRight({
       />
 
       <div className="uu-row">
-        <label className="uu-label w-160">Couleur par défaut</label>
+        <label className="uu-label w-160">{getColorDefaultLabel(getWidgetT())}</label>
         <input
           type="color"
           className="uu-input-color"

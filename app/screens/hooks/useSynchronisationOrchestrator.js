@@ -13,12 +13,14 @@ import { useSyncConfirmDialogNode } from './useSyncConfirmDialogNode';
 import { useSyncServerPolling } from './useSyncServerPolling';
 import { useSyncServerViewModel } from './useSyncServerViewModel';
 import { useTransientMessage } from './useTransientMessage';
+import { setSyncProjectSource } from '../../utils/agent';
 
 function useSynchronisationOrchestrator() {
   const identity = readIdentity();
   const role = identity?.role || 'server';
   const appMode = String(identity?.mode || '').trim().toLowerCase();
   const isRenderMode = appMode === 'postprod' || appMode === 'render';
+  const effectiveRole = isRenderMode ? 'server' : role;
   const localIp = String(identity?.localIp || '').trim();
   const lang = identity?.lang || 'fr';
   const t = React.useMemo(() => createT(lang), [lang]);
@@ -40,8 +42,15 @@ function useSynchronisationOrchestrator() {
   const [hostsLoading, setHostsLoading] = React.useState(false);
   const [hostsError, setHostsError] = React.useState('');
 
-  const { clientRoot, setClientRoot, handleTestClient, handleBrowseClient } = useSyncClientFlow({
-    role,
+  const {
+    clientRoot,
+    setClientRoot,
+    clientSyncEnabled,
+    setClientSyncEnabled,
+    handleTestClient,
+    handleBrowseClient,
+  } = useSyncClientFlow({
+    role: effectiveRole,
     hosts,
     localIp,
     t,
@@ -122,17 +131,46 @@ function useSynchronisationOrchestrator() {
     setQuietMode,
   });
   useSyncServerPolling({
-    role,
+    role: effectiveRole,
     quietMode,
     setHosts,
     setProjectsData,
     setActiveName,
   });
+  const syncAutoCheckKey = React.useMemo(() => {
+    const projects = Array.isArray(projectsData?.projects) ? projectsData.projects : [];
+    return projects.map((project) => [
+      String(project?.id || '').trim(),
+      String(project?.sourceHostIp || '').trim(),
+      String(project?.metaUsageMode || project?.usageMode || '').trim(),
+      project?.syncIncluded === true ? '1' : '0',
+    ].join(':')).sort().join('|');
+  }, [projectsData]);
   useSyncServerAutoCheck({
-    role,
+    role: effectiveRole,
     clientHosts,
     onCheckHost: handleCheckHost,
+    refreshKey: syncAutoCheckKey,
   });
+
+  const handleSourceChange = React.useCallback(async (targetIp, projectId, sourceIp) => {
+    if (!projectId || !sourceIp) return;
+    try {
+      const result = await setSyncProjectSource(projectId, sourceIp);
+      if (!result || result.ok === false) throw new Error(result?.error || 'source_update_failed');
+      window.dispatchEvent(new CustomEvent('ultiunreal:sync-state-changed'));
+      const orderedTargets = [
+        targetIp,
+        ...clientHosts.map((host) => String(host?.ip || host?.address || '').trim()),
+      ].filter((ip, index, values) => ip && values.indexOf(ip) === index);
+      for (const ip of orderedTargets) {
+        await handleCheckHost(ip);
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: String(error?.message || error) });
+      scheduleMessageClear(4000);
+    }
+  }, [clientHosts, handleCheckHost, scheduleMessageClear, setMessage]);
 
   const clientPanelProps = {
     t,
@@ -141,7 +179,9 @@ function useSynchronisationOrchestrator() {
     localHostName,
     localHostIp,
     clientRoot,
+    clientSyncEnabled,
     onClientRootChange: setClientRoot,
+    onClientSyncEnabledChange: setClientSyncEnabled,
     onBrowseClient: handleBrowseClient,
     onTestClient: handleTestClient,
     message,
@@ -171,12 +211,13 @@ function useSynchronisationOrchestrator() {
     onToggleSection: toggleDiffSection,
     onBulkSelect: bulkSelectDiff,
     onToggleFileSelection: toggleFileSelection,
+    onSourceChange: handleSourceChange,
     message,
     confirmDialogNode,
   };
 
   return {
-    role,
+    role: effectiveRole,
     clientPanelProps,
     serverScreenProps,
   };

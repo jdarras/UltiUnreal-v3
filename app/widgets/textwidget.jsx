@@ -291,25 +291,16 @@ export function TextEditorRight({
   updateSelected,
   setValues,
 }) {
-  if (!selected) return null;
-
-  const defaultValue = selected.defaultValue ?? '';
-  const defaultRef = useRef(null);
-  
   const t = getWidgetT();
-  const valueType = String(selected.binding?.valueType || '').toLowerCase();
+  const defaultValue = selected?.defaultValue ?? '';
+  const valueType = String(selected?.binding?.valueType || '').toLowerCase();
   const isByte =
     valueType === 'byte' ||
     valueType === 'uint8' ||
     valueType.includes('byte') ||
     valueType.includes('uint8');
 
-  const clampByte = (input) => {
-    if (input === '' || input === null || input === undefined) return '';
-    const n = Number(input);
-    if (!Number.isFinite(n)) return '';
-    return Math.max(0, Math.min(255, Math.round(n)));
-  };
+  const defaultRef = useRef(null);
 
   // Auto-resize de la "valeur par défaut" quand elle change
   useEffect(() => {
@@ -319,6 +310,15 @@ export function TextEditorRight({
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight}px`;
   }, [defaultValue, isByte]);
+
+  if (!selected) return null;
+
+  const clampByte = (input) => {
+    if (input === '' || input === null || input === undefined) return '';
+    const n = Number(input);
+    if (!Number.isFinite(n)) return '';
+    return Math.max(0, Math.min(255, Math.round(n)));
+  };
 
   const handleDefaultChange = (e) => {
     const next = e.target.value;

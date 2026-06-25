@@ -25,12 +25,16 @@ const { handlePostprodUserAlertsRoutes } = require('./server-postprod-routes-use
 const { handlePostprodProjectRoutes } = require('./server-postprod-routes-projects.cjs');
 const { handlePostprodAuthAndHealthRoutes } = require('./server-postprod-routes-auth-health.cjs');
 const { handlePostprodAuditRoutes } = require('./server-postprod-routes-audit-export.cjs');
-const { evaluatePostprodSecurityGate } = require('./server-postprod-routes-security-gate.cjs');
 const { dispatchPostprodRouteHandlers } = require('./server-postprod-route-dispatcher.cjs');
+const {
+  isAllowedPeerAddress,
+  collectPeerAddressCandidates,
+} = require('./server-peer-security.cjs');
 const {
   selectBestStation,
   sendJobToStation,
 } = require('./server-postprod-remote-dispatcher.cjs');
+const { getPresenceVolatile } = require('./server-hosts-online.cjs');
 const { hostsToList } = require('./server-normalize.cjs');
 
 const DEFAULT_AUDIT_WARN_LINES = 5000;
@@ -8660,11 +8664,23 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     MAX_USERS_SYNC_POLL_INTERVAL_MS,
     DEFAULT_USERS_SYNC_POLL_INTERVAL_MS,
     DEFAULT_USERS_SYNC_AGENT_PORT,
+    listDiscoveredUsersSyncPeers: () => Object.values(getPresenceVolatile() || {}),
     nowIso,
     safeParseObjectJson,
     refreshRolesCache,
     logLine,
   });
+
+  function isUsersSyncPeerAllowed(req) {
+    const common = readCommonServerConfigFile(commonServerFile);
+    const hosts = hostsToList(readHostsServerConfigFile(hostsServerFile));
+    const sources = [hosts];
+    if (common?.usersSyncDetectedPeers !== false) {
+      sources.push(getPresenceVolatile() || {});
+    }
+    const candidates = collectPeerAddressCandidates(...sources);
+    return isAllowedPeerAddress(req?.socket?.remoteAddress, candidates);
+  }
   if (bootstrappedAdminUser && typeof emitUserSyncUpsert === 'function') {
     try {
       emitUserSyncUpsert(bootstrappedAdminUser, {
@@ -8790,6 +8806,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     requireBanUsers: _requireBanUsers,
     requireManageProjectPermissions,
     requireManageRoles,
+    requireManageConfiguration,
     requireRenderTemplateManage,
     requireRenderTemplateManageForProject,
     requireRenderLaunchForProject,
@@ -8898,6 +8915,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     buildUserPayload,
     getAuthToken,
     usersSyncFetchLimit,
+    isUsersSyncPeerAllowed,
     requireManageRoles,
     parseActivityFilters,
     buildUserActivityPayload,
@@ -9105,15 +9123,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     if (!pathname.startsWith('/agent/postprod')) return false;
     const requestNow = nowIso();
     maybePurgeRenderHealthAuditEvents(requestNow);
-    const securityGate = await evaluatePostprodSecurityGate({
-      req,
-      res,
-      pathname,
-      sendJSON,
-    });
-    if (securityGate.handled) return true;
-
-    const isAuthHealthRoute = securityGate.isAuthHealthRoute === true;
+    const isAuthHealthRoute = pathname === '/agent/postprod/auth/health';
     const routesHandled = await dispatchPostprodRouteHandlers({
       req,
       res,
@@ -9154,6 +9164,13 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
       sharedStore,
       commonServerFile,
       readCommonServerConfigFile,
+      requireConfigurationAccess(req, res, sendJSON) {
+        const auth = requireSession(req, res, sendJSON);
+        if (!auth) return null;
+        const permissions = requireManageConfiguration(auth, res, sendJSON);
+        if (!permissions) return null;
+        return { auth, permissions };
+      },
     },
   };
 }

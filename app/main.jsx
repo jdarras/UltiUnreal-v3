@@ -48,6 +48,7 @@ import { usePostprodQueueDispatch } from "./hooks/usePostprodQueueDispatch";
 import { usePostprodNavCallbacks } from "./hooks/usePostprodNavCallbacks";
 import { usePostprodNavEffects } from "./hooks/usePostprodNavEffects";
 import { usePostprodNavAlerts } from "./hooks/usePostprodNavAlerts";
+import { useRenderSyncNavAlert } from "./hooks/useRenderSyncNavAlert";
 import { usePostprodAccessState } from "./hooks/usePostprodAccessState";
 import { startPostprodAsyncLoop } from "./hooks/postprodAsyncLoop";
 
@@ -354,8 +355,16 @@ function App() {
     setCurrent("Projets");
   }, []);
 
+  const goToConfiguration = React.useCallback((section = '') => {
+    if (section) {
+      try { localStorage.setItem('uu_pending_config_section', String(section)); } catch {}
+    }
+    setCurrent("Configuration");
+  }, []);
+
   useEffect(() => {
     window.goToProjectDetail = goToProjectDetail;
+    window.goToConfiguration = goToConfiguration;
     // Navigation inverse : fermer le détail projet
     window.closeProjectDetail = async () => {
       try {
@@ -378,6 +387,9 @@ function App() {
       if (window.goToProjectDetail === goToProjectDetail) {
         delete window.goToProjectDetail;
       }
+      if (window.goToConfiguration === goToConfiguration) {
+        delete window.goToConfiguration;
+      }
       if (window.closeProjectDetail && window.__closeProjectDetail) {
         delete window.closeProjectDetail;
       }
@@ -385,7 +397,7 @@ function App() {
         delete window.closeResourceDetail;
       }
     };
-  }, [goToProjectDetail]);
+  }, [goToProjectDetail, goToConfiguration]);
 
   const showNotice = noticeApi.showNotice;
   const quitOkBtnRef = useRef(null);
@@ -488,6 +500,7 @@ function App() {
     postprodAuthenticated,
     commonCfg,
     appMode,
+    role,
   });
   const postprodOfflineOutboxCount = useMemo(
     () => normalizePostprodOfflineOutbox(postprodOfflineOutbox).length,
@@ -1173,6 +1186,14 @@ function App() {
     appMode, postprodAuthenticated, t, showNotice,
     logsStorageSummary, postprodAudit, postprodUserAlerts,
   });
+  const syncNavAlert = useRenderSyncNavAlert({
+    enabled: appMode === APP_MODE_POSTPROD
+      && postprodAuthenticated
+      && !showWelcome
+      && !showLicense
+      && current !== 'Synchronisation',
+    t,
+  });
 
   const appShellState = useMemo(() => ({
     auth: { postprodAuth, postprodAuthenticated, postprodModeAccess },
@@ -1184,7 +1205,7 @@ function App() {
     sidebar: {
       postprodVisibleTabs, postprodCanManageMachines, liveAccountTabs,
       configMissing, resourcesTabAvailable, postprodLockedTabs,
-      logsNavAlert, usersNavAlert, rendersNavAlert, rendersTopNoticeText,
+      logsNavAlert, usersNavAlert, rendersNavAlert, syncNavAlert, rendersTopNoticeText,
     },
     permissions: {
       postprodCanManageUsers, postprodCanManageRoles, postprodCanManageRenderTemplates,
@@ -1215,7 +1236,7 @@ function App() {
     noticeApi, noticeContextValue, clientSyncEnabled,
     postprodVisibleTabs, postprodCanManageMachines, liveAccountTabs,
     configMissing, resourcesTabAvailable, postprodLockedTabs,
-    logsNavAlert, usersNavAlert, rendersNavAlert, rendersTopNoticeText,
+    logsNavAlert, usersNavAlert, rendersNavAlert, syncNavAlert, rendersTopNoticeText,
     postprodCanManageUsers, postprodCanManageRoles, postprodCanManageRenderTemplates,
     postprodCanBanUsers, postprodCanManageProjectPermissions, postprodCanViewResources,
     postprodCanAccessResources, postprodCanCreateTasks, postprodCanAssignRenderRequests,

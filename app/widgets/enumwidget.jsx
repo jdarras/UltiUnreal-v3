@@ -2,6 +2,11 @@
 import './enumwidget.css';
 import { getCompanionBaseUrl } from '../utils/agent';
 import { getWidgetT } from "./widgetTranslator.js";
+import {
+  getOptionsLabel,
+  getEnumLabelPlaceholder,
+  getEnumValuePlaceholder,
+} from "./widgetI18n.js";
 
 /**
  * EnumWidget
@@ -383,7 +388,7 @@ export function EnumEditorRight({ selected, updateSelected }) {
   return (
     <div className="prod-editor-right-enum">
       <div className="uu-row mt-8">
-        <label className="uu-label w-160">Options</label>
+        <label className="uu-label w-160">{getOptionsLabel(getWidgetT())}</label>
         <div className="uu-col uu-enum-options">
           {options.map((opt, idx) => {
             const label = String(opt.label ?? '');
@@ -394,7 +399,7 @@ export function EnumEditorRight({ selected, updateSelected }) {
               <div key={idx} className="uu-row uu-enum-option-row">
                 <input
                   className="uu-input uu-enum-option-label"
-                  placeholder="Label"
+                  placeholder={getEnumLabelPlaceholder(getWidgetT())}
                   value={label}
                   onChange={(e) =>
                     handleOptionChange(idx, 'label', e.target.value)
@@ -402,7 +407,7 @@ export function EnumEditorRight({ selected, updateSelected }) {
                 />
                 <input
                   className="uu-input uu-enum-option-value"
-                  placeholder="Valeur envoyée à Unreal"
+                  placeholder={getEnumValuePlaceholder(getWidgetT())}
                   value={value}
                   onChange={(e) =>
                     handleOptionChange(idx, 'value', e.target.value)

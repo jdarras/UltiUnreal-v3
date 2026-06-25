@@ -26,9 +26,35 @@ function readJSON(p) {
   }
 }
 
+function writeFileAtomicSync(filePath, content, encoding = 'utf8') {
+  ensureDir(filePath);
+  const directory = path.dirname(filePath);
+  const baseName = path.basename(filePath);
+  const tempName = '.' + baseName + '.' + process.pid + '.' + Date.now() + '.'
+    + Math.random().toString(16).slice(2) + '.tmp';
+  const tempPath = path.join(directory, tempName);
+  try {
+    const fd = fs.openSync(tempPath, 'w');
+    try {
+      fs.writeFileSync(fd, content, encoding);
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    try {
+      fs.renameSync(tempPath, filePath);
+    } catch {
+      fs.copyFileSync(tempPath, filePath);
+      fs.unlinkSync(tempPath);
+    }
+  } catch (error) {
+    try { fs.unlinkSync(tempPath); } catch {}
+    throw error;
+  }
+}
+
 function writeJSON(p, obj) {
-  ensureDir(p);
-  fs.writeFileSync(p, JSON.stringify(obj ?? {}, null, 2), 'utf8');
+  writeFileAtomicSync(p, JSON.stringify(obj ?? {}, null, 2), 'utf8');
 }
 
 // Write only if content changed to reduce needless disk I/O
@@ -41,7 +67,7 @@ function writeJSONIfChanged(p, obj) {
   } catch {
     // file missing or unreadable: proceed with write
   }
-  fs.writeFileSync(p, next, 'utf8');
+  writeFileAtomicSync(p, next, 'utf8');
   return true;
 }
 
@@ -113,6 +139,7 @@ module.exports = {
   ensureDir,
   ensureDirPath,
   readJSON,
+  writeFileAtomicSync,
   writeJSON,
   writeJSONIfChanged,
   collectFilesRecursive,

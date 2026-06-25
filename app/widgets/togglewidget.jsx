@@ -2,6 +2,13 @@
 import './togglewidget.css';
 import { getCompanionBaseUrl } from '../utils/agent';
 import { getWidgetT } from './widgetTranslator.js';
+import {
+  getBindingTypeLabel,
+  getButtonColorLabel,
+  getBoolsLabel,
+  getFalseValueTextLabel,
+  getTrueValueTextLabel,
+} from './widgetI18n.js';
 
 export default function ToggleWidget({
   widget,
@@ -249,7 +256,7 @@ export function ToggleEditorLeftExtras({ selected, updateSelected, updateBinding
     <>
       {/* Type de liaison : propriété ou fonction */}
       <div className="uu-row uu-toggle-binding-row">
-        <label className="uu-label w-160">Type de liaison</label>
+        <label className="uu-label w-160">{getBindingTypeLabel(getWidgetT())}</label>
         <select
           className="uu-input uu-toggle-binding-select"
           value={bindingKind}
@@ -272,7 +279,7 @@ export function ToggleEditorLeftExtras({ selected, updateSelected, updateBinding
 
       {/* Couleur du bouton */}
       <div className="uu-row uu-toggle-color-row">
-        <label className="uu-label w-160">Couleur du bouton</label>
+        <label className="uu-label w-160">{getButtonColorLabel(getWidgetT())}</label>
         <input
           type="color"
           className="uu-input-color"
@@ -393,7 +400,7 @@ export function ToggleEditorRight({ selected, updateSelected, updateBinding, pre
     <div className="uu-list">
       {bindingKind === 'function' && boolParams.length > 0 && (
         <div className="uu-row">
-          <label className="uu-label w-160">Bools (ON/OFF)</label>
+          <label className="uu-label w-160">{getBoolsLabel(getWidgetT())}</label>
           <div className="uu-col uu-row-gap4">
             {boolParams.map((bp) => {
               const follows = !!paramBools[bp.name];
@@ -424,7 +431,7 @@ export function ToggleEditorRight({ selected, updateSelected, updateBinding, pre
       )}
 
       <div className="uu-row">
-        <label className="uu-label w-160">Texte valeur false</label>
+        <label className="uu-label w-160">{getFalseValueTextLabel(getWidgetT())}</label>
         <input
           className="uu-input"
           value={ui.falseLabel ?? ''}
@@ -440,7 +447,7 @@ export function ToggleEditorRight({ selected, updateSelected, updateBinding, pre
       </div>
 
       <div className="uu-row">
-        <label className="uu-label w-160">Texte valeur true</label>
+        <label className="uu-label w-160">{getTrueValueTextLabel(getWidgetT())}</label>
         <input
           className="uu-input"
           value={ui.trueLabel ?? ''}

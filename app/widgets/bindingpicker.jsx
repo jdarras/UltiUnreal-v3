@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ColorWheelPopover } from "./colorwidget.jsx";
 import { getWidgetT } from "./widgetTranslator.js";
+import { getColorPickLabel } from "./widgetI18n.js";
 
 const BINDING_ROW_NOWRAP_GAP_8_STYLE = { gap: 8 };
 const BINDING_FIXED_WIDTH_INPUT_STYLE = { width: 140, flex: '0 0 auto' };
@@ -882,7 +883,7 @@ export default function BindingPicker({
                                   alpha: Number.isFinite(a) ? a : 1
                                 })
                               }
-                              title="Choisir une couleur"
+                              title={getColorPickLabel(getWidgetT())}
                             />
 
                             <span className="uu-muted">{t('widgets.common.alpha')}</span>

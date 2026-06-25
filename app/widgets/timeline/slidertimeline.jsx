@@ -1,4 +1,11 @@
 import BindingPicker from '../bindingpicker.jsx';
+import { getWidgetT } from '../widgetTranslator.js';
+import {
+  getLimitsTitleLabel,
+  getMinLabel,
+  getMaxLabel,
+  getStepLabel,
+} from '../widgetI18n.js';
 import { TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE } from './timelineEditorStyles.js';
 import {
   getFiniteNumber,
@@ -66,9 +73,9 @@ export function SliderTimelineEditor({
       />
 
       <div className="uu-row uu-slider-editor-row" style={TIMELINE_EDITOR_ROW_NOWRAP_GAP_10_STYLE}>
-        <label className="uu-label w-160">Limites</label>
+        <label className="uu-label w-160">{getLimitsTitleLabel(getWidgetT())}</label>
 
-        <span className="uu-muted">Min</span>
+        <span className="uu-muted">{getMinLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -78,7 +85,7 @@ export function SliderTimelineEditor({
           onChange={handleMinChange}
         />
 
-        <span className="uu-muted">Max</span>
+        <span className="uu-muted">{getMaxLabel(getWidgetT())}</span>
         <input
           type="number"
           className={`uu-input uu-input-arg uu-slider-editor-input${
@@ -88,7 +95,7 @@ export function SliderTimelineEditor({
           onChange={handleMaxChange}
         />
 
-        <span className="uu-muted">Step</span>
+        <span className="uu-muted">{getStepLabel(getWidgetT())}</span>
         <input
           type="number"
           className="uu-input uu-input-arg uu-slider-editor-input"

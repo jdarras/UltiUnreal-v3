@@ -51,6 +51,8 @@ export default [
         ignoreRestSiblings: true,
       }],
       'react/jsx-uses-vars': 'error',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
   {

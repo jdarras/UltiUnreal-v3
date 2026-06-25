@@ -4,6 +4,7 @@ import { useVideoProduction } from './useVideoProduction';
 import { useProjectDetailState } from './useProjectDetailState';
 import { useProjectDetailRefs } from './useProjectDetailRefs';
 import { useProjectDetailRenderBridge } from './useProjectDetailRenderBridge';
+import { useProjectDetailLivePlugins } from './useProjectDetailLivePlugins';
 import { useProjectDetailProjectVersion } from './useProjectDetailProjectVersion';
 import { useProjectDetailDefaultMaps } from './useProjectDetailDefaultMaps';
 import { useProjectDetailKeywords } from './useProjectDetailKeywords';
@@ -24,6 +25,7 @@ function useProjectDetail({
   activeByHost,
   saveToServer,
   projectFavoritesRef,
+  isPostprodMode = false,
 }) {
   const {
     detailId,
@@ -66,6 +68,14 @@ function useProjectDetail({
     setRenderBridgeMsg,
     renderBridgeMsgType,
     setRenderBridgeMsgType,
+    livePluginsStatus,
+    setLivePluginsStatus,
+    livePluginsBusy,
+    setLivePluginsBusy,
+    livePluginsMsg,
+    setLivePluginsMsg,
+    livePluginsMsgType,
+    setLivePluginsMsgType,
     mapsMsg,
     setMapsMsg,
     mapsMsgType,
@@ -158,6 +168,20 @@ function useProjectDetail({
     setRenderBridgeMsgType,
   });
 
+  const {
+    loadLivePluginsStatus,
+    installLiveProjectPlugin,
+  } = useProjectDetailLivePlugins({
+    t,
+    detailId,
+    detailIsNew,
+    livePluginsEnabled: !isPostprodMode,
+    setLivePluginsStatus,
+    setLivePluginsBusy,
+    setLivePluginsMsg,
+    setLivePluginsMsgType,
+  });
+
   const { scheduleProjectVersionSave } = useProjectDetailProjectVersion({
     t,
     canEditFields,
@@ -195,6 +219,10 @@ function useProjectDetail({
     setRenderBridgeMsg,
     setRenderBridgeMsgType,
     setRenderBridgeBusy,
+    setLivePluginsStatus,
+    setLivePluginsMsg,
+    setLivePluginsMsgType,
+    setLivePluginsBusy,
     setIntervenantsMsg,
     setIntervenantsMsgType,
     setProjectVersion,
@@ -348,6 +376,10 @@ function useProjectDetail({
     renderBridgeBusy,
     renderBridgeMsg,
     renderBridgeMsgType,
+    livePluginsStatus,
+    livePluginsBusy,
+    livePluginsMsg,
+    livePluginsMsgType,
     mapsMsg,
     mapsMsgType,
     mapsBusy,
@@ -357,6 +389,8 @@ function useProjectDetail({
     isRenderBridgeUsage,
     loadRenderBridgeStatus,
     installRenderBridgeForDetail,
+    loadLivePluginsStatus,
+    installLiveProjectPlugin,
     updateDetailField,
     scheduleSave,
     scheduleProjectVersionSave,

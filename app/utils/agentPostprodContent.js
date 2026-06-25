@@ -1,8 +1,19 @@
-import { httpPost, httpRequest, toRequestError, assertPostprodToken } from './agentHttp.js';
+import { httpRequest, toRequestError, assertPostprodToken } from './agentHttp.js';
 
-export async function postprodRegenerateAllProxies(body = {}, timeoutMs = 15 * 60 * 1000) {
+export async function postprodRegenerateAllProxies(token = '', body = {}, timeoutMs = 15 * 60 * 1000) {
+  const authToken = assertPostprodToken(token);
   const payload = body && typeof body === 'object' ? body : {};
-  return await httpPost('/agent/postprod/proxy/regenerate-all', payload, timeoutMs);
+  const res = await httpRequest('/agent/postprod/proxy/regenerate-all', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + authToken,
+    },
+    body: payload,
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true };
 }
 
 export async function postprodListTasks(token = '', timeoutMs = 8000) {

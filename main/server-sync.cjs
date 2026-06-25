@@ -4,6 +4,8 @@
 const path = require("path");
 const fs = require("fs");
 const fsp = fs.promises;
+const { randomUUID } = require("crypto");
+const { pipeline } = require("stream/promises");
 const {
   readJSON,
   collectFilesRecursive,
@@ -12,7 +14,7 @@ const {
 } = require("./server-files.cjs");
 
 const { hostsToList } = require("./server-normalize.cjs");
-const { saveProjects, readProjectMeta } = require("./server-projects.cjs");
+const { saveProjects, readProjectMeta, setProjectSource } = require("./server-projects.cjs");
 const { statSync, readdirSync } = fs;
 
 function resolveUprojectPath(rawPath) {
@@ -40,6 +42,9 @@ const SYNC_IGNORE_DIRS = [
   "DerivedDataCache",
   ".vs",
   "Binaries",
+  ".git",
+  ".svn",
+  ".ultiunreal-tmp",
 ];
 
 const SYNC_MTIME_TOLERANCE_MS = 2;
@@ -95,6 +100,58 @@ function computeDiffs(srcFiles, dstFiles) {
   return { added, modified, removed };
 }
 
+function computeConflictPaths(srcFiles, dstFiles, modified, removed) {
+  const sourceFiles = srcFiles || {};
+  const targetFiles = dstFiles || {};
+  const newerModified = (Array.isArray(modified) ? modified : []).filter((rel) => {
+    const sourceMtime = fileMtimeMs(sourceFiles[rel]);
+    const targetMtime = fileMtimeMs(targetFiles[rel]);
+    return sourceMtime !== null
+      && targetMtime !== null
+      && targetMtime > sourceMtime + SYNC_MTIME_TOLERANCE_MS;
+  });
+  return [...newerModified, ...(Array.isArray(removed) ? removed : [])];
+}
+
+async function assertReadableSourceProject(uprojectPath) {
+  const sourceUproject = String(uprojectPath || "").trim();
+  if (!sourceUproject) throw new Error("Aucun fichier .uproject source défini.");
+  let projectStat;
+  try {
+    projectStat = await fsp.stat(sourceUproject);
+  } catch {
+    throw new Error(`Projet source introuvable : ${sourceUproject}`);
+  }
+  if (!projectStat.isFile() || !sourceUproject.toLowerCase().endsWith(".uproject")) {
+    throw new Error(`Source Unreal invalide : ${sourceUproject}`);
+  }
+  const sourceDir = path.dirname(sourceUproject);
+  try {
+    const dirStat = await fsp.stat(sourceDir);
+    if (!dirStat.isDirectory()) throw new Error("not_directory");
+    await fsp.access(sourceDir, fs.constants.R_OK);
+  } catch {
+    throw new Error(`Dossier source inaccessible : ${sourceDir}`);
+  }
+  return sourceDir;
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const list = Array.isArray(items) ? items : [];
+  const limit = Math.max(1, Math.min(Number(concurrency) || 1, list.length || 1));
+  const results = new Array(list.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < list.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(list[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: limit }, () => worker()));
+  return results;
+}
+
 function shouldIgnore(relPath, patterns) {
   if (!patterns || patterns.length === 0) return false;
   const unixPath = String(relPath || "").replace(/\\/g, "/").toLowerCase();
@@ -109,7 +166,7 @@ function shouldIgnore(relPath, patterns) {
     const regex = new RegExp(
       "^" +
         pattern
-          .replace(/\./g, "\\.")
+          .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
           .replace(/\*\*/g, ".*")
           .replace(/\*/g, "[^/]*") +
         "$"
@@ -121,10 +178,34 @@ function shouldIgnore(relPath, patterns) {
   return false;
 }
 
+function isPathInsideRoot(candidatePath, rootPath) {
+  const candidateRaw = String(candidatePath || "").trim();
+  const rootRaw = String(rootPath || "").trim();
+  if (!candidateRaw || !rootRaw) return false;
+  const candidate = path.resolve(candidateRaw);
+  const root = path.resolve(rootRaw);
+  const relative = path.relative(root, candidate);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
 // Ces constantes seront injectées par server.cjs au moment de l’appel
-let logLine, sendJSON, COMMON_FILE, HOSTS_FILE, loadProjects;
+let logLine, sendJSON, COMMON_FILE, HOSTS_FILE, loadProjects, stationIp;
 const lastSyncCheckSignatureByHost = new Map();
 const lastSyncCheckStateByHost = new Map(); // "ok" | "error"
+let renderSyncSummaryCache = { at: 0, value: null };
+let renderSyncSummaryPromise = null;
+
+function isConfiguredSyncDestination(destDir) {
+  const destination = String(destDir || "").trim();
+  if (!destination || !HOSTS_FILE) return false;
+  const hosts = hostsToList(readJSON(HOSTS_FILE) || {});
+  const localHost = hosts.find((host) => (
+    String(host?.ip || host?.address || "").trim() === String(stationIp || "").trim()
+  ));
+  const localRoot = String(localHost?.syncRoot || "").trim();
+  if (!localRoot) return true;
+  return isPathInsideRoot(destination, localRoot);
+}
 
 function normalizeProjectUsageModeLocal(value) {
   const raw = String(value || "").trim();
@@ -151,36 +232,70 @@ function isRenderAutoUsageMode(value) {
   return mode === "auto_render" || mode === "live_auto_render";
 }
 
-function resolveProjectSyncIgnore(project, ip) {
-  const syncIgnore =
-    project &&
-    project.syncIgnore &&
-    typeof project.syncIgnore === "object"
-      ? project.syncIgnore
-      : {};
-  return [
-    ...(Array.isArray(syncIgnore.default) ? syncIgnore.default : []),
-    ...(Array.isArray(syncIgnore[ip]) ? syncIgnore[ip] : []),
-  ]
-    .map((v) => String(v || "").replace(/\\/g, "/").trim())
-    .filter(Boolean);
+function isRenderProjectSyncSelected(usageMode, syncIncluded) {
+  return isRenderAutoUsageMode(usageMode) && syncIncluded === true;
 }
 
 function resolveRenderEligibleProjects(projectsDoc) {
   const projects = Array.isArray(projectsDoc?.projects) ? projectsDoc.projects : [];
   return projects.filter((project) => {
     if (!project || typeof project !== "object") return false;
-    let usageMode = String(project.metaUsageMode || project.usageMode || "").trim();
-    if (!usageMode) {
-      try {
-        const meta = readProjectMeta(String(project.id || "").trim()) || {};
-        usageMode = String(meta.usageMode || meta.modeDefault || "").trim();
-      } catch {
-        usageMode = "";
-      }
+    let meta = {};
+    try {
+      meta = readProjectMeta(String(project.id || "").trim()) || {};
+    } catch {}
+    const usageMode = String(
+      project.metaUsageMode || project.usageMode || meta.usageMode || meta.modeDefault || ""
+    ).trim();
+    let syncIncluded = project.syncIncluded === true;
+    if (Object.prototype.hasOwnProperty.call(meta, "syncIncluded")) {
+      syncIncluded = meta.syncIncluded === true;
     }
-    return isRenderAutoUsageMode(usageMode);
+    return isRenderProjectSyncSelected(usageMode, syncIncluded);
   });
+}
+
+function resolveProjectSourceOptions(project, hostList, projectsDoc) {
+  const list = Array.isArray(hostList) ? hostList : [];
+  const activeByHost = projectsDoc?.activeByHost && typeof projectsDoc.activeByHost === "object"
+    ? projectsDoc.activeByHost
+    : {};
+  const projectId = String(project?.id || "").trim();
+  const options = [];
+  const seen = new Set();
+
+  for (const host of list) {
+    const ip = String(host?.ip || host?.address || "").trim();
+    if (!ip || seen.has(ip)) continue;
+    const rawPath = activeByHost?.[ip]?.[projectId];
+    if (!rawPath) continue;
+    seen.add(ip);
+    options.push({
+      ip,
+      name: String(host?.name || ip).trim() || ip,
+      uproject: String(rawPath || "").trim(),
+    });
+  }
+  const configuredSourceIp = String(project?.sourceHostIp || "").trim();
+  if (configuredSourceIp && !seen.has(configuredSourceIp)) {
+    const host = list.find((item) => String(item?.ip || item?.address || "").trim() === configuredSourceIp);
+    seen.add(configuredSourceIp);
+    options.push({
+      ip: configuredSourceIp,
+      name: String(host?.name || configuredSourceIp).trim() || configuredSourceIp,
+      uproject: String(project?.uproject || project?.projectPath || project?.path || "").trim(),
+    });
+  }
+  const localProjectPath = resolveUprojectPath(project?.uproject || project?.projectPath || project?.path || "");
+  if (stationIp && localProjectPath && fs.existsSync(localProjectPath) && !seen.has(stationIp)) {
+    const localHost = list.find((item) => String(item?.ip || item?.address || "").trim() === stationIp);
+    options.push({
+      ip: stationIp,
+      name: String(localHost?.name || stationIp).trim() || stationIp,
+      uproject: localProjectPath,
+    });
+  }
+  return options;
 }
 
 function resolveSourceUprojectForProject(project, hostList, projectsDoc) {
@@ -205,7 +320,7 @@ function resolveSourceUprojectForProject(project, hostList, projectsDoc) {
     }
   }
 
-  if (!sourceUproject) {
+  if (!sourceUproject && sourceIp) {
     sourceUproject = resolveUprojectPath(
       project?.uproject || project?.projectPath || project?.path || ""
     );
@@ -222,11 +337,32 @@ function resolveSourceUprojectForProject(project, hostList, projectsDoc) {
   };
 }
 
+function findDestinationFolderCollisions(projects, hostList, projectsDoc) {
+  const byFolder = new Map();
+  for (const project of Array.isArray(projects) ? projects : []) {
+    const projectId = String(project?.id || "").trim();
+    if (!projectId) continue;
+    const source = resolveSourceUprojectForProject(project, hostList, projectsDoc);
+    if (!source.sourceUproject) continue;
+    const folder = path.basename(path.dirname(source.sourceUproject)).trim().toLowerCase();
+    if (!folder) continue;
+    const ids = byFolder.get(folder) || [];
+    ids.push(projectId);
+    byFolder.set(folder, ids);
+  }
+  const collisions = new Set();
+  for (const ids of byFolder.values()) {
+    if (ids.length < 2) continue;
+    ids.forEach((id) => collisions.add(id));
+  }
+  return collisions;
+}
+
 async function getRemoteInventory({ ip, agentPort, destDir }) {
   const urlInv = `http://${ip}:${agentPort}/agent/sync/inventory?destDir=${encodeURIComponent(
     destDir
   )}`;
-  const inv = await getJSON(urlInv, 8000);
+  const inv = await getJSON(urlInv, 120000);
   if (!inv?.ok || typeof inv.files !== "object") {
     const safeInv = {
       ok: inv?.ok || false,
@@ -242,24 +378,94 @@ async function getRemoteInventory({ ip, agentPort, destDir }) {
   return inv.files || {};
 }
 
+async function parseFetchJson(response) {
+  const text = await response.text();
+  try {
+    return JSON.parse(text || "{}");
+  } catch {
+    return {};
+  }
+}
+
+async function sendFileToHost({ ip, agentPort, destDir, rel, srcPath, mtimeMs }) {
+  const urlFileBase = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
+    destDir
+  )}&rel=${encodeURIComponent(rel)}`;
+  const urlFile = addMtimeParam(urlFileBase, mtimeMs);
+  const body = fs.createReadStream(srcPath);
+  try {
+    const response = await fetch(urlFile, {
+      method: "POST",
+      body,
+      duplex: "half",
+    });
+    return await parseFetchJson(response);
+  } finally {
+    body.destroy();
+  }
+}
+
+async function deleteFileOnHost({ ip, agentPort, destDir, rel }) {
+  const url = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
+    destDir
+  )}&rel=${encodeURIComponent(rel)}&op=delete`;
+  const response = await fetch(url, { method: "POST" });
+  return await parseFetchJson(response);
+}
+
 function buildScopeResponseStatus(projectRows) {
   const rows = Array.isArray(projectRows) ? projectRows : [];
   if (rows.length === 0) return "no_projects";
   if (rows.some((r) => r && r.status === "error")) return "error";
-  if (rows.some((r) => r && r.status === "desync")) return "desync";
   if (rows.some((r) => r && r.status === "no_root")) return "no_root";
   if (rows.some((r) => r && r.status === "no_source")) return "no_source";
+  if (rows.some((r) => r && r.status === "conflict")) return "conflict";
+  if (rows.some((r) => r && r.status === "desync")) return "desync";
   return "in_sync";
 }
 
-async function checkRenderScopeForHost({ ip, hostList, projectsDoc, agentPort }) {
+async function checkRenderScopeForHost({
+  ip,
+  hostList,
+  projectsDoc,
+  agentPort,
+  projectId = "",
+  forceLocalSource = false,
+  targetSyncRoot = "",
+  sourceIpOverride = "",
+}) {
   const list = Array.isArray(hostList) ? hostList : [];
-  const targetHost = list.find((h) => (h.ip || h.address || "").trim() === ip);
+  const targetHostRaw = list.find((h) => (h.ip || h.address || "").trim() === ip);
+  const targetHost = targetHostRaw
+    ? { ...targetHostRaw, ...(targetSyncRoot ? { syncRoot: targetSyncRoot } : {}) }
+    : (targetSyncRoot ? { ip, name: ip, syncRoot: targetSyncRoot, syncEnabled: true } : null);
   if (!targetHost) {
     return {
       ok: false,
       error: "unknown_host",
       message: `Machine ${ip} introuvable.`,
+    };
+  }
+
+  const requestedProjectId = String(projectId || "").trim();
+  const renderProjects = requestedProjectId
+    ? (Array.isArray(projectsDoc?.projects)
+        ? projectsDoc.projects
+            .filter((project) => String(project?.id || "").trim() === requestedProjectId)
+            .map((project) => sourceIpOverride ? { ...project, sourceHostIp: sourceIpOverride } : project)
+        : [])
+    : resolveRenderEligibleProjects(projectsDoc);
+  if (renderProjects.length === 0) {
+    return {
+      ok: true,
+      scope: "render_auto",
+      status: "no_projects",
+      message: "Aucun projet inclus dans la synchronisation.",
+      projectCount: 0,
+      desyncCount: 0,
+      diffCount: 0,
+      rawDiffCount: 0,
+      projects: [],
     };
   }
 
@@ -269,31 +475,23 @@ async function checkRenderScopeForHost({ ip, hostList, projectsDoc, agentPort })
       ok: true,
       scope: "render_auto",
       status: "no_root",
-      message: "Aucun dossier de synchro défini.",
-      projectCount: 0,
-      desyncCount: 0,
+      message: "Aucun dossier de synchro défini pour cette station.",
+      projectCount: renderProjects.length,
+      desyncCount: renderProjects.length,
       diffCount: 0,
       rawDiffCount: 0,
-      projects: [],
-    };
-  }
-
-  const renderProjects = resolveRenderEligibleProjects(projectsDoc);
-  if (renderProjects.length === 0) {
-    return {
-      ok: true,
-      scope: "render_auto",
-      status: "no_projects",
-      message: "Aucun projet en mode rendu automatique.",
-      projectCount: 0,
-      desyncCount: 0,
-      diffCount: 0,
-      rawDiffCount: 0,
-      projects: [],
+      projects: renderProjects.map((project) => ({
+        projectId: String(project?.id || "").trim(),
+        projectName: String(project?.name || project?.id || "").trim(),
+        status: "no_root",
+        message: "Aucun dossier de synchro défini pour cette station.",
+        availableSources: resolveProjectSourceOptions(project, list, projectsDoc),
+      })),
     };
   }
 
   const rows = [];
+  const destinationCollisions = findDestinationFolderCollisions(renderProjects, list, projectsDoc);
   let totalDiff = 0;
   let totalRawDiff = 0;
   let desyncCount = 0;
@@ -302,6 +500,84 @@ async function checkRenderScopeForHost({ ip, hostList, projectsDoc, agentPort })
     const projectId = String(project?.id || "").trim();
     const projectName = String(project?.name || projectId || "").trim();
     const source = resolveSourceUprojectForProject(project, list, projectsDoc);
+    const availableSources = resolveProjectSourceOptions(project, list, projectsDoc);
+    if (destinationCollisions.has(projectId)) {
+      rows.push({
+        projectId,
+        projectName,
+        status: "error",
+        message: "Plusieurs projets utilisent le même nom de dossier source. Renommez un dossier avant de synchroniser.",
+        sourceHostIp: source.sourceIp,
+        sourceHostName: source.sourceHostName,
+        availableSources,
+        diffCount: 0,
+        rawDiffCount: 0,
+      });
+      continue;
+    }
+    if (source.sourceIp && source.sourceIp === ip) {
+      rows.push({
+        projectId,
+        projectName,
+        status: "source",
+        message: "Station source sélectionnée.",
+        sourceHostIp: source.sourceIp,
+        sourceHostName: source.sourceHostName,
+        availableSources,
+        sourceDir: source.sourceUproject ? path.dirname(source.sourceUproject) : "",
+        destDir: "",
+        diffCount: 0,
+        rawDiffCount: 0,
+        added: [],
+        modified: [],
+        removed: [],
+        effectiveAdded: [],
+        effectiveModified: [],
+        effectiveRemoved: [],
+        conflictPaths: [],
+      });
+      continue;
+    }
+    if (
+      !forceLocalSource
+      && source.sourceIp
+      && stationIp
+      && source.sourceIp !== stationIp
+    ) {
+      try {
+        const remoteUrl = `http://${source.sourceIp}:${agentPort}/agent/sync/project/check?projectId=${encodeURIComponent(projectId)}&targetIp=${encodeURIComponent(ip)}&targetRoot=${encodeURIComponent(syncRoot)}&sourceIp=${encodeURIComponent(source.sourceIp)}`;
+        const remote = await getJSON(remoteUrl, 120000);
+        if (!remote?.ok || !remote?.project) {
+          throw new Error(remote?.message || remote?.error || "Comparaison distante impossible");
+        }
+        const remoteRow = {
+          ...remote.project,
+          sourceHostIp: source.sourceIp,
+          sourceHostName: source.sourceHostName,
+          availableSources,
+        };
+        rows.push(remoteRow);
+        const remoteDiffCount = Number(remoteRow.diffCount || 0);
+        const remoteRawDiffCount = Number(remoteRow.rawDiffCount || remoteDiffCount);
+        totalDiff += remoteDiffCount;
+        totalRawDiff += remoteRawDiffCount;
+        if (remoteRow.status === "desync" || remoteRow.status === "conflict") desyncCount += 1;
+        continue;
+      } catch (error) {
+        rows.push({
+          projectId,
+          projectName,
+          status: "error",
+          message: String(error?.message || error),
+          sourceHostIp: source.sourceIp,
+          sourceHostName: source.sourceHostName,
+          availableSources,
+          diffCount: 0,
+          rawDiffCount: 0,
+        });
+        continue;
+      }
+    }
     if (!source.sourceUproject) {
       rows.push({
         projectId,
@@ -310,6 +586,7 @@ async function checkRenderScopeForHost({ ip, hostList, projectsDoc, agentPort })
         message: "Aucune source de vérité détectée.",
         sourceHostIp: source.sourceIp,
         sourceHostName: source.sourceHostName,
+        availableSources,
         sourceDir: "",
         destDir: "",
         diffCount: 0,
@@ -324,30 +601,29 @@ async function checkRenderScopeForHost({ ip, hostList, projectsDoc, agentPort })
       continue;
     }
 
-    const sourceDir = path.dirname(source.sourceUproject);
-    const projectFolderName = path.basename(sourceDir);
-    const destDir = path.join(syncRoot, projectFolderName);
-
     try {
-      const srcFilesAll = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
-      const srcFiles = {};
-      for (const rel of Object.keys(srcFilesAll)) srcFiles[rel] = srcFilesAll[rel];
+      const sourceDir = await assertReadableSourceProject(source.sourceUproject);
+      const projectFolderName = path.basename(sourceDir);
+      const destDir = path.join(syncRoot, projectFolderName);
+      const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
 
       const dstFiles = await getRemoteInventory({ ip, agentPort, destDir });
       const { added, modified, removed } = computeDiffs(srcFiles, dstFiles);
 
-      const ignorePatterns = resolveProjectSyncIgnore(project, ip);
-      const isIgnored = (rel) =>
-        shouldIgnore(String(rel || "").replace(/\\/g, "/"), ignorePatterns);
-
-      const effectiveAdded = added.filter((rel) => !isIgnored(rel));
-      const effectiveModified = modified.filter((rel) => !isIgnored(rel));
-      const effectiveRemoved = removed.filter((rel) => !isIgnored(rel));
+      const effectiveAdded = added;
+      const effectiveModified = modified;
+      const effectiveRemoved = removed;
+      const conflictPaths = computeConflictPaths(
+        srcFiles,
+        dstFiles,
+        effectiveModified,
+        effectiveRemoved
+      );
       const effectiveDiffCount =
         effectiveAdded.length + effectiveModified.length + effectiveRemoved.length;
       const rawDiffCount = added.length + modified.length + removed.length;
-      const status = effectiveDiffCount === 0 ? "in_sync" : "desync";
-      if (status === "desync") desyncCount += 1;
+      const status = effectiveDiffCount === 0 ? "in_sync" : (conflictPaths.length > 0 ? "conflict" : "desync");
+      if (status === "desync" || status === "conflict") desyncCount += 1;
       totalDiff += effectiveDiffCount;
       totalRawDiff += rawDiffCount;
 
@@ -357,6 +633,7 @@ async function checkRenderScopeForHost({ ip, hostList, projectsDoc, agentPort })
         status,
         sourceHostIp: source.sourceIp,
         sourceHostName: source.sourceHostName,
+        availableSources,
         sourceDir,
         destDir,
         diffCount: effectiveDiffCount,
@@ -367,8 +644,11 @@ async function checkRenderScopeForHost({ ip, hostList, projectsDoc, agentPort })
         effectiveAdded,
         effectiveModified,
         effectiveRemoved,
+        conflictPaths,
       });
     } catch (e) {
+      const sourceDir = source.sourceUproject ? path.dirname(source.sourceUproject) : "";
+      const destDir = sourceDir ? path.join(syncRoot, path.basename(sourceDir)) : "";
       rows.push({
         projectId,
         projectName,
@@ -376,6 +656,7 @@ async function checkRenderScopeForHost({ ip, hostList, projectsDoc, agentPort })
         message: String(e?.message || "Erreur de comparaison"),
         sourceHostIp: source.sourceIp,
         sourceHostName: source.sourceHostName,
+        availableSources,
         sourceDir,
         destDir,
         diffCount: 0,
@@ -399,6 +680,63 @@ async function checkRenderScopeForHost({ ip, hostList, projectsDoc, agentPort })
     diffCount: totalDiff,
     rawDiffCount: totalRawDiff,
     projects: rows,
+  };
+}
+
+async function buildRenderSyncSummary() {
+  const rawHosts = readJSON(HOSTS_FILE) || {};
+  const hostList = hostsToList(rawHosts);
+  const common = readJSON(COMMON_FILE) || {};
+  const agentPort = common.agentPort || 4000;
+  const projectsDoc = typeof loadProjects === "function" ? loadProjects() : {};
+  const projects = resolveRenderEligibleProjects(projectsDoc);
+  const targets = hostList.filter((host) => (
+    host
+    && host.syncEnabled === true
+    && host.renderAvailability !== "excluded"
+    && host.eligible !== false
+  ));
+
+  if (projects.length === 0 || targets.length === 0) {
+    return {
+      ok: true,
+      needed: false,
+      status: "in_sync",
+      projectCount: projects.length,
+      targetCount: targets.length,
+      desyncCount: 0,
+      conflictCount: 0,
+      errorCount: 0,
+    };
+  }
+
+  const checks = await mapWithConcurrency(targets, 2, async (host) => {
+    const ip = String(host?.ip || host?.address || "").trim();
+    try {
+      return await checkRenderScopeForHost({ ip, hostList, projectsDoc, agentPort });
+    } catch (error) {
+      return { ok: false, status: "error", message: String(error?.message || error), projects: [] };
+    }
+  });
+  const projectRows = checks.flatMap((check) => Array.isArray(check?.projects) ? check.projects : []);
+  const conflictCount = projectRows.filter((row) => row?.status === "conflict").length;
+  const desyncCount = projectRows.filter((row) => row?.status === "desync").length;
+  const rowErrorCount = projectRows.filter((row) => ["error", "no_source", "no_root"].includes(row?.status)).length;
+  const checkErrorCount = checks.filter((check) => (
+    (!check || check.ok === false || check.status === "error")
+    && (!Array.isArray(check?.projects) || check.projects.length === 0)
+  )).length;
+  const errorCount = rowErrorCount + checkErrorCount;
+  const needed = conflictCount > 0 || desyncCount > 0 || errorCount > 0;
+  return {
+    ok: true,
+    needed,
+    status: conflictCount > 0 ? "conflict" : (errorCount > 0 ? "error" : (desyncCount > 0 ? "desync" : "in_sync")),
+    projectCount: projects.length,
+    targetCount: targets.length,
+    desyncCount,
+    conflictCount,
+    errorCount,
   };
 }
 
@@ -492,7 +830,91 @@ function resolveSourceUproject(hostList) {
 // Fonction principale appelée depuis server.cjs
 async function handleSync(req, res, url, context) {
   // Récupération du contexte fourni par server.cjs
-  ({ logLine, sendJSON, COMMON_FILE, HOSTS_FILE, loadProjects } = context);
+  ({ logLine, sendJSON, COMMON_FILE, HOSTS_FILE, loadProjects, stationIp } = context);
+  const parseBody = context.parseBody;
+
+  if (req.method === "GET" && url.pathname === "/agent/sync/project/check") {
+    const projectId = String(url.searchParams.get("projectId") || "").trim();
+    const targetIp = String(url.searchParams.get("targetIp") || "").trim();
+    const targetRoot = String(url.searchParams.get("targetRoot") || "").trim();
+    const sourceIp = String(url.searchParams.get("sourceIp") || "").trim();
+    if (!projectId || !targetIp || !targetRoot) {
+      return sendJSON(res, 400, { ok: false, error: "missing_project_target_or_root" });
+    }
+    const rawHosts = readJSON(HOSTS_FILE) || {};
+    const list = hostsToList(rawHosts);
+    const common = readJSON(COMMON_FILE) || {};
+    const agentPort = common.agentPort || 4000;
+    const projectsDoc = typeof loadProjects === "function" ? loadProjects() : {};
+    const scoped = await checkRenderScopeForHost({
+      ip: targetIp,
+      hostList: list,
+      projectsDoc,
+      agentPort,
+      projectId,
+      forceLocalSource: true,
+      targetSyncRoot: targetRoot,
+      sourceIpOverride: sourceIp,
+    });
+    return sendJSON(res, 200, {
+      ok: scoped?.ok !== false,
+      project: Array.isArray(scoped?.projects) ? scoped.projects[0] || null : null,
+      message: scoped?.message || "",
+    });
+  }
+
+  if (req.method === "POST" && url.pathname === "/agent/sync/source") {
+    try {
+      const body = await parseBody(req);
+      const projectId = String(body?.projectId || "").trim();
+      const sourceIp = String(body?.sourceIp || "").trim();
+      if (!projectId || !sourceIp) {
+        return sendJSON(res, 400, { ok: false, error: "missing_project_or_source" });
+      }
+      const projectsDoc = typeof loadProjects === "function" ? loadProjects() : {};
+      const project = (projectsDoc?.projects || []).find((item) => String(item?.id || "").trim() === projectId);
+      if (!project) {
+        return sendJSON(res, 404, { ok: false, error: "unknown_project" });
+      }
+      const hosts = hostsToList(readJSON(HOSTS_FILE) || {});
+      const allowedSources = resolveProjectSourceOptions(project, hosts, projectsDoc);
+      if (!allowedSources.some((item) => item.ip === sourceIp)) {
+        return sendJSON(res, 400, { ok: false, error: "source_project_unavailable" });
+      }
+      if (!setProjectSource(projectId, sourceIp)) {
+        return sendJSON(res, 500, { ok: false, error: "source_update_failed" });
+      }
+      renderSyncSummaryCache = { at: 0, value: null };
+      return sendJSON(res, 200, { ok: true, projectId, sourceIp });
+    } catch (error) {
+      const status = Number.isFinite(Number(error?.status)) ? Number(error.status) : 400;
+      return sendJSON(res, status, {
+        ok: false,
+        error: String(error?.code || "invalid_source_request"),
+        message: String(error?.message || error),
+      });
+    }
+  }
+
+  if (req.method === "GET" && url.pathname === "/agent/sync/summary") {
+    const forceRefresh = String(url.searchParams.get("refresh") || "").trim() === "1";
+    const now = Date.now();
+    if (!forceRefresh && renderSyncSummaryCache.value && now - renderSyncSummaryCache.at < 30000) {
+      return sendJSON(res, 200, renderSyncSummaryCache.value);
+    }
+    if (!renderSyncSummaryPromise) {
+      renderSyncSummaryPromise = buildRenderSyncSummary()
+        .then((value) => {
+          renderSyncSummaryCache = { at: Date.now(), value };
+          return value;
+        })
+        .finally(() => {
+          renderSyncSummaryPromise = null;
+        });
+    }
+    const summary = await renderSyncSummaryPromise;
+    return sendJSON(res, 200, summary);
+  }
 
   // ======================= AGENT LOCAL: INVENTAIRE =======================
   if (req.method === "GET" && url.pathname === "/agent/sync/inventory") {
@@ -502,6 +924,13 @@ async function handleSync(req, res, url, context) {
         ok: false,
         error: "missing_destDir",
         message: "Paramètre destDir obligatoire pour /agent/sync/inventory",
+      });
+    }
+    if (!isConfiguredSyncDestination(destDir)) {
+      return sendJSON(res, 403, {
+        ok: false,
+        error: "destination_not_configured",
+        message: "Le dossier demandé n'appartient à aucun dossier de synchronisation configuré.",
       });
     }
     try {
@@ -599,18 +1028,14 @@ async function handleSync(req, res, url, context) {
     const destDir = path.join(syncRoot, projectName);
 
         try {
+        await assertReadableSourceProject(sourceUproject);
         // Inventaire source (serveur)
-        const srcFilesAll = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
-
-        const srcFiles = {};
-        for (const rel of Object.keys(srcFilesAll)) {
-          srcFiles[rel] = srcFilesAll[rel];
-        }
+        const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
 
         const urlInv = `http://${ip}:${agentPort}/agent/sync/inventory?destDir=${encodeURIComponent(
           destDir
         )}`;
-        const inv = await getJSON(urlInv, 8000);
+        const inv = await getJSON(urlInv, 120000);
         if (!inv?.ok || typeof inv.files !== "object") {
           const safeInv = {
             ok: inv?.ok || false,
@@ -759,6 +1184,13 @@ async function handleSync(req, res, url, context) {
         message: "destDir et rel requis pour /agent/sync/file",
       });
     }
+    if (!isConfiguredSyncDestination(destDir)) {
+      return sendJSON(res, 403, {
+        ok: false,
+        error: "destination_not_configured",
+        message: "Le dossier demandé n'appartient à aucun dossier de synchronisation configuré.",
+      });
+    }
 
     rel = rel.replace(/^[/\\]+/, "");
     const absDest = path.resolve(destDir || "");
@@ -858,24 +1290,28 @@ async function handleSync(req, res, url, context) {
     }
 
     // Mode copie classique
+    const tempDir = path.join(absDest, ".ultiunreal-tmp");
+    const tempPath = path.join(tempDir, `${process.pid}-${randomUUID()}.tmp`);
     try {
-      ensureDir(fullPath);
-      const chunks = [];
-      for await (const c of req) chunks.push(c);
-      const buf = Buffer.concat(chunks);
-      await fsp.writeFile(fullPath, buf);
+      ensureDir(tempPath);
+      await pipeline(req, fs.createWriteStream(tempPath, { flags: "wx" }));
+      await fsp.copyFile(tempPath, fullPath);
       if (hasRequestedMtime) {
         const mtime = new Date(requestedMtimeMs);
         await fsp.utimes(fullPath, mtime, mtime);
       }
+      const written = await fsp.stat(fullPath);
       return sendJSON(res, 200, {
         ok: true,
         rel,
-        size: buf.length,
+        size: written.size,
         ...(hasRequestedMtime ? { mtimeMs: requestedMtimeMs } : {}),
       });
     } catch (e) {
       return sendJSON(res, 200, { ok: false, error: "write_error", message: e.message });
+    } finally {
+      try { await fsp.unlink(tempPath); } catch {}
+      try { await fsp.rmdir(tempDir); } catch {}
     }
   }
 
@@ -884,6 +1320,10 @@ async function handleSync(req, res, url, context) {
     const ip = (url.searchParams.get("ip") || "").trim();
     const scope = String(url.searchParams.get("scope") || "").trim().toLowerCase();
     const direction = String(url.searchParams.get("direction") || "auto").trim().toLowerCase();
+    const requestedProjectId = String(url.searchParams.get("projectId") || "").trim();
+    const forceLocalSource = String(url.searchParams.get("forceLocal") || "").trim() === "1";
+    const targetRootOverride = String(url.searchParams.get("targetRoot") || "").trim();
+    const sourceIpOverride = String(url.searchParams.get("sourceIp") || "").trim();
     if (!ip) {
       return sendJSON(res, 400, {
         ok: false,
@@ -896,23 +1336,24 @@ async function handleSync(req, res, url, context) {
     // { added: [...], modified: [...], removed: [...] }
     let selection = null;
     try {
-      const chunks = [];
-      for await (const c of req) chunks.push(c);
-      if (chunks.length > 0) {
-        const txt = Buffer.concat(chunks).toString("utf8");
-        if (txt.trim()) {
-          selection = JSON.parse(txt);
-        }
-      }
-    } catch {
-      selection = null;
+      selection = await parseBody(req);
+    } catch (error) {
+      const status = Number.isFinite(Number(error?.status)) ? Number(error.status) : 400;
+      return sendJSON(res, status, {
+        ok: false,
+        error: String(error?.code || "invalid_selection"),
+        message: String(error?.message || error),
+      });
     }
 
     const common = readJSON(COMMON_FILE) || {};
     const agentPort = common.agentPort || 4000;
     const rawHosts = readJSON(HOSTS_FILE) || {};
     const list = hostsToList(rawHosts);
-    const targetHost = list.find((h) => (h.ip || h.address || "").trim() === ip);
+    const targetHostRaw = list.find((h) => (h.ip || h.address || "").trim() === ip);
+    const targetHost = targetHostRaw
+      ? { ...targetHostRaw, ...(targetRootOverride ? { syncRoot: targetRootOverride } : {}) }
+      : (targetRootOverride ? { ip, name: ip, syncRoot: targetRootOverride, syncEnabled: true } : null);
     if (!targetHost) {
       return sendJSON(res, 200, {
         ok: false,
@@ -941,7 +1382,13 @@ async function handleSync(req, res, url, context) {
       }
 
       const projectsDoc = typeof loadProjects === "function" ? loadProjects() : {};
-      const renderProjects = resolveRenderEligibleProjects(projectsDoc);
+      const renderProjects = requestedProjectId
+        ? (Array.isArray(projectsDoc?.projects)
+            ? projectsDoc.projects
+                .filter((project) => String(project?.id || "").trim() === requestedProjectId)
+                .map((project) => sourceIpOverride ? { ...project, sourceHostIp: sourceIpOverride } : project)
+            : [])
+        : resolveRenderEligibleProjects(projectsDoc);
       if (renderProjects.length === 0) {
         return sendJSON(res, 200, {
           ok: true,
@@ -967,38 +1414,91 @@ async function handleSync(req, res, url, context) {
       let totalModifiedCount = 0;
       let totalRemovedCount = 0;
       const projectRows = [];
-
-      const sendFileToHost = async (destDir, rel, buf, mtimeMs) => {
-        const urlFileBase = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
-          destDir
-        )}&rel=${encodeURIComponent(rel)}`;
-        const urlFile = addMtimeParam(urlFileBase, mtimeMs);
-        const resp = await fetch(urlFile, { method: "POST", body: buf });
-        const txt = await resp.text();
-        try {
-          return JSON.parse(txt || "{}");
-        } catch {
-          return {};
-        }
-      };
-
-      const deleteFileOnHost = async (destDir, rel) => {
-        const urlDel = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
-          destDir
-        )}&rel=${encodeURIComponent(rel)}&op=delete`;
-        const resp = await fetch(urlDel, { method: "POST" });
-        const txt = await resp.text();
-        try {
-          return JSON.parse(txt || "{}");
-        } catch {
-          return {};
-        }
-      };
+      const destinationCollisions = findDestinationFolderCollisions(renderProjects, list, projectsDoc);
 
       for (const project of renderProjects) {
         const projectId = String(project?.id || "").trim();
         const projectName = String(project?.name || projectId || "").trim();
         const source = resolveSourceUprojectForProject(project, list, projectsDoc);
+        if (destinationCollisions.has(projectId)) {
+          projectRows.push({
+            projectId,
+            projectName,
+            status: "error",
+            message: "Collision de dossier cible avec un autre projet synchronisé.",
+            copied: 0,
+            deleted: 0,
+            copyErrors: 1,
+            deleteErrors: 0,
+            addedCount: 0,
+            modifiedCount: 0,
+            removedCount: 0,
+          });
+          totalCopyErrors += 1;
+          continue;
+        }
+        if (source.sourceIp && source.sourceIp === ip) {
+          projectRows.push({
+            projectId,
+            projectName,
+            status: "source",
+            message: "Station source sélectionnée.",
+            copied: 0,
+            deleted: 0,
+            copyErrors: 0,
+            deleteErrors: 0,
+            addedCount: 0,
+            modifiedCount: 0,
+            removedCount: 0,
+          });
+          continue;
+        }
+        if (
+          !forceLocalSource
+          && source.sourceIp
+          && stationIp
+          && source.sourceIp !== stationIp
+        ) {
+          try {
+            const remoteUrl = `http://${source.sourceIp}:${agentPort}/agent/sync/copy?ip=${encodeURIComponent(ip)}&scope=render_auto&projectId=${encodeURIComponent(projectId)}&forceLocal=1&targetRoot=${encodeURIComponent(syncRoot)}&sourceIp=${encodeURIComponent(source.sourceIp)}`;
+            const remoteResponse = await fetch(remoteUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(selection || {}),
+            });
+            const remoteText = await remoteResponse.text();
+            const remote = JSON.parse(remoteText || "{}");
+            const remoteRow = Array.isArray(remote?.projects) ? remote.projects[0] : null;
+            if (!remoteRow || remote.status === "error") {
+              throw new Error(remoteRow?.message || remote?.message || remote?.error || "Copie distante impossible");
+            }
+            projectRows.push(remoteRow);
+            totalCopied += Number(remoteRow.copied || 0);
+            totalDeleted += Number(remoteRow.deleted || 0);
+            totalCopyErrors += Number(remoteRow.copyErrors || 0);
+            totalDeleteErrors += Number(remoteRow.deleteErrors || 0);
+            totalAddedCount += Number(remoteRow.addedCount || 0);
+            totalModifiedCount += Number(remoteRow.modifiedCount || 0);
+            totalRemovedCount += Number(remoteRow.removedCount || 0);
+            continue;
+          } catch (error) {
+            projectRows.push({
+              projectId,
+              projectName,
+              status: "error",
+              message: String(error?.message || error),
+              copied: 0,
+              deleted: 0,
+              copyErrors: 1,
+              deleteErrors: 0,
+              addedCount: 0,
+              modifiedCount: 0,
+              removedCount: 0,
+            });
+            totalCopyErrors += 1;
+            continue;
+          }
+        }
         if (!source.sourceUproject) {
           projectRows.push({
             projectId,
@@ -1029,19 +1529,21 @@ async function handleSync(req, res, url, context) {
         let removedCount = 0;
 
         try {
-          const srcFilesAll = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
-          const srcFiles = {};
-          for (const rel of Object.keys(srcFilesAll)) srcFiles[rel] = srcFilesAll[rel];
+          await assertReadableSourceProject(source.sourceUproject);
+          const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
           const dstFiles = await getRemoteInventory({ ip, agentPort, destDir });
           const { added, modified, removed } = computeDiffs(srcFiles, dstFiles);
 
-          const ignorePatterns = resolveProjectSyncIgnore(project, ip);
-          const isIgnored = (rel) =>
-            shouldIgnore(String(rel || "").replace(/\\/g, "/"), ignorePatterns);
-
-          const effectiveAdded = added.filter((rel) => !isIgnored(rel));
-          const effectiveModified = modified.filter((rel) => !isIgnored(rel));
-          const effectiveRemoved = removed.filter((rel) => !isIgnored(rel));
+          const effectiveAdded = added;
+          const effectiveModified = modified;
+          const effectiveRemoved = removed;
+          const conflictPaths = computeConflictPaths(
+            srcFiles,
+            dstFiles,
+            effectiveModified,
+            effectiveRemoved
+          );
+          const newerTargetPaths = conflictPaths.filter((rel) => effectiveModified.includes(rel));
 
           const toCopy = [...effectiveAdded, ...effectiveModified];
           const toDelete = [...effectiveRemoved];
@@ -1049,11 +1551,42 @@ async function handleSync(req, res, url, context) {
           modifiedCount = effectiveModified.length;
           removedCount = effectiveRemoved.length;
 
+          if (
+            (toDelete.length > 0 && selection?.allowDelete !== true)
+            || (newerTargetPaths.length > 0 && selection?.allowOverwriteNewer !== true)
+          ) {
+            totalAddedCount += addedCount;
+            totalModifiedCount += modifiedCount;
+            totalRemovedCount += removedCount;
+            projectRows.push({
+              projectId,
+              projectName,
+              status: "confirmation_required",
+              message: toDelete.length > 0
+                ? "Confirmation requise avant suppression de fichiers sur la cible."
+                : "Confirmation requise avant écrasement de fichiers plus récents sur la cible.",
+              copied: 0,
+              deleted: 0,
+              copyErrors: 0,
+              deleteErrors: 0,
+              addedCount,
+              modifiedCount,
+              removedCount,
+            });
+            continue;
+          }
+
           for (const rel of toCopy) {
             try {
               const srcPath = path.join(sourceDir, rel);
-              const buf = await fsp.readFile(srcPath);
-              const parsed = await sendFileToHost(destDir, rel, buf, srcFiles[rel]?.mtimeMs);
+              const parsed = await sendFileToHost({
+                ip,
+                agentPort,
+                destDir,
+                rel,
+                srcPath,
+                mtimeMs: srcFiles[rel]?.mtimeMs,
+              });
               if (parsed && parsed.ok) copied += 1;
               else copyErrors += 1;
             } catch {
@@ -1063,7 +1596,7 @@ async function handleSync(req, res, url, context) {
 
           for (const rel of toDelete) {
             try {
-              const parsed = await deleteFileOnHost(destDir, rel);
+              const parsed = await deleteFileOnHost({ ip, agentPort, destDir, rel });
               if (parsed && parsed.ok) deleted += 1;
               else deleteErrors += 1;
             } catch {
@@ -1115,14 +1648,17 @@ async function handleSync(req, res, url, context) {
         }
       }
 
-      const status = projectRows.some((r) => r.status === "error")
+      const status = projectRows.some((r) => r.status === "error" || r.status === "no_source")
         ? "error"
+        : projectRows.some((r) => r.status === "confirmation_required")
+        ? "confirmation_required"
         : projectRows.some((r) => r.status === "partial")
         ? "partial"
         : "ok";
 
+      renderSyncSummaryCache = { at: 0, value: null };
       return sendJSON(res, 200, {
-        ok: totalCopyErrors === 0 && totalDeleteErrors === 0,
+        ok: status === "ok" && totalCopyErrors === 0 && totalDeleteErrors === 0,
         scope: "render_auto",
         direction: direction || "auto",
         status,
@@ -1136,6 +1672,11 @@ async function handleSync(req, res, url, context) {
         deletedCount: totalRemovedCount,
         projectCount: projectRows.length,
         projects: projectRows,
+        ...(status === "confirmation_required"
+          ? { message: "La copie nécessite une confirmation après une nouvelle vérification." }
+          : (status === "error"
+              ? { message: "Au moins un projet n'a pas pu être synchronisé." }
+              : {})),
       });
     }
 
@@ -1164,18 +1705,14 @@ async function handleSync(req, res, url, context) {
     const destDir = path.join(syncRoot, projectName);
 
     try {
+      await assertReadableSourceProject(sourceUproject);
       // 2) Inventaire local + distant
-      const srcFilesAll = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
-
-      const srcFiles = {};
-      for (const rel of Object.keys(srcFilesAll)) {
-        srcFiles[rel] = srcFilesAll[rel];
-      }
+      const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
 
       const urlInv = `http://${ip}:${agentPort}/agent/sync/inventory?destDir=${encodeURIComponent(
         destDir
       )}`;
-      const inv = await getJSON(urlInv, 8000);
+      const inv = await getJSON(urlInv, 120000);
       if (!inv?.ok || typeof inv.files !== "object") {
         // Log response content for debugging (sanitised)
         if (typeof logLine === "function") {
@@ -1257,15 +1794,13 @@ async function handleSync(req, res, url, context) {
           }
         }
       } else {
-        // Compat : si aucune sélection n'est envoyée,
-        // on reproduit l'ancien comportement :
-        // copier tous les fichiers nouveaux ou modifiés, SUPPRIMER les fichiers en trop.
         const { added, modified, removed } = computeDiffs(srcFiles, dstFiles);
         toCopy = [...added, ...modified];
-        toDelete = removed;
+        toDelete = [];
         addedCount = added.length;
         modifiedCount = modified.length;
-        deletedCount = removed.length;
+        deletedCount = 0;
+        ignoredCount += removed.length;
       }
 
         if (toCopy.length === 0 && toDelete.length === 0) {
@@ -1312,23 +1847,14 @@ async function handleSync(req, res, url, context) {
       for (const rel of toCopy) {
         const srcPath = path.join(sourceDir, rel);
         try {
-          const buf = await fsp.readFile(srcPath);
-          const urlFileBase = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
-            destDir
-          )}&rel=${encodeURIComponent(rel)}`;
-          const urlFile = addMtimeParam(urlFileBase, srcFiles[rel]?.mtimeMs);
-
-          const resp = await fetch(urlFile, {
-            method: "POST",
-            body: buf,
+          const parsed = await sendFileToHost({
+            ip,
+            agentPort,
+            destDir,
+            rel,
+            srcPath,
+            mtimeMs: srcFiles[rel]?.mtimeMs,
           });
-          const txt = await resp.text();
-          let parsed;
-          try {
-            parsed = JSON.parse(txt || "{}");
-          } catch {
-            parsed = {};
-          }
           if (parsed && parsed.ok) {
             successCount++;
           } else {
@@ -1361,17 +1887,7 @@ async function handleSync(req, res, url, context) {
 
       for (const rel of toDelete) {
         try {
-          const urlDel = `http://${ip}:${agentPort}/agent/sync/file?destDir=${encodeURIComponent(
-            destDir
-          )}&rel=${encodeURIComponent(rel)}&op=delete`;
-          const resp = await fetch(urlDel, { method: "POST" });
-          const txt = await resp.text();
-          let parsed;
-          try {
-            parsed = JSON.parse(txt || "{}");
-          } catch {
-            parsed = {};
-          }
+          const parsed = await deleteFileOnHost({ ip, agentPort, destDir, rel });
           if (parsed && parsed.ok) {
             deleteSuccess++;
           } else {
@@ -1431,10 +1947,7 @@ async function handleSync(req, res, url, context) {
     // ======================= SERVEUR: MAJ SYNCIGNORE =======================
   if (req.method === "POST" && url.pathname === "/agent/sync/update-ignore") {
     try {
-      const bodyChunks = [];
-      for await (const c of req) bodyChunks.push(c);
-      const txt = Buffer.concat(bodyChunks).toString("utf8") || "{}";
-      const data = JSON.parse(txt);
+      const data = await parseBody(req);
 
       const ip = String(data.ip || "").trim();
       const norm = (rel = "") => String(rel || "").replace(/\\/g, "/").trim();
@@ -1529,9 +2042,10 @@ async function handleSync(req, res, url, context) {
         message: e.message,
         data: { stack: e.stack },
       });
-      return sendJSON(res, 200, {
+      const status = Number.isFinite(Number(e?.status)) ? Number(e.status) : 400;
+      return sendJSON(res, status, {
         ok: false,
-        error: "update_error",
+        error: String(e?.code || "update_error"),
         message: e.message,
       });
     }
@@ -1541,4 +2055,14 @@ async function handleSync(req, res, url, context) {
   return false;
 }
 
-module.exports = { handleSync, computeDiffs };
+module.exports = {
+  handleSync,
+  computeDiffs,
+  isRenderProjectSyncSelected,
+  buildScopeResponseStatus,
+  isPathInsideRoot,
+  computeConflictPaths,
+  findDestinationFolderCollisions,
+  shouldIgnore,
+  assertReadableSourceProject,
+};

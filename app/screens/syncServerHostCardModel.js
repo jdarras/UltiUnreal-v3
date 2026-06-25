@@ -3,7 +3,7 @@ import {
   buildSyncDestinationInfo,
   getSyncStatusLabel,
   getSyncStatusToneClass,
-} from './synchronisationHelpers';
+} from './synchronisationHelpers.js';
 
 function buildSyncServerHostCardModel({
   host,
@@ -36,7 +36,9 @@ function buildSyncServerHostCardModel({
   const statusLabel = getSyncStatusLabel(status, t);
   const statusLine = syncDetails[ip] ? `${statusLabel} - ${syncDetails[ip]}` : statusLabel;
   const statusToneClass = getSyncStatusToneClass(status);
-  const canCopy = !!syncRoot && status !== 'checking' && status !== 'copying';
+  const canCopy = isRenderMode
+    ? !!syncRoot && (status === 'desync' || status === 'conflict')
+    : !!syncRoot && status !== 'checking' && status !== 'copying';
   const isBusy = status === 'copying' || status === 'checking';
 
   const diffs = syncDiffs[ip] || {};

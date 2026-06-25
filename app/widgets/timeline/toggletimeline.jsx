@@ -1,5 +1,6 @@
 import BindingPicker from '../bindingpicker.jsx';
 import { getWidgetT } from '../widgetTranslator.js';
+import { getBoolsShortLabel } from '../widgetI18n.js';
 
 export function ToggleTimelineEditor({
   selected,
@@ -89,7 +90,7 @@ export function ToggleTimelineEditor({
 
       {bindingKind === 'function' && (
         <div className="uu-row mt-8">
-          <label className="uu-label w-160">Bools</label>
+          <label className="uu-label w-160">{getBoolsShortLabel(t)}</label>
           <div className="uu-col uu-row-gap4">
             {boolParams.length === 0 && (
               <div className="uu-muted">{t('widgets.binding.noFunction')}</div>

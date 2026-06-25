@@ -7,7 +7,9 @@ function SyncClientPanel({
   localHostName,
   localHostIp,
   clientRoot,
+  clientSyncEnabled,
   onClientRootChange,
+  onClientSyncEnabledChange,
   onBrowseClient,
   onTestClient,
   message,
@@ -31,6 +33,17 @@ function SyncClientPanel({
               </div>
             </div>
           )}
+        </div>
+
+        <div className="uu-field">
+          <label className="uu-label">
+            <input
+              type="checkbox"
+              checked={!!clientSyncEnabled}
+              onChange={(event) => onClientSyncEnabledChange(event.target.checked)}
+            />{' '}
+            {t('sync.client.enabledLabel')}
+          </label>
         </div>
 
         <div className="uu-field">

@@ -65,9 +65,36 @@ export function withRenderOffscreenExecution(execution = null, renderOffscreen =
   return cloned;
 }
 
+// Normalisation des modes de planification de rendu (mutualisée : auparavant
+// dupliquée dans 5 fichiers de l'éditeur/queue de rendus).
+export function normalizeLaunchMode(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "now" || normalized === "scheduled") return normalized;
+  return "";
+}
+
+export function normalizeScheduledMode(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "specific_station") return "any_station";
+  if (normalized === "datetime" || normalized === "any_station") {
+    return normalized;
+  }
+  return "";
+}
+
+export function normalizeScheduledAt(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? raw : "";
+}
+
 export default {
   resolveAutoRenderConfig,
   resolveAutoRenderPayload,
   resolveAutoRenderTargetWorkerKey,
   withRenderOffscreenExecution,
+  normalizeLaunchMode,
+  normalizeScheduledMode,
+  normalizeScheduledAt,
 };

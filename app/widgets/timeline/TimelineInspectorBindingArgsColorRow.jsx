@@ -1,5 +1,6 @@
 import { ColorWheelPopover } from '../colorwidget.jsx';
 import { hexToRgb, rgbToHex } from './colorUtils';
+import { getAlphaLabel } from '../widgetI18n.js';
 import {
   INSPECTOR_WIDTH_80_STYLE,
   INSPECTOR_COLOR_ROW_STYLE,
@@ -47,7 +48,7 @@ export function TimelineInspectorBindingArgsColorRow({
         }}
         title={t('widgets.common.pickColor')}
       />
-      <span className="uu-muted">Alpha</span>
+      <span className="uu-muted">{getAlphaLabel(t)}</span>
       <input
         className="uu-input uu-input-arg"
         type="number"

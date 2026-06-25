@@ -12,6 +12,7 @@ const http   = require('http');
 const https  = require('https');
 const os     = require('os');
 const { spawn } = require('child_process'); 
+const { pathToFileURL } = require('url');
 const i18nFr = require('../app/i18n/fr.json');
 const i18nEn = require('../app/i18n/en.json');
 const { initLicenseIpc } = require('./license.cjs');
@@ -21,6 +22,11 @@ const {
   normalizeExportDestinationEntries,
 } = require('./server-postprod-export-destinations.cjs');
 const fabAuth = require('./fab-auth.cjs');
+const {
+  validateExternalTarget,
+  validateHttpTarget,
+  isAllowedRendererNavigation,
+} = require('./ipc-security.cjs');
 
 const VERSION = '2026.3';
 const APP_AUTHOR  = 'Julien Darras';
@@ -390,6 +396,9 @@ const isDev = !!process.env.VITE_DEV;
 
 function createWindow() {
   const windowIcon = fs.existsSync(APP_ICON) ? APP_ICON : undefined;
+  const devUrl = 'http://localhost:5173';
+  const prodFile = path.join(__dirname, '..', 'dist', 'index.html');
+  const allowedNavigationUrls = [isDev ? devUrl : pathToFileURL(prodFile).toString()];
 
   // ✅ utiliser la variable globale mainWindow (déclarée plus haut)
   mainWindow = new BrowserWindow({
@@ -400,8 +409,14 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), nodeIntegration: false, contextIsolation: true }
   });
 
-  if (isDev) mainWindow.loadURL('http://localhost:5173');
-  else       mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
+    if (isAllowedRendererNavigation(targetUrl, allowedNavigationUrls)) return;
+    event.preventDefault();
+  });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+  if (isDev) mainWindow.loadURL(devUrl);
+  else       mainWindow.loadFile(prodFile);
 
   // Raccourci DevTools explicite (menu global désactivé plus bas).
   mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -695,11 +710,10 @@ ipcMain.handle('export-file', async (_evt, { defaultName = 'logs.json', content 
 
 ipcMain.handle('open-external', async (_evt, targetUrl) => {
   try {
-    if (!targetUrl) return { ok: false, error: 'missing url' };
+    const validated = validateExternalTarget(targetUrl);
+    if (!validated.ok) return { ok: false, error: validated.error };
     const { shell } = require('electron');
-    const url = String(targetUrl || '').trim();
-    if (!url) return { ok: false, error: 'missing url' };
-    await shell.openExternal(url);
+    await shell.openExternal(validated.raw);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e?.message || e) };
@@ -1111,42 +1125,128 @@ ipcMain.handle('open-path', async (_evt, targetPath) => {
   }
 });
 
+const MAX_IPC_HTTP_RESPONSE_BYTES = 32 * 1024 * 1024;
+const MAX_IPC_HTTP_REQUEST_BYTES = 8 * 1024 * 1024;
+
+async function readFetchResponseText(response) {
+  const contentLength = Number(response?.headers?.get?.('content-length') || 0);
+  if (Number.isFinite(contentLength) && contentLength > MAX_IPC_HTTP_RESPONSE_BYTES) {
+    throw new Error('response_too_large');
+  }
+  if (!response?.body || typeof response.body.getReader !== 'function') {
+    const text = await response.text();
+    if (Buffer.byteLength(text, 'utf8') > MAX_IPC_HTTP_RESPONSE_BYTES) {
+      throw new Error('response_too_large');
+    }
+    return text;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = Buffer.from(value);
+    totalBytes += chunk.length;
+    if (totalBytes > MAX_IPC_HTTP_RESPONSE_BYTES) {
+      await reader.cancel().catch(() => {});
+      throw new Error('response_too_large');
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks, totalBytes).toString('utf8');
+}
+
 ipcMain.handle('http-json', async (_evt, { url, method = 'GET', headers = {}, body = undefined, timeout = 10000 }) => {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (payload) => {
+      if (settled) return;
+      settled = true;
+      resolve(payload);
+    };
     try {
-      const client = url.startsWith('https:') ? https : http;
+      const validated = validateHttpTarget(url);
+      if (!validated.ok) {
+        finish({ ok: false, error: validated.error });
+        return;
+      }
+      const client = validated.url.protocol === 'https:' ? https : http;
       let payload = body;
       if (payload && typeof payload === 'object') {
         payload = JSON.stringify(payload);
       }
-      const opts = { method, headers: { ...(headers || {}) }, timeout };
+      const normalizedMethod = String(method || 'GET').trim().toUpperCase();
+      const allowedMethods = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']);
+      if (!allowedMethods.has(normalizedMethod)) {
+        finish({ ok: false, error: 'unsupported_http_method' });
+        return;
+      }
+      const timeoutMs = Number.isFinite(Number(timeout))
+        ? Math.max(1000, Math.min(15 * 60 * 1000, Math.trunc(Number(timeout))))
+        : 10000;
+      const opts = { method: normalizedMethod, headers: { ...(headers || {}) }, timeout: timeoutMs };
       if (typeof payload === 'string') {
-        opts.headers['Content-Length'] = Buffer.byteLength(payload, 'utf8');
+        const payloadBytes = Buffer.byteLength(payload, 'utf8');
+        if (payloadBytes > MAX_IPC_HTTP_REQUEST_BYTES) {
+          finish({ ok: false, error: 'request_too_large' });
+          return;
+        }
+        opts.headers['Content-Length'] = payloadBytes;
         if (!opts.headers['Content-Type']) opts.headers['Content-Type'] = 'application/json';
       }
-      const req = client.request(url, opts, (res) => {
-        let data = '';
-        res.on('data', (chunk) => (data += chunk));
-        res.on('end', () => resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, text: data }));
+      const req = client.request(validated.url, opts, (res) => {
+        const chunks = [];
+        let totalBytes = 0;
+        res.on('data', (rawChunk) => {
+          if (settled) return;
+          const chunk = Buffer.from(rawChunk);
+          totalBytes += chunk.length;
+          if (totalBytes > MAX_IPC_HTTP_RESPONSE_BYTES) {
+            finish({ ok: false, status: Number(res.statusCode || 0), error: 'response_too_large' });
+            req.destroy();
+            return;
+          }
+          chunks.push(chunk);
+        });
+        res.on('end', () => {
+          if (settled) return;
+          finish({
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode,
+            text: Buffer.concat(chunks, totalBytes).toString('utf8'),
+          });
+        });
       });
-      req.on('timeout', () => { req.destroy(); resolve({ ok: false, error: 'timeout' }); });
-      req.on('error',   (err) => resolve({ ok: false, error: String(err.message) }));
+      req.on('timeout', () => {
+        finish({ ok: false, error: 'timeout' });
+        req.destroy();
+      });
+      req.on('error', (err) => finish({ ok: false, error: String(err.message) }));
       if (typeof payload === 'string') req.write(payload);
       req.end();
     } catch (e) {
-      resolve({ ok: false, error: String(e?.message || e) });
+      finish({ ok: false, error: String(e?.message || e) });
     }
   });
 });
 
 ipcMain.handle('http-get', async (_evt, { url, headers = {}, timeoutMs = 8000 }) => {
   try {
+    const validated = validateHttpTarget(url);
+    if (!validated.ok) return { ok: false, status: 0, error: validated.error };
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    const res = await fetch(url, { method: 'GET', headers, signal: ctrl.signal });
-    clearTimeout(t);
-    const text = await res.text();
-    return { ok: res.ok, status: res.status, text };
+    const normalizedTimeout = Number.isFinite(Number(timeoutMs))
+      ? Math.max(1000, Math.min(15 * 60 * 1000, Math.trunc(Number(timeoutMs))))
+      : 8000;
+    const timer = setTimeout(() => ctrl.abort(), normalizedTimeout);
+    try {
+      const res = await fetch(validated.url, { method: 'GET', headers, signal: ctrl.signal });
+      const text = await readFetchResponseText(res);
+      return { ok: res.ok, status: res.status, text };
+    } finally {
+      clearTimeout(timer);
+    }
   } catch (e) {
     return { ok: false, status: 0, error: e?.message || String(e) };
   }

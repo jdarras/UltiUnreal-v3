@@ -3,6 +3,8 @@ import {
   resolveAutoRenderConfig,
   resolveAutoRenderPayload,
   resolveAutoRenderTargetWorkerKey,
+  normalizeLaunchMode,
+  normalizeScheduledMode,
 } from "../../../shared/autoRenderHelpers";
 import {
   toTrimmedString,
@@ -38,21 +40,6 @@ function normalizeTemplateLookupToken(value = "") {
   const raw = toTrimmedString(value);
   if (!raw) return "";
   return raw.replace(/\\/g, "/").toLowerCase();
-}
-
-function normalizeLaunchMode(value = "") {
-  const normalized = toTrimmedString(value).toLowerCase();
-  if (normalized === "now" || normalized === "scheduled") return normalized;
-  return "";
-}
-
-function normalizeScheduledMode(value = "") {
-  const normalized = toTrimmedString(value).toLowerCase();
-  if (normalized === "specific_station") return "any_station";
-  if (normalized === "datetime" || normalized === "any_station") {
-    return normalized;
-  }
-  return "";
 }
 
 function toScheduleTimestamp(value = "") {
