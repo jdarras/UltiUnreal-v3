@@ -57,7 +57,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
-const { evaluateBrowserOrigin } = require('./server-request-security.cjs');
+const { evaluateBrowserOrigin, corsOriginHeaders } = require('./server-request-security.cjs');
 const {
   isAllowedPeerAddress,
   collectPeerAddressCandidates,
@@ -245,6 +245,15 @@ const KEEP_ALIVE_TIMEOUT_MS = coercePositiveInt(
   1000
 );
 const CORS_ALLOWED_METHODS = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
+
+// Renvoie l'en-tête CORS d'origine ALIGNÉ sur le contrôle réel : on fait écho à
+// l'origine déjà validée par evaluateBrowserOrigin (cf. res._corsOrigin) au lieu d'un
+// '*' trompeur. Pour les clients non-navigateur (sans Origin), aucun en-tête CORS n'est
+// nécessaire. NB : ceci ne change PAS le modèle d'accès — le gate d'origine en amont
+// (403 sur origine navigateur non autorisée) reste seul décideur.
+function corsOriginHeader(res) {
+  return corsOriginHeaders(res && typeof res._corsOrigin === 'string' ? res._corsOrigin : '');
+}
 
 function normalizeLogStorageLimits(raw = null, fallbackWarn = DEFAULT_LOG_WARN_LINES, fallbackHard = DEFAULT_LOG_HARD_LIMIT_LINES) {
   const src = raw && typeof raw === 'object' ? raw : {};
@@ -515,7 +524,7 @@ function sendJSONWithEtag(req, res, status, obj) {
   if (ifNoneMatch === etag) {
     res.writeHead(304, {
       'ETag': etag,
-      'Access-Control-Allow-Origin':'*',
+      ...corsOriginHeader(res),
       'Access-Control-Allow-Methods': CORS_ALLOWED_METHODS,
       'Access-Control-Allow-Headers':'Content-Type, Authorization, X-UU-Auth, X-UU-Purge-Id, X-UU-Purge-Origin',
     });
@@ -531,7 +540,7 @@ function sendJSONPayload(res, status, payload, etag = '') {
   const shouldCompress = acceptsGzip && buffer.length > 1024;
   const baseHeaders = {
     'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
+    ...corsOriginHeader(res),
     'Access-Control-Allow-Methods': CORS_ALLOWED_METHODS,
     // On autorise les headers custom utilisés par le front (purgeId/origin, etc.)
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-UU-Auth, X-UU-Purge-Id, X-UU-Purge-Origin',
@@ -1104,7 +1113,7 @@ const server = http.createServer(async (req, res) => {
     // Préflight CORS
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
-        'Access-Control-Allow-Origin':'*',
+        ...corsOriginHeader(res),
         'Access-Control-Allow-Methods': CORS_ALLOWED_METHODS,
         'Access-Control-Allow-Headers':'Content-Type, Authorization, X-UU-Auth, X-UU-Purge-Id, X-UU-Purge-Origin',
       });
@@ -2019,7 +2028,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(304, {
           ETag: etag,
           'Cache-Control': 'private, max-age=60',
-          'Access-Control-Allow-Origin': '*',
+          ...corsOriginHeader(res),
         });
         res.end();
         return;
@@ -2030,7 +2039,7 @@ const server = http.createServer(async (req, res) => {
         'Content-Length': stat.size,
         'Cache-Control': 'private, max-age=60',
         ETag: etag,
-        'Access-Control-Allow-Origin': '*',
+        ...corsOriginHeader(res),
       });
       const stream = fs.createReadStream(thumbnailPath);
       stream.on('error', () => {
@@ -2084,7 +2093,9 @@ server.on('error', (err) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`[UltiUnreal Agent] ${NAME} v${VERSION} on http://127.0.0.1:${PORT}`);
+  // Le serveur écoute sur toutes les interfaces (server.listen(PORT) sans host) pour être
+  // joignable par les autres stations de la ferme de rendu — le log le reflète honnêtement.
+  console.log(`[UltiUnreal Agent] ${NAME} v${VERSION} on http://0.0.0.0:${PORT} (toutes interfaces ; local: http://127.0.0.1:${PORT})`);
   logLine({
     level: 'info',
     src: 'server',

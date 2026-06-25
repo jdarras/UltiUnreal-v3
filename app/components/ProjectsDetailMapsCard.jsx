@@ -65,8 +65,8 @@ export default function ProjectsDetailMapsCard({
         <div className="uu-value uu-muted">
           {mapListDisplay.length ? (
             <div className="uu-small mt-4">
-              {mapListDisplay.map((displayPath, idx) => (
-                <div key={idx}>{displayPath}</div>
+              {mapListDisplay.map((displayPath) => (
+                <div key={displayPath}>{displayPath}</div>
               ))}
             </div>
           ) : null}

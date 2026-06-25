@@ -14,8 +14,8 @@ export default function ProjectsDetailPluginsCard({
       <div className="uu-row wrap">
         <div className="uu-label w-160" />
         <div className="uu-value uu-muted">
-          {pluginsList.map((pl, idx) => (
-            <div key={idx}>
+          {pluginsList.map((pl) => (
+            <div key={pl.name}>
               {pl.name} {pl.marketplace ? t('projects.detail.plugins.marketplace') : ''}
             </div>
           ))}

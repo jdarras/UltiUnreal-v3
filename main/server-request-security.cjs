@@ -20,6 +20,16 @@ function evaluateBrowserOrigin(value) {
   }
 }
 
+// En-têtes CORS d'origine ALIGNÉS sur le contrôle réel : on fait écho à l'origine déjà
+// validée par evaluateBrowserOrigin plutôt qu'un '*' trompeur. Pour un client non-navigateur
+// (sans Origin → chaîne vide), aucun en-tête CORS n'est émis. Ne modifie pas le contrôle
+// d'accès : le gate d'origine reste seul décideur en amont.
+function corsOriginHeaders(origin) {
+  const value = typeof origin === 'string' ? origin.trim() : '';
+  return value ? { 'Access-Control-Allow-Origin': value, Vary: 'Origin' } : {};
+}
+
 module.exports = {
   evaluateBrowserOrigin,
+  corsOriginHeaders,
 };
