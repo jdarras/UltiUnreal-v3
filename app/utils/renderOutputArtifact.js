@@ -1,18 +1,31 @@
 // Identification du fichier produit par une tentative de rendu.
-// Un média n'est retenu que s'il a été écrit après le lancement du processus
-// et s'il porte le nom attendu pour ce rendu (nom.mov, nom.0001.exr...).
+// Un média n'est retenu que s'il porte exactement le nom attendu pour ce rendu
+// (nom.mov ou nom.0001.exr) et s'il a été écrit depuis le lancement du processus.
+// Critère de fraîcheur : date de modification >= lancement - 2 s (granularité
+// des dates de fichiers et léger décalage entre l'heure relevée et la création).
+// Ce contrôle établit la présence d'un résultat, pas sa complétude : un code de
+// sortie non nul reste prioritaire (voir le worker).
+
+import { RENDER_OUTPUT_ALL_EXTS } from "./renderProcessHelpers.js";
 
 const OUTPUT_MTIME_TOLERANCE_MS = 2000;
+const MEDIA_EXT_PATTERN = RENDER_OUTPUT_ALL_EXTS.map((ext) => ext.slice(1)).join('|');
 
 function fileNameOf(filePath = '') {
   const parts = String(filePath || '').split(/[\\/]/);
   return String(parts[parts.length - 1] || '').trim();
 }
 
-function fileStemOf(filePath = '') {
-  const name = fileNameOf(filePath);
-  const dot = name.lastIndexOf('.');
-  return dot > 0 ? name.slice(0, dot) : name;
+function escapeRegExp(value = '') {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Retire l'extension seulement si c'est une extension média connue :
+// « shot.v1 » reste « shot.v1 », « shot.v1.mov » devient « shot.v1 ».
+function stripMediaExtension(name = '') {
+  const value = String(name || '').trim();
+  const match = new RegExp(`^(.+)\\.(${MEDIA_EXT_PATTERN})$`, 'i').exec(value);
+  return match ? match[1] : value;
 }
 
 function stripQuotes(value = '') {
@@ -33,19 +46,22 @@ function extractMovieNameArg(args = []) {
 
 function buildExpectedOutputStems({ args = [], expectedName = '', outputPath = '' } = {}) {
   const stems = [
-    fileStemOf(extractMovieNameArg(args)),
-    fileStemOf(stripQuotes(expectedName)),
-    fileStemOf(outputPath),
+    stripMediaExtension(fileNameOf(extractMovieNameArg(args))),
+    stripMediaExtension(fileNameOf(stripQuotes(expectedName))),
+    stripMediaExtension(fileNameOf(outputPath)),
   ]
     .map((stem) => stem.toLowerCase())
     .filter((stem) => stem && !/[{}]/.test(stem));
   return [...new Set(stems)];
 }
 
+// Nom exact : « nom.ext » ou « nom.<numéro d'image>.ext », ext étant un média.
 function matchesExpectedStem(filePath, expectedStems) {
   if (!expectedStems.length) return true;
   const name = fileNameOf(filePath).toLowerCase();
-  return expectedStems.some((stem) => name.startsWith(`${stem}.`));
+  return expectedStems.some((stem) => (
+    new RegExp(`^${escapeRegExp(stem)}(\\.\\d+)?\\.(${MEDIA_EXT_PATTERN})$`, 'i').test(name)
+  ));
 }
 
 function isWrittenSince(mtimeMs, minMtimeMs) {
@@ -67,8 +83,14 @@ async function resolveRenderOutputArtifact({
   for (const candidate of Array.isArray(directCandidates) ? directCandidates : []) {
     const candidatePath = String(candidate || '').trim();
     if (!candidatePath) continue;
+    if (!isLikelyRenderOutputMedia(candidatePath)) continue;
+    if (!matchesExpectedStem(candidatePath, expectedStems)) continue;
     const fileRes = await checkFileExists(candidatePath);
-    if (fileRes?.exists === true && isWrittenSince(fileRes?.mtimeMs, minMtimeMs)) {
+    if (
+      fileRes?.exists === true
+      && fileRes?.isFile === true
+      && isWrittenSince(fileRes?.mtimeMs, minMtimeMs)
+    ) {
       return { path: candidatePath, mismatchPath: '' };
     }
   }

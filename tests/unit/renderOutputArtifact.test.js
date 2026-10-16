@@ -36,7 +36,7 @@ test("another job's media in the shared folder does not validate the render", as
 
 test("a media written before the process started is rejected", async () => {
   const result = await resolve({
-    direct: { "D:/out/shot_r12.mov": { exists: true, mtimeMs: START - 3_600_000 } },
+    direct: { "D:/out/shot_r12.mov": { exists: true, isFile: true, mtimeMs: START - 3_600_000 } },
     scan: [{ path: "D:/out/shot_r12.mov", mtimeMs: START - 3_600_000 }],
   });
 
@@ -45,7 +45,7 @@ test("a media written before the process started is rejected", async () => {
 
 test("the expected file written after start is accepted", async () => {
   const result = await resolve({
-    direct: { "D:/out/shot_r12.mov": { exists: true, mtimeMs: START + 5_000 } },
+    direct: { "D:/out/shot_r12.mov": { exists: true, isFile: true, mtimeMs: START + 5_000 } },
   });
 
   assert.equal(result.path, "D:/out/shot_r12.mov");
@@ -103,4 +103,48 @@ test("expected stems combine MovieName, expected name and output path", () => {
     }),
     ["custom", "shot_r12"],
   );
+});
+
+test("a recent folder at the expected direct path is not accepted", async () => {
+  const result = await resolve({
+    direct: { "D:/out/shot_r12.mov": { exists: true, isFile: false, mtimeMs: START + 5_000 } },
+    dir: "",
+  });
+
+  assert.equal(result.path, "");
+});
+
+test("a direct candidate that is not a media or has another name is not accepted", async () => {
+  const result = await resolve({
+    direct: {
+      "D:/out/shot_r12.log": { exists: true, isFile: true, mtimeMs: START + 5_000 },
+      "D:/out/other.mov": { exists: true, isFile: true, mtimeMs: START + 5_000 },
+    },
+    dir: "",
+  });
+
+  assert.equal(result.path, "");
+});
+
+test("a logical name containing a dot is not truncated: shot.v1 never accepts shot.v2", async () => {
+  const expectedStems = buildExpectedOutputStems({
+    args: ["-MovieName=shot.v1"],
+    expectedName: "shot.v1",
+    outputPath: "D:/out/shot.v1.mov",
+  });
+  const result = await resolve({
+    expectedStems,
+    scan: [{ path: "D:/out/shot.v2.mov", mtimeMs: START + 9_000 }],
+  });
+
+  assert.deepEqual(expectedStems, ["shot.v1"]);
+  assert.equal(result.path, "");
+});
+
+test("frame numbers are accepted but not arbitrary suffixes", async () => {
+  const ok = await resolve({ scan: [{ path: "D:/out/shot_r12.0042.exr", mtimeMs: START + 9_000 }] });
+  const ko = await resolve({ scan: [{ path: "D:/out/shot_r12.backup.exr", mtimeMs: START + 9_000 }] });
+
+  assert.equal(ok.path, "D:/out/shot_r12.0042.exr");
+  assert.equal(ko.path, "");
 });

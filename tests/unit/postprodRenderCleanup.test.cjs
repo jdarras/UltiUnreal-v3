@@ -108,6 +108,35 @@ test('paths outside the allowed roots are never touched', (t) => {
   assert.equal(fs.existsSync(file), true);
 });
 
+test('a junction inside the allowed root cannot lead the cleanup outside of it', (t) => {
+  const root = makeRoot(t);
+  const outside = makeRoot(t);
+  const victim = writeFile(path.join(outside, 'A.mov'));
+  const linked = path.join(root, 'linked');
+  fs.symlinkSync(outside, linked, 'junction');
+
+  const result = cleanup(root, renderRow(path.join(linked, 'A.mov')));
+
+  assert.equal(fs.existsSync(victim), true);
+  assert.equal(result.deleted.length, 0);
+});
+
+test('a file shared through a junction alias is recognised as shared', (t) => {
+  const root = makeRoot(t);
+  const real = path.join(root, 'ProjetA');
+  const proxy = writeFile(path.join(real, 'proxy', 'proxy.mp4'));
+  const alias = path.join(root, 'alias');
+  fs.symlinkSync(real, alias, 'junction');
+
+  cleanup(
+    root,
+    renderRow(writeFile(path.join(real, 'A.mov')), { proxyPath: proxy }),
+    [renderRow(path.join(alias, 'B.mov'), { proxyPath: path.join(alias, 'proxy', 'proxy.mp4') })],
+  );
+
+  assert.equal(fs.existsSync(proxy), true);
+});
+
 function deleteRenderViaRoute(root, rows, renderId, { failTransaction = false } = {}) {
   const sent = [];
   const deletedIds = [];

@@ -4,79 +4,131 @@ const assert = require('node:assert/strict');
 const {
   formatPidFileContent,
   parsePidFileContent,
+  parseProcessTableLines,
+  selectOwnedProcesses,
   terminateOwnedRenderProcess,
 } = require('../../main/render-process-control.cjs');
 
-const SPAWNED_AT = 1_800_000_000_000;
+const T = 1_800_000_000_000;
 
-function fakeProcess({ alive = true, startTimeMs = SPAWNED_AT + 400, diesOnKill = true } = {}) {
-  const state = { alive, kills: [] };
+// Table de processus simulée : killProcess retire l'entrée (sauf processus résistants).
+function fakeSystem(entries, { resistant = [] } = {}) {
+  const state = { table: entries.map((entry) => ({ ...entry })), kills: [] };
   return {
     state,
-    isAlive: async () => state.alive,
-    getStartTimeMs: async () => startTimeMs,
-    killTree: async (pid) => {
+    listProcesses: async () => state.table.map((entry) => ({ ...entry })),
+    killProcess: async (pid) => {
       state.kills.push(pid);
-      if (diesOnKill) state.alive = false;
+      if (!resistant.includes(pid)) state.table = state.table.filter((entry) => entry.pid !== pid);
     },
     wait: async () => {},
   };
 }
 
-test('pid file keeps the pid on the first line and records the spawn time', () => {
-  const content = formatPidFileContent(4242, SPAWNED_AT);
+test('pid file keeps the pid first and records spawn time and exact start', () => {
+  const content = formatPidFileContent(4242, T, T + 7);
 
   assert.equal(parseInt(content, 10), 4242);
-  assert.deepEqual(parsePidFileContent(content), { pid: 4242, spawnedAtMs: SPAWNED_AT });
+  assert.deepEqual(parsePidFileContent(content), { pid: 4242, spawnedAtMs: T, processStartMs: T + 7 });
 });
 
-test('legacy pid file falls back to the file modification time', () => {
-  assert.deepEqual(parsePidFileContent('4242', SPAWNED_AT), { pid: 4242, spawnedAtMs: SPAWNED_AT });
+test('legacy pid files are still read', () => {
+  assert.deepEqual(parsePidFileContent('4242', T), { pid: 4242, spawnedAtMs: T, processStartMs: null });
+  assert.deepEqual(parsePidFileContent(`4242\n${T}`), { pid: 4242, spawnedAtMs: T, processStartMs: null });
   assert.equal(parsePidFileContent('not-a-pid'), null);
 });
 
-test('a timed-out render process is terminated and its exit confirmed', async () => {
-  const proc = fakeProcess();
+test('a pid reused 10 seconds later by another program is never killed', async () => {
+  const sys = fakeSystem([{ pid: 4242, ppid: 1, startMs: T + 10_000 }]);
 
-  const result = await terminateOwnedRenderProcess({ pid: 4242, spawnedAtMs: SPAWNED_AT, ...proc });
+  const result = await terminateOwnedRenderProcess({ pid: 4242, processStartMs: T, spawnedAtMs: T, ...sys });
 
-  assert.deepEqual(result, { ok: true, status: 'terminated' });
-  assert.deepEqual(proc.state.kills, [4242]);
+  assert.equal(result.status, 'already_exited');
+  assert.deepEqual(sys.state.kills, []);
 });
 
-test('a reused pid belonging to another program is never killed', async () => {
-  const proc = fakeProcess({ startTimeMs: SPAWNED_AT + 3_600_000 });
+test('the owned process and its whole tree are terminated and confirmed', async () => {
+  const sys = fakeSystem([
+    { pid: 4242, ppid: 1, startMs: T },
+    { pid: 5000, ppid: 4242, startMs: T + 500 },
+    { pid: 5001, ppid: 5000, startMs: T + 900 },
+    { pid: 6000, ppid: 1, startMs: T + 100 },
+  ]);
 
-  const result = await terminateOwnedRenderProcess({ pid: 4242, spawnedAtMs: SPAWNED_AT, ...proc });
+  const result = await terminateOwnedRenderProcess({ pid: 4242, processStartMs: T, ...sys });
 
-  assert.equal(result.status, 'not_owned');
-  assert.deepEqual(proc.state.kills, []);
+  assert.equal(result.status, 'terminated');
+  assert.deepEqual(sys.state.kills.sort(), [4242, 5000, 5001]);
+  assert.deepEqual(sys.state.table.map((entry) => entry.pid), [6000]);
 });
 
-test('nothing is killed when the process start time cannot be read', async () => {
-  const proc = fakeProcess({ startTimeMs: null });
+test('children surviving a dead parent are still found and terminated', async () => {
+  const sys = fakeSystem([
+    { pid: 5000, ppid: 4242, startMs: T + 500 },
+    { pid: 5001, ppid: 5000, startMs: T + 900 },
+  ]);
 
-  const result = await terminateOwnedRenderProcess({ pid: 4242, spawnedAtMs: SPAWNED_AT, ...proc });
+  const result = await terminateOwnedRenderProcess({ pid: 4242, processStartMs: T, ...sys });
 
-  assert.deepEqual(result, { ok: false, status: 'ownership_unverified' });
-  assert.deepEqual(proc.state.kills, []);
+  assert.equal(result.status, 'terminated');
+  assert.deepEqual(sys.state.kills.sort(), [5000, 5001]);
 });
 
-test('a process that survives the kill is reported as still running', async () => {
-  const proc = fakeProcess({ diesOnKill: false });
+test('children of a program that reused the pid are not taken for render children', () => {
+  const owned = selectOwnedProcesses([
+    { pid: 4242, ppid: 1, startMs: T + 60_000 },
+    { pid: 5000, ppid: 4242, startMs: T + 500 },
+    { pid: 7000, ppid: 4242, startMs: T + 61_000 },
+  ], { pid: 4242, processStartMs: T });
 
+  assert.deepEqual(owned.map((entry) => entry.pid), [5000]);
+});
+
+test('a process older than its supposed parent is not a descendant', () => {
+  const owned = selectOwnedProcesses([
+    { pid: 4242, ppid: 1, startMs: T },
+    { pid: 3000, ppid: 4242, startMs: T - 5_000 },
+  ], { pid: 4242, processStartMs: T });
+
+  assert.deepEqual(owned.map((entry) => entry.pid), [4242]);
+});
+
+test('a process that survives the kill is reported with its survivors', async () => {
+  const sys = fakeSystem([
+    { pid: 4242, ppid: 1, startMs: T },
+    { pid: 5000, ppid: 4242, startMs: T + 500 },
+  ], { resistant: [5000] });
+
+  const result = await terminateOwnedRenderProcess({ pid: 4242, processStartMs: T, maxWaitMs: 0, ...sys });
+
+  assert.deepEqual(result, { ok: false, status: 'still_running', survivors: [5000] });
+});
+
+test('nothing is killed when the process table cannot be read', async () => {
+  const kills = [];
   const result = await terminateOwnedRenderProcess({
-    pid: 4242, spawnedAtMs: SPAWNED_AT, maxWaitMs: 0, ...proc,
+    pid: 4242,
+    processStartMs: T,
+    listProcesses: async () => null,
+    killProcess: async (pid) => kills.push(pid),
   });
 
-  assert.deepEqual(result, { ok: false, status: 'still_running' });
+  assert.deepEqual(result, { ok: false, status: 'process_table_unavailable' });
+  assert.deepEqual(kills, []);
 });
 
-test('an already exited process needs no action', async () => {
-  const proc = fakeProcess({ alive: false });
+test('legacy pid file: only a process started within 2 s of the spawn is owned', () => {
+  assert.equal(selectOwnedProcesses([{ pid: 4242, ppid: 1, startMs: T + 1_500 }], { pid: 4242, spawnedAtMs: T }).length, 1);
+  assert.equal(selectOwnedProcesses([{ pid: 4242, ppid: 1, startMs: T + 10_000 }], { pid: 4242, spawnedAtMs: T }).length, 0);
+});
 
-  const result = await terminateOwnedRenderProcess({ pid: 4242, spawnedAtMs: SPAWNED_AT, ...proc });
+test('process table lines from PowerShell are parsed, invalid lines skipped', () => {
+  const table = parseProcessTableLines(
+    '4242|1|2026-10-16T12:36:24.3540484Z\r\n5000|4242|2026-10-16T12:36:25.0000000Z\r\n4|0|\r\n\r\n'
+  );
 
-  assert.deepEqual(result, { ok: true, status: 'already_exited' });
-  assert.deepEqual(proc.state.kills, []);
+  assert.deepEqual(table, [
+    { pid: 4242, ppid: 1, startMs: Date.parse('2026-10-16T12:36:24.354Z') },
+    { pid: 5000, ppid: 4242, startMs: Date.parse('2026-10-16T12:36:25.000Z') },
+  ]);
 });

@@ -167,6 +167,26 @@ function collectRenderOutputFolders(renderRow) {
   return collectAbsPaths([payload?.outputDir, payload?.renderOutputDir]);
 }
 
+// Chemin réel : jonctions et liens résolus. Pour un chemin inexistant, seul le
+// plus long préfixe existant est résolu, le reste est conservé tel quel.
+function canonicalPath(value) {
+  const abs = resolveAbsPathSafe(value);
+  if (!abs) return '';
+  let existing = abs;
+  const tail = [];
+  while (existing && !fs.existsSync(existing)) {
+    const parent = path.dirname(existing);
+    if (parent === existing) return abs;
+    tail.unshift(path.basename(existing));
+    existing = parent;
+  }
+  try {
+    return path.join(fs.realpathSync.native(existing), ...tail);
+  } catch {
+    return abs;
+  }
+}
+
 function removeEmptyParentDir(filePath, { allowedRoots, protectedKeys }) {
   const parentDir = path.dirname(filePath);
   const parentKey = normalizeAbsPathKey(parentDir);
@@ -194,14 +214,17 @@ function cleanupRenderArtifacts({
     commonServerFile,
     resolveRenderDetectedRoots
   );
-  const allowedRootKeys = new Set(allowedRoots.map((root) => normalizeAbsPathKey(resolveAbsPathSafe(root))));
   const candidates = collectRenderCleanupCandidates(renderRow);
   const otherRows = Array.isArray(otherRenderRows) ? otherRenderRows : [];
+  // Toutes les comparaisons portent sur les chemins réels : une jonction placée
+  // sous une racine autorisée ne permet pas d'atteindre un fichier extérieur.
+  const realRoots = allowedRoots.map(canonicalPath).filter(Boolean);
+  const realRootKeys = new Set(realRoots.map(normalizeAbsPathKey));
   const sharedFileKeys = new Set(
-    otherRows.flatMap((row) => collectRenderCleanupCandidates(row)).map(normalizeAbsPathKey)
+    otherRows.flatMap((row) => collectRenderCleanupCandidates(row)).map((p) => normalizeAbsPathKey(canonicalPath(p)))
   );
   const protectedFolderKeys = new Set(
-    [renderRow, ...otherRows].flatMap((row) => collectRenderOutputFolders(row)).map(normalizeAbsPathKey)
+    [renderRow, ...otherRows].flatMap((row) => collectRenderOutputFolders(row)).map((p) => normalizeAbsPathKey(canonicalPath(p)))
   );
   const deleted = [];
   const skipped = [];
@@ -209,24 +232,10 @@ function cleanupRenderArtifacts({
 
   for (const candidate of candidates) {
     const absCandidate = resolveAbsPathSafe(candidate);
-    const candidateKey = normalizeAbsPathKey(absCandidate);
-    if (!candidateKey) continue;
+    if (!normalizeAbsPathKey(absCandidate)) continue;
 
     if (allowedRoots.length <= 0) {
       skipped.push({ path: absCandidate, reason: 'no_allowed_roots' });
-      continue;
-    }
-    if (allowedRootKeys.has(candidateKey)) {
-      skipped.push({ path: absCandidate, reason: 'refuse_root_delete' });
-      continue;
-    }
-    const inAllowedRoots = allowedRoots.some((root) => isPathUnderRoot(absCandidate, root));
-    if (!inAllowedRoots) {
-      skipped.push({ path: absCandidate, reason: 'outside_allowed_roots' });
-      continue;
-    }
-    if (sharedFileKeys.has(candidateKey)) {
-      skipped.push({ path: absCandidate, reason: 'shared_with_other_render' });
       continue;
     }
     if (!fs.existsSync(absCandidate)) {
@@ -235,14 +244,27 @@ function cleanupRenderArtifacts({
     }
 
     try {
-      const stat = fs.lstatSync(absCandidate);
-      if (!stat.isFile()) {
+      if (!fs.lstatSync(absCandidate).isFile()) {
         skipped.push({ path: absCandidate, reason: 'not_a_file' });
         continue;
       }
-      fs.rmSync(absCandidate, { force: true });
-      deleted.push({ path: absCandidate, type: 'file' });
-      const removedDir = removeEmptyParentDir(absCandidate, { allowedRoots, protectedKeys: protectedFolderKeys });
+      const realCandidate = canonicalPath(absCandidate);
+      const realKey = normalizeAbsPathKey(realCandidate);
+      if (realRootKeys.has(realKey)) {
+        skipped.push({ path: absCandidate, reason: 'refuse_root_delete' });
+        continue;
+      }
+      if (!realRoots.some((root) => isPathUnderRoot(realCandidate, root))) {
+        skipped.push({ path: absCandidate, reason: 'outside_allowed_roots' });
+        continue;
+      }
+      if (sharedFileKeys.has(realKey)) {
+        skipped.push({ path: absCandidate, reason: 'shared_with_other_render' });
+        continue;
+      }
+      fs.rmSync(realCandidate, { force: true });
+      deleted.push({ path: realCandidate, type: 'file' });
+      const removedDir = removeEmptyParentDir(realCandidate, { allowedRoots: realRoots, protectedKeys: protectedFolderKeys });
       if (removedDir) deleted.push({ path: removedDir, type: 'dir' });
     } catch (err) {
       errors.push({ path: absCandidate, reason: String(err?.message || err || 'delete_failed') });

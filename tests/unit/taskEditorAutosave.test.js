@@ -97,3 +97,24 @@ test("an unchanged form is not saved twice", async () => {
 
   assert.deepEqual(saved, ["same"]);
 });
+
+test("returning to the already saved value while another save is in flight is saved", async () => {
+  const stateRef = { current: newState() };
+  const bSave = deferred();
+  const saved = [];
+  const onUpdateTask = async (_id, payload) => {
+    saved.push(payload.title);
+    if (payload.title === "B") await bSave.promise;
+    return true;
+  };
+
+  await makeCycle(stateRef, "A", { onUpdateTask })();
+  const inFlightB = makeCycle(stateRef, "B", { onUpdateTask })();
+  await makeCycle(stateRef, "A", { onUpdateTask })();
+  bSave.resolve();
+  await inFlightB;
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(saved, ["A", "B", "A"]);
+  assert.equal(stateRef.current.signature, JSON.stringify({ title: "A" }));
+});

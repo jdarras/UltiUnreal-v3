@@ -47,7 +47,9 @@ function usePostprodContentApi({
   const loadPostprodTasks = useCallback(async (options = {}) => {
     const silent = options?.silent === true;
     const token = String(postprodAuth.token || '').trim();
-    const isCurrentRequest = requestTrackerRef.current.begin('tasks');
+    // Ancien callback appelé après un changement de session : ne rien toucher.
+    if (token && !requestTrackerRef.current.isSessionCurrent(token)) return;
+    const isCurrentRequest = requestTrackerRef.current.begin('tasks', token);
     if (!token) {
       setPostprodTasks({ items: [], loading: false, error: '' });
       return;
@@ -74,7 +76,9 @@ function usePostprodContentApi({
 
   const loadPostprodProjects = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();
-    const isCurrentRequest = requestTrackerRef.current.begin('projects');
+    // Ancien callback appelé après un changement de session : ne rien toucher.
+    if (token && !requestTrackerRef.current.isSessionCurrent(token)) return;
+    const isCurrentRequest = requestTrackerRef.current.begin('projects', token);
     if (!token) {
       setPostprodProjects({ items: [], loading: false, error: '' });
       return;
@@ -97,7 +101,9 @@ function usePostprodContentApi({
 
   const loadPostprodResources = useCallback(async (options = {}) => {
     const token = String(postprodAuth.token || '').trim();
-    const isCurrentRequest = requestTrackerRef.current.begin('resources');
+    // Ancien callback appelé après un changement de session : ne rien toucher.
+    if (token && !requestTrackerRef.current.isSessionCurrent(token)) return;
+    const isCurrentRequest = requestTrackerRef.current.begin('resources', token);
     const forceSync = options?.forceSync === true;
     if (!token) {
       setPostprodResources({ items: [], loading: false, error: '', source: '', sync: null });
@@ -124,7 +130,9 @@ function usePostprodContentApi({
   const loadPostprodTaskCatalog = useCallback(async (options = {}) => {
     const silent = options?.silent === true;
     const token = String(postprodAuth.token || '').trim();
-    const isCurrentRequest = requestTrackerRef.current.begin('taskCatalog');
+    // Ancien callback appelé après un changement de session : ne rien toucher.
+    if (token && !requestTrackerRef.current.isSessionCurrent(token)) return;
+    const isCurrentRequest = requestTrackerRef.current.begin('taskCatalog', token);
     if (!token) {
       setPostprodTaskCatalog({ projects: [], resources: [], loading: false, error: '' });
       return;
@@ -366,7 +374,9 @@ function usePostprodContentApi({
   const loadPostprodRenderProjectCatalog = useCallback(async (options = {}) => {
     const silent = options?.silent === true;
     const token = String(postprodAuth.token || '').trim();
-    const isCurrentRequest = requestTrackerRef.current.begin('renderProjectCatalog');
+    // Ancien callback appelé après un changement de session : ne rien toucher.
+    if (token && !requestTrackerRef.current.isSessionCurrent(token)) return;
+    const isCurrentRequest = requestTrackerRef.current.begin('renderProjectCatalog', token);
     if (!token) {
       setPostprodRenderProjectCatalog({ items: [], loading: false, error: '' });
       return;

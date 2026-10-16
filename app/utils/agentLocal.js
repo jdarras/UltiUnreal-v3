@@ -66,6 +66,16 @@ export async function terminateRenderProcess(pidTag) {
   return await window.electron.terminateRenderProcess(pidTag);
 }
 
+export async function reconcileRenderProcesses(opts = {}) {
+  if (typeof window.electron?.reconcileRenderProcesses !== 'function') return { ok: true, busyTags: [] };
+  return await window.electron.reconcileRenderProcesses(opts);
+}
+
+export async function readRenderExit(pidTag) {
+  if (typeof window.electron?.readRenderExit !== 'function') return { known: false };
+  return await window.electron.readRenderExit(pidTag);
+}
+
 export async function deleteRenderPid(pidTag) {
   if (typeof window.electron?.deleteRenderPid !== 'function') return { ok: false };
   return await window.electron.deleteRenderPid(pidTag);

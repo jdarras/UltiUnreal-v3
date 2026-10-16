@@ -28,12 +28,13 @@ async function runTaskEditAutosaveCycle(args = {}) {
   if (!signature || !editAutosaveStateRef?.current) return;
 
   const state = editAutosaveStateRef.current;
-  if (state.signature === signature) return;
   if (state.inFlight) {
-    // Mémorise les paramètres du dernier appel : ils portent le formulaire à jour.
+    // Mémorise les paramètres du dernier appel : ils portent le formulaire à jour,
+    // y compris un retour à la valeur déjà sauvegardée avant l'envoi en cours.
     state.pendingArgs = args;
     return;
   }
+  if (state.signature === signature) return;
 
   state.inFlight = true;
   try {

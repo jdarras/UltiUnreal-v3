@@ -25,6 +25,7 @@ const fabAuth = require('./fab-auth.cjs');
 const {
   formatPidFileContent,
   parsePidFileContent,
+  parseProcessTableLines,
   terminateOwnedRenderProcess,
 } = require('./render-process-control.cjs');
 const {
@@ -883,95 +884,156 @@ ipcMain.handle('find-render-outputs', async (_evt, opts = {}) => {
   return { ok: true, rootDir: resolvedRoot, files };
 });
 
-ipcMain.handle('read-render-pid', async (_evt, pidTag) => {
-  const tag = String(pidTag || '').trim().replace(/[^a-z0-9_-]/gi, '').slice(0, 64);
-  if (!tag) return { pid: null, error: 'invalid_tag' };
-  const pidFile = path.join(app.getPath('userData'), `uu_render_${tag}.pid`);
-  try {
-    const content = fs.readFileSync(pidFile, 'utf8');
-    let fileMtimeMs = null;
-    try { fileMtimeMs = fs.statSync(pidFile).mtimeMs; } catch {}
-    const parsed = parsePidFileContent(content, fileMtimeMs);
-    if (!parsed) return { pid: null, error: 'invalid_pid_in_file' };
-    // Heure du lancement d'origine : sert à la reprise et au contrôle d'appartenance.
-    return { pid: parsed.pid, pidFile, startedAtMs: parsed.spawnedAtMs };
-  } catch { return { pid: null, error: 'pid_file_not_found' }; }
-});
-
-ipcMain.handle('delete-render-pid', async (_evt, pidTag) => {
-  const tag = String(pidTag || '').trim().replace(/[^a-z0-9_-]/gi, '').slice(0, 64);
-  if (!tag) return { ok: false };
-  const pidFile = path.join(app.getPath('userData'), `uu_render_${tag}.pid`);
-  try { fs.unlinkSync(pidFile); } catch {}
-  return { ok: true };
-});
-
-function isPidAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return err?.code === 'EPERM';
-  }
+function sanitizeRenderPidTag(pidTag) {
+  return String(pidTag || '').trim().replace(/[^a-z0-9_-]/gi, '').slice(0, 64);
 }
 
-function readProcessStartTimeMs(pid) {
+function renderPidFilePath(tag) {
+  return path.join(app.getPath('userData'), `uu_render_${tag}.pid`);
+}
+
+function renderExitFilePath(tag) {
+  return path.join(app.getPath('userData'), `uu_render_${tag}.exit`);
+}
+
+function readRenderPidFile(tag) {
+  const pidFile = renderPidFilePath(tag);
+  const content = fs.readFileSync(pidFile, 'utf8');
+  let fileMtimeMs = null;
+  try { fileMtimeMs = fs.statSync(pidFile).mtimeMs; } catch {}
+  return parsePidFileContent(content, fileMtimeMs);
+}
+
+function removeRenderPidFiles(tag) {
+  try { fs.unlinkSync(renderPidFilePath(tag)); } catch {}
+  try { fs.unlinkSync(renderExitFilePath(tag)); } catch {}
+}
+
+// Table des processus { pid, ppid, startMs } ; null si elle ne peut pas être lue
+// (aucun arrêt n'est alors tenté).
+function listSystemProcesses({ pid = null } = {}) {
   return new Promise((resolve) => {
-    const done = (err, stdout) => {
-      const ms = err ? NaN : Date.parse(String(stdout || '').trim());
-      resolve(Number.isFinite(ms) ? ms : null);
-    };
     if (process.platform === 'win32') {
-      execFile('powershell.exe', [
-        '-NoProfile', '-NonInteractive', '-Command',
-        `(Get-Process -Id ${Math.trunc(pid)} -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')`,
-      ], { windowsHide: true, timeout: 10000 }, done);
-    } else {
-      execFile('ps', ['-o', 'lstart=', '-p', String(Math.trunc(pid))], { timeout: 10000 }, done);
+      const filter = Number.isFinite(pid) && pid > 0 ? ` -Filter "ProcessId=${Math.trunc(pid)}"` : '';
+      const command = `Get-CimInstance Win32_Process${filter} | ForEach-Object { '{0}|{1}|{2}' -f $_.ProcessId, $_.ParentProcessId, $(if ($_.CreationDate) { $_.CreationDate.ToUniversalTime().ToString('o') } else { '' }) }`;
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command],
+        { windowsHide: true, timeout: 20000, maxBuffer: 16 * 1024 * 1024 },
+        (err, stdout) => resolve(err ? null : parseProcessTableLines(stdout)));
+      return;
     }
+    execFile('ps', ['-eo', 'pid=,ppid=,lstart='], { timeout: 20000, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
+      if (err) return resolve(null);
+      const lines = String(stdout || '').split(/\r?\n/).map((line) => {
+        const match = /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(line);
+        if (!match) return '';
+        const startMs = Date.parse(match[3]);
+        return Number.isFinite(startMs) ? `${match[1]}|${match[2]}|${new Date(startMs).toISOString()}` : '';
+      });
+      resolve(parseProcessTableLines(lines.join('\n')));
+    });
   });
 }
 
-function killProcessTree(pid) {
+async function readSystemProcessStartMs(pid) {
+  const table = await listSystemProcesses({ pid });
+  const entry = Array.isArray(table) ? table.find((item) => item.pid === pid) : null;
+  return entry ? entry.startMs : null;
+}
+
+// Arrêt d'un seul processus : l'arborescence est calculée par le contrôleur
+// (pas de /T, qui se fie à des numéros de parents éventuellement périmés).
+function killSystemProcess(pid) {
   return new Promise((resolve) => {
     if (process.platform === 'win32') {
-      execFile('taskkill', ['/PID', String(Math.trunc(pid)), '/T', '/F'], { windowsHide: true, timeout: 15000 }, () => resolve());
+      execFile('taskkill', ['/PID', String(Math.trunc(pid)), '/F'], { windowsHide: true, timeout: 15000 }, () => resolve());
       return;
     }
-    try { process.kill(-pid, 'SIGKILL'); } catch {
-      try { process.kill(pid, 'SIGKILL'); } catch {}
-    }
+    try { process.kill(pid, 'SIGKILL'); } catch {}
     resolve();
   });
 }
 
-// Arrête le processus de rendu enregistré pour ce tag, s'il lui appartient bien.
-// Le fichier PID n'est supprimé qu'une fois la fin du processus confirmée.
-ipcMain.handle('terminate-render-process', async (_evt, pidTag) => {
-  const tag = String(pidTag || '').trim().replace(/[^a-z0-9_-]/gi, '').slice(0, 64);
-  if (!tag) return { ok: false, status: 'invalid_tag' };
-  const pidFile = path.join(app.getPath('userData'), `uu_render_${tag}.pid`);
+async function terminateRenderProcessByTag(tag) {
   let parsed = null;
   try {
-    const content = fs.readFileSync(pidFile, 'utf8');
-    let fileMtimeMs = null;
-    try { fileMtimeMs = fs.statSync(pidFile).mtimeMs; } catch {}
-    parsed = parsePidFileContent(content, fileMtimeMs);
+    parsed = readRenderPidFile(tag);
   } catch {
     return { ok: true, status: 'no_pid_file' };
   }
-  if (!parsed) return { ok: false, status: 'invalid_pid_in_file' };
+  if (!parsed) {
+    removeRenderPidFiles(tag);
+    return { ok: true, status: 'invalid_pid_in_file' };
+  }
   const result = await terminateOwnedRenderProcess({
     pid: parsed.pid,
+    processStartMs: parsed.processStartMs,
     spawnedAtMs: parsed.spawnedAtMs,
-    isAlive: async (pid) => isPidAlive(pid),
-    getStartTimeMs: readProcessStartTimeMs,
-    killTree: killProcessTree,
+    listProcesses: () => listSystemProcesses(),
+    killProcess: killSystemProcess,
   });
-  if (result.ok) {
-    try { fs.unlinkSync(pidFile); } catch {}
-  }
+  // Le fichier PID n'est supprimé qu'une fois la fin des processus possédés confirmée.
+  if (result.ok) removeRenderPidFiles(tag);
   return { ...result, pid: parsed.pid };
+}
+
+ipcMain.handle('read-render-pid', async (_evt, pidTag) => {
+  const tag = sanitizeRenderPidTag(pidTag);
+  if (!tag) return { pid: null, error: 'invalid_tag' };
+  try {
+    const parsed = readRenderPidFile(tag);
+    if (!parsed) return { pid: null, error: 'invalid_pid_in_file' };
+    // Heure du lancement d'origine : sert à la reprise (délai et fraîcheur des sorties).
+    return { pid: parsed.pid, pidFile: renderPidFilePath(tag), startedAtMs: parsed.spawnedAtMs };
+  } catch { return { pid: null, error: 'pid_file_not_found' }; }
+});
+
+ipcMain.handle('delete-render-pid', async (_evt, pidTag) => {
+  const tag = sanitizeRenderPidTag(pidTag);
+  if (!tag) return { ok: false };
+  removeRenderPidFiles(tag);
+  return { ok: true };
+});
+
+// Code de sortie relevé par le processus principal tant que l'application est
+// restée ouverte pendant le rendu ; inconnu après un redémarrage.
+ipcMain.handle('read-render-exit', async (_evt, pidTag) => {
+  const tag = sanitizeRenderPidTag(pidTag);
+  if (!tag) return { known: false };
+  try {
+    const parsed = JSON.parse(fs.readFileSync(renderExitFilePath(tag), 'utf8'));
+    const code = Number.isInteger(parsed?.code) ? parsed.code : null;
+    return { known: true, code, signal: parsed?.signal || null };
+  } catch {
+    return { known: false };
+  }
+});
+
+ipcMain.handle('terminate-render-process', async (_evt, pidTag) => {
+  const tag = sanitizeRenderPidTag(pidTag);
+  if (!tag) return { ok: false, status: 'invalid_tag' };
+  return await terminateRenderProcessByTag(tag);
+});
+
+// Réconcilie tous les fichiers PID présents sur disque (ils survivent à un
+// redémarrage) : les processus de rendus qui ne sont plus suivis sont arrêtés.
+// La station ne doit lancer aucun rendu tant que busyTags n'est pas vide.
+ipcMain.handle('reconcile-render-processes', async (_evt, opts = {}) => {
+  const keepTags = new Set((Array.isArray(opts?.keepTags) ? opts.keepTags : []).map(sanitizeRenderPidTag).filter(Boolean));
+  let names = [];
+  try {
+    names = fs.readdirSync(app.getPath('userData'));
+  } catch {
+    return { ok: false, busyTags: [], error: 'user_data_unreadable' };
+  }
+  const tags = names
+    .map((name) => /^uu_render_([a-z0-9_-]+)\.pid$/i.exec(name)?.[1] || '')
+    .filter((tag) => tag && !keepTags.has(tag));
+  const busyTags = [];
+  for (const tag of tags) {
+    const result = await terminateRenderProcessByTag(tag);
+    if (!result.ok) busyTags.push({ tag, status: result.status, survivors: result.survivors || [] });
+  }
+  return { ok: busyTags.length <= 0, busyTags };
 });
 
 ipcMain.handle('run-process', async (_evt, opts = {}) => {
@@ -1080,7 +1142,10 @@ ipcMain.handle('run-process', async (_evt, opts = {}) => {
 
   if (opts?.detached === true) {
     const pidTag = String(opts?.pidTag || '').trim().replace(/[^a-z0-9_-]/gi, '').slice(0, 64);
-    const pidFile = pidTag ? path.join(app.getPath('userData'), `uu_render_${pidTag}.pid`) : null;
+    const pidFile = pidTag ? renderPidFilePath(pidTag) : null;
+    if (pidTag) { try { fs.unlinkSync(renderExitFilePath(pidTag)); } catch {} }
+    // Noté avant le lancement : aucun descendant ne peut être antérieur à cette heure.
+    const spawnedAtMs = Date.now();
     let child;
     try {
       child = spawn(command, args, {
@@ -1095,7 +1160,22 @@ ipcMain.handle('run-process', async (_evt, opts = {}) => {
     }
     child.unref();
     const pid = child.pid;
-    if (pidFile) { try { fs.writeFileSync(pidFile, formatPidFileContent(pid, Date.now())); } catch {} }
+    if (pidTag) {
+      // Code de sortie conservé sur disque pour le worker (tant que l'application reste ouverte).
+      child.on('exit', (code, signal) => {
+        try {
+          fs.writeFileSync(renderExitFilePath(pidTag), JSON.stringify({ code, signal: signal || null, at: Date.now() }));
+        } catch {}
+      });
+    }
+    if (pidFile) {
+      try { fs.writeFileSync(pidFile, formatPidFileContent(pid, spawnedAtMs)); } catch {}
+      // Identité exacte du processus : heure de création relevée dans la table système.
+      const processStartMs = await readSystemProcessStartMs(pid);
+      if (processStartMs != null) {
+        try { fs.writeFileSync(pidFile, formatPidFileContent(pid, spawnedAtMs, processStartMs)); } catch {}
+      }
+    }
     return { ok: true, detached: true, pid, pidFile: pidFile || null };
   }
 

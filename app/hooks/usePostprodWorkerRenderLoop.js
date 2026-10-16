@@ -10,6 +10,8 @@ import {
   readRenderPid,
   deleteRenderPid,
   terminateRenderProcess,
+  reconcileRenderProcesses,
+  readRenderExit,
   getOnlineMap,
 } from "../utils/agent";
 import {
@@ -81,10 +83,6 @@ function usePostprodWorkerRenderLoop({
     localRenderAvailability,
   ]);
 
-  // Processus de rendu qui a survécu à un arrêt après délai : tant qu'il tourne,
-  // la station ne lance aucun autre rendu.
-  const orphanRenderPidTagRef = useRef('');
-
   useEffect(() => {
     if (!postprodAuthenticated) return;
     if (!postprodCanLaunchRenders || !localRenderEnabled) return;
@@ -103,11 +101,6 @@ function usePostprodWorkerRenderLoop({
       inFlightDelayMs: 5000,
       tick: async () => {
       try {
-        if (orphanRenderPidTagRef.current) {
-          const termination = await terminateRenderProcess(orphanRenderPidTagRef.current);
-          if (termination?.ok !== true) return;
-          orphanRenderPidTagRef.current = '';
-        }
         await replayPostprodWorkerCompletionOutbox();
         const pendingCompletionRenderIds = new Set(
           normalizePostprodWorkerCompletionOutbox(postprodWorkerCompletionOutbox)
@@ -132,6 +125,12 @@ function usePostprodWorkerRenderLoop({
           );
         });
         const renderId = Number(assignedRunning?.id || 0);
+        // Processus de rendus précédents encore présents sur disque (y compris après
+        // un redémarrage) : ils sont arrêtés ; tant que l'un survit, la station ne
+        // lance rien. Le rendu actuellement attribué est conservé (reprise).
+        const reconcile = await reconcileRenderProcesses({ keepTags: renderId > 0 ? [`r${renderId}`] : [] });
+        if (stopped) return;
+        if (Array.isArray(reconcile?.busyTags) && reconcile.busyTags.length > 0) return;
         if (renderId > 0) {
           const payload = assignedRunning?.payload && typeof assignedRunning.payload === 'object' && !Array.isArray(assignedRunning.payload)
             ? assignedRunning.payload
@@ -291,10 +290,23 @@ function usePostprodWorkerRenderLoop({
               let processStillRunning = false;
               const stopTimedOutProcess = async () => {
                 const termination = await terminateRenderProcess(pidTag);
+                // S'il survit, le fichier PID reste sur disque : la réconciliation
+                // bloque la station jusqu'à son arrêt confirmé.
                 processStillRunning = termination?.ok !== true;
-                if (processStillRunning) orphanRenderPidTagRef.current = pidTag;
                 _procOk = false;
                 _procError = processStillRunning ? 'timeout_process_still_running' : 'timeout';
+              };
+
+              // Code de sortie connu (application restée ouverte pendant le rendu) :
+              // un code non nul est un échec, quels que soient les fichiers présents.
+              const checkProcessExit = async () => {
+                const exitInfo = await readRenderExit(pidTag);
+                if (exitInfo?.known !== true) return;
+                if (exitInfo.code === 0) return;
+                _procOk = false;
+                _procError = exitInfo.code != null
+                  ? `process_exit_${exitInfo.code}`
+                  : `process_signal_${exitInfo.signal || 'unknown'}`;
               };
 
               if (existingPid > 0) {
@@ -306,6 +318,7 @@ function usePostprodWorkerRenderLoop({
                   if (pollResult === 'stopped') return;
                   if (pollResult === 'timeout') await stopTimedOutProcess();
                 }
+                if (_procOk === null) await checkProcessExit();
                 if (_procOk === null) {
                   _procOk = await resolveOutputOk();
                   if (!_procOk) _procError = mismatchedOutputPath ? 'output_name_mismatch' : 'output_file_not_found';
@@ -321,6 +334,7 @@ function usePostprodWorkerRenderLoop({
                   const pollResult = await pollUntilDead(Number(spawnRes.pid || 0), Date.now() + timeoutMs);
                   if (pollResult === 'stopped') return;
                   if (pollResult === 'timeout') await stopTimedOutProcess();
+                  if (_procOk === null) await checkProcessExit();
                   if (_procOk === null) {
                     _procOk = await resolveOutputOk();
                     if (!_procOk) _procError = mismatchedOutputPath ? 'output_name_mismatch' : 'output_file_not_found';

@@ -1,68 +1,139 @@
-// Arrêt contrôlé d'un processus de rendu détaché.
-// Le fichier PID contient "pid\nspawnedAtMs" ; seul un processus dont l'heure de
-// démarrage correspond à ce lancement est arrêté (protection contre la
-// réutilisation d'un numéro de processus par Windows).
+// Arrêt contrôlé d'un processus de rendu détaché et de ses descendants.
+//
+// Fichier PID : "pid\nspawnedAtMs\nprocessStartMs". processStartMs est l'heure de
+// création exacte relevée dans la table des processus du système juste après le
+// lancement ; elle identifie le processus sans ambiguïté (un numéro réutilisé par
+// le système a une autre heure de création).
+//
+// La table des processus fournit { pid, ppid, startMs } : un descendant n'est
+// rattaché que s'il a pour parent un processus possédé et qu'il a démarré après
+// lui, ce qui retrouve aussi les enfants d'un parent déjà terminé.
 
-const OWNERSHIP_TOLERANCE_MS = 30000;
+// Anciens fichiers PID sans heure de création exacte : seule l'heure d'écriture
+// du fichier, juste après le lancement, est connue.
+const LEGACY_OWNERSHIP_TOLERANCE_MS = 2000;
 
-function formatPidFileContent(pid, spawnedAtMs) {
-  return `${pid}\n${Math.trunc(Number(spawnedAtMs) || 0)}`;
+function formatPidFileContent(pid, spawnedAtMs, processStartMs = null) {
+  const exact = Number.isFinite(Number(processStartMs)) && Number(processStartMs) > 0
+    ? String(Math.trunc(Number(processStartMs)))
+    : '';
+  return `${pid}\n${Math.trunc(Number(spawnedAtMs) || 0)}\n${exact}`;
 }
 
 function parsePidFileContent(content = '', fileMtimeMs = null) {
   const lines = String(content || '').trim().split(/\r?\n/);
   const pid = parseInt(String(lines[0] || '').trim(), 10);
   if (!Number.isFinite(pid) || pid <= 0) return null;
-  const recorded = Number(String(lines[1] || '').trim());
-  const fallback = Number(fileMtimeMs);
-  let spawnedAtMs = null;
-  if (Number.isFinite(recorded) && recorded > 0) spawnedAtMs = recorded;
-  else if (Number.isFinite(fallback) && fallback > 0) spawnedAtMs = fallback;
-  return { pid, spawnedAtMs };
+  const positive = (value) => {
+    const n = Number(String(value ?? '').trim());
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  return {
+    pid,
+    spawnedAtMs: positive(lines[1]) ?? positive(fileMtimeMs),
+    processStartMs: positive(lines[2]),
+  };
 }
 
-async function waitUntilExited({ pid, isAlive, wait, maxWaitMs, stepMs = 500 }) {
-  const deadline = Date.now() + maxWaitMs;
-  while (await isAlive(pid)) {
-    if (Date.now() >= deadline) return false;
-    await wait(stepMs);
+function isRootOwned(entry, { processStartMs, spawnedAtMs }) {
+  if (!entry) return false;
+  if (processStartMs != null) return entry.startMs === processStartMs;
+  if (spawnedAtMs == null) return false;
+  return Math.abs(entry.startMs - spawnedAtMs) <= LEGACY_OWNERSHIP_TOLERANCE_MS;
+}
+
+// Processus vivants appartenant au rendu : la racine si son identité correspond,
+// puis ses descendants (y compris ceux dont le parent est déjà terminé).
+function selectOwnedProcesses(table = [], { pid, processStartMs = null, spawnedAtMs = null } = {}) {
+  const entries = (Array.isArray(table) ? table : []).filter((entry) => (
+    Number.isFinite(entry?.pid) && Number.isFinite(entry?.startMs)
+  ));
+  const byPid = new Map(entries.map((entry) => [entry.pid, entry]));
+  const live = byPid.get(pid);
+  const rootOwned = isRootOwned(live, { processStartMs, spawnedAtMs });
+  const rootStartMs = processStartMs ?? spawnedAtMs;
+  if (!rootOwned && rootStartMs == null) return [];
+
+  const owned = rootOwned ? [live] : [];
+  // Parents à explorer : { pid, startMs, reusedSinceMs }. Si le numéro de la
+  // racine est repris par un autre programme, ses enfants (plus récents que lui)
+  // ne sont pas rattachés au rendu.
+  const queue = [{
+    pid,
+    startMs: rootOwned ? live.startMs : rootStartMs,
+    reusedSinceMs: !rootOwned && live ? live.startMs : null,
+  }];
+  const seen = new Set(owned.map((entry) => entry.pid));
+  while (queue.length) {
+    const parent = queue.shift();
+    for (const child of entries) {
+      if (child.ppid !== parent.pid || seen.has(child.pid)) continue;
+      if (child.startMs < parent.startMs) continue;
+      if (parent.reusedSinceMs != null && child.startMs >= parent.reusedSinceMs) continue;
+      seen.add(child.pid);
+      owned.push(child);
+      queue.push({ pid: child.pid, startMs: child.startMs, reusedSinceMs: null });
+    }
   }
-  return true;
+  return owned;
+}
+
+// Lignes "pid|ppid|dateISO" produites par la requête PowerShell (Win32_Process).
+function parseProcessTableLines(text = '') {
+  const out = [];
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const [pidRaw, ppidRaw, startRaw] = line.trim().split('|');
+    const pid = parseInt(pidRaw, 10);
+    const ppid = parseInt(ppidRaw, 10);
+    const startMs = Date.parse(String(startRaw || '').trim());
+    if (!Number.isFinite(pid) || pid <= 0 || !Number.isFinite(startMs)) continue;
+    out.push({ pid, ppid: Number.isFinite(ppid) ? ppid : 0, startMs });
+  }
+  return out;
 }
 
 async function terminateOwnedRenderProcess({
   pid,
-  spawnedAtMs,
-  isAlive,
-  getStartTimeMs,
-  killTree,
+  processStartMs = null,
+  spawnedAtMs = null,
+  listProcesses,
+  killProcess,
   wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   maxWaitMs = 10000,
-  ownershipToleranceMs = OWNERSHIP_TOLERANCE_MS,
+  stepMs = 500,
 } = {}) {
-  if (!(await isAlive(pid))) return { ok: true, status: 'already_exited' };
+  const table = await listProcesses();
+  if (!Array.isArray(table)) return { ok: false, status: 'process_table_unavailable' };
+  const owned = selectOwnedProcesses(table, { pid, processStartMs, spawnedAtMs });
+  if (owned.length <= 0) return { ok: true, status: 'already_exited' };
 
-  const startTimeMs = await getStartTimeMs(pid);
-  if (!Number.isFinite(startTimeMs) || !Number.isFinite(Number(spawnedAtMs))) {
-    return { ok: false, status: 'ownership_unverified' };
-  }
-  if (Math.abs(startTimeMs - Number(spawnedAtMs)) > ownershipToleranceMs) {
-    // Le numéro désigne un autre programme : le processus de rendu est déjà terminé.
-    return { ok: true, status: 'not_owned' };
+  for (const entry of owned) {
+    try {
+      await killProcess(entry.pid);
+    } catch {}
   }
 
-  try {
-    await killTree(pid);
-  } catch {}
-  const exited = await waitUntilExited({ pid, isAlive, wait, maxWaitMs });
-  return exited
-    ? { ok: true, status: 'terminated' }
-    : { ok: false, status: 'still_running' };
+  // Fin confirmée seulement quand plus aucun processus possédé (même numéro ET
+  // même heure de création) ne figure dans la table.
+  const ownedKeys = new Set(owned.map((entry) => `${entry.pid}@${entry.startMs}`));
+  const deadline = Date.now() + maxWaitMs;
+  while (true) {
+    const after = await listProcesses();
+    if (!Array.isArray(after)) return { ok: false, status: 'process_table_unavailable' };
+    const survivors = after.filter((entry) => ownedKeys.has(`${entry.pid}@${entry.startMs}`));
+    if (survivors.length <= 0) return { ok: true, status: 'terminated', killed: owned.length };
+    if (Date.now() >= deadline) {
+      return { ok: false, status: 'still_running', survivors: survivors.map((entry) => entry.pid) };
+    }
+    await wait(stepMs);
+  }
 }
 
 module.exports = {
-  OWNERSHIP_TOLERANCE_MS,
+  LEGACY_OWNERSHIP_TOLERANCE_MS,
   formatPidFileContent,
   parsePidFileContent,
+  parseProcessTableLines,
+  selectOwnedProcesses,
   terminateOwnedRenderProcess,
 };
