@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electron', {
   findRenderOutputs: (opts = {}) => ipcRenderer.invoke('find-render-outputs', opts),
   readRenderPid: (pidTag) => ipcRenderer.invoke('read-render-pid', pidTag),
   deleteRenderPid: (pidTag) => ipcRenderer.invoke('delete-render-pid', pidTag),
+  terminateRenderProcess: (pidTag) => ipcRenderer.invoke('terminate-render-process', pidTag),
   fabAuthStatus: () => ipcRenderer.invoke('fab-auth-status'),
   fabLogin: () => ipcRenderer.invoke('fab-login'),
   fabLogout: () => ipcRenderer.invoke('fab-logout'),

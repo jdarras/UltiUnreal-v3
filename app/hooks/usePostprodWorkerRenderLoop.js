@@ -9,6 +9,7 @@ import {
   findRenderOutputs,
   readRenderPid,
   deleteRenderPid,
+  terminateRenderProcess,
   getOnlineMap,
 } from "../utils/agent";
 import {
@@ -28,6 +29,7 @@ import {
 } from "../utils/renderProcessHelpers";
 import { isPostprodQueueRuntimeActive } from "../utils/postprodAuthHelpers";
 import { startPostprodAsyncLoop } from "./postprodAsyncLoop";
+import { buildExpectedOutputStems, resolveRenderOutputArtifact } from "../utils/renderOutputArtifact";
 
 function usePostprodWorkerRenderLoop({
   postprodAuth, t, showNotice,
@@ -79,6 +81,10 @@ function usePostprodWorkerRenderLoop({
     localRenderAvailability,
   ]);
 
+  // Processus de rendu qui a survécu à un arrêt après délai : tant qu'il tourne,
+  // la station ne lance aucun autre rendu.
+  const orphanRenderPidTagRef = useRef('');
+
   useEffect(() => {
     if (!postprodAuthenticated) return;
     if (!postprodCanLaunchRenders || !localRenderEnabled) return;
@@ -97,6 +103,11 @@ function usePostprodWorkerRenderLoop({
       inFlightDelayMs: 5000,
       tick: async () => {
       try {
+        if (orphanRenderPidTagRef.current) {
+          const termination = await terminateRenderProcess(orphanRenderPidTagRef.current);
+          if (termination?.ok !== true) return;
+          orphanRenderPidTagRef.current = '';
+        }
         await replayPostprodWorkerCompletionOutbox();
         const pendingCompletionRenderIds = new Set(
           normalizePostprodWorkerCompletionOutbox(postprodWorkerCompletionOutbox)
@@ -215,8 +226,9 @@ function usePostprodWorkerRenderLoop({
                 ?? false,
               false
             );
-            const processStartMs = Date.now();
+            let processStartMs = Date.now();
             let detectedOutputPath = '';
+            let mismatchedOutputPath = '';
 
             if (!command) {
               completionPayload = {
@@ -233,6 +245,11 @@ function usePostprodWorkerRenderLoop({
               const existingPidRes = await readRenderPid(pidTag);
               if (stopped) return;
               const existingPid = Number(existingPidRes?.pid || 0);
+              // Reprise d'un processus déjà lancé : l'heure de départ est celle du lancement d'origine.
+              const resumedStartMs = Number(existingPidRes?.startedAtMs);
+              if (existingPid > 0 && Number.isFinite(resumedStartMs) && resumedStartMs > 0) {
+                processStartMs = Math.min(processStartMs, resumedStartMs);
+              }
 
               const pollUntilDead = async (pid, deadlineMs) => {
                 while (true) {
@@ -245,56 +262,55 @@ function usePostprodWorkerRenderLoop({
                 }
               };
 
-              const resolveOutputArtifactPath = async () => {
-                const directCandidates = buildRenderOutputPathCandidates(
-                  completionOutputPath || fallbackOutputPath
-                );
-                for (const candidate of directCandidates) {
-                  const candidatePath = String(candidate || '').trim();
-                  if (!candidatePath) continue;
-                  const fileRes = await checkFileExists(candidatePath);
-                  if (fileRes?.exists === true) return candidatePath;
-                }
-
-                if (!outputDirForSearch) return '';
-                const scanRes = await findRenderOutputs({
-                  rootDir: outputDirForSearch,
-                  minMtimeMs: Math.max(0, processStartMs - (24 * 60 * 60 * 1000)),
-                  maxDepth: 6,
-                  limit: 300,
-                });
-                const files = Array.isArray(scanRes?.files) ? scanRes.files : [];
-                for (const entry of files) {
-                  const candidatePath = String(entry?.path || '').trim();
-                  if (!candidatePath) continue;
-                  if (!isLikelyRenderOutputMedia(candidatePath)) continue;
-                  return candidatePath;
-                }
-                return '';
-              };
-
               const resolveOutputOk = async () => {
-                const resolvedOutput = await resolveOutputArtifactPath();
-                if (resolvedOutput) {
-                  detectedOutputPath = resolvedOutput;
+                const resolved = await resolveRenderOutputArtifact({
+                  directCandidates: buildRenderOutputPathCandidates(
+                    completionOutputPath || fallbackOutputPath
+                  ),
+                  outputDirForSearch,
+                  expectedStems: buildExpectedOutputStems({
+                    args: normalizedArgs,
+                    expectedName: expectedNameForArgs,
+                    outputPath: completionOutputPath || fallbackOutputPath,
+                  }),
+                  processStartMs,
+                  checkFileExists,
+                  findRenderOutputs,
+                  isLikelyRenderOutputMedia,
+                });
+                if (resolved.path) {
+                  detectedOutputPath = resolved.path;
                   return true;
                 }
+                mismatchedOutputPath = resolved.mismatchPath;
                 return allowMissingOutputArtifact === true;
+              };
+
+              // Délai dépassé : arrêt du processus (s'il appartient bien à ce rendu) et
+              // confirmation de sa fin. S'il survit, le fichier PID est conservé.
+              let processStillRunning = false;
+              const stopTimedOutProcess = async () => {
+                const termination = await terminateRenderProcess(pidTag);
+                processStillRunning = termination?.ok !== true;
+                if (processStillRunning) orphanRenderPidTagRef.current = pidTag;
+                _procOk = false;
+                _procError = processStillRunning ? 'timeout_process_still_running' : 'timeout';
               };
 
               if (existingPid > 0) {
                 const aliveCheck = await checkPidAlive(existingPid);
                 if (stopped) return;
                 if (aliveCheck?.alive) {
-                  const pollResult = await pollUntilDead(existingPid, Date.now() + timeoutMs);
+                  // Reprise : le délai court depuis le lancement d'origine.
+                  const pollResult = await pollUntilDead(existingPid, processStartMs + timeoutMs);
                   if (pollResult === 'stopped') return;
-                  if (pollResult === 'timeout') { _procOk = false; _procError = 'timeout'; }
+                  if (pollResult === 'timeout') await stopTimedOutProcess();
                 }
                 if (_procOk === null) {
                   _procOk = await resolveOutputOk();
-                  if (!_procOk) _procError = 'output_file_not_found';
+                  if (!_procOk) _procError = mismatchedOutputPath ? 'output_name_mismatch' : 'output_file_not_found';
                 }
-                await deleteRenderPid(pidTag);
+                if (!processStillRunning) await deleteRenderPid(pidTag);
               } else {
                 const spawnRes = await spawnDetachedRender({ command, args: normalizedArgs, cwd, pidTag });
                 if (stopped) return;
@@ -304,16 +320,16 @@ function usePostprodWorkerRenderLoop({
                 } else {
                   const pollResult = await pollUntilDead(Number(spawnRes.pid || 0), Date.now() + timeoutMs);
                   if (pollResult === 'stopped') return;
-                  if (pollResult === 'timeout') { _procOk = false; _procError = 'timeout'; }
+                  if (pollResult === 'timeout') await stopTimedOutProcess();
                   if (_procOk === null) {
                     _procOk = await resolveOutputOk();
-                    if (!_procOk) _procError = 'output_file_not_found';
+                    if (!_procOk) _procError = mismatchedOutputPath ? 'output_name_mismatch' : 'output_file_not_found';
                   }
-                  await deleteRenderPid(pidTag);
+                  if (!processStillRunning) await deleteRenderPid(pidTag);
                 }
               }
 
-              const procRes = { ok: _procOk === true, stdout: '', stderr: '', error: _procError, timedOut: _procError === 'timeout' };
+              const procRes = { ok: _procOk === true, stdout: '', stderr: '', error: _procError, timedOut: _procError.startsWith('timeout') };
               if (stopped) return;
               const workerLogPath = String(templateContext.workerlogpath || '').trim();
               let workerLogText = '';
@@ -350,7 +366,12 @@ function usePostprodWorkerRenderLoop({
                   workerKey,
                   success: false,
                   errorMessage: summarizeProcessFailure(procRes),
-                  comment: ['worker_process_fail', processEventComment]
+                  comment: [
+                    'worker_process_fail',
+                    mismatchedOutputPath ? `output_name_mismatch: ${mismatchedOutputPath}` : '',
+                    _procError === 'timeout_process_still_running' ? 'timeout_process_still_running' : '',
+                    processEventComment,
+                  ]
                     .filter((part) => String(part || '').trim().length > 0)
                     .join('\n')
                     .slice(0, 12000),

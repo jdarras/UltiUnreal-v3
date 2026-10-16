@@ -11,7 +11,7 @@ const fs     = require('fs');
 const http   = require('http');
 const https  = require('https');
 const os     = require('os');
-const { spawn } = require('child_process'); 
+const { spawn, execFile } = require('child_process'); 
 const { pathToFileURL } = require('url');
 const i18nFr = require('../app/i18n/fr.json');
 const i18nEn = require('../app/i18n/en.json');
@@ -22,6 +22,11 @@ const {
   normalizeExportDestinationEntries,
 } = require('./server-postprod-export-destinations.cjs');
 const fabAuth = require('./fab-auth.cjs');
+const {
+  formatPidFileContent,
+  parsePidFileContent,
+  terminateOwnedRenderProcess,
+} = require('./render-process-control.cjs');
 const {
   validateExternalTarget,
   validateHttpTarget,
@@ -777,7 +782,17 @@ ipcMain.handle('check-pid-alive', async (_evt, opts) => {
 ipcMain.handle('check-file-exists', async (_evt, filePath) => {
   const p = String(filePath || '').trim();
   if (!p) return { exists: false };
-  try { fs.accessSync(p, fs.constants.F_OK); return { exists: true }; } catch { return { exists: false }; }
+  try {
+    fs.accessSync(p, fs.constants.F_OK);
+  } catch {
+    return { exists: false };
+  }
+  try {
+    const stat = fs.statSync(p);
+    return { exists: true, isFile: stat.isFile(), mtimeMs: stat.mtimeMs };
+  } catch {
+    return { exists: true };
+  }
 });
 
 const RENDER_OUTPUT_SCAN_EXTS = new Set([
@@ -874,9 +889,12 @@ ipcMain.handle('read-render-pid', async (_evt, pidTag) => {
   const pidFile = path.join(app.getPath('userData'), `uu_render_${tag}.pid`);
   try {
     const content = fs.readFileSync(pidFile, 'utf8');
-    const pid = parseInt(content.trim(), 10);
-    if (!Number.isFinite(pid) || pid <= 0) return { pid: null, error: 'invalid_pid_in_file' };
-    return { pid, pidFile };
+    let fileMtimeMs = null;
+    try { fileMtimeMs = fs.statSync(pidFile).mtimeMs; } catch {}
+    const parsed = parsePidFileContent(content, fileMtimeMs);
+    if (!parsed) return { pid: null, error: 'invalid_pid_in_file' };
+    // Heure du lancement d'origine : sert à la reprise et au contrôle d'appartenance.
+    return { pid: parsed.pid, pidFile, startedAtMs: parsed.spawnedAtMs };
   } catch { return { pid: null, error: 'pid_file_not_found' }; }
 });
 
@@ -886,6 +904,74 @@ ipcMain.handle('delete-render-pid', async (_evt, pidTag) => {
   const pidFile = path.join(app.getPath('userData'), `uu_render_${tag}.pid`);
   try { fs.unlinkSync(pidFile); } catch {}
   return { ok: true };
+});
+
+function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err?.code === 'EPERM';
+  }
+}
+
+function readProcessStartTimeMs(pid) {
+  return new Promise((resolve) => {
+    const done = (err, stdout) => {
+      const ms = err ? NaN : Date.parse(String(stdout || '').trim());
+      resolve(Number.isFinite(ms) ? ms : null);
+    };
+    if (process.platform === 'win32') {
+      execFile('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-Command',
+        `(Get-Process -Id ${Math.trunc(pid)} -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')`,
+      ], { windowsHide: true, timeout: 10000 }, done);
+    } else {
+      execFile('ps', ['-o', 'lstart=', '-p', String(Math.trunc(pid))], { timeout: 10000 }, done);
+    }
+  });
+}
+
+function killProcessTree(pid) {
+  return new Promise((resolve) => {
+    if (process.platform === 'win32') {
+      execFile('taskkill', ['/PID', String(Math.trunc(pid)), '/T', '/F'], { windowsHide: true, timeout: 15000 }, () => resolve());
+      return;
+    }
+    try { process.kill(-pid, 'SIGKILL'); } catch {
+      try { process.kill(pid, 'SIGKILL'); } catch {}
+    }
+    resolve();
+  });
+}
+
+// Arrête le processus de rendu enregistré pour ce tag, s'il lui appartient bien.
+// Le fichier PID n'est supprimé qu'une fois la fin du processus confirmée.
+ipcMain.handle('terminate-render-process', async (_evt, pidTag) => {
+  const tag = String(pidTag || '').trim().replace(/[^a-z0-9_-]/gi, '').slice(0, 64);
+  if (!tag) return { ok: false, status: 'invalid_tag' };
+  const pidFile = path.join(app.getPath('userData'), `uu_render_${tag}.pid`);
+  let parsed = null;
+  try {
+    const content = fs.readFileSync(pidFile, 'utf8');
+    let fileMtimeMs = null;
+    try { fileMtimeMs = fs.statSync(pidFile).mtimeMs; } catch {}
+    parsed = parsePidFileContent(content, fileMtimeMs);
+  } catch {
+    return { ok: true, status: 'no_pid_file' };
+  }
+  if (!parsed) return { ok: false, status: 'invalid_pid_in_file' };
+  const result = await terminateOwnedRenderProcess({
+    pid: parsed.pid,
+    spawnedAtMs: parsed.spawnedAtMs,
+    isAlive: async (pid) => isPidAlive(pid),
+    getStartTimeMs: readProcessStartTimeMs,
+    killTree: killProcessTree,
+  });
+  if (result.ok) {
+    try { fs.unlinkSync(pidFile); } catch {}
+  }
+  return { ...result, pid: parsed.pid };
 });
 
 ipcMain.handle('run-process', async (_evt, opts = {}) => {
@@ -1009,7 +1095,7 @@ ipcMain.handle('run-process', async (_evt, opts = {}) => {
     }
     child.unref();
     const pid = child.pid;
-    if (pidFile) { try { fs.writeFileSync(pidFile, String(pid)); } catch {} }
+    if (pidFile) { try { fs.writeFileSync(pidFile, formatPidFileContent(pid, Date.now())); } catch {} }
     return { ok: true, detached: true, pid, pidFile: pidFile || null };
   }
 

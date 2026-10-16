@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import {
   postprodListTasks,
   postprodListProjects,
@@ -25,6 +25,7 @@ import {
   mapTaskProjectOptions,
   mapTaskResourceOptions,
 } from "../utils/postprodCatalogHelpers";
+import { createLatestRequestTracker } from "../utils/latestRequestTracker";
 
 function usePostprodContentApi({
   postprodAuth,
@@ -38,9 +39,15 @@ function usePostprodContentApi({
   setPostprodTaskCatalog,
   setPostprodRenderProjectCatalog,
 }) {
+  // Les listes sont rafraîchies en arrière-plan : une réponse plus ancienne ou
+  // arrivée après un changement de session ne doit pas écraser l'état.
+  const requestTrackerRef = useRef(null);
+  if (!requestTrackerRef.current) requestTrackerRef.current = createLatestRequestTracker();
+  requestTrackerRef.current.setSession(String(postprodAuth.token || '').trim());
   const loadPostprodTasks = useCallback(async (options = {}) => {
     const silent = options?.silent === true;
     const token = String(postprodAuth.token || '').trim();
+    const isCurrentRequest = requestTrackerRef.current.begin('tasks');
     if (!token) {
       setPostprodTasks({ items: [], loading: false, error: '' });
       return;
@@ -52,9 +59,11 @@ function usePostprodContentApi({
     }
     try {
       const res = await postprodListTasks(token);
+      if (!isCurrentRequest()) return;
       const items = Array.isArray(res?.tasks) ? res.tasks : [];
       setPostprodTasks({ items, loading: false, error: '' });
     } catch (e) {
+      if (!isCurrentRequest()) return;
       setPostprodTasks((prev) => ({
         ...prev,
         loading: false,
@@ -65,6 +74,7 @@ function usePostprodContentApi({
 
   const loadPostprodProjects = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();
+    const isCurrentRequest = requestTrackerRef.current.begin('projects');
     if (!token) {
       setPostprodProjects({ items: [], loading: false, error: '' });
       return;
@@ -72,9 +82,11 @@ function usePostprodContentApi({
     setPostprodProjects((prev) => ({ ...prev, loading: true, error: '' }));
     try {
       const res = await postprodListProjects(token);
+      if (!isCurrentRequest()) return;
       const items = Array.isArray(res?.projects) ? res.projects : [];
       setPostprodProjects({ items, loading: false, error: '' });
     } catch (e) {
+      if (!isCurrentRequest()) return;
       setPostprodProjects((prev) => ({
         ...prev,
         loading: false,
@@ -85,6 +97,7 @@ function usePostprodContentApi({
 
   const loadPostprodResources = useCallback(async (options = {}) => {
     const token = String(postprodAuth.token || '').trim();
+    const isCurrentRequest = requestTrackerRef.current.begin('resources');
     const forceSync = options?.forceSync === true;
     if (!token) {
       setPostprodResources({ items: [], loading: false, error: '', source: '', sync: null });
@@ -93,11 +106,13 @@ function usePostprodContentApi({
     setPostprodResources((prev) => ({ ...prev, loading: true, error: '' }));
     try {
       const res = await postprodListResources(token, 8000, { refresh: forceSync });
+      if (!isCurrentRequest()) return;
       const items = Array.isArray(res?.items) ? res.items : [];
       const source = String(res?.source || '').trim();
       const sync = res?.sync && typeof res.sync === 'object' ? res.sync : null;
       setPostprodResources({ items, loading: false, error: '', source, sync });
     } catch (e) {
+      if (!isCurrentRequest()) return;
       setPostprodResources((prev) => ({
         ...prev,
         loading: false,
@@ -109,6 +124,7 @@ function usePostprodContentApi({
   const loadPostprodTaskCatalog = useCallback(async (options = {}) => {
     const silent = options?.silent === true;
     const token = String(postprodAuth.token || '').trim();
+    const isCurrentRequest = requestTrackerRef.current.begin('taskCatalog');
     if (!token) {
       setPostprodTaskCatalog({ projects: [], resources: [], loading: false, error: '' });
       return;
@@ -123,6 +139,7 @@ function usePostprodContentApi({
         postprodListProjects(token).catch(() => ({})),
         postprodListResources(token, 8000).catch(() => ({})),
       ]);
+      if (!isCurrentRequest()) return;
       const projects = mapTaskProjectOptions(projectsRes);
       const resources = mapTaskResourceOptions(resourcesRes);
       setPostprodTaskCatalog({
@@ -132,6 +149,7 @@ function usePostprodContentApi({
         error: '',
       });
     } catch {
+      if (!isCurrentRequest()) return;
       setPostprodTaskCatalog((prev) => ({
         ...prev,
         loading: false,
@@ -348,6 +366,7 @@ function usePostprodContentApi({
   const loadPostprodRenderProjectCatalog = useCallback(async (options = {}) => {
     const silent = options?.silent === true;
     const token = String(postprodAuth.token || '').trim();
+    const isCurrentRequest = requestTrackerRef.current.begin('renderProjectCatalog');
     if (!token) {
       setPostprodRenderProjectCatalog({ items: [], loading: false, error: '' });
       return;
@@ -361,6 +380,7 @@ function usePostprodContentApi({
       const projectsRes = await postprodListProjects(token, {
         usageMode: ['auto_render', 'live_auto_render'],
       });
+      if (!isCurrentRequest()) return;
       const items = mapTaskProjectOptions(projectsRes);
       setPostprodRenderProjectCatalog({
         items,
@@ -368,6 +388,7 @@ function usePostprodContentApi({
         error: '',
       });
     } catch {
+      if (!isCurrentRequest()) return;
       setPostprodRenderProjectCatalog((prev) => ({
         ...prev,
         loading: false,
