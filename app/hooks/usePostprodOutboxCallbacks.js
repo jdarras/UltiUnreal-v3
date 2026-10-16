@@ -6,6 +6,11 @@ import {
   isPostprodRecoverableOfflineError,
 } from "../utils/postprodOutboxHelpers";
 import { canReplayWorkerCompletion, buildWorkerCompletionReplayPayload } from "../utils/renderProcessHelpers";
+import {
+  applyOutboxReplayOutcome,
+  runOfflineOutboxReplay,
+  runWorkerCompletionOutboxReplay,
+} from "../utils/postprodOutboxReplay";
 import { APP_MODE_POSTPROD } from "../utils/appConstants";
 
 const POSTPROD_OFFLINE_REPLAY_MIN_INTERVAL_MS = 15000;
@@ -52,39 +57,20 @@ function usePostprodOutboxCallbacks({
     postprodOfflineReplayInFlightRef.current = true;
     let replayed = 0;
     let dropped = 0;
-    let stoppedOnRecoverableError = false;
-    const nextOutbox = [...initialOutbox];
+    let nextOutbox = initialOutbox;
     try {
-      for (const entry of initialOutbox) {
-        if (entry?.kind !== 'create_render') continue;
-        if (currentUserId != null && entry?.userId != null && Number(entry.userId) !== currentUserId) {
-          continue;
-        }
-        try {
-          await postprodCreateRender(token, entry.payload || {});
-          replayed += 1;
-          const idx = nextOutbox.findIndex((it) => String(it?.id || '') === String(entry.id || ''));
-          if (idx >= 0) nextOutbox.splice(idx, 1);
-        } catch (err) {
-          const idx = nextOutbox.findIndex((it) => String(it?.id || '') === String(entry.id || ''));
-          if (isPostprodRecoverableOfflineError(err)) {
-            stoppedOnRecoverableError = true;
-            if (idx >= 0) {
-              const attempts = Number(nextOutbox[idx]?.attempts || 0);
-              nextOutbox[idx] = {
-                ...nextOutbox[idx],
-                attempts: Number.isFinite(attempts) ? Math.max(0, Math.trunc(attempts)) + 1 : 1,
-                lastAttemptAt: new Date().toISOString(),
-                lastError: String(err?.message || err?.code || 'network_error').trim().slice(0, 200),
-              };
-            }
-            break;
-          }
-          dropped += 1;
-          if (idx >= 0) nextOutbox.splice(idx, 1);
-        }
-      }
-      updatePostprodOfflineOutbox(nextOutbox);
+      const outcome = await runOfflineOutboxReplay({
+        token,
+        currentUserId,
+        outbox: initialOutbox,
+        createRender: postprodCreateRender,
+        isRecoverableError: isPostprodRecoverableOfflineError,
+      });
+      ({ replayed, dropped } = outcome);
+      const { stoppedOnRecoverableError } = outcome;
+      nextOutbox = applyOutboxReplayOutcome(initialOutbox, outcome);
+      // Appliqué à l'état courant : les demandes ajoutées pendant le rejeu sont conservées.
+      updatePostprodOfflineOutbox((current) => applyOutboxReplayOutcome(current, outcome));
       if (replayed > 0) {
         await Promise.all([
           loadPostprodRenders(),
@@ -141,49 +127,23 @@ function usePostprodOutboxCallbacks({
     postprodWorkerCompletionReplayInFlightRef.current = true;
     let replayed = 0;
     let dropped = 0;
-    let stoppedOnRecoverableError = false;
-    const nextOutbox = [...initialOutbox];
+    let nextOutbox = initialOutbox;
     try {
-      for (const entry of scopedEntries) {
-        const renderId = Number(entry?.renderId || 0);
-        if (!Number.isFinite(renderId) || renderId <= 0) continue;
-        const idx = nextOutbox.findIndex((it) => String(it?.id || '') === String(entry?.id || ''));
-        if (idx < 0) continue;
-        let completionPayload = entry?.payload && typeof entry.payload === 'object'
-          ? entry.payload
-          : {};
-        try {
-          const renderRes = await postprodGetRenderJob(token, renderId, 8000);
-          const renderJob = renderRes?.render && typeof renderRes.render === 'object'
-            ? renderRes.render
-            : (renderRes?.renderJob && typeof renderRes.renderJob === 'object' ? renderRes.renderJob : null);
-          if (!canReplayWorkerCompletion(renderJob, workerKey)) {
-            dropped += 1;
-            nextOutbox.splice(idx, 1);
-            continue;
-          }
-          completionPayload = buildWorkerCompletionReplayPayload(completionPayload, renderJob, workerKey);
-          await postprodCompleteRenderWorkerJob(token, renderId, completionPayload);
-          replayed += 1;
-          nextOutbox.splice(idx, 1);
-        } catch (err) {
-          if (isPostprodRecoverableOfflineError(err)) {
-            stoppedOnRecoverableError = true;
-            const attempts = Number(nextOutbox[idx]?.attempts || 0);
-            nextOutbox[idx] = {
-              ...nextOutbox[idx],
-              payload: completionPayload,
-              attempts: Number.isFinite(attempts) ? Math.max(0, Math.trunc(attempts)) + 1 : 1,
-              lastAttemptAt: new Date().toISOString(),
-              lastError: String(err?.message || err?.code || 'network_error').trim().slice(0, 200),
-            };
-            break;
-          }
-          dropped += 1;
-          nextOutbox.splice(idx, 1);
-        }
-      }
-      updatePostprodWorkerCompletionOutbox(nextOutbox);
+      const outcome = await runWorkerCompletionOutboxReplay({
+        token,
+        workerKey,
+        entries: scopedEntries,
+        getRenderJob: postprodGetRenderJob,
+        completeRenderJob: postprodCompleteRenderWorkerJob,
+        canReplay: canReplayWorkerCompletion,
+        buildReplayPayload: buildWorkerCompletionReplayPayload,
+        isRecoverableError: isPostprodRecoverableOfflineError,
+      });
+      ({ replayed, dropped } = outcome);
+      const { stoppedOnRecoverableError } = outcome;
+      nextOutbox = applyOutboxReplayOutcome(initialOutbox, outcome);
+      // Appliqué à l'état courant : les complétions ajoutées pendant le rejeu sont conservées.
+      updatePostprodWorkerCompletionOutbox((current) => applyOutboxReplayOutcome(current, outcome));
       if (replayed > 0) {
         await Promise.all([
           loadPostprodRenders(),

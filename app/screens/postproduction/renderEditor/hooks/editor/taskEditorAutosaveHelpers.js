@@ -6,18 +6,18 @@ function toPayloadSignature(payload) {
   }
 }
 
-async function runTaskEditAutosaveCycle({
-  showCreateForm = false,
-  isEditingTask = false,
-  allowAutosave = true,
-  onUpdateTask = null,
-  tasksLoading = false,
-  buildTaskPayloadFromCurrentForm = null,
-  editAutosaveStateRef = null,
-  editingTaskId = 0,
-  setFormError = null,
-  rerun = null,
-} = {}) {
+async function runTaskEditAutosaveCycle(args = {}) {
+  const {
+    showCreateForm = false,
+    isEditingTask = false,
+    allowAutosave = true,
+    onUpdateTask = null,
+    tasksLoading = false,
+    buildTaskPayloadFromCurrentForm = null,
+    editAutosaveStateRef = null,
+    editingTaskId = 0,
+    setFormError = null,
+  } = args;
   if (!showCreateForm || !isEditingTask || typeof onUpdateTask !== "function") return;
   if (allowAutosave !== true) return;
   if (tasksLoading || typeof buildTaskPayloadFromCurrentForm !== "function") return;
@@ -30,7 +30,8 @@ async function runTaskEditAutosaveCycle({
   const state = editAutosaveStateRef.current;
   if (state.signature === signature) return;
   if (state.inFlight) {
-    state.pending = true;
+    // Mémorise les paramètres du dernier appel : ils portent le formulaire à jour.
+    state.pendingArgs = args;
     return;
   }
 
@@ -43,9 +44,11 @@ async function runTaskEditAutosaveCycle({
     }
   } finally {
     state.inFlight = false;
-    if (state.pending) {
-      state.pending = false;
-      if (typeof rerun === "function") void rerun();
+    const pendingArgs = state.pendingArgs;
+    state.pendingArgs = null;
+    // Relance seulement si l'éditeur est toujours sur la même tâche (état non réinitialisé).
+    if (pendingArgs && editAutosaveStateRef.current === state) {
+      void runTaskEditAutosaveCycle(pendingArgs);
     }
   }
 }

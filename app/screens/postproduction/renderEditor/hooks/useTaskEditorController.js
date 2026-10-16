@@ -157,7 +157,6 @@ export function useTaskEditorController({
       editAutosaveStateRef,
       editingTaskId,
       setFormError,
-      rerun: autoSaveEditedTaskOnBlur,
     });
   }, [
     showCreateForm,

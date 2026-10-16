@@ -11,7 +11,7 @@ function useRenderEditorFormUiState({
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(0);
   const [formError, setFormError] = useState("");
-  const editAutosaveStateRef = useRef({ signature: "", inFlight: false, pending: false });
+  const editAutosaveStateRef = useRef({ signature: "", inFlight: false, pendingArgs: null });
 
   useEffect(() => {
     if (typeof onFormModeChange !== "function") return;
@@ -19,7 +19,7 @@ function useRenderEditorFormUiState({
   }, [showCreateForm, onFormModeChange]);
 
   useEffect(() => {
-    editAutosaveStateRef.current = { signature: "", inFlight: false, pending: false };
+    editAutosaveStateRef.current = { signature: "", inFlight: false, pendingArgs: null };
   }, [editingTaskId, showCreateForm]);
 
   useEffect(() => {
