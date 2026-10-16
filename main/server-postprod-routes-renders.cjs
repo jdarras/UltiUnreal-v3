@@ -124,33 +124,62 @@ function isPathUnderRoot(pathValue, rootValue) {
   return pathKey.startsWith(`${rootKey}/`);
 }
 
-function collectRenderCleanupCandidates(renderRow) {
+function parseRenderRowPayload(renderRow) {
+  try {
+    const parsed = JSON.parse(String(renderRow?.payload_json || '{}'));
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function collectAbsPaths(values) {
   const out = [];
   const seen = new Set();
-  const push = (value) => {
+  for (const value of values) {
     const raw = String(value || '').trim();
-    if (!raw) return;
+    if (!raw) continue;
     const abs = resolveAbsPathSafe(raw);
     const key = normalizeAbsPathKey(abs);
-    if (!key || seen.has(key)) return;
+    if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push(abs);
-  };
-  push(renderRow?.output_path);
-  let payload = {};
-  try {
-    payload = JSON.parse(String(renderRow?.payload_json || '{}'));
-  } catch {
-    payload = {};
   }
-  push(payload?.outputPath);
-  push(payload?.output_path);
-  push(payload?.outputDir);
-  push(payload?.renderOutputDir);
-  push(payload?.proxyPath);
-  push(payload?.alphaPath);
-  push(payload?.thumbPath);
   return out;
+}
+
+// Fichiers produits par le rendu : seuls candidats à la suppression.
+function collectRenderCleanupCandidates(renderRow) {
+  const payload = parseRenderRowPayload(renderRow);
+  return collectAbsPaths([
+    renderRow?.output_path,
+    payload?.outputPath,
+    payload?.output_path,
+    payload?.proxyPath,
+    payload?.alphaPath,
+    payload?.thumbPath,
+  ]);
+}
+
+// Dossiers de sortie choisis par l'utilisateur : partagés entre rendus, jamais supprimés.
+function collectRenderOutputFolders(renderRow) {
+  const payload = parseRenderRowPayload(renderRow);
+  return collectAbsPaths([payload?.outputDir, payload?.renderOutputDir]);
+}
+
+function removeEmptyParentDir(filePath, { allowedRoots, protectedKeys }) {
+  const parentDir = path.dirname(filePath);
+  const parentKey = normalizeAbsPathKey(parentDir);
+  if (!parentKey || protectedKeys.has(parentKey)) return null;
+  if (allowedRoots.some((root) => normalizeAbsPathKey(resolveAbsPathSafe(root)) === parentKey)) return null;
+  if (!allowedRoots.some((root) => isPathUnderRoot(parentDir, root))) return null;
+  try {
+    if (fs.readdirSync(parentDir).length > 0) return null;
+    fs.rmdirSync(parentDir);
+    return parentDir;
+  } catch {
+    return null;
+  }
 }
 
 function cleanupRenderArtifacts({
@@ -158,6 +187,7 @@ function cleanupRenderArtifacts({
   readCommonServerConfigFile = null,
   commonServerFile = '',
   resolveRenderDetectedRoots = null,
+  otherRenderRows = [],
 } = {}) {
   const allowedRoots = resolveConfiguredRenderRoots(
     readCommonServerConfigFile,
@@ -166,6 +196,13 @@ function cleanupRenderArtifacts({
   );
   const allowedRootKeys = new Set(allowedRoots.map((root) => normalizeAbsPathKey(resolveAbsPathSafe(root))));
   const candidates = collectRenderCleanupCandidates(renderRow);
+  const otherRows = Array.isArray(otherRenderRows) ? otherRenderRows : [];
+  const sharedFileKeys = new Set(
+    otherRows.flatMap((row) => collectRenderCleanupCandidates(row)).map(normalizeAbsPathKey)
+  );
+  const protectedFolderKeys = new Set(
+    [renderRow, ...otherRows].flatMap((row) => collectRenderOutputFolders(row)).map(normalizeAbsPathKey)
+  );
   const deleted = [];
   const skipped = [];
   const errors = [];
@@ -188,6 +225,10 @@ function cleanupRenderArtifacts({
       skipped.push({ path: absCandidate, reason: 'outside_allowed_roots' });
       continue;
     }
+    if (sharedFileKeys.has(candidateKey)) {
+      skipped.push({ path: absCandidate, reason: 'shared_with_other_render' });
+      continue;
+    }
     if (!fs.existsSync(absCandidate)) {
       skipped.push({ path: absCandidate, reason: 'not_found' });
       continue;
@@ -195,13 +236,14 @@ function cleanupRenderArtifacts({
 
     try {
       const stat = fs.lstatSync(absCandidate);
-      if (stat.isDirectory()) {
-        fs.rmSync(absCandidate, { recursive: true, force: true });
-        deleted.push({ path: absCandidate, type: 'dir' });
-      } else {
-        fs.rmSync(absCandidate, { force: true });
-        deleted.push({ path: absCandidate, type: 'file' });
+      if (!stat.isFile()) {
+        skipped.push({ path: absCandidate, reason: 'not_a_file' });
+        continue;
       }
+      fs.rmSync(absCandidate, { force: true });
+      deleted.push({ path: absCandidate, type: 'file' });
+      const removedDir = removeEmptyParentDir(absCandidate, { allowedRoots, protectedKeys: protectedFolderKeys });
+      if (removedDir) deleted.push({ path: removedDir, type: 'dir' });
     } catch (err) {
       errors.push({ path: absCandidate, reason: String(err?.message || err || 'delete_failed') });
     }
@@ -968,14 +1010,17 @@ async function handlePostprodRendersRoutes({
       const renderRowsById = new Map();
       renderRowsById.set(renderId, render);
       let hasRunningLinkedRender = false;
-      if (linkedTaskId > 0 && typeof stmts.listRenderJobs?.all === 'function') {
-        let allRenderRows = [];
+      let allRenderRows = [];
+      if (typeof stmts.listRenderJobs?.all === 'function') {
         try {
           allRenderRows = stmts.listRenderJobs.all();
         } catch {
           allRenderRows = [];
         }
-        for (const row of Array.isArray(allRenderRows) ? allRenderRows : []) {
+      }
+      if (!Array.isArray(allRenderRows)) allRenderRows = [];
+      if (linkedTaskId > 0) {
+        for (const row of allRenderRows) {
           const rowRenderIdRaw = Number(row?.id || 0);
           const rowRenderId = Number.isFinite(rowRenderIdRaw) && rowRenderIdRaw > 0
             ? Math.trunc(rowRenderIdRaw)
@@ -1001,19 +1046,6 @@ async function handlePostprodRendersRoutes({
       if (hasRunningLinkedRender) {
         sendJSON(res, 409, { ok: false, error: 'render_running_cannot_delete' });
         return true;
-      }
-      const cleanupItems = [];
-      for (const [candidateRenderId, candidateRenderRow] of renderRowsById.entries()) {
-        const cleanup = cleanupRenderArtifacts({
-          renderRow: candidateRenderRow,
-          readCommonServerConfigFile,
-          commonServerFile,
-          resolveRenderDetectedRoots,
-        });
-        cleanupItems.push({
-          renderId: candidateRenderId,
-          cleanup,
-        });
       }
       const deletionResult = db.transaction(() => {
         let deletedRenderChanges = 0;
@@ -1044,6 +1076,29 @@ async function handlePostprodRendersRoutes({
       if (Number(deletionResult?.deletedRenderChanges || 0) <= 0) {
         sendJSON(res, 404, { ok: false, error: 'render_not_found' });
         return true;
+      }
+      // Nettoyage disque seulement après suppression effective en base,
+      // en protégeant les fichiers encore référencés par les autres rendus.
+      const otherRenderRows = allRenderRows.filter((row) => {
+        const rowIdRaw = Number(row?.id || 0);
+        const rowId = Number.isFinite(rowIdRaw) && rowIdRaw > 0 ? Math.trunc(rowIdRaw) : 0;
+        return !renderRowsById.has(rowId);
+      });
+      const deletedRenderIdSet = new Set(Array.isArray(deletionResult?.deletedRenderIds) ? deletionResult.deletedRenderIds : []);
+      const cleanupItems = [];
+      for (const [candidateRenderId, candidateRenderRow] of renderRowsById.entries()) {
+        if (!deletedRenderIdSet.has(candidateRenderId)) continue;
+        const cleanup = cleanupRenderArtifacts({
+          renderRow: candidateRenderRow,
+          readCommonServerConfigFile,
+          commonServerFile,
+          resolveRenderDetectedRoots,
+          otherRenderRows,
+        });
+        cleanupItems.push({
+          renderId: candidateRenderId,
+          cleanup,
+        });
       }
       const cleanupSummary = cleanupItems.reduce((acc, item) => {
         const cleanup = item?.cleanup || {};
@@ -1306,4 +1361,5 @@ async function handlePostprodRendersRoutes({
 
 module.exports = {
   handlePostprodRendersRoutes,
+  cleanupRenderArtifacts,
 };
