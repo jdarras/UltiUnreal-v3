@@ -66,9 +66,41 @@ export async function terminateRenderProcess(pidTag) {
   return await window.electron.terminateRenderProcess(pidTag);
 }
 
+// Sans réconciliation possible, la station ne doit rien lancer (ok: false).
 export async function reconcileRenderProcesses(opts = {}) {
-  if (typeof window.electron?.reconcileRenderProcesses !== 'function') return { ok: true, busyTags: [] };
+  if (typeof window.electron?.reconcileRenderProcesses !== 'function') {
+    return { ok: false, busyTags: [], error: 'reconcile_unavailable' };
+  }
   return await window.electron.reconcileRenderProcesses(opts);
+}
+
+export async function supportsRenderJobs() {
+  if (typeof window.electron?.supportsRenderJobs !== 'function') return false;
+  return (await window.electron.supportsRenderJobs()) === true;
+}
+
+export async function startRenderJob({ command = '', args = [], cwd = '', pidTag = '' } = {}) {
+  if (typeof window.electron?.runProcess !== 'function') {
+    return { ok: false, error: 'run_process_unavailable' };
+  }
+  return await window.electron.runProcess({
+    command: String(command || '').trim(),
+    args: Array.isArray(args) ? args : [],
+    cwd: String(cwd || '').trim(),
+    detached: true,
+    supervised: true,
+    pidTag: String(pidTag || '').trim(),
+  });
+}
+
+export async function readRenderJob(pidTag) {
+  if (typeof window.electron?.readRenderJob !== 'function') return { exists: false };
+  return await window.electron.readRenderJob(pidTag);
+}
+
+export async function stopRenderJob(pidTag) {
+  if (typeof window.electron?.stopRenderJob !== 'function') return { ok: false, phase: 'unavailable' };
+  return await window.electron.stopRenderJob(pidTag);
 }
 
 export async function readRenderExit(pidTag) {

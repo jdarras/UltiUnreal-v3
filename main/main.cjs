@@ -25,9 +25,15 @@ const fabAuth = require('./fab-auth.cjs');
 const {
   formatPidFileContent,
   parsePidFileContent,
-  parseProcessTableLines,
+  listSystemProcesses,
+  readSystemProcessStartMs,
   terminateOwnedRenderProcess,
 } = require('./render-process-control.cjs');
+const {
+  SUPERVISOR_SCRIPT,
+  createRenderJobStore,
+  runSupervisorRelay,
+} = require('./render-job-supervisor.cjs');
 const {
   validateExternalTarget,
   validateHttpTarget,
@@ -907,37 +913,9 @@ function readRenderPidFile(tag) {
 function removeRenderPidFiles(tag) {
   try { fs.unlinkSync(renderPidFilePath(tag)); } catch {}
   try { fs.unlinkSync(renderExitFilePath(tag)); } catch {}
-}
-
-// Table des processus { pid, ppid, startMs } ; null si elle ne peut pas être lue
-// (aucun arrêt n'est alors tenté).
-function listSystemProcesses({ pid = null } = {}) {
-  return new Promise((resolve) => {
-    if (process.platform === 'win32') {
-      const filter = Number.isFinite(pid) && pid > 0 ? ` -Filter "ProcessId=${Math.trunc(pid)}"` : '';
-      const command = `Get-CimInstance Win32_Process${filter} | ForEach-Object { '{0}|{1}|{2}' -f $_.ProcessId, $_.ParentProcessId, $(if ($_.CreationDate) { $_.CreationDate.ToUniversalTime().ToString('o') } else { '' }) }`;
-      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command],
-        { windowsHide: true, timeout: 20000, maxBuffer: 16 * 1024 * 1024 },
-        (err, stdout) => resolve(err ? null : parseProcessTableLines(stdout)));
-      return;
-    }
-    execFile('ps', ['-eo', 'pid=,ppid=,lstart='], { timeout: 20000, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
-      if (err) return resolve(null);
-      const lines = String(stdout || '').split(/\r?\n/).map((line) => {
-        const match = /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(line);
-        if (!match) return '';
-        const startMs = Date.parse(match[3]);
-        return Number.isFinite(startMs) ? `${match[1]}|${match[2]}|${new Date(startMs).toISOString()}` : '';
-      });
-      resolve(parseProcessTableLines(lines.join('\n')));
-    });
-  });
-}
-
-async function readSystemProcessStartMs(pid) {
-  const table = await listSystemProcesses({ pid });
-  const entry = Array.isArray(table) ? table.find((item) => item.pid === pid) : null;
-  return entry ? entry.startMs : null;
+  for (const ext of ['job', 'state', 'stop', 'state.tmp']) {
+    try { fs.unlinkSync(path.join(app.getPath('userData'), `uu_render_${tag}.${ext}`)); } catch {}
+  }
 }
 
 // Arrêt d'un seul processus : l'arborescence est calculée par le contrôleur
@@ -1025,16 +1003,78 @@ ipcMain.handle('reconcile-render-processes', async (_evt, opts = {}) => {
   } catch {
     return { ok: false, busyTags: [], error: 'user_data_unreadable' };
   }
-  const tags = names
-    .map((name) => /^uu_render_([a-z0-9_-]+)\.pid$/i.exec(name)?.[1] || '')
+  const tagsFor = (ext) => names
+    .map((name) => new RegExp(`^uu_render_([a-z0-9_-]+)\\.${ext}$`, 'i').exec(name)?.[1] || '')
     .filter((tag) => tag && !keepTags.has(tag));
   const busyTags = [];
-  for (const tag of tags) {
-    const result = await terminateRenderProcessByTag(tag);
-    if (!result.ok) busyTags.push({ tag, status: result.status, survivors: result.survivors || [] });
+  try {
+    // Rendus supervisés : arrêt du job entier, confirmé par le superviseur.
+    for (const tag of tagsFor('job')) {
+      const stop = await getRenderJobStore().stop(tag);
+      if (stop.ok) removeRenderPidFiles(tag);
+      else busyTags.push({ tag, status: stop.phase });
+    }
+    // Anciens suivis par fichier PID (avant la supervision par Job Object).
+    for (const tag of tagsFor('pid')) {
+      const result = await terminateRenderProcessByTag(tag);
+      if (!result.ok) busyTags.push({ tag, status: result.status, survivors: result.survivors || [] });
+    }
+  } catch (err) {
+    return { ok: false, busyTags, error: String(err?.message || 'reconcile_failed') };
   }
+  // ok n'est vrai que si tout a pu être vérifié et qu'aucun processus ne survit.
   return { ok: busyTags.length <= 0, busyTags };
 });
+
+// ---- Rendus supervisés par Job Object (Windows) ----------------------------
+// Fichiers par rendu : .job (lancement : superviseur, heures), .state (écrit par
+// le superviseur), .stop (demande d'arrêt du job entier).
+
+function ensureRenderSupervisorScript() {
+  const file = path.join(app.getPath('userData'), 'uu_render_supervisor.ps1');
+  let current = null;
+  try { current = fs.readFileSync(file, 'utf8'); } catch {}
+  if (current !== SUPERVISOR_SCRIPT) fs.writeFileSync(file, SUPERVISOR_SCRIPT);
+  return file;
+}
+
+let renderJobStore = null;
+function getRenderJobStore() {
+  if (!renderJobStore) {
+    renderJobStore = createRenderJobStore({
+      dir: app.getPath('userData'),
+      listProcesses: listSystemProcesses,
+      runRelay: runSupervisorRelay,
+      readProcessStartMs: readSystemProcessStartMs,
+    });
+  }
+  return renderJobStore;
+}
+
+async function startSupervisedRender({ tag, command, args, cwd }) {
+  removeRenderPidFiles(tag);
+  let scriptFile = '';
+  try {
+    scriptFile = ensureRenderSupervisorScript();
+  } catch (err) {
+    return { ok: false, error: `supervisor_script_unwritable:${String(err?.code || err?.message || '')}` };
+  }
+  return await getRenderJobStore().start({ tag, scriptFile, command, args, cwd });
+}
+
+ipcMain.handle('read-render-job', async (_evt, pidTag) => {
+  const tag = sanitizeRenderPidTag(pidTag);
+  if (!tag) return { exists: false };
+  return await getRenderJobStore().read(tag);
+});
+
+ipcMain.handle('stop-render-job', async (_evt, pidTag) => {
+  const tag = sanitizeRenderPidTag(pidTag);
+  if (!tag) return { ok: false, phase: 'invalid_tag' };
+  return await getRenderJobStore().stop(tag);
+});
+
+ipcMain.handle('supports-render-jobs', async () => process.platform === 'win32');
 
 ipcMain.handle('run-process', async (_evt, opts = {}) => {
   const commandRaw = String(opts?.command || '').trim();
@@ -1138,6 +1178,13 @@ ipcMain.handle('run-process', async (_evt, opts = {}) => {
       const stat = fs.statSync(cwdRaw);
       if (stat && stat.isDirectory()) cwd = cwdRaw;
     } catch {}
+  }
+
+  if (opts?.detached === true && opts?.supervised === true) {
+    const tag = sanitizeRenderPidTag(opts?.pidTag);
+    if (!tag) return { ok: false, error: 'missing_pid_tag' };
+    if (process.platform !== 'win32') return { ok: false, error: 'supervision_unsupported_platform' };
+    return await startSupervisedRender({ tag, command, args, cwd });
   }
 
   if (opts?.detached === true) {

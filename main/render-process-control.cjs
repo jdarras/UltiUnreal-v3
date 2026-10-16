@@ -9,6 +9,8 @@
 // rattaché que s'il a pour parent un processus possédé et qu'il a démarré après
 // lui, ce qui retrouve aussi les enfants d'un parent déjà terminé.
 
+const { execFile } = require('child_process');
+
 // Anciens fichiers PID sans heure de création exacte : seule l'heure d'écriture
 // du fichier, juste après le lancement, est connue.
 const LEGACY_OWNERSHIP_TOLERANCE_MS = 2000;
@@ -129,11 +131,44 @@ async function terminateOwnedRenderProcess({
   }
 }
 
+// Table des processus { pid, ppid, startMs } ; null si elle ne peut pas être lue
+// (aucun arrêt n'est alors tenté).
+function listSystemProcesses({ pid = null } = {}) {
+  return new Promise((resolve) => {
+    if (process.platform === 'win32') {
+      const filter = Number.isFinite(pid) && pid > 0 ? ` -Filter "ProcessId=${Math.trunc(pid)}"` : '';
+      const command = `Get-CimInstance Win32_Process${filter} | ForEach-Object { '{0}|{1}|{2}' -f $_.ProcessId, $_.ParentProcessId, $(if ($_.CreationDate) { $_.CreationDate.ToUniversalTime().ToString('o') } else { '' }) }`;
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command],
+        { windowsHide: true, timeout: 20000, maxBuffer: 16 * 1024 * 1024 },
+        (err, stdout) => resolve(err ? null : parseProcessTableLines(stdout)));
+      return;
+    }
+    execFile('ps', ['-eo', 'pid=,ppid=,lstart='], { timeout: 20000, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
+      if (err) return resolve(null);
+      const lines = String(stdout || '').split(/\r?\n/).map((line) => {
+        const match = /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(line);
+        if (!match) return '';
+        const startMs = Date.parse(match[3]);
+        return Number.isFinite(startMs) ? `${match[1]}|${match[2]}|${new Date(startMs).toISOString()}` : '';
+      });
+      resolve(parseProcessTableLines(lines.join('\n')));
+    });
+  });
+}
+
+async function readSystemProcessStartMs(pid) {
+  const table = await listSystemProcesses({ pid });
+  const entry = Array.isArray(table) ? table.find((item) => item.pid === pid) : null;
+  return entry ? entry.startMs : null;
+}
+
 module.exports = {
   LEGACY_OWNERSHIP_TOLERANCE_MS,
   formatPidFileContent,
   parsePidFileContent,
   parseProcessTableLines,
+  listSystemProcesses,
+  readSystemProcessStartMs,
   selectOwnedProcesses,
   terminateOwnedRenderProcess,
 };

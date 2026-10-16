@@ -1167,6 +1167,7 @@
   "postprod.renders.msg.offlineReplayDropped": "Reprise offline: {count} élément(s) ignoré(s) (erreur non récupérable).",
   "postprod.renders.msg.offlineReplayNone": "Reprise offline: aucun rendu en attente.",
   "postprod.renders.msg.workerQueuedOffline": "PAP indisponible: completion worker mise en attente ({count} en attente).",
+  "postprod.renders.msg.workerStationBlocked": "Station de rendu bloquée : un rendu précédent ne peut pas être vérifié ou arrêté ({reason}). Aucun nouveau rendu ne sera lancé tant que la situation n'est pas résolue.",
   "postprod.renders.msg.workerOfflineReplaySent": "Reprise offline worker: {count} completion(s) envoyee(s) au PAP.",
   "postprod.renders.msg.workerOfflineReplayDropped": "Reprise offline worker: {count} complétion(s) ignorée(s) (erreur non récupérable).",
   "postprod.renders.msg.workerOfflineReplayNone": "Reprise offline worker: aucune completion en attente.",

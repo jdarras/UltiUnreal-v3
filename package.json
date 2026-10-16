@@ -13,6 +13,7 @@
     "dev:electron": "npm run rebuild:electron && set VITE_DEV=true && npx electron .",
     "test": "node --test",
     "test:full": "npm run rebuild:node && node --test",
+    "test:integration": "node --test tests/integration/renderJobSupervisor.integration.cjs",
     "rebuild:electron": "node scripts/rebuild-electron.mjs",
     "rebuild:node": "npm rebuild better-sqlite3 --build-from-source",
     "lint": "eslint .",

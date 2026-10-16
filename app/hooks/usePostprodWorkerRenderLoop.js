@@ -12,6 +12,10 @@ import {
   terminateRenderProcess,
   reconcileRenderProcesses,
   readRenderExit,
+  supportsRenderJobs,
+  startRenderJob,
+  readRenderJob,
+  stopRenderJob,
   getOnlineMap,
 } from "../utils/agent";
 import {
@@ -32,6 +36,7 @@ import {
 import { isPostprodQueueRuntimeActive } from "../utils/postprodAuthHelpers";
 import { startPostprodAsyncLoop } from "./postprodAsyncLoop";
 import { buildExpectedOutputStems, resolveRenderOutputArtifact } from "../utils/renderOutputArtifact";
+import { canStartRenderAfterReconcile, runSupervisedRenderAttempt } from "../utils/renderAttemptRunner";
 
 function usePostprodWorkerRenderLoop({
   postprodAuth, t, showNotice,
@@ -83,6 +88,9 @@ function usePostprodWorkerRenderLoop({
     localRenderAvailability,
   ]);
 
+  // Dernier motif de blocage signalé (évite de répéter la notification à chaque cycle).
+  const renderStationBlockedReasonRef = useRef('');
+
   useEffect(() => {
     if (!postprodAuthenticated) return;
     if (!postprodCanLaunchRenders || !localRenderEnabled) return;
@@ -130,7 +138,18 @@ function usePostprodWorkerRenderLoop({
         // lance rien. Le rendu actuellement attribué est conservé (reprise).
         const reconcile = await reconcileRenderProcesses({ keepTags: renderId > 0 ? [`r${renderId}`] : [] });
         if (stopped) return;
-        if (Array.isArray(reconcile?.busyTags) && reconcile.busyTags.length > 0) return;
+        if (!canStartRenderAfterReconcile(reconcile)) {
+          // Contrôle impossible ou processus précédent encore actif : aucun lancement.
+          const reason = Array.isArray(reconcile?.busyTags) && reconcile.busyTags.length > 0
+            ? `busy:${reconcile.busyTags.map((entry) => entry?.tag).join(',')}`
+            : `error:${String(reconcile?.error || 'invalid_reconcile_response')}`;
+          if (renderStationBlockedReasonRef.current !== reason) {
+            renderStationBlockedReasonRef.current = reason;
+            showNotice(t('postprod.renders.msg.workerStationBlocked', { reason }), 'warn');
+          }
+          return;
+        }
+        renderStationBlockedReasonRef.current = '';
         if (renderId > 0) {
           const payload = assignedRunning?.payload && typeof assignedRunning.payload === 'object' && !Array.isArray(assignedRunning.payload)
             ? assignedRunning.payload
@@ -240,6 +259,8 @@ function usePostprodWorkerRenderLoop({
               const pidTag = `r${renderId}`;
               let _procOk = null;
               let _procError = '';
+              const useSupervisedJob = await supportsRenderJobs();
+              if (stopped) return;
 
               const existingPidRes = await readRenderPid(pidTag);
               if (stopped) return;
@@ -309,7 +330,31 @@ function usePostprodWorkerRenderLoop({
                   : `process_signal_${exitInfo.signal || 'unknown'}`;
               };
 
-              if (existingPid > 0) {
+              if (useSupervisedJob) {
+                // Windows : tout l'arbre du rendu est dans un Job Object ; la tentative
+                // se termine quand le job ne contient plus aucun processus.
+                const attempt = await runSupervisedRenderAttempt({
+                  pidTag,
+                  command,
+                  args: normalizedArgs,
+                  cwd,
+                  timeoutMs,
+                  isStopped: () => stopped,
+                  waitMs,
+                  readRenderJob,
+                  startRenderJob,
+                  stopRenderJob,
+                  deleteRenderJob: deleteRenderPid,
+                  resolveOutput: async (startMs) => {
+                    processStartMs = startMs;
+                    const ok = await resolveOutputOk();
+                    return { ok, mismatchPath: mismatchedOutputPath };
+                  },
+                });
+                if (attempt.status === 'stopped') return;
+                _procOk = attempt.ok === true;
+                _procError = attempt.ok === true ? '' : String(attempt.error || 'worker_process_failed');
+              } else if (existingPid > 0) {
                 const aliveCheck = await checkPidAlive(existingPid);
                 if (stopped) return;
                 if (aliveCheck?.alive) {

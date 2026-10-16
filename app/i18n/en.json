@@ -1171,6 +1171,7 @@
   "postprod.renders.msg.offlineReplayDropped": "Offline recovery: {count} item(s) dropped (non-recoverable error).",
   "postprod.renders.msg.offlineReplayNone": "Offline recovery: no pending render.",
   "postprod.renders.msg.workerQueuedOffline": "PAP unavailable: worker completion queued offline ({count} pending).",
+  "postprod.renders.msg.workerStationBlocked": "Render station blocked: a previous render cannot be verified or stopped ({reason}). No new render will start until this is resolved.",
   "postprod.renders.msg.workerOfflineReplaySent": "Worker offline recovery: {count} completion(s) sent to PAP.",
   "postprod.renders.msg.workerOfflineReplayDropped": "Worker offline recovery: {count} completion(s) dropped (non-recoverable error).",
   "postprod.renders.msg.workerOfflineReplayNone": "Worker offline recovery: no pending completion.",
