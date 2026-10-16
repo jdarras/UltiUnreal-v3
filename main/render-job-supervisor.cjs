@@ -151,6 +151,11 @@ public static class UURenderJob {
 }
 
 Write-State @{ state = 'starting' }
+if (Test-Path -LiteralPath $StopFile) {
+  # Arrêt demandé avant le démarrage : rien n'est lancé.
+  Write-State @{ state = 'exited'; stopped = $true; rootExitCode = -1 }
+  exit 0
+}
 $commandLine = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($CommandLineB64))
 $startError = [UURenderJob]::Start($commandLine, $Cwd)
 if ($startError) {
@@ -283,9 +288,16 @@ function interpretJobState(state, { supervisorAlive }) {
   return { phase: 'unknown' };
 }
 
+// Délai pendant lequel une réservation sans superviseur connu est considérée
+// comme « en cours de lancement ». Au-delà, sans aucun état écrit par un
+// superviseur, la tentative est abandonnée (aucun processus n'a été lancé).
+const RESERVATION_GRACE_MS = 60000;
+
 // Suivi des rendus supervisés dans un dossier : <dir>/uu_render_<tag>.job
-// (lancement), .state (écrit par le superviseur), .stop (demande d'arrêt).
-// listProcesses({ pid }) renvoie la table { pid, ppid, startMs } ou null.
+// (réservation puis lancement), .state (écrit par le superviseur), .stop
+// (demande d'arrêt). listProcesses({ pid }) renvoie la table ou null.
+// Un fichier absent et un fichier illisible sont distingués : dans le second
+// cas le suivi est « unverifiable » et bloque la station.
 function createRenderJobStore({
   dir,
   listProcesses,
@@ -295,59 +307,101 @@ function createRenderJobStore({
   now = () => Date.now(),
 }) {
   const fileFor = (tag, ext) => path.join(dir, `uu_render_${tag}.${ext}`);
-  const readJson = (file) => {
+
+  function readJsonFile(file) {
+    let text;
     try {
-      const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-      return parsed && typeof parsed === 'object' ? parsed : null;
-    } catch {
-      return null;
+      text = fs.readFileSync(file, 'utf8');
+    } catch (err) {
+      return err?.code === 'ENOENT' ? { status: 'absent' } : { status: 'invalid' };
     }
-  };
+    try {
+      const value = JSON.parse(text);
+      return value && typeof value === 'object' ? { status: 'ok', value } : { status: 'invalid' };
+    } catch {
+      return { status: 'invalid' };
+    }
+  }
+
+  // Publication atomique : écriture complète dans un fichier temporaire, puis renommage.
+  function writeJsonAtomic(file, value) {
+    const tmp = `${file}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(value));
+    fs.renameSync(tmp, file);
+  }
+
+  function requestStopFile(tag) {
+    try {
+      fs.writeFileSync(fileFor(tag, 'stop'), String(now()));
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   function removeFiles(tag) {
-    for (const ext of ['job', 'state', 'stop', 'state.tmp']) {
-      try { fs.unlinkSync(fileFor(tag, ext)); } catch {}
+    for (const ext of ['job', 'job.tmp', 'state', 'stop', 'state.tmp']) {
+      try { fs.rmSync(fileFor(tag, ext), { force: true }); } catch {}
     }
   }
 
   // true/false si la table des processus est lisible, null sinon.
-  async function isSupervisorAlive(meta) {
-    const pid = Number(meta?.supervisorPid || 0);
+  async function isSupervisorAlive({ pid, startMs, spawnedAtMs }) {
     if (!Number.isFinite(pid) || pid <= 0) return false;
     const table = await listProcesses({ pid });
     if (!Array.isArray(table)) return null;
     const entry = table.find((item) => item.pid === pid);
     if (!entry) return false;
-    if (Number.isFinite(meta?.supervisorStartMs)) return entry.startMs === meta.supervisorStartMs;
-    const spawnedAtMs = Number(meta?.spawnedAtMs || 0);
-    return entry.startMs >= spawnedAtMs - 2000 && entry.startMs <= spawnedAtMs + 60000;
+    if (Number.isFinite(startMs)) return entry.startMs === startMs;
+    return entry.startMs >= spawnedAtMs - 2000 && entry.startMs <= spawnedAtMs + RESERVATION_GRACE_MS;
   }
 
   async function read(tag) {
-    const meta = readJson(fileFor(tag, 'job'));
-    if (!meta) return { exists: false };
-    const state = readJson(fileFor(tag, 'state'));
-    const finished = state?.state === 'exited' || state?.state === 'failed';
-    const supervisorAlive = finished ? null : await isSupervisorAlive(meta);
-    return {
-      exists: true,
-      spawnedAtMs: Number(meta.spawnedAtMs) || null,
-      ...interpretJobState(state, { supervisorAlive }),
-    };
+    const metaFile = readJsonFile(fileFor(tag, 'job'));
+    if (metaFile.status === 'absent') return { exists: false };
+    if (metaFile.status === 'invalid') return { exists: true, phase: 'unverifiable', error: 'job_meta_invalid' };
+    const meta = metaFile.value;
+    const spawnedAtMs = Number(meta.spawnedAtMs) || 0;
+    const base = { exists: true, spawnedAtMs: spawnedAtMs || null };
+
+    const stateFile = readJsonFile(fileFor(tag, 'state'));
+    const state = stateFile.status === 'ok' ? stateFile.value : null;
+    if (state?.state === 'exited' || state?.state === 'failed') {
+      return { ...base, ...interpretJobState(state, { supervisorAlive: null }) };
+    }
+
+    // Identité du superviseur : celle enregistrée par l'application, sinon celle
+    // qu'il a écrite lui-même dans son état (application arrêtée pendant le lancement).
+    const supervisorPid = Number(meta.supervisorPid) || Number(state?.supervisorPid) || 0;
+    if (!supervisorPid) {
+      if (stateFile.status === 'invalid') return { ...base, phase: 'unverifiable', error: 'job_state_invalid' };
+      return now() - spawnedAtMs <= RESERVATION_GRACE_MS
+        ? { ...base, phase: 'unknown' }
+        : { ...base, phase: 'abandoned' };
+    }
+    const supervisorAlive = await isSupervisorAlive({
+      pid: supervisorPid,
+      startMs: Number.isFinite(meta.supervisorStartMs) ? meta.supervisorStartMs : null,
+      spawnedAtMs,
+    });
+    return { ...base, ...interpretJobState(state, { supervisorAlive }) };
   }
 
   // Arrêt du job entier, confirmé : job vide, ou superviseur disparu (Windows
-  // arrête alors tout le job grâce à KILL_ON_JOB_CLOSE).
+  // arrête alors tout le job grâce à KILL_ON_JOB_CLOSE). Un suivi illisible
+  // n'est jamais considéré comme arrêté.
   async function stop(tag, { maxWaitMs = 30000 } = {}) {
     const first = await read(tag);
     if (!first.exists) return { ok: true, phase: 'none' };
+    if (first.phase === 'unverifiable') return { ok: false, phase: 'unverifiable' };
     if (first.phase !== 'running' && first.phase !== 'unknown') return { ok: true, phase: first.phase };
-    try { fs.writeFileSync(fileFor(tag, 'stop'), String(now())); } catch {}
+    requestStopFile(tag);
     const deadline = now() + maxWaitMs;
     while (now() < deadline) {
       await sleep(500);
       const job = await read(tag);
-      if (job.phase === 'exited' || job.phase === 'lost' || job.phase === 'failed') return { ok: true, phase: job.phase };
+      if (['exited', 'lost', 'failed', 'abandoned'].includes(job.phase)) return { ok: true, phase: job.phase };
+      if (job.phase === 'unverifiable') return { ok: false, phase: 'unverifiable' };
     }
     return { ok: false, phase: 'still_running' };
   }
@@ -355,6 +409,12 @@ function createRenderJobStore({
   async function start({ tag, scriptFile, command, args = [], cwd = '', startTimeoutMs = 30000 }) {
     removeFiles(tag);
     const spawnedAtMs = now();
+    // 1. Réservation durable AVANT tout lancement : si elle échoue, rien n'est lancé.
+    try {
+      writeJsonAtomic(fileFor(tag, 'job'), { phase: 'launching', spawnedAtMs, command });
+    } catch {
+      return { ok: false, error: 'job_meta_unwritable' };
+    }
     const launch = buildSupervisorLaunch({
       scriptFile,
       stateFile: fileFor(tag, 'state'),
@@ -363,30 +423,42 @@ function createRenderJobStore({
       cwd,
     });
     const supervisorPid = await runRelay(launch);
-    if (!supervisorPid) return { ok: false, error: 'supervisor_launch_failed' };
+    if (!supervisorPid) {
+      // Lancement incertain : arrêt demandé, réservation conservée pour la réconciliation.
+      requestStopFile(tag);
+      return { ok: false, error: 'supervisor_launch_failed' };
+    }
+    // 2. Identité du superviseur.
     const supervisorStartMs = await readProcessStartMs(supervisorPid);
     try {
-      fs.writeFileSync(fileFor(tag, 'job'), JSON.stringify({ supervisorPid, supervisorStartMs, spawnedAtMs, command }));
+      writeJsonAtomic(fileFor(tag, 'job'), { phase: 'launched', spawnedAtMs, command, supervisorPid, supervisorStartMs });
     } catch {
+      // Le superviseur tourne : arrêt demandé ; la réservation et son état
+      // (qui contient son numéro) permettent à la réconciliation de le retrouver.
+      requestStopFile(tag);
       return { ok: false, error: 'job_meta_unwritable' };
     }
+    // 3. Démarrage confirmé par le superviseur.
     const deadline = now() + startTimeoutMs;
     while (now() < deadline) {
-      const state = readJson(fileFor(tag, 'state'));
+      const stateFile = readJsonFile(fileFor(tag, 'state'));
+      const state = stateFile.status === 'ok' ? stateFile.value : null;
       if (state?.state === 'running' || state?.state === 'exited') {
         return { ok: true, detached: true, supervised: true, pid: Number(state.rootPid) || null, spawnedAtMs };
       }
       if (state?.state === 'failed') {
+        // Échec écrit par le superviseur lui-même : aucun processus du job ne tourne.
         removeFiles(tag);
         return { ok: false, error: String(state.error || 'supervisor_failed') };
       }
       await sleep(250);
     }
     // Démarrage non confirmé : arrêt demandé, le suivi reste pour la réconciliation.
-    try { fs.writeFileSync(fileFor(tag, 'stop'), String(now())); } catch {}
+    requestStopFile(tag);
     return { ok: false, error: 'supervisor_start_timeout' };
   }
 
+  // Lève une erreur si le dossier ne peut pas être lu (la réconciliation bloque alors).
   function listTags() {
     return fs.readdirSync(dir)
       .map((name) => /^uu_render_([a-z0-9_-]+)\.job$/i.exec(name)?.[1] || '')

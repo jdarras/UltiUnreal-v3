@@ -110,3 +110,51 @@ test("a station starts a render only after a successful reconcile with no surviv
   assert.equal(canStartRenderAfterReconcile({ ok: true }), false);
   assert.equal(canStartRenderAfterReconcile(null), false);
 });
+
+test("a job stopped by the supervisor never becomes a success on resume", async () => {
+  const job = fakeJob({ existing: { exists: true, phase: "exited", rootExitCode: 0, stopped: true, spawnedAtMs: T } });
+
+  const result = await runSupervisedRenderAttempt(job.deps);
+
+  assert.deepEqual([result.ok, result.error], [false, "job_stopped"]);
+  assert.deepEqual(job.calls.output, []);
+});
+
+test("a job stopped while being polled is a failure even with exit code 0", async () => {
+  const job = fakeJob({ phases: [{ exists: true, phase: "exited", rootExitCode: 0, stopped: true }] });
+
+  const result = await runSupervisedRenderAttempt(job.deps);
+
+  assert.deepEqual([result.ok, result.error], [false, "job_stopped"]);
+  assert.deepEqual(job.calls.output, []);
+});
+
+test("an unverifiable tracking blocks: nothing is launched and tracking is kept", async () => {
+  const job = fakeJob({ existing: { exists: true, phase: "unverifiable", error: "job_meta_invalid" } });
+
+  const result = await runSupervisedRenderAttempt(job.deps);
+
+  assert.equal(job.calls.start, 0);
+  assert.deepEqual([result.ok, result.error, result.processStillRunning], [false, "job_tracking_unverifiable", true]);
+  assert.equal(job.calls.delete, 0);
+});
+
+test("tracking becoming unreadable while polling blocks instead of waiting for the timeout", async () => {
+  const job = fakeJob({ phases: [{ exists: true, phase: "unverifiable", error: "job_meta_invalid" }] });
+
+  const result = await runSupervisedRenderAttempt(job.deps);
+
+  assert.deepEqual([result.ok, result.error, result.processStillRunning], [false, "job_tracking_unverifiable", true]);
+  assert.equal(job.calls.delete, 0);
+});
+
+test("an abandoned reservation (no supervisor ever started) fails at once", async () => {
+  const resumed = fakeJob({ existing: { exists: true, phase: "abandoned", spawnedAtMs: T } });
+  const polled = fakeJob({ phases: [{ exists: true, phase: "abandoned" }] });
+
+  const a = await runSupervisedRenderAttempt(resumed.deps);
+  const b = await runSupervisedRenderAttempt(polled.deps);
+
+  assert.deepEqual([a.error, b.error], ["supervisor_launch_abandoned", "supervisor_launch_abandoned"]);
+  assert.equal(polled.calls.reads, 2);
+});

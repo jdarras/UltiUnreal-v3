@@ -258,3 +258,40 @@ test('store: a missing command is reported as a launch failure', { skip: !isWind
   assert.equal(started.ok, false);
   assert.match(started.error, /^create_process_failed:2$/);
 });
+
+test('timeout stop, then reopening: a launcher that returned 0 never turns into a success', { skip: !isWindows }, async (t) => {
+  const dir = makeDir(t);
+  const pidsDir = writeScripts(dir);
+  const { store, start } = makeStore(dir);
+  await start('launcher.cjs');
+  await waitFor(() => recordedPids(pidsDir).length >= 2);
+  await sleep(1500); // lanceur terminé avec le code 0, enfant vivant
+
+  assert.equal((await store.stop('r1')).ok, true); // arrêt après délai
+  // Réouverture de l'application : nouvelle lecture du suivi par le runner.
+  const { runSupervisedRenderAttempt } = await import('../../app/utils/renderAttemptRunner.js');
+  let outputChecked = false;
+  const result = await runSupervisedRenderAttempt({
+    pidTag: 'r1', command: 'x', timeoutMs: 60_000, waitMs: sleep,
+    readRenderJob: (tag) => store.read(tag),
+    startRenderJob: async () => assert.fail('must not relaunch'),
+    stopRenderJob: (tag) => store.stop(tag),
+    deleteRenderJob: async (tag) => store.removeFiles(tag),
+    resolveOutput: async () => { outputChecked = true; return { ok: true }; },
+  });
+
+  assert.deepEqual([result.ok, result.error, outputChecked], [false, 'job_stopped', false]);
+  assert.deepEqual(recordedPids(pidsDir).filter(isAlive), []);
+});
+
+test('a stop requested before the supervisor starts the process launches nothing', { skip: !isWindows }, async (t) => {
+  const dir = makeDir(t);
+  const pidsDir = writeScripts(dir);
+  fs.writeFileSync(path.join(dir, 'stop'), '');
+  const job = startSupervisor(dir, 'sleep.cjs');
+
+  const state = await waitFor(() => (job.readState()?.state === 'exited' ? job.readState() : null));
+
+  assert.equal(state?.stopped, true);
+  assert.deepEqual(recordedPids(pidsDir), []);
+});

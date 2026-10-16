@@ -18,8 +18,10 @@ async function pollJobUntilDone({ pidTag, deadlineMs, now, isStopped, waitMs, po
     await waitMs(pollIntervalMs);
     if (isStopped()) return { kind: 'stopped' };
     const job = await readRenderJob(pidTag);
-    if (job?.phase === 'exited') return { kind: 'done', rootExitCode: job.rootExitCode ?? null };
+    if (job?.phase === 'exited') return { kind: 'done', rootExitCode: job.rootExitCode ?? null, stopped: job.stopped === true };
     if (job?.phase === 'lost') return { kind: 'lost' };
+    if (job?.phase === 'abandoned') return { kind: 'abandoned' };
+    if (job?.phase === 'unverifiable') return { kind: 'unverifiable' };
     if (job?.phase === 'failed') return { kind: 'failed', error: job.error || 'supervisor_failed' };
   }
 }
@@ -52,10 +54,22 @@ async function runSupervisedRenderAttempt({
   if (existing?.exists === true) {
     // Reprise : heure de départ et délai du lancement d'origine.
     if (Number.isFinite(existing.spawnedAtMs)) processStartMs = existing.spawnedAtMs;
-    if (existing.phase === 'exited') outcome = { kind: 'done', rootExitCode: existing.rootExitCode ?? null };
-    else if (existing.phase === 'lost') outcome = { kind: 'lost' };
-    else if (existing.phase === 'failed') outcome = { kind: 'failed', error: existing.error || 'supervisor_failed' };
-    else outcome = await pollJobUntilDone(pollArgs());
+    if (existing.phase === 'unverifiable') {
+      // Suivi présent mais illisible : un rendu peut encore tourner. Rien n'est
+      // lancé ni supprimé ; la réconciliation bloque la station.
+      return { status: 'finished', ok: false, error: 'job_tracking_unverifiable', processStartMs, processStillRunning: true };
+    }
+    if (existing.phase === 'exited') {
+      outcome = { kind: 'done', rootExitCode: existing.rootExitCode ?? null, stopped: existing.stopped === true };
+    } else if (existing.phase === 'lost') {
+      outcome = { kind: 'lost' };
+    } else if (existing.phase === 'abandoned') {
+      outcome = { kind: 'abandoned' };
+    } else if (existing.phase === 'failed') {
+      outcome = { kind: 'failed', error: existing.error || 'supervisor_failed' };
+    } else {
+      outcome = await pollJobUntilDone(pollArgs());
+    }
   } else {
     const started = await startRenderJob({ command, args, cwd, pidTag });
     if (isStopped()) return { status: 'stopped' };
@@ -66,6 +80,9 @@ async function runSupervisedRenderAttempt({
     outcome = await pollJobUntilDone(pollArgs());
   }
   if (outcome.kind === 'stopped') return { status: 'stopped' };
+  if (outcome.kind === 'unverifiable') {
+    return { status: 'finished', ok: false, error: 'job_tracking_unverifiable', processStartMs, processStillRunning: true };
+  }
 
   let ok = null;
   let error = '';
@@ -82,9 +99,17 @@ async function runSupervisedRenderAttempt({
   } else if (outcome.kind === 'lost') {
     ok = false;
     error = 'supervisor_lost';
+  } else if (outcome.kind === 'abandoned') {
+    ok = false;
+    error = 'supervisor_launch_abandoned';
   } else if (outcome.kind === 'failed') {
     ok = false;
     error = outcome.error;
+  } else if (outcome.stopped) {
+    // Job arrêté par le superviseur (délai dépassé avant une fermeture de
+    // l'application, par exemple) : échec, quels que soient le code et les fichiers.
+    ok = false;
+    error = 'job_stopped';
   } else if (outcome.rootExitCode != null && outcome.rootExitCode !== 0) {
     ok = false;
     error = `process_exit_${outcome.rootExitCode}`;
