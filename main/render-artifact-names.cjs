@@ -13,19 +13,29 @@ function fileNameOf(filePath = '') {
   return String(parts[parts.length - 1] || '').trim();
 }
 
-// Nom de base d'un fichier source, sans extension ni motif de numérotation
-// d'image (%04d, ####, {frame_number}, .0001), et sans caractère interdit.
+// Extensions de séquences d'images : toutes les images d'une séquence
+// partagent volontairement les mêmes dérivés.
+const IMAGE_SEQUENCE_EXTS = new Set(['exr', 'png', 'jpg', 'jpeg', 'tga', 'bmp', 'dpx', 'hdr', 'tif', 'tiff', 'webp']);
+
+// Identité d'un fichier source : son nom complet, extension comprise (Shot.mov
+// et Shot.mp4 restent distincts). Pour une séquence d'images seulement, la
+// numérotation (%04d, ####, {frame_number}, .0001) est retirée.
 function renderArtifactBaseName(sourcePath = '') {
-  let name = fileNameOf(sourcePath).replace(/\.[^.]+$/, '');
-  name = name
-    .replace(/%0?\d*d/gi, '')
-    .replace(/#+/g, '')
-    .replace(/\{[^}]*\}/g, '')
-    .replace(/\.\d+$/, '')
+  const fileName = fileNameOf(sourcePath);
+  const extMatch = /\.([^.]+)$/.exec(fileName);
+  const ext = extMatch ? extMatch[1] : '';
+  let stem = extMatch ? fileName.slice(0, -extMatch[0].length) : fileName;
+  if (IMAGE_SEQUENCE_EXTS.has(ext.toLowerCase())) {
+    stem = stem
+      .replace(/\.?%0?\d*d$/i, '')
+      .replace(/\.?#+$/, '')
+      .replace(/\.?\{[^}]*\}$/, '')
+      .replace(/\.\d+$/, '');
+  }
+  const name = (ext ? `${stem}.${ext}` : stem)
     .replace(/[<>:"/\\|?*]/g, '_')
-    .replace(/[._\s-]+$/g, '')
     .trim();
-  return name || 'render';
+  return stem.trim() ? name : 'render';
 }
 
 function proxyFileName(sourcePath) {

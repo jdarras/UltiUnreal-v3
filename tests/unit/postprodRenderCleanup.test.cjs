@@ -8,6 +8,7 @@ const {
   cleanupRenderArtifacts,
   handlePostprodRendersRoutes,
 } = require('../../main/server-postprod-routes-renders.cjs');
+const { createOwnedRenderJobFolder } = require('../../main/render-job-folder.cjs');
 
 function makeRoot(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uu-render-cleanup-'));
@@ -203,6 +204,7 @@ function jobRow(id, outputPath, payload = {}) {
 test('the exclusive job folder created for the render is deleted with it', (t) => {
   const root = makeRoot(t);
   const jobDir = path.join(root, '12_ProjetA');
+  assert.equal(createOwnedRenderJobFolder(jobDir, 12).owned, true);
   const out = writeFile(path.join(jobDir, 'Shot_12.mov'));
   writeFile(path.join(jobDir, 'logs', 'uu-worker-render-12.log'));
   writeFile(path.join(jobDir, 'proxy', 'proxy.mp4'));
@@ -247,4 +249,45 @@ test('a job folder nested deeper than the root, or reached through a junction, i
   fs.symlinkSync(outside, link, 'junction');
   cleanup(root, jobRow(12, path.join(link, 'x.mov'), { outputDir: link }));
   assert.equal(fs.existsSync(keptOutside), true);
+});
+
+// V1 : un nom en <id>_ ne prouve pas la propriété ; seul le marqueur déposé à
+// la création du dossier par le serveur l'autorise.
+test('a user folder merely named <id>_... is never deleted recursively', (t) => {
+  const root = makeRoot(t);
+  const userDir = path.join(root, '12_Archives-personnelles');
+  const notes = writeFile(path.join(userDir, 'notes.txt'));
+  const out = writeFile(path.join(userDir, 'Shot_12.mov'));
+
+  cleanup(root, jobRow(12, out, { outputDir: userDir }));
+
+  assert.equal(fs.existsSync(out), false);
+  assert.equal(fs.existsSync(notes), true);
+});
+
+test('a pre-existing folder is not claimed by the server when the job folder is created', (t) => {
+  const root = makeRoot(t);
+  const jobDir = path.join(root, '12_ProjetA');
+  const notes = writeFile(path.join(jobDir, 'notes.txt'));
+
+  assert.equal(createOwnedRenderJobFolder(jobDir, 12).owned, false);
+  cleanup(root, jobRow(12, path.join(jobDir, 'x.mov'), { outputDir: jobDir }));
+
+  assert.equal(fs.existsSync(notes), true);
+});
+
+test('a marker of another render, or for another path, does not authorise the deletion', (t) => {
+  const root = makeRoot(t);
+  const jobDir = path.join(root, '12_ProjetA');
+  createOwnedRenderJobFolder(jobDir, 13);
+  const notes = writeFile(path.join(jobDir, 'notes.txt'));
+  cleanup(root, jobRow(12, path.join(jobDir, 'x.mov'), { outputDir: jobDir }));
+  assert.equal(fs.existsSync(notes), true);
+
+  const copied = path.join(root, '12_Copie');
+  fs.mkdirSync(copied);
+  fs.copyFileSync(path.join(jobDir, '.uu-render-job.json'), path.join(copied, '.uu-render-job.json'));
+  const copiedNotes = writeFile(path.join(copied, 'notes.txt'));
+  cleanup(root, jobRow(13, path.join(copied, 'x.mov'), { outputDir: copied }));
+  assert.equal(fs.existsSync(copiedNotes), true);
 });

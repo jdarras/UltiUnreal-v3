@@ -19,6 +19,7 @@ import {
   readPostprodWorkerCompletionOutbox,
   writePostprodWorkerCompletionOutbox,
 } from "./utils/postprodOutboxHelpers";
+import { createSyncedOutbox } from "./utils/postprodOutboxStore";
 import { mapRenderExportDestinationOptions } from "./utils/postprodCatalogHelpers";
 import {
   APP_MODE_POSTPROD,
@@ -330,24 +331,42 @@ function App() {
     showNotice: noticeApi.showNotice,
     clearNotice: noticeApi.clearNotice,
   }), [noticeApi.showNotice, noticeApi.clearNotice]);
+  // Files hors ligne tenues de façon synchrone (source de vérité) : les ajouts
+  // sont acceptés ou refusés sur la file courante, et le résultat est exact.
+  const offlineOutboxStoreRef = useRef(null);
+  if (!offlineOutboxStoreRef.current) {
+    offlineOutboxStoreRef.current = createSyncedOutbox({
+      initial: postprodOfflineOutbox,
+      normalize: normalizePostprodOfflineOutbox,
+      commit: (next) => {
+        writePostprodOfflineOutbox(next);
+        setPostprodOfflineOutbox(next);
+      },
+    });
+  }
+  const workerCompletionOutboxStoreRef = useRef(null);
+  if (!workerCompletionOutboxStoreRef.current) {
+    workerCompletionOutboxStoreRef.current = createSyncedOutbox({
+      initial: postprodWorkerCompletionOutbox,
+      normalize: normalizePostprodWorkerCompletionOutbox,
+      commit: (next) => {
+        writePostprodWorkerCompletionOutbox(next);
+        setPostprodWorkerCompletionOutbox(next);
+      },
+    });
+  }
   const updatePostprodOfflineOutbox = useCallback((updater) => {
-    setPostprodOfflineOutbox((current) => {
-      const base = normalizePostprodOfflineOutbox(current);
-      const nextRaw = typeof updater === 'function' ? updater(base) : updater;
-      const next = normalizePostprodOfflineOutbox(nextRaw);
-      writePostprodOfflineOutbox(next);
-      return next;
-    });
+    offlineOutboxStoreRef.current.update(updater);
   }, []);
+  const tryUpdatePostprodOfflineOutbox = useCallback((decide) => (
+    offlineOutboxStoreRef.current.tryUpdate(decide)
+  ), []);
   const updatePostprodWorkerCompletionOutbox = useCallback((updater) => {
-    setPostprodWorkerCompletionOutbox((current) => {
-      const base = normalizePostprodWorkerCompletionOutbox(current);
-      const nextRaw = typeof updater === 'function' ? updater(base) : updater;
-      const next = normalizePostprodWorkerCompletionOutbox(nextRaw);
-      writePostprodWorkerCompletionOutbox(next);
-      return next;
-    });
+    workerCompletionOutboxStoreRef.current.update(updater);
   }, []);
+  const tryUpdatePostprodWorkerCompletionOutbox = useCallback((decide) => (
+    workerCompletionOutboxStoreRef.current.tryUpdate(decide)
+  ), []);
 
   const goToProjectDetail = React.useCallback((projectId) => {
     if (!projectId) return;
@@ -1033,7 +1052,7 @@ function App() {
     t,
     showNotice,
     ensureLocalRenderWorkerOnline,
-    updatePostprodOfflineOutbox,
+    tryUpdatePostprodOfflineOutbox,
     loadPostprodRenders,
     loadPostprodRenderHealth,
     loadPostprodUserAlerts,
@@ -1041,7 +1060,6 @@ function App() {
     aptitudeCheckPending,
     queuePausedLaunchPending,
     busyImmediateLaunchPending,
-    postprodOfflineOutboxCount,
     localPrimaryUnrealEditorPath,
     postprodRenderOutputDir,
     renderWorkerKey,
@@ -1112,7 +1130,7 @@ function App() {
     hasLocalUnrealCapability, localRenderEnabled, localRenderAvailability,
     renderWorkerKey, renderWorkerDisplayName, renderWorkerCapabilities, localPrimaryUnrealEditorPath,
     postprodWorkerCompletionOutbox,
-    replayPostprodWorkerCompletionOutbox, updatePostprodWorkerCompletionOutbox,
+    replayPostprodWorkerCompletionOutbox, tryUpdatePostprodWorkerCompletionOutbox,
     loadPostprodRenders, loadPostprodRenderWorkers, loadPostprodRenderHealth,
     handlePostprodDispatchRenders,
   });

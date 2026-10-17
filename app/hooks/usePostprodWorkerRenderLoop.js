@@ -45,7 +45,7 @@ function usePostprodWorkerRenderLoop({
   hasLocalUnrealCapability, localRenderEnabled, localRenderAvailability,
   renderWorkerKey, renderWorkerDisplayName, renderWorkerCapabilities, localPrimaryUnrealEditorPath,
   postprodWorkerCompletionOutbox,
-  replayPostprodWorkerCompletionOutbox, updatePostprodWorkerCompletionOutbox,
+  replayPostprodWorkerCompletionOutbox, tryUpdatePostprodWorkerCompletionOutbox,
   loadPostprodRenders, loadPostprodRenderWorkers, loadPostprodRenderHealth,
   handlePostprodDispatchRenders,
 }) {
@@ -531,28 +531,11 @@ function usePostprodWorkerRenderLoop({
                   || Number(entry.userId) === currentUserId
                 )
               );
-              const knownQueue = normalizePostprodWorkerCompletionOutbox(postprodWorkerCompletionOutbox);
-              const replacesExisting = knownQueue.some(isSameCompletion);
-              if (!replacesExisting && knownQueue.length >= MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS) {
-                // File pleine : refus explicite, rien n'est supprimé en silence.
-                showNotice(t('postprod.renders.msg.workerQueueFull', { max: MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS }), 'error');
-                return;
-              }
-              const pendingCount = knownQueue.filter((entry) => (
-                String(entry?.workerKey || '').trim() === workerKey
-                && (currentUserId == null || entry?.userId == null || Number(entry.userId) === currentUserId)
-              )).length + (replacesExisting ? 0 : 1);
-              updatePostprodWorkerCompletionOutbox((current) => {
+              // Décision prise sur la file courante, au moment même de l'ajout.
+              const queued = tryUpdatePostprodWorkerCompletionOutbox((current) => {
                 const next = normalizePostprodWorkerCompletionOutbox(current);
-                const existingIdx = next.findIndex((entry) => (
-                  String(entry?.workerKey || '').trim() === workerKey
-                  && Number(entry?.renderId || 0) === renderId
-                  && (
-                    currentUserId == null
-                    || entry?.userId == null
-                    || Number(entry.userId) === currentUserId
-                  )
-                ));
+                const existingIdx = next.findIndex(isSameCompletion);
+                const lastError = String(err?.message || err?.code || 'network_error').trim().slice(0, 200);
                 if (existingIdx >= 0) {
                   const attempts = Number(next[existingIdx]?.attempts || 0);
                   next[existingIdx] = {
@@ -560,25 +543,34 @@ function usePostprodWorkerRenderLoop({
                     payload: completionPayload,
                     attempts: Number.isFinite(attempts) ? Math.max(0, Math.trunc(attempts)) + 1 : 1,
                     lastAttemptAt: nowIso,
-                    lastError: String(err?.message || err?.code || 'network_error').trim().slice(0, 200),
+                    lastError,
                   };
-                } else {
-                  if (next.length >= MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS) return next;
-                  next.push({
-                    id: `worker-complete-${workerKey}-${renderId}-${Date.now()}`,
-                    kind: 'worker_complete',
-                    workerKey,
-                    renderId,
-                    userId: currentUserId,
-                    payload: completionPayload,
-                    createdAt: nowIso,
-                    attempts: 1,
-                    lastAttemptAt: nowIso,
-                    lastError: String(err?.message || err?.code || 'network_error').trim().slice(0, 200),
-                  });
+                  return { next, accepted: true };
                 }
-                return next;
+                // File pleine : refus explicite, rien n'est supprimé en silence.
+                if (next.length >= MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS) return { accepted: false };
+                next.push({
+                  id: `worker-complete-${workerKey}-${renderId}-${Date.now()}`,
+                  kind: 'worker_complete',
+                  workerKey,
+                  renderId,
+                  userId: currentUserId,
+                  payload: completionPayload,
+                  createdAt: nowIso,
+                  attempts: 1,
+                  lastAttemptAt: nowIso,
+                  lastError,
+                });
+                return { next, accepted: true };
               });
+              if (queued?.accepted !== true) {
+                showNotice(t('postprod.renders.msg.workerQueueFull', { max: MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS }), 'error');
+                return;
+              }
+              const pendingCount = queued.list.filter((entry) => (
+                String(entry?.workerKey || '').trim() === workerKey
+                && (currentUserId == null || entry?.userId == null || Number(entry.userId) === currentUserId)
+              )).length;
               showNotice(t('postprod.renders.msg.workerQueuedOffline', { count: pendingCount }), 'warn');
               loadPostprodRenderHealth().catch(() => ({}));
             }
@@ -602,7 +594,7 @@ function usePostprodWorkerRenderLoop({
     renderWorkerKey,
     postprodWorkerCompletionOutbox,
     replayPostprodWorkerCompletionOutbox,
-    updatePostprodWorkerCompletionOutbox,
+    tryUpdatePostprodWorkerCompletionOutbox,
     loadPostprodRenders,
     loadPostprodRenderWorkers,
     loadPostprodRenderHealth,

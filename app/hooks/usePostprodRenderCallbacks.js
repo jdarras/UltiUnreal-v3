@@ -17,6 +17,7 @@ import {
 import { resolvePostprodRendersError } from "../utils/postprodErrorHelpers";
 import {
   MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS,
+  appendToOutboxWithinCapacity,
   isPostprodRecoverableOfflineError,
 } from "../utils/postprodOutboxHelpers";
 import {
@@ -33,10 +34,9 @@ import {
 
 function usePostprodRenderCallbacks({
   postprodAuth, t, showNotice,
-  ensureLocalRenderWorkerOnline, updatePostprodOfflineOutbox,
+  ensureLocalRenderWorkerOnline, tryUpdatePostprodOfflineOutbox,
   loadPostprodRenders, loadPostprodRenderHealth, loadPostprodUserAlerts, loadPostprodTasks,
   aptitudeCheckPending, queuePausedLaunchPending, busyImmediateLaunchPending,
-  postprodOfflineOutboxCount,
   localPrimaryUnrealEditorPath, postprodRenderOutputDir,
   renderWorkerKey, renderWorkerDisplayName, localRenderAvailability,
   postprodRenderWorkers,
@@ -490,17 +490,6 @@ function usePostprodRenderCallbacks({
       showNotice(t('postprod.renders.msg.created'), 'ok');
       return createRes?.render || createRes?.renderJob || null;
     } catch (e) {
-      if (isPostprodRecoverableOfflineError(e) && postprodOfflineOutboxCount >= MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS) {
-        // File hors ligne pleine : la demande est refusée explicitement (aucune
-        // demande en attente n'est supprimée pour lui faire de la place).
-        setPostprodRenders((prev) => ({
-          ...prev,
-          loading: false,
-          error: t('postprod.renders.msg.offlineQueueFull', { max: MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS }),
-        }));
-        showNotice(t('postprod.renders.msg.offlineQueueFull', { max: MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS }), 'error');
-        return null;
-      }
       if (isPostprodRecoverableOfflineError(e)) {
         const item = {
           id: `offline-render-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -512,16 +501,25 @@ function usePostprodRenderCallbacks({
           lastAttemptAt: '',
           lastError: String(e?.message || e?.code || 'network_error').trim().slice(0, 200),
         };
-        updatePostprodOfflineOutbox((current) => (
-          current.length >= MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS ? current : [...current, item]
-        ));
+        // Décision prise sur la file courante, au moment même de l'ajout : le
+        // message affiché correspond au résultat effectif (accepté ou refusé).
+        const queued = tryUpdatePostprodOfflineOutbox((current) => {
+          const result = appendToOutboxWithinCapacity(current, item, MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS);
+          return { next: result.list, accepted: result.accepted };
+        });
+        if (queued?.accepted !== true) {
+          // File pleine : refus explicite, aucune demande en attente n'est supprimée.
+          const fullMessage = t('postprod.renders.msg.offlineQueueFull', { max: MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS });
+          setPostprodRenders((prev) => ({ ...prev, loading: false, error: fullMessage }));
+          showNotice(fullMessage, 'error');
+          return null;
+        }
         setPostprodRenders((prev) => ({
           ...prev,
           loading: false,
           error: '',
         }));
-        const pendingCount = Math.max(1, postprodOfflineOutboxCount + 1);
-        showNotice(t('postprod.renders.msg.queuedOffline', { count: pendingCount }), 'warn');
+        showNotice(t('postprod.renders.msg.queuedOffline', { count: queued.list.length }), 'warn');
         return null;
       }
       setPostprodRenders((prev) => ({
@@ -534,8 +532,7 @@ function usePostprodRenderCallbacks({
   }, [
     postprodAuth.token,
     postprodAuth.user?.id,
-    postprodOfflineOutboxCount,
-    updatePostprodOfflineOutbox,
+    tryUpdatePostprodOfflineOutbox,
     localPrimaryUnrealEditorPath,
     postprodRenderOutputDir,
     loadPostprodRenders,

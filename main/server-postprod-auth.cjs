@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { getSharedStore } = require('./server-shared-sqlite.cjs');
 const { isRenderArtifactFileName } = require('./render-artifact-names.cjs');
+const { createOwnedRenderJobFolder } = require('./render-job-folder.cjs');
 const { handlePostprodRoleRoutes } = require('./server-postprod-routes-roles.cjs');
 const { handlePostprodDataTablesRoutes } = require('./server-postprod-routes-data-tables.cjs');
 const { handlePostprodResourcesRoutes } = require('./server-postprod-routes-resources.cjs');
@@ -8234,9 +8235,9 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
         projectId = String(matched?.id || '').trim();
       } catch {}
       const jobDir = buildRenderOutputSubdir(jobId, projectId || projectName, baseDir);
-      fs.mkdirSync(path.join(jobDir, 'logs'), { recursive: true });
-      fs.mkdirSync(path.join(jobDir, 'images'), { recursive: true });
-      fs.mkdirSync(path.join(jobDir, 'proxy'), { recursive: true });
+      // Marqueur de propriété déposé seulement si le dossier est créé ici : il
+      // autorise sa suppression complète avec le rendu (voir render-job-folder.cjs).
+      createOwnedRenderJobFolder(jobDir, jobId);
       return { ok: true, outputPath: jobDir };
     } catch (err) {
       return { ok: false, error: String(err?.message || 'create_subdir_failed') };

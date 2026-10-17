@@ -1,6 +1,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { isOwnedRenderJobFolder } = require('./render-job-folder.cjs');
 
 function readSafeCommonConfig(readCommonServerConfigFile, commonServerFile) {
   if (typeof readCommonServerConfigFile !== 'function') return {};
@@ -272,9 +273,10 @@ function cleanupRenderArtifacts({
   }
 
   // Sous-dossier exclusif créé par le serveur à l'attribution du rendu
-  // (<racine>/<id>_<projet>, voir buildRenderOutputSubdir) : supprimé en entier
-  // seulement s'il est exactement ce dossier, directement sous une racine
-  // autorisée, sans lien ni jonction, et qu'aucun autre rendu n'y référence rien.
+  // (<racine>/<id>_<projet>, voir createOwnedRenderJobFolder) : supprimé en
+  // entier seulement s'il porte le marqueur de propriété de CE rendu pour CE
+  // chemin, directement sous une racine autorisée, sans lien ni jonction, et
+  // qu'aucun autre rendu n'y référence rien.
   const renderId = toPositiveInt(renderRow?.id);
   if (renderId > 0 && realRoots.length > 0) {
     const otherKeys = [
@@ -292,6 +294,8 @@ function cleanupRenderArtifacts({
         // Parent réel = racine autorisée : exclut un dossier atteint via une jonction.
         if (!realRootKeys.has(normalizeAbsPathKey(path.dirname(realFolder)))) continue;
         if (!path.basename(realFolder).startsWith(`${renderId}_`)) continue;
+        // Preuve de propriété : marqueur déposé par le serveur à la création (V1).
+        if (!isOwnedRenderJobFolder(realFolder, renderId)) continue;
         if (otherKeys.some((key) => key === realKey || key.startsWith(`${realKey}/`))) {
           skipped.push({ path: realFolder, reason: 'job_folder_shared_with_other_render' });
           continue;

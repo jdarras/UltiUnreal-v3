@@ -9,17 +9,24 @@ function fileNameOf(filePath = '') {
   return String(parts[parts.length - 1] || '').trim();
 }
 
+const IMAGE_SEQUENCE_EXTS = new Set(['exr', 'png', 'jpg', 'jpeg', 'tga', 'bmp', 'dpx', 'hdr', 'tif', 'tiff', 'webp']);
+
 function renderArtifactBaseName(sourcePath = '') {
-  let name = fileNameOf(sourcePath).replace(/\.[^.]+$/, '');
-  name = name
-    .replace(/%0?\d*d/gi, '')
-    .replace(/#+/g, '')
-    .replace(/\{[^}]*\}/g, '')
-    .replace(/\.\d+$/, '')
+  const fileName = fileNameOf(sourcePath);
+  const extMatch = /\.([^.]+)$/.exec(fileName);
+  const ext = extMatch ? extMatch[1] : '';
+  let stem = extMatch ? fileName.slice(0, -extMatch[0].length) : fileName;
+  if (IMAGE_SEQUENCE_EXTS.has(ext.toLowerCase())) {
+    stem = stem
+      .replace(/\.?%0?\d*d$/i, '')
+      .replace(/\.?#+$/, '')
+      .replace(/\.?\{[^}]*\}$/, '')
+      .replace(/\.\d+$/, '');
+  }
+  const name = (ext ? `${stem}.${ext}` : stem)
     .replace(/[<>:"/\\|?*]/g, '_')
-    .replace(/[._\s-]+$/g, '')
     .trim();
-  return name || 'render';
+  return stem.trim() ? name : 'render';
 }
 
 function proxyFileName(sourcePath) {
