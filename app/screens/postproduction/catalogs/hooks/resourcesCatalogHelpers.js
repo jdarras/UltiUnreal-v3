@@ -165,12 +165,3 @@ export function buildResourceDetailSnapshot(detail = null, selectedFallback = nu
     detailLinkedTasksCount,
   };
 }
-
-export default {
-  resolveResourcesSourceLabel,
-  resolveResourcesSyncStateLabel,
-  resolveResourcesSyncCountersLabel,
-  buildNormalizedResources,
-  filterResources,
-  buildResourceDetailSnapshot,
-};

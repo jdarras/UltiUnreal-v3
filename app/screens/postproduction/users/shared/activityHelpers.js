@@ -219,15 +219,3 @@ export {
   getActivityTypeSummary,
   activityMatchesSearchQuery,
 };
-
-export default {
-  ACTIVITY_TYPE_FILTERS,
-  activityActionTypeLabel,
-  activityTypeChipLevel,
-  normalizeActivityProjectRef,
-  activityActionTypeFromAction,
-  mapActivityActionTypeToApi,
-  activityMatchesSelectedType,
-  getActivityTypeSummary,
-  activityMatchesSearchQuery,
-};

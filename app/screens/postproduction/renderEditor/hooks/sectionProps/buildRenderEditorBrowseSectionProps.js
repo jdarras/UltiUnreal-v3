@@ -67,5 +67,3 @@ function buildRenderEditorBrowseSectionProps(input = {}) {
 export {
   buildRenderEditorBrowseSectionProps,
 };
-
-export default buildRenderEditorBrowseSectionProps;

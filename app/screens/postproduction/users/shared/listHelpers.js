@@ -10,7 +10,3 @@ const USER_LIST_SORT_COLUMNS = [
 export {
   USER_LIST_SORT_COLUMNS,
 };
-
-export default {
-  USER_LIST_SORT_COLUMNS,
-};

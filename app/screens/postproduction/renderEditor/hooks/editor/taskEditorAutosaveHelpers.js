@@ -58,5 +58,3 @@ export {
   toPayloadSignature,
   runTaskEditAutosaveCycle,
 };
-
-export default runTaskEditAutosaveCycle;

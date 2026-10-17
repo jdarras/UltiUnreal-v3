@@ -55,5 +55,3 @@ function buildQueuePanelProps(input = {}) {
 export {
   buildQueuePanelProps,
 };
-
-export default buildQueuePanelProps;

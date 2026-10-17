@@ -151,5 +151,3 @@ export {
   getQueueEntryLaunchMeta,
   queueEntryWorkerLabel,
 };
-
-export default buildQueueWorkerLabelByKey;

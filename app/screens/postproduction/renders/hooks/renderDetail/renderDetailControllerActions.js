@@ -64,5 +64,3 @@ export {
   openRenderDetailAction,
   advancePreviewCandidateAction,
 };
-
-export default openRenderOutputExternallyAction;

@@ -49,6 +49,3 @@ function buildDetailModalProps({
 export {
   buildDetailModalProps,
 };
-
-export default buildDetailModalProps;
-

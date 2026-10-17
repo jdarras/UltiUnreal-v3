@@ -91,5 +91,3 @@ function buildRenderEditorSectionProps(input = {}) {
 export {
   buildRenderEditorSectionProps,
 };
-
-export default buildRenderEditorSectionProps;

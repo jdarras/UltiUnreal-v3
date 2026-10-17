@@ -15,5 +15,3 @@ function buildRenderEditorStatusMessagesProps({
 export {
   buildRenderEditorStatusMessagesProps,
 };
-
-export default buildRenderEditorStatusMessagesProps;

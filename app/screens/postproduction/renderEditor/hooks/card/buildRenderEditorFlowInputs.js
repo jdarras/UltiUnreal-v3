@@ -119,5 +119,3 @@ export {
   buildTaskEditorControllerInput,
   buildRenderEditorUiActionsInput,
 };
-
-export default buildTaskLifecycleControllerInput;

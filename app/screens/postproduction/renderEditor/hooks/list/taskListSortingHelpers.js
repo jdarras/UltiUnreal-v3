@@ -47,8 +47,3 @@ export function compareTasksBySortKey({
   const bTitle = String(b?.title || "").toLowerCase();
   return aTitle.localeCompare(bTitle);
 }
-
-export default {
-  TASK_LIST_ALLOWED_SORT_KEYS,
-  compareTasksBySortKey,
-};

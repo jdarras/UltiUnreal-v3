@@ -65,10 +65,3 @@ export {
   parseNotificationPrefs,
   stringifyNotificationPrefs,
 };
-
-export default {
-  DEFAULT_NOTIFICATION_PREFS,
-  normalizeNotificationPrefsCategories,
-  parseNotificationPrefs,
-  stringifyNotificationPrefs,
-};

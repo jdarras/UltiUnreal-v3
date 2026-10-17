@@ -84,5 +84,3 @@ export {
   isSameReviewStatus,
   toRenderId,
 };
-
-export default buildRenderReviewTransitionSteps;

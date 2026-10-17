@@ -22,5 +22,3 @@ function buildRenderEditorDeleteDialogProps({
 export {
   buildRenderEditorDeleteDialogProps,
 };
-
-export default buildRenderEditorDeleteDialogProps;

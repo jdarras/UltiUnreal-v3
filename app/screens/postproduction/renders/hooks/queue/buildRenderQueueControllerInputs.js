@@ -70,5 +70,3 @@ export {
   buildRenderQueueSortingInput,
   buildRenderQueueLaunchInput,
 };
-
-export default buildRenderQueueDerivedDataInput;

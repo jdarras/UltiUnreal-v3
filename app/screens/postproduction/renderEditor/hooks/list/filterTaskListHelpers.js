@@ -170,5 +170,3 @@ export {
   filterTasksList,
   hasActiveTaskListFilters,
 };
-
-export default filterTasksList;

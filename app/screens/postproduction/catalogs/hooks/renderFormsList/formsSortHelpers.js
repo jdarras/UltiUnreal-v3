@@ -102,5 +102,3 @@ export {
   nextFormsSortState,
   formsSortArrowFor,
 };
-
-export default sortForms;

@@ -115,5 +115,3 @@ export {
   canClearFormsFilters,
   filterForms,
 };
-
-export default filterForms;

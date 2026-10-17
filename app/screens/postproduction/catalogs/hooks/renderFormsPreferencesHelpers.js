@@ -116,5 +116,3 @@ export {
   usePersistRenderFormsPreferences,
   normalizeFormsSortSelect,
 };
-
-export default usePersistRenderFormsPreferences;

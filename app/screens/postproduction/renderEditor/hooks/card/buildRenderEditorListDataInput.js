@@ -60,5 +60,3 @@ export {
   buildRenderEditorCatalogOptionsInput,
   buildRenderEditorListControllerCardInput,
 };
-
-export default buildRenderEditorCatalogOptionsInput;

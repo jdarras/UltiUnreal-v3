@@ -23,5 +23,3 @@ export {
   resolveLiveFieldInputKind,
   resolveSafeColorValue,
 };
-
-export default getVisibleLiveFields;

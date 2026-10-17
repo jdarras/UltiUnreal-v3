@@ -68,5 +68,3 @@ function buildToolbarProps(input = {}) {
 export {
   buildToolbarProps,
 };
-
-export default buildToolbarProps;

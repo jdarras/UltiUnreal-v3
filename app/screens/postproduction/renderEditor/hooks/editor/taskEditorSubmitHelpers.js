@@ -378,5 +378,3 @@ export {
   buildImmediateRenderRequest,
   runTaskSubmit,
 };
-
-export default runTaskSubmit;

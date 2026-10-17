@@ -79,5 +79,3 @@ export {
   buildExpectedRenderMeta,
   buildVisibleAutoRenderFormFields,
 };
-
-export default buildVisibleAutoRenderFormFields;

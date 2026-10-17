@@ -84,13 +84,3 @@ export {
   buildAvatarDataUrlFromFile,
   avatarErrorMessage,
 };
-
-export default {
-  MAX_AVATAR_FILE_BYTES,
-  AVATAR_PREVIEW_SIZE,
-  AVATAR_UPLOAD_MAX_SIDE,
-  resolveAvatarInitials,
-  isUsableAvatarSrc,
-  buildAvatarDataUrlFromFile,
-  avatarErrorMessage,
-};

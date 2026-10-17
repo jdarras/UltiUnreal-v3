@@ -62,5 +62,3 @@ export {
   buildRendersCardControllersInput,
   buildRendersCardDataPreferences,
 };
-
-export default buildRendersCardControllersInput;

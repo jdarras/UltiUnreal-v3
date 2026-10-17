@@ -66,5 +66,3 @@ export {
   buildTaskAutoRenderControllerInput,
   buildTaskPayloadBuilderInput,
 };
-
-export default buildTaskAutoRenderControllerInput;

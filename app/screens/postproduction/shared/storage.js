@@ -22,9 +22,3 @@ export function readStorageJsonObject(key, fallback = {}) {
   } catch {}
   return fallback && typeof fallback === "object" ? fallback : {};
 }
-
-export default {
-  readStorageString,
-  readStorageBoolean,
-  readStorageJsonObject,
-};

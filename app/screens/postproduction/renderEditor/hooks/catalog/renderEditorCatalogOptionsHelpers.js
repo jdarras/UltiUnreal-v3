@@ -181,5 +181,3 @@ export {
   sanitizeSelectedResourceRefs,
   hasResourceFilterOption,
 };
-
-export default normalizeRenderWorkers;

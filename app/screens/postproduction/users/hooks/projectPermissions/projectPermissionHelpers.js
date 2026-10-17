@@ -64,5 +64,3 @@ export {
   filterPermissionSummaryRows,
   normalizePermissionDraft,
 };
-
-export default normalizePermissionDraft;

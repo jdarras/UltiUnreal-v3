@@ -7,9 +7,3 @@ export {
   buildSelectedFormData,
   buildAutoRenderPayloads,
 };
-
-export default {
-  resolveAutoRenderContext,
-  buildSelectedFormData,
-  buildAutoRenderPayloads,
-};

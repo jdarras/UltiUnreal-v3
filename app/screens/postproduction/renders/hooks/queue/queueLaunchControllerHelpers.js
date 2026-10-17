@@ -131,5 +131,3 @@ export {
   buildQueueBatchErrorMessage,
   applyLaunchedTaskSelectionCleanup,
 };
-
-export default canLaunchRenders;

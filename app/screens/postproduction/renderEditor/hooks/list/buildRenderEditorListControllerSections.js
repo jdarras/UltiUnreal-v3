@@ -118,5 +118,3 @@ export {
   buildTaskListSortingInput,
   buildRenderEditorListControllerOutput,
 };
-
-export default buildTaskFilterOptionsInput;

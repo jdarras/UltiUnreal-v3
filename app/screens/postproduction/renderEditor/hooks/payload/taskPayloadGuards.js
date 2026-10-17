@@ -122,5 +122,3 @@ export {
   validateResolvedAutoRenderContext,
   validateTaskPayloadInputs,
 };
-
-export default validateTaskPayloadInputs;

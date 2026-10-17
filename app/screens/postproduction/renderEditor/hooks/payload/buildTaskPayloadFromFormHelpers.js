@@ -224,5 +224,3 @@ export {
   resolveTaskPayloadBuildContext,
   buildTaskPayloadFromResolvedContext,
 };
-
-export default resolveTaskPayloadBuildContext;

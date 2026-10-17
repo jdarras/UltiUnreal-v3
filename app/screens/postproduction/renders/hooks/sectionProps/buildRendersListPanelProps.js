@@ -33,5 +33,3 @@ function buildListPanelProps(input = {}) {
 export {
   buildListPanelProps,
 };
-
-export default buildListPanelProps;
