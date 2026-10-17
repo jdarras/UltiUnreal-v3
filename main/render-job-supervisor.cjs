@@ -26,6 +26,17 @@ const SUPERVISOR_SCRIPT = String.raw`param(
 )
 $ErrorActionPreference = 'Stop'
 
+$SupervisorStart = ''
+function Write-State($values) {
+  $values['supervisorPid'] = $PID
+  if ($SupervisorStart) { $values['supervisorStart'] = $SupervisorStart }
+  $values['at'] = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+  $json = ($values | ConvertTo-Json -Compress)
+  $tmp = "$StateFile.tmp"
+  [IO.File]::WriteAllText($tmp, $json)
+  Move-Item -LiteralPath $tmp -Destination $StateFile -Force
+}
+
 # 1. Prise exclusive de la tentative, avant toute autre opération. Elle arbitre
 #    avec l'application : si celle-ci a déclaré la tentative abandonnée (même
 #    fichier, création exclusive), ce superviseur tardif ne lance rien et
@@ -47,14 +58,13 @@ try {
   exit 0
 }
 
-function Write-State($values) {
-  $values['supervisorPid'] = $PID
-  $values['at'] = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-  $json = ($values | ConvertTo-Json -Compress)
-  $tmp = "$StateFile.tmp"
-  [IO.File]::WriteAllText($tmp, $json)
-  Move-Item -LiteralPath $tmp -Destination $StateFile -Force
-}
+# 3. Identité exacte publiée aussitôt : heure de création lue dans la même table
+#    système que l'application (Win32_Process), au même format.
+try {
+  $self = Get-CimInstance Win32_Process -Filter "ProcessId=$PID"
+  $SupervisorStart = $self.CreationDate.ToUniversalTime().ToString('o')
+} catch {}
+Write-State @{ state = 'starting' }
 
 try {
   Add-Type -TypeDefinition @'
@@ -416,15 +426,20 @@ function createRenderJobStore({
     }
   }
 
-  // true/false si la table des processus est lisible, null sinon.
-  async function isSupervisorAlive({ pid, startMs, spawnedAtMs }) {
+  // Présence du superviseur :
+  //   false : aucun processus ne porte ce numéro, ou il porte une autre heure
+  //           de création exacte (numéro repris) — preuve de disparition ;
+  //   true  : même numéro et même heure de création exacte ;
+  //   null  : table illisible, ou identité exacte inconnue alors qu'un processus
+  //           porte ce numéro (identité non confirmée : jamais « disparu »).
+  async function isSupervisorAlive({ pid, startMs }) {
     if (!Number.isFinite(pid) || pid <= 0) return false;
     const table = await listProcesses({ pid });
     if (!Array.isArray(table)) return null;
     const entry = table.find((item) => item.pid === pid);
     if (!entry) return false;
     if (Number.isFinite(startMs)) return entry.startMs === startMs;
-    return entry.startMs >= spawnedAtMs - 2000 && entry.startMs <= spawnedAtMs + RESERVATION_GRACE_MS;
+    return null;
   }
 
   async function read(tag) {
@@ -461,11 +476,13 @@ function createRenderJobStore({
       if (claim.status !== 'supervisor') return { ...base, phase: 'unverifiable', error: 'job_claim_invalid' };
       supervisorPid = claim.pid;
     }
-    const supervisorAlive = await isSupervisorAlive({
-      pid: supervisorPid,
-      startMs: Number.isFinite(meta.supervisorStartMs) ? meta.supervisorStartMs : null,
-      spawnedAtMs,
-    });
+    // Identité exacte : relevée par l'application au lancement, sinon publiée par
+    // le superviseur lui-même (même table système, même format).
+    const statedStartMs = Date.parse(String(state?.supervisorStart || ''));
+    const exactStartMs = Number.isFinite(meta.supervisorStartMs)
+      ? meta.supervisorStartMs
+      : (Number(state?.supervisorPid) === supervisorPid && Number.isFinite(statedStartMs) ? statedStartMs : null);
+    const supervisorAlive = await isSupervisorAlive({ pid: supervisorPid, startMs: exactStartMs });
     return { ...base, ...interpretJobState(state, { supervisorAlive }) };
   }
 

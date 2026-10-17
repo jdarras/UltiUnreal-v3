@@ -367,3 +367,38 @@ test('U1: a late supervisor of a replaced attempt launches nothing and leaves th
   assert.equal(fs.existsSync(stateFile), false);
   assert.equal(fs.readFileSync(path.join(dir, 'uu_render_r1.job'), 'utf8'), newReservation);
 });
+
+test('U2: a supervisor winning the claim long after the grace period is followed, then stopped with confirmation', { skip: !isWindows }, async (t) => {
+  const dir = makeDir(t);
+  const pidsDir = writeScripts(dir);
+  const scriptFile = path.join(dir, 'supervisor.ps1');
+  fs.writeFileSync(scriptFile, SUPERVISOR_SCRIPT);
+  const attemptId = 'd'.repeat(32);
+  const jobFile = path.join(dir, 'uu_render_r1.job');
+  // Réservation de 120 s, application morte avant d'enregistrer l'identité du superviseur.
+  fs.writeFileSync(jobFile, JSON.stringify({ phase: 'launching', attemptId, spawnedAtMs: Date.now() - 120_000 }));
+  const launch = buildSupervisorLaunch({
+    scriptFile,
+    stateFile: path.join(dir, 'uu_render_r1.state'),
+    stopFile: path.join(dir, 'uu_render_r1.stop'),
+    jobFile,
+    claimFile: path.join(dir, `uu_render_r1.claim.${attemptId}`),
+    attemptId,
+    commandLine: buildWindowsCommandLine(process.execPath, [path.join(dir, 'sleep.cjs')]),
+  });
+  const supervisorPid = Number(execFileSync(launch.file, launch.args, { windowsHide: true, encoding: 'utf8' }).trim());
+  await waitFor(() => recordedPids(pidsDir).length >= 1);
+  const store = createRenderJobStore({
+    dir, listProcesses: listSystemProcesses, runRelay: runSupervisorRelay, readProcessStartMs: readSystemProcessStartMs,
+  });
+
+  // Identité publiée par le superviseur, identique à la table système.
+  const state = JSON.parse(fs.readFileSync(path.join(dir, 'uu_render_r1.state'), 'utf8'));
+  assert.equal(Date.parse(state.supervisorStart), await readSystemProcessStartMs(supervisorPid));
+  assert.equal((await store.read('r1')).phase, 'running');
+
+  // Réconciliation : arrêt demandé et confirmé, rien ne reste actif.
+  assert.deepEqual(await store.stop('r1'), { ok: true, phase: 'exited' });
+  assert.equal(isAlive(supervisorPid) && (await readSystemProcessStartMs(supervisorPid)) === Date.parse(state.supervisorStart), false);
+  assert.deepEqual(recordedPids(pidsDir).filter(isAlive), []);
+});

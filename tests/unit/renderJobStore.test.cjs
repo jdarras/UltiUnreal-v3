@@ -27,6 +27,8 @@ function makeStore(dir, { table = [], relayPid = 900, onRelay = () => {}, clock 
 }
 
 const file = (dir, ext) => path.join(dir, `uu_render_r1.${ext}`);
+const ATTEMPT = 'a1b2c3d4e5f60718a1b2c3d4e5f60718';
+const claimFile = (dir) => path.join(dir, `uu_render_r1.claim.${ATTEMPT}`);
 
 test('a truncated tracking file is unverifiable, never absent, and is not stopped as done', async (t) => {
   const dir = makeDir(t);
@@ -86,15 +88,56 @@ test('a supervisor launched just before the app died is found through its own st
   const dir = makeDir(t);
   // Réservation sans numéro de superviseur ; le superviseur a écrit son état.
   fs.writeFileSync(file(dir, 'job'), JSON.stringify({ spawnedAtMs: T, phase: 'launching' }));
-  fs.writeFileSync(file(dir, 'state'), JSON.stringify({ state: 'running', supervisorPid: 900, rootPid: 901 }));
+  fs.writeFileSync(file(dir, 'state'), JSON.stringify({
+    state: 'running', supervisorPid: 900, supervisorStart: new Date(T + 800).toISOString(), rootPid: 901,
+  }));
   const clock = { now: T + 5_000 };
   const store = makeStore(dir, { table: [{ pid: 900, ppid: 1, startMs: T + 800 }], clock });
 
   assert.equal((await store.read('r1')).phase, 'running');
 });
 
-const ATTEMPT = 'a1b2c3d4e5f60718a1b2c3d4e5f60718';
-const claimFile = (dir) => path.join(dir, `uu_render_r1.claim.${ATTEMPT}`);
+// U2 : superviseur créé après le délai de grâce, qui a remporté la prise, sans
+// identité exacte enregistrée par l'application.
+for (const delayMs of [61_000, 120_000]) {
+  test(`a supervisor winning the claim ${delayMs / 1000} s late is never taken for gone`, async (t) => {
+    const dir = makeDir(t);
+    fs.writeFileSync(file(dir, 'job'), JSON.stringify({ spawnedAtMs: T, phase: 'launching', attemptId: ATTEMPT }));
+    fs.writeFileSync(claimFile(dir), 'supervisor:900');
+    const table = [{ pid: 900, ppid: 1, startMs: T + delayMs }];
+    const clock = { now: T + delayMs + 5_000 };
+    const store = makeStore(dir, { table, clock });
+
+    // Sans identité publiée : non confirmée, donc inconnue (jamais « lost »).
+    assert.equal((await store.read('r1')).phase, 'unknown');
+    // L'arrêt est demandé et n'est pas déclaré réussi sans confirmation.
+    assert.deepEqual(await store.stop('r1', { maxWaitMs: 2_000 }), { ok: false, phase: 'still_running' });
+    assert.equal(fs.existsSync(file(dir, 'stop')), true);
+
+    // Identité publiée par le superviseur lui-même : confirmée exactement.
+    fs.writeFileSync(file(dir, 'state'), JSON.stringify({
+      state: 'running', supervisorPid: 900, supervisorStart: new Date(T + delayMs).toISOString(),
+    }));
+    assert.equal((await store.read('r1')).phase, 'running');
+  });
+}
+
+test('only the absence of the pid proves that the supervisor is gone', async (t) => {
+  const dir = makeDir(t);
+  fs.writeFileSync(file(dir, 'job'), JSON.stringify({ spawnedAtMs: T, phase: 'launching', attemptId: ATTEMPT }));
+  fs.writeFileSync(file(dir, 'state'), JSON.stringify({
+    state: 'running', supervisorPid: 900, supervisorStart: new Date(T + 800).toISOString(),
+  }));
+
+  const gone = makeStore(dir, { table: [], clock: { now: T + 5_000 } });
+  const reused = makeStore(dir, { table: [{ pid: 900, ppid: 1, startMs: T + 9_000 }], clock: { now: T + 10_000 } });
+
+  assert.equal((await gone.read('r1')).phase, 'lost');
+  // Numéro repris par un autre programme (identité exacte différente) : le superviseur est parti.
+  assert.equal((await reused.read('r1')).phase, 'lost');
+});
+
+
 const reserve = (dir) => fs.writeFileSync(file(dir, 'job'), JSON.stringify({ spawnedAtMs: T, phase: 'launching', attemptId: ATTEMPT }));
 
 test('a reservation still launching is unknown; once late, abandonment requires winning the claim', async (t) => {
