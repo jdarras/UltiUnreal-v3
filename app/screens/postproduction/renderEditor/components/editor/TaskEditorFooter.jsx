@@ -1,5 +1,9 @@
 import MultiSelectDropdown from "../../../../../components/MultiSelectDropdown";
 import { safeT } from "../../../shared/helpers";
+import {
+  normalizeExportDestinationOptions,
+  normalizeExportDestinationValues,
+} from "../../../../../utils/exportDestinationHelpers";
 
 const DESTINATION_DROPDOWN_STYLE = { flex: "none", minWidth: 0, width: "100%" };
 const TASK_EDITOR_FOOTER_TITLE_STYLE = { margin: "0 0 8px 0" };
@@ -9,37 +13,6 @@ const TASK_EDITOR_FOOTER_PATH_SUFFIX_STYLE = { opacity: 0.5 };
 const TASK_EDITOR_DEST_ROW_STYLE = { alignItems: "center" };
 const TASK_EDITOR_DEST_LABEL_STYLE = { width: 160, marginBottom: 0 };
 const TASK_EDITOR_DEST_INPUT_WRAP_STYLE = { flex: 1, minWidth: 0 };
-
-function normalizeExportDestinationOptions(options = []) {
-  const source = Array.isArray(options) ? options : [];
-  const out = [];
-  const seen = new Set();
-  for (const entry of source) {
-    const rawValue = entry?.value ?? entry?.id ?? "";
-    const value = String(rawValue || "").trim().toLowerCase();
-    if (!value || seen.has(value)) continue;
-    seen.add(value);
-    const label = String(entry?.label || entry?.name || rawValue || "").trim();
-    out.push({
-      value,
-      label: label || value,
-    });
-  }
-  return out;
-}
-
-function normalizeExportDestinationValues(values = []) {
-  const source = Array.isArray(values) ? values : [values];
-  const out = [];
-  const seen = new Set();
-  for (const rawValue of source) {
-    const value = String(rawValue || "").trim().toLowerCase();
-    if (!value || seen.has(value)) continue;
-    seen.add(value);
-    out.push(value);
-  }
-  return out;
-}
 
 function TaskEditorFooter({
   t,

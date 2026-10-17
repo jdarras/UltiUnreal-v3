@@ -12,6 +12,9 @@ import {
   firstNonEmptyString,
   firstPositiveInt,
 } from "../../../../../utils/coerce";
+import {
+  normalizeExportDestinationIds,
+} from "../../../../../utils/exportDestinationHelpers";
 
 export const DEFAULT_AUTO_RENDER_STATE = Object.freeze({
   expectedRenderCountInput: "1",
@@ -47,21 +50,6 @@ function toScheduleTimestamp(value = "") {
   if (!raw) return 0;
   const parsed = Date.parse(raw);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function normalizeExportDestinationIds(value) {
-  const src = Array.isArray(value)
-    ? value
-    : (typeof value === "string" ? value.split(/[,\r\n;]+/g) : []);
-  const out = [];
-  const seen = new Set();
-  for (const raw of src) {
-    const id = String(raw || "").trim().toLowerCase();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-  }
-  return out;
 }
 
 function findMatchedRenderTemplate({

@@ -14,6 +14,10 @@ import {
   resolveLinkedRenderFormEntry,
   extractFormIdFromTemplateLike,
 } from "../../renderLookupHelpers";
+import {
+  normalizeExportDestinationOptions,
+  normalizeExportDestinationValues,
+} from "../../../../../utils/exportDestinationHelpers";
 
 const DESTINATION_DROPDOWN_STYLE = {
   flex: "none",
@@ -381,37 +385,6 @@ function formatIdTag(value = "", minDigits = 4) {
   if (!raw) return "";
   if (/^\d+$/.test(raw)) return `#${raw.padStart(minDigits, "0")}`;
   return `#${raw}`;
-}
-
-function normalizeExportDestinationOptions(options = []) {
-  const source = Array.isArray(options) ? options : [];
-  const out = [];
-  const seen = new Set();
-  for (const entry of source) {
-    const rawValue = entry?.value ?? entry?.id ?? "";
-    const value = String(rawValue || "").trim().toLowerCase();
-    if (!value || seen.has(value)) continue;
-    seen.add(value);
-    const label = String(entry?.label || entry?.name || rawValue || "").trim();
-    out.push({
-      value,
-      label: label || value,
-    });
-  }
-  return out;
-}
-
-function normalizeExportDestinationValues(values = []) {
-  const source = Array.isArray(values) ? values : [values];
-  const out = [];
-  const seen = new Set();
-  for (const rawValue of source) {
-    const value = String(rawValue || "").trim().toLowerCase();
-    if (!value || seen.has(value)) continue;
-    seen.add(value);
-    out.push(value);
-  }
-  return out;
 }
 
 function resolveRenderExportDestinationIds(render = null, linkedTask = null) {

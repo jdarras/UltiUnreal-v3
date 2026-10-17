@@ -4,26 +4,14 @@ import {
   normalizeScheduledMode,
   normalizeScheduledAt,
 } from "../../../shared/autoRenderHelpers";
+import {
+  normalizeExportDestinationIds,
+} from "../../../../../utils/exportDestinationHelpers";
 
 function assignIfDefined(target, key, value) {
   if (value === undefined || value === null) return;
   if (typeof value === "string" && !value.trim()) return;
   target[key] = value;
-}
-
-function normalizeExportDestinationIds(value) {
-  const src = Array.isArray(value)
-    ? value
-    : (typeof value === "string" ? value.split(/[,\r\n;]+/g) : []);
-  const out = [];
-  const seen = new Set();
-  for (const raw of src) {
-    const id = String(raw || "").trim().toLowerCase();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-  }
-  return out;
 }
 
 export function buildAutoRenderPayloads({
