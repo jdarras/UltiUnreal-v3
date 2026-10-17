@@ -122,7 +122,7 @@ test('legacy pid file: only a process started within 2 s of the spawn is owned',
   assert.equal(selectOwnedProcesses([{ pid: 4242, ppid: 1, startMs: T + 10_000 }], { pid: 4242, spawnedAtMs: T }).length, 0);
 });
 
-test('process table lines from PowerShell are parsed, invalid lines skipped', () => {
+test('process table lines from PowerShell are parsed; a missing date keeps the pid with an unknown identity', () => {
   const table = parseProcessTableLines(
     '4242|1|2026-10-16T12:36:24.3540484Z\r\n5000|4242|2026-10-16T12:36:25.0000000Z\r\n4|0|\r\n\r\n'
   );
@@ -130,5 +130,24 @@ test('process table lines from PowerShell are parsed, invalid lines skipped', ()
   assert.deepEqual(table, [
     { pid: 4242, ppid: 1, startMs: Date.parse('2026-10-16T12:36:24.354Z') },
     { pid: 5000, ppid: 4242, startMs: Date.parse('2026-10-16T12:36:25.000Z') },
+    { pid: 4, ppid: 0, startMs: null },
   ]);
+});
+
+test('legacy stop: a root or survivor without readable creation date is never killed nor declared gone', async () => {
+  const unknownRoot = fakeSystem([{ pid: 4242, ppid: 1, startMs: null }]);
+  const r1 = await terminateOwnedRenderProcess({ pid: 4242, processStartMs: T, ...unknownRoot });
+
+  assert.deepEqual(r1, { ok: false, status: 'ownership_unverified' });
+  assert.deepEqual(unknownRoot.state.kills, []);
+
+  // Après l'arrêt, le numéro réapparaît sans date lisible : fin non confirmée.
+  const sys = fakeSystem([{ pid: 4242, ppid: 1, startMs: T }], { resistant: [4242] });
+  sys.state.table = [{ pid: 4242, ppid: 1, startMs: T }];
+  const listOnce = sys.listProcesses;
+  let calls = 0;
+  sys.listProcesses = async () => (calls++ === 0 ? listOnce() : [{ pid: 4242, ppid: 1, startMs: null }]);
+  const r2 = await terminateOwnedRenderProcess({ pid: 4242, processStartMs: T, maxWaitMs: 0, ...sys });
+
+  assert.equal(r2.ok, false);
 });

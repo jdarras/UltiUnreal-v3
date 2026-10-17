@@ -196,3 +196,19 @@ test('an unreadable state with a live supervisor is unknown, not finished', asyn
 
   assert.equal((await store.read('r1')).phase, 'unknown');
 });
+
+// Ligne système dont la date de création est absente ou illisible : le numéro
+// existe, son identité est inconnue — jamais « disparu ».
+const { parseProcessTableLines } = require('../../main/render-process-control.cjs');
+for (const [label, line] of [['absent', '900|1|'], ['invalid', '900|1|pas-une-date']]) {
+  test(`a supervisor listed with a ${label} creation date is unknown, never gone`, async (t) => {
+    const dir = makeDir(t);
+    fs.writeFileSync(file(dir, 'job'), JSON.stringify({ spawnedAtMs: T, phase: 'launched', attemptId: ATTEMPT, supervisorPid: 900, supervisorStartMs: T + 800 }));
+    const table = parseProcessTableLines(`${line}\r\n`);
+    const store = makeStore(dir, { table, clock: { now: T + 5_000 } });
+
+    assert.deepEqual(table, [{ pid: 900, ppid: 1, startMs: null }]);
+    assert.equal((await store.read('r1')).phase, 'unknown');
+    assert.deepEqual(await store.stop('r1', { maxWaitMs: 2_000 }), { ok: false, phase: 'still_running' });
+  });
+}

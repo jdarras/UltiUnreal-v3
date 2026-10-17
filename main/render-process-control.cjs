@@ -81,15 +81,18 @@ function selectOwnedProcesses(table = [], { pid, processStartMs = null, spawnedA
 }
 
 // Lignes "pid|ppid|dateISO" produites par la requête PowerShell (Win32_Process).
+// Une date absente ou illisible donne startMs: null : le processus existe mais
+// son identité est inconnue (il n'est jamais retiré de la table).
 function parseProcessTableLines(text = '') {
   const out = [];
   for (const line of String(text || '').split(/\r?\n/)) {
+    if (!line.trim()) continue;
     const [pidRaw, ppidRaw, startRaw] = line.trim().split('|');
     const pid = parseInt(pidRaw, 10);
+    if (!Number.isFinite(pid) || pid <= 0) continue;
     const ppid = parseInt(ppidRaw, 10);
     const startMs = Date.parse(String(startRaw || '').trim());
-    if (!Number.isFinite(pid) || pid <= 0 || !Number.isFinite(startMs)) continue;
-    out.push({ pid, ppid: Number.isFinite(ppid) ? ppid : 0, startMs });
+    out.push({ pid, ppid: Number.isFinite(ppid) ? ppid : 0, startMs: Number.isFinite(startMs) ? startMs : null });
   }
   return out;
 }
@@ -106,6 +109,10 @@ async function terminateOwnedRenderProcess({
 } = {}) {
   const table = await listProcesses();
   if (!Array.isArray(table)) return { ok: false, status: 'process_table_unavailable' };
+  // Racine présente sans date lisible : appartenance impossible à établir.
+  if (table.some((entry) => entry?.pid === pid && !Number.isFinite(entry?.startMs))) {
+    return { ok: false, status: 'ownership_unverified' };
+  }
   const owned = selectOwnedProcesses(table, { pid, processStartMs, spawnedAtMs });
   if (owned.length <= 0) return { ok: true, status: 'already_exited' };
 
@@ -122,7 +129,12 @@ async function terminateOwnedRenderProcess({
   while (true) {
     const after = await listProcesses();
     if (!Array.isArray(after)) return { ok: false, status: 'process_table_unavailable' };
-    const survivors = after.filter((entry) => ownedKeys.has(`${entry.pid}@${entry.startMs}`));
+    // Un numéro possédé qui réapparaît sans date lisible n'est pas une fin confirmée.
+    const ownedPids = new Set(owned.map((entry) => entry.pid));
+    const survivors = after.filter((entry) => (
+      ownedKeys.has(`${entry.pid}@${entry.startMs}`)
+      || (ownedPids.has(entry.pid) && !Number.isFinite(entry.startMs))
+    ));
     if (survivors.length <= 0) return { ok: true, status: 'terminated', killed: owned.length };
     if (Date.now() >= deadline) {
       return { ok: false, status: 'still_running', survivors: survivors.map((entry) => entry.pid) };

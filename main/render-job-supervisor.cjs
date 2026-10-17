@@ -438,8 +438,9 @@ function createRenderJobStore({
     if (!Array.isArray(table)) return null;
     const entry = table.find((item) => item.pid === pid);
     if (!entry) return false;
-    if (Number.isFinite(startMs)) return entry.startMs === startMs;
-    return null;
+    // Date de création illisible ou identité attendue inconnue : non confirmé.
+    if (!Number.isFinite(entry.startMs) || !Number.isFinite(startMs)) return null;
+    return entry.startMs === startMs;
   }
 
   async function read(tag) {
