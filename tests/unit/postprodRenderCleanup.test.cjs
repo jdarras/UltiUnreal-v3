@@ -194,3 +194,57 @@ test('DELETE route keeps files when the database deletion fails', async (t) => {
 
   assert.equal(fs.existsSync(outA), true);
 });
+
+// ---- Sous-dossier exclusif créé par le serveur à l'attribution (<racine>/<id>_<projet>) ----
+function jobRow(id, outputPath, payload = {}) {
+  return { id, ...renderRow(outputPath, payload) };
+}
+
+test('the exclusive job folder created for the render is deleted with it', (t) => {
+  const root = makeRoot(t);
+  const jobDir = path.join(root, '12_ProjetA');
+  const out = writeFile(path.join(jobDir, 'Shot_12.mov'));
+  writeFile(path.join(jobDir, 'logs', 'uu-worker-render-12.log'));
+  writeFile(path.join(jobDir, 'proxy', 'proxy.mp4'));
+
+  const result = cleanup(root, jobRow(12, out, { outputDir: jobDir }));
+
+  assert.equal(fs.existsSync(jobDir), false);
+  assert.ok(result.deleted.some((entry) => entry.type === 'dir' && entry.path === fs.realpathSync.native(root) + path.sep + '12_ProjetA'));
+});
+
+test('a folder named like another render job is never deleted', (t) => {
+  const root = makeRoot(t);
+  const otherJob = path.join(root, '13_ProjetA');
+  const kept = writeFile(path.join(otherJob, 'Shot_13.mov'));
+
+  cleanup(root, jobRow(12, path.join(otherJob, 'A.mov'), { outputDir: otherJob }));
+
+  assert.equal(fs.existsSync(kept), true);
+});
+
+test('a job folder still referenced by another render is kept', (t) => {
+  const root = makeRoot(t);
+  const jobDir = path.join(root, '12_ProjetA');
+  writeFile(path.join(jobDir, 'Shot_12.mov'));
+  const shared = writeFile(path.join(jobDir, 'Shot_99.mov'));
+
+  cleanup(root, jobRow(12, path.join(jobDir, 'Shot_12.mov'), { outputDir: jobDir }), [jobRow(99, shared)]);
+
+  assert.equal(fs.existsSync(shared), true);
+});
+
+test('a job folder nested deeper than the root, or reached through a junction, is not deleted recursively', (t) => {
+  const root = makeRoot(t);
+  const nested = path.join(root, 'sub', '12_ProjetA');
+  const keptNested = writeFile(path.join(nested, 'notes.txt'));
+  cleanup(root, jobRow(12, path.join(nested, 'x.mov'), { outputDir: nested }));
+  assert.equal(fs.existsSync(keptNested), true);
+
+  const outside = makeRoot(t);
+  const keptOutside = writeFile(path.join(outside, 'notes.txt'));
+  const link = path.join(root, '12_Link');
+  fs.symlinkSync(outside, link, 'junction');
+  cleanup(root, jobRow(12, path.join(link, 'x.mov'), { outputDir: link }));
+  assert.equal(fs.existsSync(keptOutside), true);
+});

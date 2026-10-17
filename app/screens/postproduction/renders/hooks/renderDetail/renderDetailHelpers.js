@@ -1,6 +1,7 @@
 import { normalizeThumbnailPath } from "../../../../../utils/projects-helpers";
 import { normalizeThumbCandidates, safeT } from "../../../shared/helpers";
 import { buildRenderPreviewCandidates, isImagePath, isVideoPath } from "../../helpers";
+import { thumbnailFileName } from "../../../../../utils/renderArtifactNames";
 
 const EMPTY_PREVIEW_STATE = Object.freeze({ index: 0, error: "" });
 const EMPTY_TRANSITIONS_STATE = Object.freeze({
@@ -152,6 +153,7 @@ function collectRenderThumbCandidates(render = null) {
   const outputDir = resolveOutputDirFromRender(render, payload);
   if (outputDir) {
     candidates.push(
+      joinWindowsPath(outputDir, `images\\${thumbnailFileName(render?.outputPath || payload?.outputPath || "")}`),
       joinWindowsPath(outputDir, "images\\thumbnail.jpg"),
       joinWindowsPath(outputDir, "proxy\\thumbnail.jpg"),
       joinWindowsPath(outputDir, "_proxy\\thumbnail.jpg"),

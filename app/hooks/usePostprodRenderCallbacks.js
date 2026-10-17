@@ -15,7 +15,10 @@ import {
   postprodSaveDispatchPolicy,
 } from "../utils/agent";
 import { resolvePostprodRendersError } from "../utils/postprodErrorHelpers";
-import { isPostprodRecoverableOfflineError } from "../utils/postprodOutboxHelpers";
+import {
+  MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS,
+  isPostprodRecoverableOfflineError,
+} from "../utils/postprodOutboxHelpers";
 import {
   isPostprodQueueRuntimeActive,
   LS_POSTPROD_RENDERS_QUEUE_RUNTIME_MODE_KEY,
@@ -487,6 +490,17 @@ function usePostprodRenderCallbacks({
       showNotice(t('postprod.renders.msg.created'), 'ok');
       return createRes?.render || createRes?.renderJob || null;
     } catch (e) {
+      if (isPostprodRecoverableOfflineError(e) && postprodOfflineOutboxCount >= MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS) {
+        // File hors ligne pleine : la demande est refusée explicitement (aucune
+        // demande en attente n'est supprimée pour lui faire de la place).
+        setPostprodRenders((prev) => ({
+          ...prev,
+          loading: false,
+          error: t('postprod.renders.msg.offlineQueueFull', { max: MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS }),
+        }));
+        showNotice(t('postprod.renders.msg.offlineQueueFull', { max: MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS }), 'error');
+        return null;
+      }
       if (isPostprodRecoverableOfflineError(e)) {
         const item = {
           id: `offline-render-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -498,7 +512,9 @@ function usePostprodRenderCallbacks({
           lastAttemptAt: '',
           lastError: String(e?.message || e?.code || 'network_error').trim().slice(0, 200),
         };
-        updatePostprodOfflineOutbox((current) => [...current, item]);
+        updatePostprodOfflineOutbox((current) => (
+          current.length >= MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS ? current : [...current, item]
+        ));
         setPostprodRenders((prev) => ({
           ...prev,
           loading: false,

@@ -271,6 +271,39 @@ function cleanupRenderArtifacts({
     }
   }
 
+  // Sous-dossier exclusif créé par le serveur à l'attribution du rendu
+  // (<racine>/<id>_<projet>, voir buildRenderOutputSubdir) : supprimé en entier
+  // seulement s'il est exactement ce dossier, directement sous une racine
+  // autorisée, sans lien ni jonction, et qu'aucun autre rendu n'y référence rien.
+  const renderId = toPositiveInt(renderRow?.id);
+  if (renderId > 0 && realRoots.length > 0) {
+    const otherKeys = [
+      ...otherRows.flatMap((row) => collectRenderCleanupCandidates(row)),
+      ...otherRows.flatMap((row) => collectRenderOutputFolders(row)),
+    ].map((p) => normalizeAbsPathKey(canonicalPath(p)));
+    const jobFolders = collectAbsPaths([...collectRenderOutputFolders(renderRow), renderRow?.output_path]);
+    for (const folder of jobFolders) {
+      try {
+        if (!fs.existsSync(folder)) continue;
+        const stat = fs.lstatSync(folder);
+        if (!stat.isDirectory() || stat.isSymbolicLink()) continue;
+        const realFolder = canonicalPath(folder);
+        const realKey = normalizeAbsPathKey(realFolder);
+        // Parent réel = racine autorisée : exclut un dossier atteint via une jonction.
+        if (!realRootKeys.has(normalizeAbsPathKey(path.dirname(realFolder)))) continue;
+        if (!path.basename(realFolder).startsWith(`${renderId}_`)) continue;
+        if (otherKeys.some((key) => key === realKey || key.startsWith(`${realKey}/`))) {
+          skipped.push({ path: realFolder, reason: 'job_folder_shared_with_other_render' });
+          continue;
+        }
+        fs.rmSync(realFolder, { recursive: true, force: true });
+        deleted.push({ path: realFolder, type: 'dir' });
+      } catch (err) {
+        errors.push({ path: folder, reason: String(err?.message || err || 'delete_failed') });
+      }
+    }
+  }
+
   return {
     ok: errors.length <= 0,
     allowedRoots,

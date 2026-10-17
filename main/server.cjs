@@ -56,6 +56,7 @@ const { URL } = require('url');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { isRenderArtifactFileName } = require('./render-artifact-names.cjs');
 const zlib = require('zlib');
 const { evaluateBrowserOrigin, corsOriginHeaders } = require('./server-request-security.cjs');
 const {
@@ -436,7 +437,8 @@ async function regenerateAllRenderProxies({
         continue;
       }
     }
-    const isAlreadyProxyOutput = /[\\/]_?proxy[\\/](proxy|proxy_alpha)\.mp4$/i.test(sourceKey);
+    const isAlreadyProxyOutput = /[\\/]_?proxy[\\/](proxy|proxy_alpha)\.mp4$/i.test(sourceKey)
+      || isRenderArtifactFileName(path.basename(sourceKey));
     if (isAlreadyProxyOutput) {
       summary.skipped += 1;
       continue;

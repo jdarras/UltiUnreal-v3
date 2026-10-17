@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { isRenderArtifactFileName } = require('./render-artifact-names.cjs');
 
 function createRenderDetectedAutoScanHelpers(deps = {}) {
   const {
@@ -239,11 +240,7 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
           continue;
         }
         if (!entry.isFile()) continue;
-        if (
-          entryNameLower === 'proxy.mp4'
-          || entryNameLower === 'proxy_alpha.mp4'
-          || entryNameLower === 'thumbnail.jpg'
-        ) {
+        if (isRenderArtifactFileName(entryNameLower)) {
           continue;
         }
         const ext = String(path.extname(entry.name || '') || '').trim().toLowerCase();

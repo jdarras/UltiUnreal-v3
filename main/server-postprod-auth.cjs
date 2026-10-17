@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { getSharedStore } = require('./server-shared-sqlite.cjs');
+const { isRenderArtifactFileName } = require('./render-artifact-names.cjs');
 const { handlePostprodRoleRoutes } = require('./server-postprod-routes-roles.cjs');
 const { handlePostprodDataTablesRoutes } = require('./server-postprod-routes-data-tables.cjs');
 const { handlePostprodResourcesRoutes } = require('./server-postprod-routes-resources.cjs');
@@ -8282,9 +8283,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     ).trim().toLowerCase();
     const filePathLower = String(filePath || '').replace(/\\/g, '/').toLowerCase();
     if (
-      fileNameLower === 'proxy.mp4'
-      || fileNameLower === 'proxy_alpha.mp4'
-      || fileNameLower === 'thumbnail.jpg'
+      isRenderArtifactFileName(fileNameLower)
       || /\/_?proxy\/(proxy|proxy_alpha)\.mp4$/i.test(filePathLower)
       || /\/images\/thumbnail\.jpg$/i.test(filePathLower)
     ) {

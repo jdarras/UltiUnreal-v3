@@ -365,49 +365,74 @@ function clampUnit(value) {
   return Math.max(0, Math.min(1, value));
 }
 
-function channelsToUnitColor(ch = {}) {
-  const rawR = Number(ch?.R ?? ch?.r);
-  const rawG = Number(ch?.G ?? ch?.g);
-  const rawB = Number(ch?.B ?? ch?.b);
-  const rawA = Number(ch?.A ?? ch?.a);
-  const rgbLooksByte =
-    (Number.isFinite(rawR) && rawR > 1) ||
-    (Number.isFinite(rawG) && rawG > 1) ||
-    (Number.isFinite(rawB) && rawB > 1);
-  const alphaLooksByte = Number.isFinite(rawA) && rawA > 1;
-  const divRgb = rgbLooksByte ? 255 : 1;
-  const divA = alphaLooksByte ? 255 : 1;
-  return {
-    R: clampUnit((Number.isFinite(rawR) ? rawR : 1) / divRgb),
-    G: clampUnit((Number.isFinite(rawG) ? rawG : 1) / divRgb),
-    B: clampUnit((Number.isFinite(rawB) ? rawB : 1) / divRgb),
-    A: clampUnit((Number.isFinite(rawA) ? rawA : 1) / divA),
-  };
+// Lecture des couleurs : portage exact de parseColorChannels + channelsToUnitColor
+// de app/utils/colorutils.mjs (utilisés par l'aperçu de la timeline), pour que
+// l'aperçu et la lecture donnent la même couleur. Parité vérifiée par
+// tests/unit/timelineColorParity.test.mjs : modifier les deux ensemble.
+function clampColorByte(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(255, Math.round(n)));
+}
+
+function clampColorUnit(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(1, n));
+}
+
+function readHexBytes(hex) {
+  return [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)].map((part) => {
+    const byte = parseInt(part, 16);
+    return Number.isNaN(byte) ? 0 : clampColorByte(byte);
+  });
+}
+
+function parseColorByteChannels(value) {
+  let bytes = [0, 0, 0];
+  let a01 = 1;
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    if (raw.includes('|')) {
+      const [hexPart, alphaPart] = raw.split('|');
+      if (/^#[0-9a-fA-F]{6}$/.test(hexPart)) bytes = readHexBytes(hexPart.slice(1));
+      const aNum = Number(String(alphaPart).replace(',', '.'));
+      if (!Number.isNaN(aNum)) a01 = clampColorUnit(aNum);
+    } else if (/^#[0-9a-fA-F]{6,8}$/.test(raw)) {
+      const hex = raw.slice(1);
+      bytes = readHexBytes(hex);
+      if (hex.length >= 8) {
+        const aByte = parseInt(hex.slice(6, 8), 16);
+        if (!Number.isNaN(aByte)) a01 = clampColorUnit(aByte / 255);
+      }
+    }
+  } else if (value && typeof value === 'object') {
+    if (typeof value._hex === 'string' && /^#[0-9a-fA-F]{6}$/.test(value._hex)) {
+      bytes = readHexBytes(value._hex.slice(1));
+      const av = Number(value.A);
+      if (Number.isFinite(av)) a01 = av > 1 ? clampColorUnit(av / 255) : clampColorUnit(av);
+    } else {
+      const rgb = [Number(value.R), Number(value.G), Number(value.B)];
+      const avRaw = Number(value.A);
+      const av = Number.isFinite(avRaw) ? avRaw : 1;
+      const rgbLooksLikeByte = rgb.some((channel) => channel > 1);
+      bytes = rgb.map((channel) => (
+        rgbLooksLikeByte ? clampColorByte(channel) : clampColorByte((Number.isFinite(channel) ? channel : 0) * 255)
+      ));
+      a01 = av > 1 ? clampColorUnit(av / 255) : clampColorUnit(av);
+    }
+  }
+  return { rByte: bytes[0], gByte: bytes[1], bByte: bytes[2], a01 };
 }
 
 function parseColorChannels(raw) {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    return channelsToUnitColor(raw);
-  }
-  if (typeof raw !== 'string') {
-    return { R: 1, G: 1, B: 1, A: 1 };
-  }
-  const s = raw.trim();
-  if (!s) return { R: 1, G: 1, B: 1, A: 1 };
-  const [hexPart, alphaPart] = s.split('|');
-  const hex = String(hexPart || '').trim();
-  let r = 1;
-  let g = 1;
-  let b = 1;
-  if (/^#?[0-9a-fA-F]{6}$/.test(hex)) {
-    const clean = hex.startsWith('#') ? hex.slice(1) : hex;
-    r = parseInt(clean.slice(0, 2), 16) / 255;
-    g = parseInt(clean.slice(2, 4), 16) / 255;
-    b = parseInt(clean.slice(4, 6), 16) / 255;
-  }
-  const aRaw = Number(alphaPart);
-  const a = Number.isFinite(aRaw) ? clampUnit(aRaw) : 1;
-  return { R: clampUnit(r), G: clampUnit(g), B: clampUnit(b), A: a };
+  const channels = parseColorByteChannels(raw);
+  return {
+    R: clampColorUnit(channels.rByte / 255),
+    G: clampColorUnit(channels.gByte / 255),
+    B: clampColorUnit(channels.bByte / 255),
+    A: clampColorUnit(channels.a01),
+  };
 }
 
 function colorChannelsToString(raw) {
@@ -883,6 +908,7 @@ function createServerTimelinePlayer({
 }
 
 module.exports = {
+  parseColorChannels,
   createServerTimelinePlayer,
   normalizeTimeline,
   getTimelineMaxFrame,

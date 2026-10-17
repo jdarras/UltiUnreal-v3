@@ -19,6 +19,7 @@ import {
   getOnlineMap,
 } from "../utils/agent";
 import {
+  MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS,
   normalizePostprodWorkerCompletionOutbox,
   isPostprodRecoverableOfflineError,
 } from "../utils/postprodOutboxHelpers";
@@ -90,6 +91,12 @@ function usePostprodWorkerRenderLoop({
 
   // Dernier motif de blocage signalé (évite de répéter la notification à chaque cycle).
   const renderStationBlockedReasonRef = useRef('');
+
+  // Chemin d'Unreal Editor lu au lancement de chaque rendu (F07) : un changement
+  // de configuration s'applique au rendu suivant sans redémarrer la boucle, donc
+  // sans interrompre le suivi du rendu en cours (qui garde son chemin de départ).
+  const localPrimaryUnrealEditorPathRef = useRef(localPrimaryUnrealEditorPath);
+  localPrimaryUnrealEditorPathRef.current = localPrimaryUnrealEditorPath;
 
   useEffect(() => {
     if (!postprodAuthenticated) return;
@@ -168,7 +175,7 @@ function usePostprodWorkerRenderLoop({
               payload,
               execution,
               workerKey,
-              defaultUnrealEditorPath: localPrimaryUnrealEditorPath,
+              defaultUnrealEditorPath: localPrimaryUnrealEditorPathRef.current,
             });
             const primaryCommand = replaceProcessTemplateVars(
               execution?.command ?? payload?.command ?? '',
@@ -515,7 +522,26 @@ function usePostprodWorkerRenderLoop({
           } catch (err) {
             if (isPostprodRecoverableOfflineError(err)) {
               const nowIso = new Date().toISOString();
-              let pendingCount = 0;
+              const isSameCompletion = (entry) => (
+                String(entry?.workerKey || '').trim() === workerKey
+                && Number(entry?.renderId || 0) === renderId
+                && (
+                  currentUserId == null
+                  || entry?.userId == null
+                  || Number(entry.userId) === currentUserId
+                )
+              );
+              const knownQueue = normalizePostprodWorkerCompletionOutbox(postprodWorkerCompletionOutbox);
+              const replacesExisting = knownQueue.some(isSameCompletion);
+              if (!replacesExisting && knownQueue.length >= MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS) {
+                // File pleine : refus explicite, rien n'est supprimé en silence.
+                showNotice(t('postprod.renders.msg.workerQueueFull', { max: MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS }), 'error');
+                return;
+              }
+              const pendingCount = knownQueue.filter((entry) => (
+                String(entry?.workerKey || '').trim() === workerKey
+                && (currentUserId == null || entry?.userId == null || Number(entry.userId) === currentUserId)
+              )).length + (replacesExisting ? 0 : 1);
               updatePostprodWorkerCompletionOutbox((current) => {
                 const next = normalizePostprodWorkerCompletionOutbox(current);
                 const existingIdx = next.findIndex((entry) => (
@@ -537,6 +563,7 @@ function usePostprodWorkerRenderLoop({
                     lastError: String(err?.message || err?.code || 'network_error').trim().slice(0, 200),
                   };
                 } else {
+                  if (next.length >= MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS) return next;
                   next.push({
                     id: `worker-complete-${workerKey}-${renderId}-${Date.now()}`,
                     kind: 'worker_complete',
@@ -550,14 +577,6 @@ function usePostprodWorkerRenderLoop({
                     lastError: String(err?.message || err?.code || 'network_error').trim().slice(0, 200),
                   });
                 }
-                pendingCount = next.filter((entry) => (
-                  String(entry?.workerKey || '').trim() === workerKey
-                  && (
-                    currentUserId == null
-                    || entry?.userId == null
-                    || Number(entry.userId) === currentUserId
-                  )
-                )).length;
                 return next;
               });
               showNotice(t('postprod.renders.msg.workerQueuedOffline', { count: pendingCount }), 'warn');

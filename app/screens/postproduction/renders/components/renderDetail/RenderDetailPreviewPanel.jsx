@@ -3,6 +3,7 @@ import { normalizeThumbnailPath } from "../../../../../utils/projects-helpers";
 import { safeT } from "../../../shared/helpers";
 import { startPostprodAsyncLoop } from "../../../../../hooks/postprodAsyncLoop";
 import { joinWindowsPath } from "../../hooks/renderDetail/renderDetailHelpers";
+import { proxyAlphaFileName, proxyFileName, thumbnailFileName } from "../../../../../utils/renderArtifactNames";
 
 const VIEW_MODE_RGB = "rgb";
 const VIEW_MODE_ALPHA = "alpha";
@@ -206,16 +207,21 @@ function resolveRenderProxyFallbackCandidates(render = null) {
       thumb: [],
     };
   }
+  // Noms dérivés du fichier source d'abord, puis anciens noms fixes.
+  const source = String(render?.outputPath || "").trim();
   return {
     proxy: [
+      joinWindowsPath(outputDir, `proxy\\${proxyFileName(source)}`),
       joinWindowsPath(outputDir, "proxy\\proxy.mp4"),
       joinWindowsPath(outputDir, "_proxy\\proxy.mp4"),
     ],
     alpha: [
+      joinWindowsPath(outputDir, `proxy\\${proxyAlphaFileName(source)}`),
       joinWindowsPath(outputDir, "proxy\\proxy_alpha.mp4"),
       joinWindowsPath(outputDir, "_proxy\\proxy_alpha.mp4"),
     ],
     thumb: [
+      joinWindowsPath(outputDir, `images\\${thumbnailFileName(source)}`),
       joinWindowsPath(outputDir, "images\\thumbnail.jpg"),
       joinWindowsPath(outputDir, "proxy\\thumbnail.jpg"),
       joinWindowsPath(outputDir, "_proxy\\thumbnail.jpg"),

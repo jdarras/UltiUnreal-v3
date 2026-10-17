@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { renderReviewStatusKey } from "../../helpers";
+import { isRenderArtifactFileName } from "../../../../../utils/renderArtifactNames";
 import { normalizeRenderReviewStatus } from "../../../shared/reviewStatusHelpers.js";
 import {
   buildRenderSearchHaystack,
@@ -31,11 +32,7 @@ function isTechnicalProxyRenderRow(render = null) {
     || payload?.fileName
     || ""
   ).trim().toLowerCase();
-  if (
-    fileName === "proxy.mp4"
-    || fileName === "proxy_alpha.mp4"
-    || fileName === "thumbnail.jpg"
-  ) {
+  if (isRenderArtifactFileName(fileName)) {
     return true;
   }
   if (

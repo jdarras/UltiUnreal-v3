@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { proxyFileName, proxyAlphaFileName, thumbnailFileName } = require('./render-artifact-names.cjs');
 
 const MAX_SPAWN_TIMEOUT_MS = 30 * 60 * 1000;
 const FFPROBE_TIMEOUT_MS = 15000;
@@ -639,8 +640,9 @@ async function generateProxy(options = {}) {
       return { ...base, error: 'proxy_dir_create_failed' };
     }
 
-    const proxyPath = path.join(proxyDir, 'proxy.mp4');
-    const alphaPath = path.join(proxyDir, 'proxy_alpha.mp4');
+    // Nommés d'après la source : deux rendus d'un même dossier ne s'écrasent pas (F08).
+    const proxyPath = path.join(proxyDir, proxyFileName(outputPath));
+    const alphaPath = path.join(proxyDir, proxyAlphaFileName(outputPath));
     const scaleFilter = scaleExpressionFromPercent(resolutionPercent);
 
     let width = 0;
@@ -908,7 +910,7 @@ async function generateThumbnail(options = {}) {
     if (!ensureDirectorySafe(imagesDir)) {
       return { ...base, error: 'images_dir_create_failed' };
     }
-    const thumbPath = path.join(imagesDir, 'thumbnail.jpg');
+    const thumbPath = path.join(imagesDir, thumbnailFileName(outputPath));
     const scaleFilter = scaleExpressionFromPercent(resolutionPercent);
 
     let args = [];

@@ -1,7 +1,15 @@
 const LS_POSTPROD_OFFLINE_OUTBOX_KEY = 'uu_postprod_offline_outbox_v1';
 const LS_POSTPROD_WORKER_COMPLETION_OUTBOX_KEY = 'uu_postprod_worker_completion_outbox_v1';
+// Capacités des files hors ligne. Elles ne sont appliquées qu'à l'ajout
+// (refus explicite) : une entrée en attente n'est jamais supprimée en silence.
 const MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS = 100;
 const MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS = 200;
+
+function appendToOutboxWithinCapacity(list = [], item = null, maxItems = 0) {
+  const current = Array.isArray(list) ? list : [];
+  if (current.length >= maxItems) return { list: current, accepted: false };
+  return { list: [...current, item], accepted: true };
+}
 
 function normalizePostprodOfflineOutbox(entries = []) {
   const list = Array.isArray(entries) ? entries : [];
@@ -26,8 +34,7 @@ function normalizePostprodOfflineOutbox(entries = []) {
       lastError: String(raw?.lastError || '').trim(),
     });
   }
-  if (normalized.length <= MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS) return normalized;
-  return normalized.slice(normalized.length - MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS);
+  return normalized;
 }
 
 function readPostprodOfflineOutbox() {
@@ -83,8 +90,7 @@ function normalizePostprodWorkerCompletionOutbox(entries = []) {
       lastError: String(raw?.lastError || '').trim(),
     });
   }
-  if (normalized.length <= MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS) return normalized;
-  return normalized.slice(normalized.length - MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS);
+  return normalized;
 }
 
 function readPostprodWorkerCompletionOutbox() {
@@ -129,6 +135,9 @@ function isPostprodRecoverableOfflineError(err) {
 }
 
 export {
+  MAX_POSTPROD_OFFLINE_OUTBOX_ITEMS,
+  MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS,
+  appendToOutboxWithinCapacity,
   normalizePostprodOfflineOutbox,
   readPostprodOfflineOutbox,
   writePostprodOfflineOutbox,
