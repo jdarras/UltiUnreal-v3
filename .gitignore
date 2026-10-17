@@ -18,10 +18,6 @@ data/
 test/
 test-utils/
 
-# License files (do not commit)
-main/license-core.cjs
-main/license-public.pem
-main/license.cjs
 build/
 
 # FFmpeg local binaries (do not commit)

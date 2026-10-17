@@ -356,68 +356,6 @@ textarea::placeholder {
 .welcome-row.uu-row-nowrap > select.uu-input,
 .welcome-row.uu-row-nowrap > input.uu-input {  flex: 1 1 0;  min-width: 0;  width: auto; }
 
-.welcome-license-bar {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.welcome-license-note {
-  font-size: 12px;
-  color: var(--uu-color-text-muted);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.welcome-license-note.warn {
-  color: #f97373;
-}
-
-.welcome-license-btn {
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--uu-color-border);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  background: var(--uu-color-red);
-  color: #fff;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-  text-transform: none;
-}
-
-.welcome-license-btn.ok { background: var(--uu-color-green); }
-.welcome-license-btn.bad { background: var(--uu-color-red); }
-.welcome-license-btn:hover { filter: brightness(1.05); }
-.welcome-license-btn:active { transform: scale(0.98); }
-
-.welcome-license-label { font-size: 12px; }
-
-/* ==== License screen ==== */
-.license-page { display: flex; justify-content: center; }
-.license-card { width: 100%; max-width: 720px; }
-.license-header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.license-status {
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  border: 1px solid var(--uu-color-border);
-  opacity: 0.9;
-}
-.license-status.ok { color: #4ade80; border-color: #14532d; background: #0f1d14; }
-.license-status.bad { color: #f97373; border-color: #7f1d1d; background: #1f1111; }
-.license-field { display:flex; flex-direction:column; gap:6px; margin-top:12px; }
-.license-code-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-.license-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-.license-key { min-height: 96px; resize: vertical; }
-.license-expiration { margin-top: 8px; font-size: 13px; opacity: 0.8; }
-.license-actions { display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap; }
 
 /* Alerts (LaunchControl, etc.) */
 .uu-alert {

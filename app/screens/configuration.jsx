@@ -14,9 +14,7 @@ import {
   normalizeProxyResolution,
   normalizeProxyCrf,
   normalizeInterfaceLanguage,
-  formatLicenseDate,
   formatDateTime,
-  getDaysLeft,
   normalizePathKey,
   normalizeProjectRoots,
 } from './configurationHelpers';
@@ -48,7 +46,6 @@ function ConfigSectionTitle({ children, noMargin = false }) {
 }
 
 export default function ConfigurationScreen({
-  licenseStatus,
   onCommonUpdated,
   onNavigate,
   onLibraryImported,
@@ -72,14 +69,6 @@ export default function ConfigurationScreen({
 
   const t = React.useMemo(() => createT(lang), [lang]);
   const isPostprodMode = String(appMode || '').trim().toLowerCase() === APP_MODE_POSTPROD;
-  const licenseInfo = licenseStatus && typeof licenseStatus === 'object' ? licenseStatus : {};
-  const expDate = formatLicenseDate(licenseInfo.exp, lang);
-  const daysLeft = getDaysLeft(licenseInfo.exp);
-  const licenseLine = t('config.license.line', {
-    date: expDate || '-',
-    days: daysLeft ?? '-',
-  });
-  const licenseWarn = typeof daysLeft === 'number' && daysLeft < 30;
 
   const noticeApi = React.useContext(NoticeContext);
 
@@ -254,12 +243,6 @@ export default function ConfigurationScreen({
     if (!loaded) return;
     refreshCatalogStats();
   }, [loaded, refreshCatalogStats]);
-
-  React.useEffect(() => {
-    if (!noticeApi || !licenseWarn) return;
-    if (!licenseLine) return;
-    noticeApi.showNotice?.(licenseLine, 'error');
-  }, [noticeApi, licenseWarn, licenseLine]);
 
   // Défilement vers le bloc Synchronisation quand on y arrive via un lien externe.
   React.useEffect(() => {

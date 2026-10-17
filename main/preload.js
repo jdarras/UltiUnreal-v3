@@ -65,10 +65,6 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.removeListener('timeline:companion-command', listener);
     };
   },
-  licenseGetStatus: () => ipcRenderer.invoke('license:get-status'),
-  licenseGetCodeId: () => ipcRenderer.invoke('license:get-codeid'),
-  licenseSave: (license) => ipcRenderer.invoke('license:save', { license }),
-  licenseClear: () => ipcRenderer.invoke('license:clear'),
   saveProjects: (projects, activeByHost, activeName) =>
     ipcRenderer.invoke('save-projects', { projects, activeByHost, activeName }),
   httpJson: async (url, opts = {}) => {

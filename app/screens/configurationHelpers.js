@@ -88,15 +88,6 @@ export function normalizeInterfaceLanguage(value) {
   return String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'fr';
 }
 
-export function formatLicenseDate(exp, lang) {
-  const raw = String(exp || '').trim();
-  if (!raw) return '';
-  const locale = lang === 'en' ? 'en-US' : 'fr-FR';
-  const date = new Date(`${raw}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return raw;
-  return date.toLocaleDateString(locale);
-}
-
 export function formatDateTime(value, lang) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -104,21 +95,6 @@ export function formatDateTime(value, lang) {
   if (Number.isNaN(date.getTime())) return raw;
   const locale = lang === 'en' ? 'en-US' : 'fr-FR';
   return date.toLocaleString(locale, { hour12: false });
-}
-
-export function parseLicenseExpToUtcMs(exp) {
-  const raw = String(exp || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
-  const ms = Date.parse(`${raw}T23:59:59Z`);
-  return Number.isFinite(ms) ? ms : null;
-}
-
-export function getDaysLeft(exp) {
-  const expMs = parseLicenseExpToUtcMs(exp);
-  if (!expMs) return null;
-  const diffMs = expMs - Date.now();
-  const days = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-  return Math.max(0, days);
 }
 
 export function normalizePathKey(p) {

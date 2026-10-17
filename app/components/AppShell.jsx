@@ -23,7 +23,6 @@ const LaunchControlScreen = React.lazy(() => import("../screens/launchcontrol.js
 const ProductionScreen = React.lazy(() => import("../screens/production.jsx"));
 const SynchronisationScreen = React.lazy(() => import("../screens/synchronisation.jsx"));
 const ConfigurationScreen = React.lazy(() => import("../screens/configuration.jsx"));
-const LicenseScreen = React.lazy(() => import("../screens/license.jsx"));
 const PostProductionScreen = React.lazy(() => import("../screens/postproduction.jsx"));
 
 const APP_SHELL_SCREEN_FALLBACK_STYLE = { padding: '24px' };
@@ -136,8 +135,7 @@ function areScreenViewportPropsEqual(prevProps, nextProps) {
       );
     case "server_configuration":
       return (
-        prev.licenseStatus === next.licenseStatus
-        && prev.handleCommonUpdated === next.handleCommonUpdated
+        prev.handleCommonUpdated === next.handleCommonUpdated
         && prev.handleNavClick === next.handleNavClick
         && prev.handleLibraryImported === next.handleLibraryImported
         && prev.setIdentity === next.setIdentity
@@ -215,7 +213,6 @@ const ScreenViewport = React.memo(function ScreenViewport({ ctx }) {
     postprodTitleOverride,
     postprodScreenSharedProps,
     postprodServerOnlyProps,
-    licenseStatus,
     postprodUser,
     postprodToken,
     handleNavClick,
@@ -234,7 +231,6 @@ const ScreenViewport = React.memo(function ScreenViewport({ ctx }) {
       {(role === "server" || appMode === APP_MODE_POSTPROD) && current === "Configuration" && (
         <Suspense fallback={ScreenFallback}>
           <ConfigurationScreen
-            licenseStatus={licenseStatus}
             onCommonUpdated={handleCommonUpdated}
             onNavigate={handleNavClick}
             onLibraryImported={handleLibraryImported}
@@ -399,7 +395,7 @@ function AppShell({ state, actions }) {
     auth: { postprodAuth, postprodAuthenticated, postprodModeAccess },
     app: {
       appMode, role, t, current,
-      showWelcome, showLicense, licenseOk, licenseStatus,
+      showWelcome,
       noticeApi, noticeContextValue,
       clientSyncEnabled,
     },
@@ -427,8 +423,7 @@ function AppShell({ state, actions }) {
     nav: { handleNavClick, showNotice },
     auth: { handlePostprodLogin, handlePostprodLogout },
     welcome: {
-      handleWelcomeContinue, openLicense, handleLicenseBack, handleLicenseContinue,
-      refreshLicenseStatus, setLicenseStatus, setShowWelcome, setShowLicense,
+      handleWelcomeContinue, setShowWelcome,
     },
     dialog: { openQuitDialog, closeQuitDialog },
     config: { handleCommonUpdated, setIdentity, handleLibraryImported },
@@ -625,7 +620,6 @@ function AppShell({ state, actions }) {
     postprodTitleOverride,
     postprodScreenSharedProps,
     postprodServerOnlyProps,
-    licenseStatus,
     postprodUser: postprodAuth?.user,
     postprodToken: String(postprodAuth?.token || ''),
     handleNavClick,
@@ -663,7 +657,6 @@ function AppShell({ state, actions }) {
     postprodTitleOverride,
     postprodScreenSharedProps,
     postprodServerOnlyProps,
-    licenseStatus,
     postprodAuth?.user,
     postprodAuth?.token,
     handleNavClick,
@@ -711,8 +704,6 @@ function AppShell({ state, actions }) {
         <>
           <Welcome
             onContinue={handleWelcomeContinue}
-            onOpenLicense={() => openLicense('welcome')}
-            licenseStatus={licenseStatus}
             appVersion={APP_VERSION}
             modeAccess={postprodModeAccess}
             currentUser={postprodAuth.user}
@@ -720,23 +711,6 @@ function AppShell({ state, actions }) {
           {quitDialog}
         </>
       </NoticeContext.Provider>
-    );
-  }
-
-  if (showLicense || !licenseOk) {
-    return (
-      <>
-        <Suspense fallback={ScreenFallback}>
-          <LicenseScreen
-            licenseStatus={licenseStatus}
-            onRefresh={refreshLicenseStatus}
-            onStatusChange={setLicenseStatus}
-            onBack={handleLicenseBack}
-            onContinue={handleLicenseContinue}
-          />
-        </Suspense>
-        {quitDialog}
-      </>
     );
   }
 
@@ -796,7 +770,6 @@ function AppShell({ state, actions }) {
             <button
               className="uu-btn-ghost"
               onClick={() => {
-                setShowLicense(false);
                 setShowWelcome(true);
               }}
             >

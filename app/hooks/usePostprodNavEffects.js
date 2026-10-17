@@ -15,7 +15,7 @@ function usePostprodNavEffects({
   clientSyncEnabled, resourcesTabAvailable, postprodVisibleTabs,
   postprodCanManageMachines, liveAccountTabs, postprodLockedTabs,
   postprodTaskFormOpen, postprodRenderEditorRequest,
-  showWelcome, showLicense, initialClientNavDone, safeIdentity,
+  showWelcome, initialClientNavDone, safeIdentity,
   setCurrent, setPostprodTaskFormOpen, setPostprodUserEditorOpen,
   setClientSyncEnabled, setInitialClientNavDone,
 }) {
@@ -102,7 +102,7 @@ function usePostprodNavEffects({
 
   // Côté client : déterminer dès que possible l'onglet par défaut selon syncEnabled (depuis le serveur ou l'unique host)
   useEffect(() => {
-    if (role !== "client" || appMode !== APP_MODE_LIVE || showWelcome || showLicense || initialClientNavDone) return;
+    if (role !== "client" || appMode !== APP_MODE_LIVE || showWelcome || initialClientNavDone) return;
     let cancelled = false;
     (async () => {
       // On reste sur Setup au démarrage client ; on ne force pas de changement d'onglet si l'utilisateur est déjà sur Setup
@@ -150,7 +150,7 @@ function usePostprodNavEffects({
     return () => {
       cancelled = true;
     };
-  }, [role, appMode, showWelcome, showLicense, initialClientNavDone, safeIdentity.localIp, current]);
+  }, [role, appMode, showWelcome, initialClientNavDone, safeIdentity.localIp, current]);
 }
 
 export { usePostprodNavEffects };

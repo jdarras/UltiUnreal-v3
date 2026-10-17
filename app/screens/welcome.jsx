@@ -3,7 +3,6 @@ import React from 'react';
 import { pingLocalAgent, postCommonAtPort } from '../utils/agent';
 import { readIdentity, writeIdentity, LS_IDENTITY } from '../utils/identity';
 import { createT } from '../i18n';
-import { formatLicenseDate, getDaysLeft } from './configurationHelpers';
 import appIcon from '../assets/icon.png';
 
 const LOCAL_IP_MANUAL = '__manual__';
@@ -30,8 +29,6 @@ function resolveAgentPortDefault(value) {
 
 export default function WelcomeScreen({
   onContinue,
-  onOpenLicense,
-  licenseStatus,
   appVersion = '',
   modeAccess = null,
   currentUser = null,
@@ -89,16 +86,6 @@ export default function WelcomeScreen({
 
   // remount léger si besoin
   const [resetTick, setResetTick] = React.useState(0);
-  const licenseOk = licenseStatus && licenseStatus.ok === true;
-  const expDate = formatLicenseDate(licenseStatus?.exp, lang);
-  const daysLeft = getDaysLeft(licenseStatus?.exp);
-  const licenseWarn = typeof daysLeft === 'number' && daysLeft < 30;
-  const licenseTitle = licenseOk
-    ? t('welcome.license.ok')
-    : t('welcome.license.missing');
-  const licenseNote = licenseOk && expDate
-    ? t('welcome.license.validUntilDays', { date: expDate, days: daysLeft ?? '-' })
-    : t('welcome.license.none');
 
   // refs pour focus
   const localIpSelectRef = React.useRef(null);
@@ -546,21 +533,6 @@ export default function WelcomeScreen({
             </button>
             {msg ? <div className={`uu-msg ${msgKind}`}>{msg}</div> : null}
           </div>
-        </div>
-
-        <div className="welcome-license-bar">
-          <div className={`welcome-license-note${licenseWarn ? ' warn' : ''}`}>
-            {licenseNote}
-          </div>
-          <button
-            type="button"
-            className={`welcome-license-btn ${licenseOk ? 'ok' : 'bad'}`}
-            onClick={() => onOpenLicense && onOpenLicense()}
-            title={licenseTitle}
-            aria-label={licenseTitle}
-          >
-            <span className="welcome-license-label">{t('license.title')}</span>
-          </button>
         </div>
       </div>
     </div>

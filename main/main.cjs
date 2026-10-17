@@ -15,7 +15,6 @@ const { spawn, execFile } = require('child_process');
 const { pathToFileURL } = require('url');
 const i18nFr = require('../app/i18n/fr.json');
 const i18nEn = require('../app/i18n/en.json');
-const { initLicenseIpc } = require('./license.cjs');
 const { setProcessDataDir } = require('./data-path.cjs');
 const { getSharedStore } = require('./server-shared-sqlite.cjs');
 const {
@@ -81,8 +80,6 @@ const DEFAULT_PROJECTS = {
 let agentStarted = false;
 let mainWindow = null;
 let isQuitting = false;
-
-initLicenseIpc();
 
 // Empêche de lancer plusieurs instances (évite conflit de port agent)
 const gotTheLock = app.requestSingleInstanceLock();

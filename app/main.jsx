@@ -185,8 +185,6 @@ function App() {
     lastPurge: null,
   });
   const [showWelcome, setShowWelcome] = useState(true);
-  const [showLicense, setShowLicense] = useState(false);
-  const [licenseOrigin, setLicenseOrigin] = useState('welcome');
   const [current, setCurrent] = useState("Projets");
   const [userTabKey, setUserTabKey] = useState(0);
   const [roleTabKey, setRoleTabKey] = useState(0);
@@ -554,11 +552,8 @@ function App() {
       offlineWorkerCompletionOutboxPending: postprodWorkerCompletionOutboxCount,
     };
   }, [postprodRenderHealth.data, postprodOfflineOutboxCount, postprodWorkerCompletionOutboxCount]);
-  const [licenseStatus, setLicenseStatus] = useState({ ok: false, status: 'loading' });
-  const licenseOk = licenseStatus && licenseStatus.ok === true;
-
   useEffect(() => {
-    if (showWelcome || showLicense) return;
+    if (showWelcome) return;
     if (
       appMode === APP_MODE_POSTPROD
       && current === POSTPROD_TAB_RENDERS_CREATE
@@ -584,7 +579,6 @@ function App() {
     return stopLoop;
   }, [
     showWelcome,
-    showLicense,
     commonCfg?.refreshSec,
     appMode,
     current,
@@ -592,31 +586,11 @@ function App() {
   ]);
 
 
-  const refreshLicenseStatus = React.useCallback(async () => {
-    if (!window.electron?.licenseGetStatus) {
-      const fallback = { ok: false, status: 'unavailable' };
-      setLicenseStatus(fallback);
-      return fallback;
-    }
-    try {
-      const res = await window.electron.licenseGetStatus();
-      const next = res && typeof res === 'object' ? res : { ok: false, status: 'error' };
-      setLicenseStatus(next);
-      return next;
-    } catch {
-      const next = { ok: false, status: 'error' };
-      setLicenseStatus(next);
-      return next;
-    }
-  }, []);
 
-  useEffect(() => {
-    refreshLicenseStatus();
-  }, [refreshLicenseStatus]);
 
   // Charger common/hosts (config locale + capacites Unreal locales)
   useEffect(() => {
-    if (showWelcome || showLicense) return;
+    if (showWelcome) return;
     let cancelled = false;
     setCommonLoaded(false);
     setHostsLoaded(false);
@@ -643,13 +617,13 @@ function App() {
       }
     })();
     return () => { cancelled = true; };
-  }, [role, current, showWelcome, showLicense]);
+  }, [role, current, showWelcome]);
 
   const resourcesAvailable = resourcesEnabled && hasLibraryItems;
   const resourcesTabAvailable = resourcesAvailable && postprodCanViewResources;
 
   const refreshLibraryAvailability = React.useCallback(async () => {
-    if (role !== 'server' || showWelcome || showLicense || !resourcesEnabled) {
+    if (role !== 'server' || showWelcome || !resourcesEnabled) {
       setHasLibraryItems(false);
       return;
     }
@@ -662,7 +636,7 @@ function App() {
       const hasItems = res?.hasItems === true || itemsCount > 0;
       setHasLibraryItems(hasItems);
     } catch {}
-  }, [role, resourcesEnabled, showWelcome, showLicense]);
+  }, [role, resourcesEnabled, showWelcome]);
 
   useEffect(() => {
     refreshLibraryAvailability();
@@ -869,15 +843,7 @@ function App() {
     });
     setCurrent(resolveDefaultTab(allowed, nextIdentity.mode));
     setInitialClientNavDone(false);
-    const latest = await refreshLicenseStatus();
-    if (latest && latest.ok) {
-      setShowWelcome(false);
-      setShowLicense(false);
-    } else {
-      setShowWelcome(false);
-      setShowLicense(true);
-      setLicenseOrigin('gate');
-    }
+    setShowWelcome(false);
   }, [
     postprodModeAccess?.forcedMode,
     clientSyncEnabled,
@@ -885,28 +851,7 @@ function App() {
     postprodVisibleTabs,
     postprodCanManageMachines,
     liveAccountTabs,
-    refreshLicenseStatus,
   ]);
-
-  const openLicense = useCallback((origin) => {
-    setLicenseOrigin(origin || 'welcome');
-    setShowWelcome(false);
-    setShowLicense(true);
-  }, []);
-
-  const handleLicenseBack = useCallback(() => {
-    setShowLicense(false);
-    setShowWelcome(true);
-  }, []);
-
-  const handleLicenseContinue = useCallback(() => {
-    if (licenseOrigin === 'welcome') {
-      setShowLicense(false);
-      setShowWelcome(true);
-      return;
-    }
-    setShowLicense(false);
-  }, [licenseOrigin]);
 
   const {
     handleNavClick,
@@ -1197,14 +1142,14 @@ function App() {
     clientSyncEnabled, resourcesTabAvailable, postprodVisibleTabs,
     postprodCanManageMachines, liveAccountTabs, postprodLockedTabs,
     postprodTaskFormOpen, postprodRenderEditorRequest,
-    showWelcome, showLicense, initialClientNavDone, safeIdentity,
+    showWelcome, initialClientNavDone, safeIdentity,
     setCurrent, setPostprodTaskFormOpen, setPostprodUserEditorOpen,
     setClientSyncEnabled, setInitialClientNavDone,
   });
 
   // Émettre périodiquement une présence pour que le serveur détecte les machines actives
   useEffect(() => {
-    if (showWelcome || showLicense) return;
+    if (showWelcome) return;
     const ip = String(safeIdentity.localIp || '').trim();
     const srvIp = String(safeIdentity.serverIp || '').trim();
     const roleNow = String(safeIdentity.role || '').trim();
@@ -1222,7 +1167,7 @@ function App() {
       },
     });
     return stopLoop;
-  }, [showWelcome, showLicense, safeIdentity.localIp, safeIdentity.serverIp, safeIdentity.role]);
+  }, [showWelcome, safeIdentity.localIp, safeIdentity.serverIp, safeIdentity.role]);
 
   const { logsNavAlert, usersNavAlert, rendersNavAlert, rendersTopNoticeText } = usePostprodNavAlerts({
     appMode, postprodAuthenticated, t, showNotice,
@@ -1232,7 +1177,6 @@ function App() {
     enabled: appMode === APP_MODE_POSTPROD
       && postprodAuthenticated
       && !showWelcome
-      && !showLicense
       && current !== 'Synchronisation',
     t,
   });
@@ -1241,7 +1185,7 @@ function App() {
     auth: { postprodAuth, postprodAuthenticated, postprodModeAccess },
     app: {
       appMode, role, t, current,
-      showWelcome, showLicense, licenseOk, licenseStatus,
+      showWelcome,
       noticeApi, noticeContextValue, clientSyncEnabled,
     },
     sidebar: {
@@ -1274,7 +1218,7 @@ function App() {
     },
   }), [
     postprodAuth, postprodAuthenticated, postprodModeAccess,
-    appMode, role, t, current, showWelcome, showLicense, licenseOk, licenseStatus,
+    appMode, role, t, current, showWelcome,
     noticeApi, noticeContextValue, clientSyncEnabled,
     postprodVisibleTabs, postprodCanManageMachines, liveAccountTabs,
     configMissing, resourcesTabAvailable, postprodLockedTabs,
@@ -1301,8 +1245,7 @@ function App() {
     nav: { handleNavClick, showNotice },
     auth: { handlePostprodLogin, handlePostprodLogout },
     welcome: {
-      handleWelcomeContinue, openLicense, handleLicenseBack, handleLicenseContinue,
-      refreshLicenseStatus, setLicenseStatus, setShowWelcome, setShowLicense,
+      handleWelcomeContinue, setShowWelcome,
     },
     dialog: { openQuitDialog, closeQuitDialog },
     config: { handleCommonUpdated, setIdentity, handleLibraryImported },
@@ -1360,8 +1303,7 @@ function App() {
     },
   }), [
     handleNavClick, showNotice, handlePostprodLogin, handlePostprodLogout,
-    handleWelcomeContinue, openLicense, handleLicenseBack, handleLicenseContinue,
-    refreshLicenseStatus, setLicenseStatus, setShowWelcome, setShowLicense,
+    handleWelcomeContinue, setShowWelcome,
     openQuitDialog, closeQuitDialog, handleCommonUpdated, setIdentity, handleLibraryImported,
     handlePostprodScanDetectedRenders, handlePostprodUpdateMe, handlePostprodOpenRenderEditor,
     handlePostprodCreateUser, handlePostprodUpdateUser, handlePostprodDeleteUser,

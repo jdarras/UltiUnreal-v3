@@ -18,7 +18,6 @@ const preloaders = {
   Production: () => import("../screens/production.jsx"),
   Logs: () => import("../screens/logs.jsx"),
   Configuration: () => import("../screens/configuration.jsx"),
-  License: () => import("../screens/license.jsx"),
 };
 
 function resolvePostprodTabForNavItem(item, { appMode, role }) {
