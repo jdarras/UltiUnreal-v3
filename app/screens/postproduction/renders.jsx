@@ -10,15 +10,12 @@ import { RendersListPanel } from "./renders/components/RendersListPanel";
 import { RendersQueuePanel } from "./renders/components/RendersQueuePanel";
 import { RendersAdvancedSearchPanel, RendersToolbar } from "./renders/components/RendersToolbar";
 import { firstNonEmptyString } from "../../utils/coerce";
+import {
+  normalizeProjectNumericKey,
+} from "./renders/renderLookupHelpers";
 
 function normalizeProjectLookupKey(value = "") {
   return String(value || "").trim().toLowerCase();
-}
-
-function normalizeProjectNumericKey(value = "") {
-  const raw = String(value || "").trim();
-  if (!raw || !/^\d+$/.test(raw)) return "";
-  return String(Math.trunc(Number(raw)));
 }
 
 function buildProjectLabelByRef(projects = []) {

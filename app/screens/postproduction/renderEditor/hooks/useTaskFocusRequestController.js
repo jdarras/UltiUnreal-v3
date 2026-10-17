@@ -5,18 +5,13 @@ import {
   firstNonEmptyString,
   firstPositiveInt,
 } from "../../../../utils/coerce";
+import {
+  extractFormIdFromTemplateLike,
+} from "../../renders/renderLookupHelpers";
 
 function asRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value;
-}
-
-function extractFormIdFromTemplateLike(value = "") {
-  const raw = String(value || "").trim();
-  if (!raw) return 0;
-  const match = /^form[\s\-_#]*(\d+)$/i.exec(raw);
-  if (!match) return 0;
-  return toPositiveInt(match[1]);
 }
 
 function resolveRenderPayload(render = null) {

@@ -2,10 +2,15 @@ import { useEffect, useState } from "react";
 import { formatDate, safeT, simplifyUnrealAssetDisplayName } from "../../../shared/helpers";
 import { renderReviewStatusClassName } from "../../helpers";
 import {
-  toPositiveInt,
   firstNonEmptyString,
   firstPositiveInt,
 } from "../../../../../utils/coerce";
+import {
+  extractFormIdFromTemplateLike,
+  resolveLinkedRenderFormEntry,
+  normalizeProjectLookupKey,
+  readProjectLabel,
+} from "../../renderLookupHelpers";
 
 const RENDERS_THUMB_CARD_CLICKABLE_STYLE = { cursor: "pointer" };
 const RENDERS_THUMB_HEADER_ROW_STYLE = { justifyContent: "space-between", alignItems: "baseline", gap: "8px" };
@@ -24,44 +29,6 @@ const RENDERS_THUMB_DELETE_BUTTON_STYLE = {
   alignItems: "center",
   justifyContent: "center",
 };
-
-function extractFormIdFromTemplateLike(value = "") {
-  const raw = String(value || "").trim();
-  if (!raw) return 0;
-  const match = /^form[\s\-_#]*(\d+)$/i.exec(raw);
-  if (!match) return 0;
-  return toPositiveInt(match[1]);
-}
-
-function resolveLinkedRenderFormEntry(formId = 0, renderForms = []) {
-  const normalizedFormId = Number.isFinite(Number(formId)) && Number(formId) > 0
-    ? Math.trunc(Number(formId))
-    : 0;
-  if (normalizedFormId <= 0) return null;
-  const list = Array.isArray(renderForms) ? renderForms : [];
-  return list.find((entry) => Number(entry?.id || 0) === normalizedFormId) || null;
-}
-
-function normalizeProjectLookupKey(value = "") {
-  return String(value || "").trim().toLowerCase();
-}
-
-function normalizeProjectNumericKey(value = "") {
-  const raw = String(value || "").trim();
-  if (!raw || !/^\d+$/.test(raw)) return "";
-  return String(Math.trunc(Number(raw)));
-}
-
-function readProjectLabel(projectLabelByRef = new Map(), rawValue = "") {
-  if (!(projectLabelByRef instanceof Map)) return "";
-  const key = normalizeProjectLookupKey(rawValue);
-  if (!key) return "";
-  const direct = String(projectLabelByRef.get(key) || "").trim();
-  if (direct) return direct;
-  const numericKey = normalizeProjectNumericKey(rawValue);
-  if (!numericKey) return "";
-  return String(projectLabelByRef.get(numericKey) || "").trim();
-}
 
 function resolveRenderProjectMeta(render = null, projectLabelByRef = new Map()) {
   const item = render && typeof render === "object" ? render : {};

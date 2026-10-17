@@ -3,10 +3,17 @@ import MultiSelectDropdown from "../../../../../components/MultiSelectDropdown";
 import { formatDate, safeT, simplifyUnrealAssetDisplayName } from "../../../shared/helpers";
 import { renderReviewStatusClassName } from "../../helpers";
 import {
-  toPositiveInt,
   firstNonEmptyString,
   firstPositiveInt,
 } from "../../../../../utils/coerce";
+import {
+  normalizeProjectLookupKey,
+  normalizeProjectNumericKey,
+  readProjectLabel,
+  resolveRenderPayload,
+  resolveLinkedRenderFormEntry,
+  extractFormIdFromTemplateLike,
+} from "../../renderLookupHelpers";
 
 const DESTINATION_DROPDOWN_STYLE = {
   flex: "none",
@@ -25,27 +32,6 @@ const RENDER_DETAIL_SCHEDULE_INPUT_STYLE = { height: "30px", fontSize: "0.9em" }
 const RENDER_DETAIL_SCHEDULE_BUTTON_STYLE = { height: "30px", padding: "0 10px", fontSize: "0.85em" };
 const RENDER_DETAIL_SCHEDULE_DISPLAY_STYLE = { padding: "2px 6px", fontSize: "0.9em", textAlign: "left" };
 
-function normalizeProjectLookupKey(value = "") {
-  return String(value || "").trim().toLowerCase();
-}
-
-function normalizeProjectNumericKey(value = "") {
-  const raw = String(value || "").trim();
-  if (!raw || !/^\d+$/.test(raw)) return "";
-  return String(Math.trunc(Number(raw)));
-}
-
-function readProjectLabel(projectLabelByRef = new Map(), rawValue = "") {
-  if (!(projectLabelByRef instanceof Map)) return "";
-  const key = normalizeProjectLookupKey(rawValue);
-  if (!key) return "";
-  const direct = String(projectLabelByRef.get(key) || "").trim();
-  if (direct) return direct;
-  const numericKey = normalizeProjectNumericKey(rawValue);
-  if (!numericKey) return "";
-  return String(projectLabelByRef.get(numericKey) || "").trim();
-}
-
 function readProjectRefFromLabel(projectLabelByRef = new Map(), rawLabel = "") {
   if (!(projectLabelByRef instanceof Map)) return "";
   const normalizedLabel = normalizeProjectLookupKey(rawLabel);
@@ -58,12 +44,6 @@ function readProjectRefFromLabel(projectLabelByRef = new Map(), rawLabel = "") {
     return normalizeProjectNumericKey(key) || key;
   }
   return "";
-}
-
-function resolveRenderPayload(render = null) {
-  const payload = render?.payload;
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
-  return payload;
 }
 
 function resolveProjectMeta(render = null, projectLabelByRef = new Map()) {
@@ -133,23 +113,6 @@ function resolveLinkedTaskEntry(taskId = 0, tasks = []) {
   if (normalizedTaskId <= 0) return null;
   const list = Array.isArray(tasks) ? tasks : [];
   return list.find((entry) => Number(entry?.id || 0) === normalizedTaskId) || null;
-}
-
-function resolveLinkedRenderFormEntry(formId = 0, renderForms = []) {
-  const normalizedFormId = Number.isFinite(Number(formId)) && Number(formId) > 0
-    ? Math.trunc(Number(formId))
-    : 0;
-  if (normalizedFormId <= 0) return null;
-  const list = Array.isArray(renderForms) ? renderForms : [];
-  return list.find((entry) => Number(entry?.id || 0) === normalizedFormId) || null;
-}
-
-function extractFormIdFromTemplateLike(value = "") {
-  const raw = String(value || "").trim();
-  if (!raw) return 0;
-  const match = /^form[\s\-_#]*(\d+)$/i.exec(raw);
-  if (!match) return 0;
-  return toPositiveInt(match[1]);
 }
 
 function resolveTaskDescription(render = null, taskId = 0, tasks = []) {
