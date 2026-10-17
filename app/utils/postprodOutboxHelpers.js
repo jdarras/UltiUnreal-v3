@@ -48,18 +48,21 @@ function readPostprodOfflineOutbox() {
   }
 }
 
+// Enregistrement local de la file : true si réussi, false sinon (stockage
+// plein ou indisponible) — l'appelant doit alors prévenir l'utilisateur.
+// JSON compact : la mise en forme lisible doublait la place occupée.
 function writePostprodOfflineOutbox(entries = []) {
   try {
     const normalized = normalizePostprodOfflineOutbox(entries);
     if (normalized.length <= 0) {
       localStorage.removeItem(LS_POSTPROD_OFFLINE_OUTBOX_KEY);
-      return;
+      return true;
     }
-    localStorage.setItem(
-      LS_POSTPROD_OFFLINE_OUTBOX_KEY,
-      JSON.stringify(normalized, null, 2)
-    );
-  } catch {}
+    localStorage.setItem(LS_POSTPROD_OFFLINE_OUTBOX_KEY, JSON.stringify(normalized));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function normalizePostprodWorkerCompletionOutbox(entries = []) {
@@ -109,13 +112,28 @@ function writePostprodWorkerCompletionOutbox(entries = []) {
     const normalized = normalizePostprodWorkerCompletionOutbox(entries);
     if (normalized.length <= 0) {
       localStorage.removeItem(LS_POSTPROD_WORKER_COMPLETION_OUTBOX_KEY);
+      return true;
+    }
+    localStorage.setItem(LS_POSTPROD_WORKER_COMPLETION_OUTBOX_KEY, JSON.stringify(normalized));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Prévient une seule fois par épisode d'échec d'enregistrement ; se réarme
+// dès qu'un enregistrement réussit à nouveau.
+function createPersistenceFailureNotifier(notify) {
+  let failing = false;
+  return (ok) => {
+    if (ok) {
+      failing = false;
       return;
     }
-    localStorage.setItem(
-      LS_POSTPROD_WORKER_COMPLETION_OUTBOX_KEY,
-      JSON.stringify(normalized, null, 2)
-    );
-  } catch {}
+    if (failing) return;
+    failing = true;
+    notify();
+  };
 }
 
 function isPostprodRecoverableOfflineError(err) {
@@ -144,5 +162,6 @@ export {
   normalizePostprodWorkerCompletionOutbox,
   readPostprodWorkerCompletionOutbox,
   writePostprodWorkerCompletionOutbox,
+  createPersistenceFailureNotifier,
   isPostprodRecoverableOfflineError,
 };

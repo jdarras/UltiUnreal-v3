@@ -1167,6 +1167,7 @@
   "postprod.renders.msg.offlineReplayDropped": "Reprise offline: {count} élément(s) ignoré(s) (erreur non récupérable).",
   "postprod.renders.msg.offlineReplayNone": "Reprise offline: aucun rendu en attente.",
   "postprod.renders.msg.workerQueuedOffline": "PAP indisponible: completion worker mise en attente ({count} en attente).",
+  "postprod.renders.msg.offlineQueueNotPersisted": "Les demandes en attente n'ont pas pu être enregistrées sur cet ordinateur (stockage local plein). Ne fermez pas UltiUnreal avant le retour du serveur, sinon elles seront perdues.",
   "postprod.renders.msg.offlineQueueFull": "File hors ligne pleine ({max} demandes en attente) : cette demande de rendu n'a pas été enregistrée. Rétablissez la connexion au serveur pour envoyer les demandes en attente, puis réessayez.",
   "postprod.renders.msg.workerQueueFull": "File hors ligne pleine ({max} résultats en attente) : le résultat de ce rendu n'a pas pu être mis en attente. Rétablissez la connexion au serveur.",
   "postprod.renders.msg.workerStationBlocked": "Station de rendu bloquée : un rendu précédent ne peut pas être vérifié ou arrêté ({reason}). Aucun nouveau rendu ne sera lancé tant que la situation n'est pas résolue.",

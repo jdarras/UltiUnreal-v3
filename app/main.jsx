@@ -18,6 +18,7 @@ import {
   normalizePostprodWorkerCompletionOutbox,
   readPostprodWorkerCompletionOutbox,
   writePostprodWorkerCompletionOutbox,
+  createPersistenceFailureNotifier,
 } from "./utils/postprodOutboxHelpers";
 import { createSyncedOutbox } from "./utils/postprodOutboxStore";
 import { mapRenderExportDestinationOptions } from "./utils/postprodCatalogHelpers";
@@ -333,13 +334,25 @@ function App() {
   }), [noticeApi.showNotice, noticeApi.clearNotice]);
   // Files hors ligne tenues de façon synchrone (source de vérité) : les ajouts
   // sont acceptés ou refusés sur la file courante, et le résultat est exact.
+  // Enregistrement local impossible (stockage plein) : avertissement, une fois
+  // par épisode, au lieu d'un échec silencieux.
+  const showNoticeRef = useRef(noticeApi.showNotice);
+  showNoticeRef.current = noticeApi.showNotice;
+  const translateRef = useRef(t);
+  translateRef.current = t;
+  const outboxPersistenceNotifierRef = useRef(null);
+  if (!outboxPersistenceNotifierRef.current) {
+    outboxPersistenceNotifierRef.current = createPersistenceFailureNotifier(() => {
+      showNoticeRef.current?.(translateRef.current('postprod.renders.msg.offlineQueueNotPersisted'), 'error');
+    });
+  }
   const offlineOutboxStoreRef = useRef(null);
   if (!offlineOutboxStoreRef.current) {
     offlineOutboxStoreRef.current = createSyncedOutbox({
       initial: postprodOfflineOutbox,
       normalize: normalizePostprodOfflineOutbox,
       commit: (next) => {
-        writePostprodOfflineOutbox(next);
+        outboxPersistenceNotifierRef.current(writePostprodOfflineOutbox(next));
         setPostprodOfflineOutbox(next);
       },
     });
@@ -350,7 +363,7 @@ function App() {
       initial: postprodWorkerCompletionOutbox,
       normalize: normalizePostprodWorkerCompletionOutbox,
       commit: (next) => {
-        writePostprodWorkerCompletionOutbox(next);
+        outboxPersistenceNotifierRef.current(writePostprodWorkerCompletionOutbox(next));
         setPostprodWorkerCompletionOutbox(next);
       },
     });

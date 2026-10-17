@@ -1171,6 +1171,7 @@
   "postprod.renders.msg.offlineReplayDropped": "Offline recovery: {count} item(s) dropped (non-recoverable error).",
   "postprod.renders.msg.offlineReplayNone": "Offline recovery: no pending render.",
   "postprod.renders.msg.workerQueuedOffline": "PAP unavailable: worker completion queued offline ({count} pending).",
+  "postprod.renders.msg.offlineQueueNotPersisted": "Pending requests could not be saved on this computer (local storage full). Do not close UltiUnreal before the server is back, or they will be lost.",
   "postprod.renders.msg.offlineQueueFull": "Offline queue full ({max} pending requests): this render request was not saved. Restore the server connection to send pending requests, then try again.",
   "postprod.renders.msg.workerQueueFull": "Offline queue full ({max} pending results): this render result could not be queued. Restore the server connection.",
   "postprod.renders.msg.workerStationBlocked": "Render station blocked: a previous render cannot be verified or stopped ({reason}). No new render will start until this is resolved.",
