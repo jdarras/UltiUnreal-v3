@@ -16,6 +16,9 @@ export default [
       'main-dist/**',
       'build/**',
       'data/**',
+      'release/**',
+      // Artefacts de revue (rapports, compilations et reproductions de Codex).
+      'audit/**',
       '*.min.js',
     ],
   },
