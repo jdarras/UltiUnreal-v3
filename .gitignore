@@ -18,6 +18,8 @@ data/
 test/
 test-utils/
 
+# Unreal build intermediates of the plugins (generated, do not commit)
+Intermediate/
 
 # FFmpeg local binaries (do not commit)
 tools/ffmpeg/win/ffmpeg.exe
