@@ -93,14 +93,56 @@ test('a supervisor launched just before the app died is found through its own st
   assert.equal((await store.read('r1')).phase, 'running');
 });
 
-test('a reservation still launching is unknown, an old one without any supervisor is abandoned', async (t) => {
+const ATTEMPT = 'a1b2c3d4e5f60718a1b2c3d4e5f60718';
+const claimFile = (dir) => path.join(dir, `uu_render_r1.claim.${ATTEMPT}`);
+const reserve = (dir) => fs.writeFileSync(file(dir, 'job'), JSON.stringify({ spawnedAtMs: T, phase: 'launching', attemptId: ATTEMPT }));
+
+test('a reservation still launching is unknown; once late, abandonment requires winning the claim', async (t) => {
+  const dir = makeDir(t);
+  reserve(dir);
+
+  assert.equal((await makeStore(dir, { clock: { now: T + 5_000 } }).read('r1')).phase, 'unknown');
+  assert.equal(fs.existsSync(claimFile(dir)), false);
+  const late = makeStore(dir, { clock: { now: T + 120_000 } });
+  assert.equal((await late.read('r1')).phase, 'abandoned');
+  // La prise « abandoned » interdit à un superviseur tardif de lancer quoi que ce soit.
+  assert.equal(fs.readFileSync(claimFile(dir), 'utf8'), 'abandoned');
+  assert.deepEqual(await late.stop('r1'), { ok: true, phase: 'abandoned' });
+});
+
+test('a late reservation already claimed by its supervisor is followed, never abandoned', async (t) => {
+  const dir = makeDir(t);
+  reserve(dir);
+  fs.writeFileSync(claimFile(dir), 'supervisor:900');
+  const store = makeStore(dir, { table: [{ pid: 900, ppid: 1, startMs: T + 30_000 }], clock: { now: T + 120_000 } });
+
+  assert.equal((await store.read('r1')).phase, 'unknown');
+  assert.equal(fs.readFileSync(claimFile(dir), 'utf8'), 'supervisor:900');
+});
+
+test('a claim being written by the supervisor is not taken for an abandonment', async (t) => {
+  const dir = makeDir(t);
+  reserve(dir);
+  fs.writeFileSync(claimFile(dir), '');
+
+  assert.equal((await makeStore(dir, { clock: { now: T + 120_000 } }).read('r1')).phase, 'unknown');
+});
+
+test('a reservation without a valid attempt id is unverifiable', async (t) => {
   const dir = makeDir(t);
   fs.writeFileSync(file(dir, 'job'), JSON.stringify({ spawnedAtMs: T, phase: 'launching' }));
 
-  assert.equal((await makeStore(dir, { clock: { now: T + 5_000 } }).read('r1')).phase, 'unknown');
-  const late = makeStore(dir, { clock: { now: T + 120_000 } });
-  assert.equal((await late.read('r1')).phase, 'abandoned');
-  assert.deepEqual(await late.stop('r1'), { ok: true, phase: 'abandoned' });
+  assert.equal((await makeStore(dir, { clock: { now: T + 120_000 } }).read('r1')).phase, 'unverifiable');
+});
+
+test('cleaning a tracking also removes its claims', async (t) => {
+  const dir = makeDir(t);
+  reserve(dir);
+  fs.writeFileSync(claimFile(dir), 'abandoned');
+
+  makeStore(dir).removeFiles('r1');
+
+  assert.deepEqual(fs.readdirSync(dir), []);
 });
 
 test('an unreadable state with a live supervisor is unknown, not finished', async (t) => {

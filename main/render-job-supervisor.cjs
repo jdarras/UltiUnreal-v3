@@ -13,14 +13,39 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
+const crypto = require('crypto');
 
 const SUPERVISOR_SCRIPT = String.raw`param(
   [Parameter(Mandatory = $true)][string]$StateFile,
   [Parameter(Mandatory = $true)][string]$StopFile,
+  [Parameter(Mandatory = $true)][string]$JobFile,
+  [Parameter(Mandatory = $true)][string]$ClaimFile,
+  [Parameter(Mandatory = $true)][string]$AttemptId,
   [Parameter(Mandatory = $true)][string]$CommandLineB64,
   [string]$Cwd = ''
 )
 $ErrorActionPreference = 'Stop'
+
+# 1. Prise exclusive de la tentative, avant toute autre opération. Elle arbitre
+#    avec l'application : si celle-ci a déclaré la tentative abandonnée (même
+#    fichier, création exclusive), ce superviseur tardif ne lance rien et
+#    n'écrit rien (une nouvelle tentative peut utiliser le même rendu).
+try {
+  $claim = [IO.File]::Open($ClaimFile, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
+  $bytes = [Text.Encoding]::UTF8.GetBytes("supervisor:$PID")
+  $claim.Write($bytes, 0, $bytes.Length)
+  $claim.Close()
+} catch {
+  exit 0
+}
+
+# 2. La réservation doit toujours exister et porter cet identifiant de tentative.
+try {
+  $reservation = [IO.File]::ReadAllText($JobFile) | ConvertFrom-Json
+  if ([string]$reservation.attemptId -ne $AttemptId) { exit 0 }
+} catch {
+  exit 0
+}
 
 function Write-State($values) {
   $values['supervisorPid'] = $PID
@@ -220,12 +245,17 @@ function buildWindowsCommandLine(command, args = []) {
 // - lancé normalement, il hériterait du job de Node (arrêté avec UltiUnreal).
 // Le relais crée le superviseur avec sa propre console cachée, hors du job de
 // Node, et écrit son numéro de processus sur la sortie standard.
-function buildSupervisorLaunch({ scriptFile, stateFile, stopFile, commandLine, cwd = '' }) {
+function buildSupervisorLaunch({
+  scriptFile, stateFile, stopFile, jobFile, claimFile, attemptId, commandLine, cwd = '',
+}) {
   const supervisorArgs = [
     '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
     '-File', scriptFile,
     '-StateFile', stateFile,
     '-StopFile', stopFile,
+    '-JobFile', jobFile,
+    '-ClaimFile', claimFile,
+    '-AttemptId', attemptId,
     '-CommandLineB64', Buffer.from(String(commandLine || ''), 'utf8').toString('base64'),
     '-Cwd', String(cwd || ''),
   ].map(quoteWindowsArg).join(' ');
@@ -305,6 +335,7 @@ function createRenderJobStore({
   readProcessStartMs,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now = () => Date.now(),
+  newAttemptId = () => crypto.randomBytes(16).toString('hex'),
 }) {
   const fileFor = (tag, ext) => path.join(dir, `uu_render_${tag}.${ext}`);
 
@@ -330,6 +361,36 @@ function createRenderJobStore({
     fs.renameSync(tmp, file);
   }
 
+  // Prise d'une tentative : fichier créé une seule fois (création exclusive),
+  // par le superviseur (« supervisor:<pid> ») ou par l'application quand elle
+  // déclare la tentative abandonnée (« abandoned »).
+  const claimFileFor = (tag, attemptId) => fileFor(tag, `claim.${attemptId}`);
+
+  function readClaim(tag, attemptId) {
+    let text;
+    try {
+      text = fs.readFileSync(claimFileFor(tag, attemptId), 'utf8').trim();
+    } catch (err) {
+      return err?.code === 'ENOENT' ? { status: 'absent' } : { status: 'invalid' };
+    }
+    if (text === 'abandoned') return { status: 'abandoned' };
+    const match = /^supervisor:(\d+)$/.exec(text);
+    if (match) return { status: 'supervisor', pid: Number(match[1]) };
+    // Fichier en cours d'écriture par le superviseur (créé puis rempli).
+    return text ? { status: 'invalid' } : { status: 'pending' };
+  }
+
+  // L'application ne peut abandonner une tentative qu'en remportant la prise :
+  // un superviseur tardif trouvera alors « abandoned » et ne lancera rien.
+  function claimAbandonment(tag, attemptId) {
+    try {
+      fs.writeFileSync(claimFileFor(tag, attemptId), 'abandoned', { flag: 'wx' });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function requestStopFile(tag) {
     try {
       fs.writeFileSync(fileFor(tag, 'stop'), String(now()));
@@ -342,6 +403,16 @@ function createRenderJobStore({
   function removeFiles(tag) {
     for (const ext of ['job', 'job.tmp', 'state', 'stop', 'state.tmp']) {
       try { fs.rmSync(fileFor(tag, ext), { force: true }); } catch {}
+    }
+    // Prises de tentatives : un superviseur tardif sans réservation valide ne
+    // lance rien, la prise peut donc être retirée avec le reste du suivi.
+    let names = [];
+    try { names = fs.readdirSync(dir); } catch {}
+    const prefix = `uu_render_${tag}.claim.`;
+    for (const name of names) {
+      if (name.startsWith(prefix)) {
+        try { fs.rmSync(path.join(dir, name), { force: true }); } catch {}
+      }
     }
   }
 
@@ -372,12 +443,23 @@ function createRenderJobStore({
 
     // Identité du superviseur : celle enregistrée par l'application, sinon celle
     // qu'il a écrite lui-même dans son état (application arrêtée pendant le lancement).
-    const supervisorPid = Number(meta.supervisorPid) || Number(state?.supervisorPid) || 0;
+    let supervisorPid = Number(meta.supervisorPid) || Number(state?.supervisorPid) || 0;
     if (!supervisorPid) {
       if (stateFile.status === 'invalid') return { ...base, phase: 'unverifiable', error: 'job_state_invalid' };
-      return now() - spawnedAtMs <= RESERVATION_GRACE_MS
-        ? { ...base, phase: 'unknown' }
-        : { ...base, phase: 'abandoned' };
+      const attemptId = String(meta.attemptId || '');
+      if (!/^[a-f0-9]{16,64}$/.test(attemptId)) return { ...base, phase: 'unverifiable', error: 'job_attempt_invalid' };
+      let claim = readClaim(tag, attemptId);
+      if (claim.status === 'absent') {
+        // Le temps écoulé seul ne prouve rien : l'abandon n'est acquis que si
+        // l'application remporte la prise exclusive de la tentative.
+        if (now() - spawnedAtMs <= RESERVATION_GRACE_MS) return { ...base, phase: 'unknown' };
+        if (claimAbandonment(tag, attemptId)) return { ...base, phase: 'abandoned' };
+        claim = readClaim(tag, attemptId);
+      }
+      if (claim.status === 'abandoned') return { ...base, phase: 'abandoned' };
+      if (claim.status === 'pending') return { ...base, phase: 'unknown' };
+      if (claim.status !== 'supervisor') return { ...base, phase: 'unverifiable', error: 'job_claim_invalid' };
+      supervisorPid = claim.pid;
     }
     const supervisorAlive = await isSupervisorAlive({
       pid: supervisorPid,
@@ -409,9 +491,11 @@ function createRenderJobStore({
   async function start({ tag, scriptFile, command, args = [], cwd = '', startTimeoutMs = 30000 }) {
     removeFiles(tag);
     const spawnedAtMs = now();
+    const attemptId = newAttemptId();
     // 1. Réservation durable AVANT tout lancement : si elle échoue, rien n'est lancé.
+    //    Le superviseur vérifiera qu'elle porte toujours son identifiant de tentative.
     try {
-      writeJsonAtomic(fileFor(tag, 'job'), { phase: 'launching', spawnedAtMs, command });
+      writeJsonAtomic(fileFor(tag, 'job'), { phase: 'launching', attemptId, spawnedAtMs, command });
     } catch {
       return { ok: false, error: 'job_meta_unwritable' };
     }
@@ -419,6 +503,9 @@ function createRenderJobStore({
       scriptFile,
       stateFile: fileFor(tag, 'state'),
       stopFile: fileFor(tag, 'stop'),
+      jobFile: fileFor(tag, 'job'),
+      claimFile: claimFileFor(tag, attemptId),
+      attemptId,
       commandLine: buildWindowsCommandLine(command, args),
       cwd,
     });
@@ -431,7 +518,7 @@ function createRenderJobStore({
     // 2. Identité du superviseur.
     const supervisorStartMs = await readProcessStartMs(supervisorPid);
     try {
-      writeJsonAtomic(fileFor(tag, 'job'), { phase: 'launched', spawnedAtMs, command, supervisorPid, supervisorStartMs });
+      writeJsonAtomic(fileFor(tag, 'job'), { phase: 'launched', attemptId, spawnedAtMs, command, supervisorPid, supervisorStartMs });
     } catch {
       // Le superviseur tourne : arrêt demandé ; la réservation et son état
       // (qui contient son numéro) permettent à la réconciliation de le retrouver.

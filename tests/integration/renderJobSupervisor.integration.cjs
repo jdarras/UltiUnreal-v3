@@ -55,14 +55,21 @@ function recordedPids(pidsDir) {
   return fs.readdirSync(pidsDir).map(Number).filter((pid) => pid > 0);
 }
 
-function startSupervisor(dir, script) {
+// Réservation de tentative telle que l'écrit l'application (fichier .job).
+function reserveAttempt(dir, attemptId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') {
+  const jobFile = path.join(dir, 'reservation.job');
+  fs.writeFileSync(jobFile, JSON.stringify({ phase: 'launching', attemptId, spawnedAtMs: Date.now() }));
+  return { jobFile, claimFile: path.join(dir, `claim.${attemptId}`), attemptId };
+}
+
+function startSupervisor(dir, script, attempt = reserveAttempt(dir)) {
   const scriptFile = path.join(dir, 'supervisor.ps1');
   fs.writeFileSync(scriptFile, SUPERVISOR_SCRIPT);
   const stateFile = path.join(dir, 'state.json');
   const stopFile = path.join(dir, 'stop');
   const commandLine = buildWindowsCommandLine(process.execPath, [path.join(dir, script)]);
   // Même relais que l'application.
-  const launch = buildSupervisorLaunch({ scriptFile, stateFile, stopFile, commandLine });
+  const launch = buildSupervisorLaunch({ scriptFile, stateFile, stopFile, ...attempt, commandLine });
   const supervisorPid = Number(execFileSync(launch.file, launch.args, { windowsHide: true, encoding: 'utf8' }).trim());
   return {
     supervisorPid,
@@ -158,7 +165,7 @@ test('the supervisor survives the exit of the application that launched it', { s
   const stateFile = path.join(dir, 'state.json');
   const stopFile = path.join(dir, 'stop');
   const launch = buildSupervisorLaunch({
-    scriptFile, stateFile, stopFile,
+    scriptFile, stateFile, stopFile, ...reserveAttempt(dir),
     commandLine: buildWindowsCommandLine(process.execPath, [path.join(dir, 'sleep.cjs')]),
   });
   // Application simulée : un processus node qui lance le relais puis se termine.
@@ -188,7 +195,7 @@ test('paths and arguments with spaces and quotes reach the launched process inta
   const stateFile = path.join(dir, 'state.json');
   const args = ['-MovieName=Shot "A" 01', 'C:\\chemin avec espace\\', 'simple', ''];
   const launch = buildSupervisorLaunch({
-    scriptFile, stateFile, stopFile: path.join(dir, 'stop'),
+    scriptFile, stateFile, stopFile: path.join(dir, 'stop'), ...reserveAttempt(dir),
     commandLine: buildWindowsCommandLine(process.execPath, [path.join(dir, 'echo.cjs'), ...args]),
     cwd: dir,
   });
@@ -294,4 +301,69 @@ test('a stop requested before the supervisor starts the process launches nothing
 
   assert.equal(state?.stopped, true);
   assert.deepEqual(recordedPids(pidsDir), []);
+});
+
+// ---- U1 : application interrompue + superviseur retardé au-delà de la grâce ----
+// La réservation est écrite, l'application « meurt » avant tout état du
+// superviseur ; après la grâce, la réconciliation déclare l'abandon puis
+// nettoie. Le superviseur démarre alors seulement (retard simulé) : il ne
+// doit rien lancer ni écrire.
+async function abandonThenLateSupervisor(t, { afterAbandon }) {
+  const dir = makeDir(t);
+  const pidsDir = writeScripts(dir);
+  const scriptFile = path.join(dir, 'supervisor.ps1');
+  fs.writeFileSync(scriptFile, SUPERVISOR_SCRIPT);
+  const attemptId = 'b'.repeat(32);
+  const jobFile = path.join(dir, 'uu_render_r1.job');
+  fs.writeFileSync(jobFile, JSON.stringify({ phase: 'launching', attemptId, spawnedAtMs: Date.now() - 120_000 }));
+  const store = createRenderJobStore({
+    dir, listProcesses: listSystemProcesses, runRelay: runSupervisorRelay, readProcessStartMs: readSystemProcessStartMs,
+  });
+
+  // Réconciliation après la grâce : abandon remporté, suivi nettoyé.
+  assert.deepEqual(await store.stop('r1'), { ok: true, phase: 'abandoned' });
+  afterAbandon({ dir, store, attemptId });
+
+  // Reprise tardive du superviseur de l'ancienne tentative.
+  const stateFile = path.join(dir, 'uu_render_r1.state');
+  const launch = buildSupervisorLaunch({
+    scriptFile, stateFile, stopFile: path.join(dir, 'uu_render_r1.stop'),
+    jobFile, claimFile: path.join(dir, `uu_render_r1.claim.${attemptId}`), attemptId,
+    commandLine: buildWindowsCommandLine(process.execPath, [path.join(dir, 'sleep.cjs')]),
+  });
+  const latePid = Number(execFileSync(launch.file, launch.args, { windowsHide: true, encoding: 'utf8' }).trim());
+  await waitFor(() => !isAlive(latePid), 30000);
+  return { dir, pidsDir, stateFile, latePid };
+}
+
+test('U1: a late supervisor finding its attempt abandoned launches nothing', { skip: !isWindows }, async (t) => {
+  const { pidsDir, stateFile, latePid } = await abandonThenLateSupervisor(t, { afterAbandon: () => {} });
+
+  assert.equal(isAlive(latePid), false);
+  assert.deepEqual(recordedPids(pidsDir), []);
+  assert.equal(fs.existsSync(stateFile), false);
+});
+
+test('U1: a late supervisor whose tracking was cleaned launches nothing', { skip: !isWindows }, async (t) => {
+  const { pidsDir, stateFile } = await abandonThenLateSupervisor(t, {
+    afterAbandon: ({ store }) => store.removeFiles('r1'),
+  });
+
+  assert.deepEqual(recordedPids(pidsDir), []);
+  assert.equal(fs.existsSync(stateFile), false);
+});
+
+test('U1: a late supervisor of a replaced attempt launches nothing and leaves the new attempt untouched', { skip: !isWindows }, async (t) => {
+  let newReservation = '';
+  const { dir, pidsDir, stateFile } = await abandonThenLateSupervisor(t, {
+    afterAbandon: ({ dir: d, store }) => {
+      store.removeFiles('r1');
+      newReservation = JSON.stringify({ phase: 'launching', attemptId: 'c'.repeat(32), spawnedAtMs: Date.now() });
+      fs.writeFileSync(path.join(d, 'uu_render_r1.job'), newReservation);
+    },
+  });
+
+  assert.deepEqual(recordedPids(pidsDir), []);
+  assert.equal(fs.existsSync(stateFile), false);
+  assert.equal(fs.readFileSync(path.join(dir, 'uu_render_r1.job'), 'utf8'), newReservation);
 });
