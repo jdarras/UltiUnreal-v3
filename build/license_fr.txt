@@ -1,0 +1,83 @@
+﻿Contrat de licence UltiUnreal (EULA) – Logiciel gratuit (v2.0)
+
+Éditeur : JDarrasVP (auto-entreprise) – 2 allée du sapin bleu, 92410 Ville d’Avray, France – SIRET : 98230142600010 – contact@jdarrasvp.fr
+
+Produit : UltiUnreal (Windows)
+Date : 17/10/2026
+
+1. Définitions
+
+Logiciel : l’application “UltiUnreal”, ses mises à jour, correctifs et documentation.
+
+Utilisateur : toute personne physique ou morale qui installe ou utilise le Logiciel.
+
+2. Objet
+
+Le présent contrat définit les conditions d’utilisation du Logiciel.
+
+3. Concession de licence
+
+UltiUnreal est un logiciel gratuit. Sous réserve du respect du présent contrat, JDarrasVP concède à l’Utilisateur, à titre gratuit, une licence d’utilisation :
+
+non exclusive, non transférable, non sous-licenciable,
+
+sans limite de durée ni de nombre de postes.
+
+Le Logiciel est utilisable hors-ligne.
+
+4. Mises à jour et support
+
+Des mises à jour (correctifs et évolutions) peuvent être proposées, sans engagement de fréquence ni de durée.
+
+Support : email (best effort) à contact@jdarrasvp.fr.
+
+L’Utilisateur reconnaît que l’usage correct du Logiciel suppose la lecture et l’application de la documentation.
+
+5. Restrictions d’usage
+
+Il est interdit (directement ou indirectement) :
+
+de vendre, louer, sous-licencier ou distribuer le Logiciel contre rémunération,
+
+d’exploiter le Logiciel en mode service hébergé / SaaS au bénéfice de tiers,
+
+de procéder à de la rétro-ingénierie, décompilation, désassemblage, ou analyse visant à reconstituer les secrets de fabrication, dans la mesure permise par la loi.
+
+Usage autorisé : virtual production / broadcast, sans restriction particulière autre que les présentes.
+
+6. Propriété intellectuelle
+
+Le Logiciel, la marque, les éléments graphiques, et la documentation restent la propriété exclusive de JDarrasVP. La licence n’emporte aucun transfert de droits.
+
+7. Données et confidentialité (absence de collecte automatique)
+
+UltiUnreal ne collecte ni n’envoie automatiquement de données (pas de télémétrie, pas d’envoi de logs).
+
+Les informations que l’Utilisateur communique volontairement (par exemple lors d’une demande de support par email) sont utilisées uniquement pour traiter sa demande. L’Utilisateur peut en demander la suppression par email.
+
+8. Garantie limitée
+
+Le Logiciel est fourni gratuitement, « en l’état ». JDarrasVP s’efforce, sans obligation de résultat, de fournir un Logiciel conforme à sa documentation et de corriger les anomalies reproductibles signalées.
+L’Utilisateur reconnaît que le Logiciel dépend de l’environnement (Windows, Unreal Engine, réseau, etc.) et qu’une configuration non conforme peut empêcher le bon fonctionnement.
+
+9. Limitation de responsabilité
+
+Dans la mesure permise par la loi :
+
+JDarrasVP ne pourra être tenue responsable des dommages indirects (perte d’exploitation, perte de données, perte de revenus, interruption d’activité, etc.).
+
+L’Utilisateur demeure seul responsable de son usage du Logiciel, de ses configurations, sauvegardes, et tests en conditions réelles.
+
+Rien dans le présent contrat n’exclut une responsabilité qui ne peut pas être exclue par la loi.
+
+10. Demandes d’évolutions
+
+L’Utilisateur peut proposer des fonctionnalités supplémentaires. JDarrasVP peut les étudier, sans garantie de réalisation ni de délai.
+
+11. Résiliation
+
+JDarrasVP peut résilier la licence en cas de violation grave du présent contrat (par exemple, revente ou exploitation commerciale non autorisée). La résiliation entraîne l’arrêt du droit d’utilisation.
+
+12. Droit applicable – litiges
+
+Le présent contrat est soumis au droit français. Tout litige sera porté devant les juridictions compétentes, sous réserve des règles impératives applicables aux consommateurs.

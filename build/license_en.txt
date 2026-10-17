@@ -1,0 +1,84 @@
+﻿UltiUnreal License Agreement (EULA) – Free Software (v2.0)
+
+Publisher: JDarrasVP (auto-entrepreneur / sole proprietor) – 2 allée du sapin bleu, 92410 Ville d’Avray, France – SIRET: 98230142600010 – contact@jdarrasvp.fr
+
+Product: UltiUnreal (Windows)
+Date: 17/10/2026
+
+1. Definitions
+
+Software: the “UltiUnreal” application, its updates, patches and documentation.
+
+User: any natural person or legal entity that installs or uses the Software.
+
+2. Purpose
+
+This agreement defines the terms and conditions for using the Software.
+
+3. Grant of Licence
+
+UltiUnreal is free software. Subject to compliance with this agreement, JDarrasVP grants the User, free of charge, a licence to use the Software that is:
+
+non-exclusive, non-transferable, non-sublicensable,
+
+with no limit of time or number of workstations.
+
+The Software can be used offline.
+
+4. Updates and support
+
+Updates (fixes and improvements) may be offered, with no commitment as to frequency or duration.
+
+Support: email (best effort) at contact@jdarrasvp.fr.
+
+The User acknowledges that correct use of the Software requires reading and applying the documentation.
+
+5. Use restrictions
+
+It is prohibited (directly or indirectly):
+
+to sell, rent, sublicense, or distribute the Software for a fee,
+
+to operate the Software as a hosted service / SaaS for the benefit of third parties,
+
+to reverse engineer, decompile, disassemble, or otherwise analyze the Software in order to reconstruct trade secrets, to the extent permitted by law.
+
+Permitted use: virtual production / broadcast, with no specific restriction other than those stated herein.
+
+6. Intellectual property
+
+The Software, trademarks, graphic elements, and documentation remain the exclusive property of JDarrasVP. The licence does not transfer any rights.
+
+7. Data and privacy (no automatic collection)
+
+UltiUnreal does not automatically collect or send data (no telemetry, no log upload).
+
+Information the User provides voluntarily (for example when requesting support by email) is used only to handle that request. The User may request its deletion by email.
+
+8. Limited warranty
+
+The Software is provided free of charge, “as is”. JDarrasVP endeavours, without any obligation of result, to provide Software consistent with its documentation and to fix reproducible issues reported.
+
+The User acknowledges that the Software depends on the environment (Windows, Unreal Engine, network, etc.) and that a non-compliant configuration may prevent proper operation.
+
+9. Limitation of liability
+
+To the extent permitted by law:
+
+JDarrasVP shall not be liable for indirect damages (loss of business, loss of data, loss of revenue, business interruption, etc.).
+
+The User remains solely responsible for its use of the Software, its configurations, backups, and real-world testing.
+
+Nothing in this agreement excludes liability that cannot be excluded by law.
+
+10. Feature requests
+
+The User may propose additional features. JDarrasVP may review them, with no guarantee of implementation or timeframe.
+
+11. Termination
+
+JDarrasVP may terminate the licence in the event of a serious breach of this agreement (for example, unauthorised resale or commercial exploitation). Termination results in the end of the right to use.
+
+12. Governing law – disputes
+
+This agreement is governed by French law. Any dispute shall be brought before the competent courts, subject to mandatory rules applicable to consumers.

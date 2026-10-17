@@ -18,7 +18,6 @@ data/
 test/
 test-utils/
 
-build/
 
 # FFmpeg local binaries (do not commit)
 tools/ffmpeg/win/ffmpeg.exe
