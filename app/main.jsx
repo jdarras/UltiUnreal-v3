@@ -838,7 +838,10 @@ function App() {
     );
 
   // Quand on valide l’écran Welcome
-  async function handleWelcomeContinue(newIdentity) {
+  // Fonctions mémorisées : elles entrent dans les actions transmises à toute
+  // l'interface (AppShell) ; recréées à chaque rendu, elles invalidaient ce
+  // regroupement et faisaient redessiner tout l'arbre.
+  const handleWelcomeContinue = useCallback(async (newIdentity) => {
     const requestedMode = normalizeAppMode(newIdentity?.mode);
     const mode = postprodModeAccess?.forcedMode
       ? normalizeAppMode(postprodModeAccess.forcedMode)
@@ -875,27 +878,35 @@ function App() {
       setShowLicense(true);
       setLicenseOrigin('gate');
     }
-  }
+  }, [
+    postprodModeAccess?.forcedMode,
+    clientSyncEnabled,
+    resourcesTabAvailable,
+    postprodVisibleTabs,
+    postprodCanManageMachines,
+    liveAccountTabs,
+    refreshLicenseStatus,
+  ]);
 
-  function openLicense(origin) {
+  const openLicense = useCallback((origin) => {
     setLicenseOrigin(origin || 'welcome');
     setShowWelcome(false);
     setShowLicense(true);
-  }
+  }, []);
 
-  function handleLicenseBack() {
+  const handleLicenseBack = useCallback(() => {
     setShowLicense(false);
     setShowWelcome(true);
-  }
+  }, []);
 
-  function handleLicenseContinue() {
+  const handleLicenseContinue = useCallback(() => {
     if (licenseOrigin === 'welcome') {
       setShowLicense(false);
       setShowWelcome(true);
       return;
     }
     setShowLicense(false);
-  }
+  }, [licenseOrigin]);
 
   const {
     handleNavClick,
