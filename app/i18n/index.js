@@ -1,4 +1,5 @@
 import fr from './fr.json';
+import { translateWith } from './translate.js';
 
 const DICTS = { fr };
 const DICT_PENDING = new Map();
@@ -54,22 +55,8 @@ export function createT(lang = 'fr') {
    * t('clé', { diff: 3, ip: '192.168.0.10' })
    * remplace {diff}, {ip}, etc. dans la chaîne.
    */
-  return function t(key, paramsOrFallback) {
+  return function t(key, fallbackOrParams, maybeParams) {
     const dict = DICTS[normalized] || DICTS.fr || {};
-    const fallback = typeof paramsOrFallback === 'string' ? paramsOrFallback : '';
-    let str = dict[key] || fallback || key;
-
-    if (
-      paramsOrFallback
-      && typeof paramsOrFallback === 'object'
-      && !Array.isArray(paramsOrFallback)
-    ) {
-      for (const [pKey, pVal] of Object.entries(paramsOrFallback)) {
-        const re = new RegExp(`\\{${pKey}\\}`, 'g');
-        str = str.replace(re, String(pVal));
-      }
-    }
-
-    return str;
+    return translateWith(dict, key, fallbackOrParams, maybeParams);
   };
 }

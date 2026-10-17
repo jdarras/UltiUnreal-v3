@@ -573,10 +573,10 @@ function RenderDetailInfoPanel({
   const hasRenderableFormBlock = hasFormName || !!formIdTag || hasFormData || renderFormFieldsLoading || !!renderFormFieldsError;
   const formBlockTitle = (() => {
     const name = String(formMeta.formName || "").trim();
-    if (name && formIdTag) return `Formulaire ${name} ${formIdTag}`;
-    if (name) return `Formulaire ${name}`;
-    if (formIdTag) return `Formulaire ${formIdTag}`;
-    return "Formulaire";
+    if (name && formIdTag) return safeT(t, "postprod.renders.detail.formTitleNameId", "Formulaire {name} {id}", { name, id: formIdTag });
+    if (name) return safeT(t, "postprod.renders.detail.formTitleName", "Formulaire {name}", { name });
+    if (formIdTag) return safeT(t, "postprod.renders.detail.formTitleId", "Formulaire {id}", { id: formIdTag });
+    return safeT(t, "postprod.renders.detail.form", "Formulaire");
   })();
   const canEditExportDestinations = (
     typeof onUpdateRenderExportDestinations === "function"
