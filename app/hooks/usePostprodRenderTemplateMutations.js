@@ -101,7 +101,7 @@ function usePostprodRenderTemplateMutations({
     try {
       const res = await postprodCreateRenderForm(token, payload);
       await loadPostprodRenderForms();
-      showNotice('Formulaire de rendu cree.', 'ok');
+      showNotice(t('postprod.data.forms.msg.renderFormCreated'), 'ok');
       return res?.form && typeof res.form === 'object' ? res.form : true;
     } catch (e) {
       setPostprodRenderForms((prev) => ({
@@ -124,7 +124,7 @@ function usePostprodRenderTemplateMutations({
     try {
       const res = await postprodUpdateRenderForm(token, formId, payload);
       await loadPostprodRenderForms();
-      showNotice('Formulaire de rendu mis a jour.', 'ok');
+      showNotice(t('postprod.data.forms.msg.renderFormUpdated'), 'ok');
       return res?.form && typeof res.form === 'object' ? res.form : true;
     } catch (e) {
       setPostprodRenderForms((prev) => ({
@@ -158,7 +158,7 @@ function usePostprodRenderTemplateMutations({
         });
       }
       await loadPostprodRenderForms();
-      showNotice('Formulaire de rendu supprime.', 'info');
+      showNotice(t('postprod.data.forms.msg.renderFormDeleted'), 'info');
       return true;
     } catch (e) {
       setPostprodRenderForms((prev) => ({

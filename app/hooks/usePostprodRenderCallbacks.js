@@ -91,7 +91,7 @@ function usePostprodRenderCallbacks({
       await handlePatchLocalWorkerAptitude(true);
       await ensureLocalRenderWorkerOnline();
       if (!isPostprodQueueRuntimeActive()) {
-        showNotice("File d'attente en pause: le rendu reste en attente.", "warn");
+        showNotice(t('postprod.renders.msg.queuePausedRenderWaiting'), "warn");
         await Promise.all([loadPostprodRenders(), loadPostprodRenderWorkers(), loadPostprodRenderHealth()]);
         return;
       }
@@ -101,10 +101,10 @@ function usePostprodRenderCallbacks({
       });
       const dispatchedCount = Number.isFinite(Number(dispatchRes?.count)) ? Math.max(0, Math.trunc(Number(dispatchRes.count))) : 0;
       if (dispatchedCount <= 0) {
-        showNotice("Rendu cree mais non demarre: aucune station disponible.", "warn");
+        showNotice(t('postprod.renders.msg.createdNoStation'), "warn");
       }
     } catch {
-      showNotice("Rendu cree, mais lancement immediat indisponible.", "warn");
+      showNotice(t('postprod.renders.msg.createdImmediateUnavailable'), "warn");
     }
     await Promise.all([loadPostprodRenders(), loadPostprodRenderWorkers(), loadPostprodRenderHealth()]);
   }, [
@@ -116,6 +116,7 @@ function usePostprodRenderCallbacks({
     loadPostprodRenderWorkers,
     loadPostprodRenderHealth,
     showNotice,
+    t,
   ]);
 
   const handleAptitudeCancel = useCallback(() => {
@@ -146,12 +147,12 @@ function usePostprodRenderCallbacks({
         ? Math.max(0, Math.trunc(Number(dispatchRes.count)))
         : 0;
       if (dispatchedCount <= 0) {
-        showNotice("Rendu cree mais non demarre: aucune station de rendu disponible/compatible pour le moment.", "warn");
+        showNotice(t('postprod.renders.msg.createdNoCompatibleStation'), "warn");
       } else {
         showNotice(t('postprod.renders.queuePause.noticeActivated'), 'ok');
       }
     } catch {
-      showNotice("Rendu cree, mais lancement immediat indisponible. Verifie les stations de rendu disponibles.", "warn");
+      showNotice(t('postprod.renders.msg.createdImmediateUnavailableCheck'), "warn");
     }
     await Promise.all([loadPostprodRenders(), loadPostprodRenderWorkers(), loadPostprodRenderHealth()]);
   }, [
@@ -218,8 +219,8 @@ function usePostprodRenderCallbacks({
 
   const handleBusyImmediateLaunchCancel = useCallback(() => {
     setBusyImmediateLaunchPending(null);
-    showNotice("Rendu en attente: sera lancé automatiquement quand une station sera disponible.", "info");
-  }, [showNotice]);
+    showNotice(t('postprod.renders.msg.waitingForStation'), "info");
+  }, [showNotice, t]);
 
   const handlePostprodReserveRenderId = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();
@@ -651,7 +652,7 @@ function usePostprodRenderCallbacks({
     if (!token) return { count: 0, compatibilityBlocked: 0 };
     if (!isPostprodQueueRuntimeActive() && !forceDispatch) {
       if (!silent) {
-        showNotice("File d'attente en pause: aucun rendu ne peut etre lance.", "warn");
+        showNotice(t('postprod.renders.msg.queuePausedNoLaunch'), "warn");
       }
       return { count: 0, compatibilityBlocked: 0 };
     }

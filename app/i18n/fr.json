@@ -1721,5 +1721,20 @@
   "widgets.color.pick": "Choisir une couleur",
   "postprod.renders.detail.formTitleNameId": "Formulaire {name} {id}",
   "postprod.renders.detail.formTitleName": "Formulaire {name}",
-  "postprod.renders.detail.formTitleId": "Formulaire {id}"
+  "postprod.renders.detail.formTitleId": "Formulaire {id}",
+  "postprod.projects.msg.synced": "Projet synchronisé.",
+  "postprod.data.tables.msg.rowSaved": "Ligne de données enregistrée.",
+  "postprod.data.tables.msg.bindingSaved": "Liaison des widgets enregistrée.",
+  "postprod.renders.msg.queuePausedRenderWaiting": "File d'attente en pause : le rendu reste en attente.",
+  "postprod.renders.msg.createdNoStation": "Rendu créé mais non démarré : aucune station disponible.",
+  "postprod.renders.msg.createdImmediateUnavailable": "Rendu créé, mais lancement immédiat indisponible.",
+  "postprod.renders.msg.createdNoCompatibleStation": "Rendu créé mais non démarré : aucune station de rendu disponible ou compatible pour le moment.",
+  "postprod.renders.msg.createdImmediateUnavailableCheck": "Rendu créé, mais lancement immédiat indisponible. Vérifie les stations de rendu disponibles.",
+  "postprod.renders.msg.waitingForStation": "Rendu en attente : il sera lancé automatiquement dès qu'une station sera disponible.",
+  "postprod.renders.msg.queuePausedNoLaunch": "File d'attente en pause : aucun rendu ne peut être lancé.",
+  "postprod.data.forms.msg.renderFormCreated": "Formulaire de rendu créé.",
+  "postprod.data.forms.msg.renderFormUpdated": "Formulaire de rendu mis à jour.",
+  "postprod.data.forms.msg.renderFormDeleted": "Formulaire de rendu supprimé.",
+  "postprod.users.permissions.msg.updated": "Droits projet mis à jour.",
+  "postprod.resources.thumbnail.none": "Aucune miniature"
 }

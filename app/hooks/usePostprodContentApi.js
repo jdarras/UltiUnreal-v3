@@ -334,7 +334,7 @@ function usePostprodContentApi({
     try {
       const res = await postprodSyncProject(token, projectRef, payload);
       await loadPostprodProjects();
-      showNotice('Projet synchronise.', 'ok');
+      showNotice(t('postprod.projects.msg.synced'), 'ok');
       return res?.sync && typeof res.sync === 'object' ? res.sync : null;
     } catch (e) {
       const err = new Error(resolvePostprodProjectsError(e, t));
@@ -348,7 +348,7 @@ function usePostprodContentApi({
     if (!token) return null;
     try {
       const res = await postprodUpsertDataTableRow(token, tableId, payload);
-      showNotice('Ligne de donnees enregistree.', 'ok');
+      showNotice(t('postprod.data.tables.msg.rowSaved'), 'ok');
       return res?.row && typeof res.row === 'object' ? res.row : null;
     } catch (e) {
       const err = new Error(resolvePostprodDataError(e, t));
@@ -362,7 +362,7 @@ function usePostprodContentApi({
     if (!token) return null;
     try {
       const res = await postprodUpdateDataTable(token, tableId, payload);
-      showNotice('Liaison widgets enregistree.', 'ok');
+      showNotice(t('postprod.data.tables.msg.bindingSaved'), 'ok');
       return res?.table && typeof res.table === 'object' ? res.table : null;
     } catch (e) {
       const err = new Error(resolvePostprodDataError(e, t));

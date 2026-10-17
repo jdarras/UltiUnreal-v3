@@ -35,7 +35,7 @@ function ResourcesCatalogDetailPanel({
               alt={detailTitle || detailUid || selectedRef}
             />
           ) : (
-            <div className="uu-resource-detail-thumb placeholder">No thumbnail</div>
+            <div className="uu-resource-detail-thumb placeholder">{safeT(t, "postprod.resources.thumbnail.none", "Aucune miniature")}</div>
           )}
           <div className="uu-muted">
             {safeT(t, "postprod.resources.meta.uid", "UID: {value}", {

@@ -88,7 +88,7 @@ function ResourcesCatalogListPanel({
                         alt={entry.title || entry.uid || entry.ref}
                       />
                     ) : (
-                      <div className="uu-resource-list-thumb placeholder">No thumb</div>
+                      <div className="uu-resource-list-thumb placeholder">{safeT(t, "postprod.resources.thumbnail.none", "Aucune miniature")}</div>
                     )}
                   </td>
                   <td>{entry.title && entry.uid ? `${entry.title} [${entry.uid}]` : (entry.title || entry.uid || entry.ref)}</td>

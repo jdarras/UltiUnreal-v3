@@ -1721,5 +1721,20 @@
   "widgets.color.pick": "Pick a color",
   "postprod.renders.detail.formTitleNameId": "Form {name} {id}",
   "postprod.renders.detail.formTitleName": "Form {name}",
-  "postprod.renders.detail.formTitleId": "Form {id}"
+  "postprod.renders.detail.formTitleId": "Form {id}",
+  "postprod.projects.msg.synced": "Project synchronized.",
+  "postprod.data.tables.msg.rowSaved": "Data row saved.",
+  "postprod.data.tables.msg.bindingSaved": "Widget binding saved.",
+  "postprod.renders.msg.queuePausedRenderWaiting": "Queue paused: the render stays waiting.",
+  "postprod.renders.msg.createdNoStation": "Render created but not started: no station available.",
+  "postprod.renders.msg.createdImmediateUnavailable": "Render created, but immediate launch is unavailable.",
+  "postprod.renders.msg.createdNoCompatibleStation": "Render created but not started: no available or compatible render station for now.",
+  "postprod.renders.msg.createdImmediateUnavailableCheck": "Render created, but immediate launch is unavailable. Check the available render stations.",
+  "postprod.renders.msg.waitingForStation": "Render waiting: it will start automatically as soon as a station is available.",
+  "postprod.renders.msg.queuePausedNoLaunch": "Queue paused: no render can be launched.",
+  "postprod.data.forms.msg.renderFormCreated": "Render form created.",
+  "postprod.data.forms.msg.renderFormUpdated": "Render form updated.",
+  "postprod.data.forms.msg.renderFormDeleted": "Render form deleted.",
+  "postprod.users.permissions.msg.updated": "Project permissions updated.",
+  "postprod.resources.thumbnail.none": "No thumbnail"
 }

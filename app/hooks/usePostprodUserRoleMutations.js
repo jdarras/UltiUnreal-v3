@@ -208,7 +208,7 @@ function usePostprodUserRoleMutations({
         projectRef,
         normalizedPayload
       );
-      showNotice('Droits projet mis a jour.', 'ok');
+      showNotice(t('postprod.users.permissions.msg.updated'), 'ok');
       const permissions = res?.projectPermissions && typeof res.projectPermissions === 'object'
         ? res.projectPermissions
         : null;
