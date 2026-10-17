@@ -11,53 +11,10 @@ import {
   FAVORITE_STORAGE_KEY,
   getUprojectDialogDefaultPath,
 } from '../../utils/projectsScreenUtils';
+import { readBooleanFlag, resolveFavoritesUserScope } from '../../utils/resources-helpers';
 
 const PROJECTS_FAVORITES_STORAGE_KEY = 'uu_projects_favorites';
-const POSTPROD_AUTH_STORAGE_KEY = 'uu_postprod_auth';
 const LS_CLIENT_ASSOC = 'uu_client_project_assoc';
-
-function normalizeScopeValue(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9:_-]+/g, '_');
-}
-
-export function resolveFavoritesUserScope(identity = {}) {
-  const candidates = [
-    Number.isFinite(Number(identity?.postprodUserId)) ? `id:${Number(identity.postprodUserId)}` : '',
-    identity?.postprodUserPublicId ? `public:${identity.postprodUserPublicId}` : '',
-    identity?.postprodUsername ? `username:${identity.postprodUsername}` : '',
-    identity?.username ? `username:${identity.username}` : '',
-  ];
-  for (const candidate of candidates) {
-    const normalized = normalizeScopeValue(candidate);
-    if (normalized) return normalized;
-  }
-  try {
-    const raw = localStorage.getItem(POSTPROD_AUTH_STORAGE_KEY) || '';
-    const parsed = raw ? JSON.parse(raw) : {};
-    const user = parsed?.user && typeof parsed.user === 'object' ? parsed.user : {};
-    const fallbackCandidates = [
-      Number.isFinite(Number(user?.id)) ? `id:${Number(user.id)}` : '',
-      user?.publicId ? `public:${user.publicId}` : '',
-      user?.username ? `username:${user.username}` : '',
-    ];
-    for (const candidate of fallbackCandidates) {
-      const normalized = normalizeScopeValue(candidate);
-      if (normalized) return normalized;
-    }
-  } catch {
-    // noop
-  }
-  return 'anonymous';
-}
-
-function readBooleanFlag(value, fallback = false) {
-  if (value === true || value === 'true') return true;
-  if (value === false || value === 'false') return false;
-  return fallback;
-}
 
 function readFavoriteMap(storageKey) {
   try {
