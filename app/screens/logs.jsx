@@ -200,9 +200,10 @@ export default function LogsScreen() {
   // Pagination pour limiter le rendu DOM si beaucoup de logs
   const [page, setPage] = React.useState(0);
   const [pageSize, setPageSize] = React.useState(200);
+  const levelFilterKey = Array.from(levelFilter).join(',');
   React.useEffect(() => {
     setPage(0);
-  }, [filtered.length, pageSize, text, Array.from(levelFilter).join(','), actionFilter, fromAtLocal, toAtLocal]);
+  }, [filtered.length, pageSize, text, levelFilterKey, actionFilter, fromAtLocal, toAtLocal]);
   const totalItems = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const currentPage = Math.min(page, totalPages - 1);

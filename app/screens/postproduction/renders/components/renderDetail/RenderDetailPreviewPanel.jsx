@@ -322,9 +322,11 @@ function RenderDetailPreviewPanel({
 
   const hasProxy = !!proxySrc;
 
-  const payload = render?.payload && typeof render.payload === "object" && !Array.isArray(render.payload)
-    ? render.payload
-    : {};
+  const renderPayload = render?.payload;
+  const payload = useMemo(
+    () => (renderPayload && typeof renderPayload === "object" && !Array.isArray(renderPayload) ? renderPayload : {}),
+    [renderPayload]
+  );
 
   const hasAlpha = !!alphaSrc || payload?.hasAlpha === true;
 

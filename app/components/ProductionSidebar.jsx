@@ -79,6 +79,7 @@ export default function ProductionSidebar({
     // Changement de layout actif: on réinitialise l'édition locale.
     setLayoutNameDraft(String(layoutMeta?.name || ''));
     setLayoutNameDirty(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- réinitialisation seulement au changement de layout actif
   }, [layoutMeta?.id]);
 
   React.useEffect(() => {

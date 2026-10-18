@@ -46,6 +46,7 @@ function usePostprodTabTriggers({
     postprodCanManageUsers,
     current,
     loadPostprodMyActivity,
+    setPostprodMyActivity,
   ]);
 
   useEffect(() => {
@@ -166,6 +167,7 @@ function usePostprodTabTriggers({
     postprodAuthenticated,
     current,
     loadPostprodAudit,
+    setPostprodRenderHealthAuditMaintenance,
   ]);
 
   useEffect(() => {

@@ -383,7 +383,7 @@ export default function ProjectsScreen({
     if (current && typeof current === 'object') {
       detailMetaRef.current = { ...current, favorite: fav };
     }
-  }, [detailId, projectFavorites]);
+  }, [detailId, projectFavorites, detailMetaRef, setDetailMeta]);
 
   // Cross-domain: open pending detail once projects loaded
   React.useEffect(() => {
@@ -391,6 +391,7 @@ export default function ProjectsScreen({
       openDetails(pendingDetailIdRef.current);
       pendingDetailIdRef.current = '';
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- ouverture différée déclenchée seulement à l'arrivée des projets
   }, [projects]);
 
   // Cross-domain: start integration once detail + serverHost available
@@ -399,6 +400,7 @@ export default function ProjectsScreen({
       pendingStartRef.current = false;
       startIntegration(detailId);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intégration différée déclenchée seulement quand le détail et le serveur sont prêts
   }, [detailId, serverHost]);
 
   // Wrapped callbacks: pass detail context to list-hook functions

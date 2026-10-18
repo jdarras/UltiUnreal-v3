@@ -46,6 +46,7 @@ export function useRenderFormMetaController({
     setMetaNote(String(selectedForm?.note || ""));
     setMetaError("");
     setMetaInfo("");
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- brouillon réinitialisé seulement quand un autre formulaire est sélectionné (préserve la saisie)
   }, [selectedForm?.id]);
 
   const {

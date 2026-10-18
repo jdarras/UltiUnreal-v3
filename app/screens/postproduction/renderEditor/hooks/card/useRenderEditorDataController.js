@@ -114,10 +114,7 @@ export function useRenderEditorDataController({
   }, [
     users,
     defaultAssigneeUserId,
-    currentUser?.firstName,
-    currentUser?.lastName,
-    currentUser?.displayName,
-    currentUser?.username,
+    currentUser,
   ]);
 
   const listData = useRenderEditorCardListData({
@@ -133,10 +130,11 @@ export function useRenderEditorDataController({
     onFormModeChange,
   });
 
+  const setListAssigneeUserId = listData?.setAssigneeUserId;
   useEffect(() => {
     if (canAssignRenderRequests === true) return;
-    if (typeof listData?.setAssigneeUserId !== "function") return;
-    listData.setAssigneeUserId((prev) => {
+    if (typeof setListAssigneeUserId !== "function") return;
+    setListAssigneeUserId((prev) => {
       const prevNum = Number(prev || 0);
       const prevId = Number.isFinite(prevNum) && prevNum > 0 ? Math.trunc(prevNum) : null;
       if (prevId === defaultAssigneeUserId) return prev;
@@ -145,7 +143,7 @@ export function useRenderEditorDataController({
   }, [
     canAssignRenderRequests,
     defaultAssigneeUserId,
-    listData?.setAssigneeUserId,
+    setListAssigneeUserId,
   ]);
 
   const assigneeIsCurrentUser = useMemo(() => {
@@ -216,6 +214,7 @@ export function useRenderEditorDataController({
     onLoadProjectUnrealCatalog,
   });
 
+  const resolveListTaskVisualStatusKey = listData?.resolveTaskVisualStatusKey;
   const editingTaskVisualStatusKey = useMemo(() => {
     if (listData?.isEditingTask !== true) return "planned";
     const taskIdRaw = Number(listData?.editingTaskId || 0);
@@ -227,14 +226,14 @@ export function useRenderEditorDataController({
       return entryId === taskId;
     });
     if (!task) return "planned";
-    const statusRaw = typeof listData?.resolveTaskVisualStatusKey === "function"
-      ? listData.resolveTaskVisualStatusKey(task)
+    const statusRaw = typeof resolveListTaskVisualStatusKey === "function"
+      ? resolveListTaskVisualStatusKey(task)
       : task?.status;
     return normalizeTaskVisualStatusKey(statusRaw);
   }, [
     listData?.isEditingTask,
     listData?.editingTaskId,
-    listData?.resolveTaskVisualStatusKey,
+    resolveListTaskVisualStatusKey,
     taskList,
   ]);
 

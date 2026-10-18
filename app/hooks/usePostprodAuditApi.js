@@ -55,7 +55,7 @@ function usePostprodAuditApi({
         error: resolvePostprodActivityError(e, t),
       }));
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, setPostprodMyActivity]);
 
   const loadPostprodAudit = useCallback(async (options = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -160,7 +160,7 @@ function usePostprodAuditApi({
         error: resolvePostprodAuditError(e, t),
       }));
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, setPostprodAudit]);
 
   const loadPostprodRenderHealthAuditMaintenance = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();
@@ -200,7 +200,7 @@ function usePostprodAuditApi({
       }));
       return null;
     }
-  }, [postprodAuth.token, postprodCanManageRoles, t]);
+  }, [postprodAuth.token, postprodCanManageRoles, t, setPostprodRenderHealthAuditMaintenance]);
 
   const handlePostprodPurgeRenderHealthAudit = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();
@@ -253,7 +253,7 @@ function usePostprodAuditApi({
       }));
       throw e;
     }
-  }, [postprodAuth.token, postprodCanManageRoles, showNotice, t]);
+  }, [postprodAuth.token, postprodCanManageRoles, showNotice, t, setPostprodRenderHealthAuditMaintenance]);
 
   const handlePostprodPurgeAudit = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();

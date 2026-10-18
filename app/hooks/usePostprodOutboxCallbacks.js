@@ -19,7 +19,7 @@ const POSTPROD_WORKER_COMPLETION_REPLAY_MIN_INTERVAL_MS = 5000;
 function usePostprodOutboxCallbacks({
   postprodAuth, t, showNotice,
   appMode, postprodAuthenticated,
-  renderWorkerKey, localPrimaryUnrealEditorPath,
+  renderWorkerKey,
   postprodOfflineOutbox, postprodWorkerCompletionOutbox,
   postprodOfflineOutboxCount, postprodWorkerCompletionOutboxCount,
   updatePostprodOfflineOutbox, updatePostprodWorkerCompletionOutbox,
@@ -169,7 +169,6 @@ function usePostprodOutboxCallbacks({
     postprodAuth.token,
     postprodAuth.user?.id,
     renderWorkerKey,
-    localPrimaryUnrealEditorPath,
     postprodWorkerCompletionOutbox,
     updatePostprodWorkerCompletionOutbox,
     loadPostprodRenders,

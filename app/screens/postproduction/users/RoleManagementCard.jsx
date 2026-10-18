@@ -37,6 +37,7 @@ export function RoleManagementCard({
 
   useEffect(() => {
     if (inEditor) closeEditor();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- l'éditeur n'est fermé qu'au changement d'onglet
   }, [tabKey]);
 
   return (

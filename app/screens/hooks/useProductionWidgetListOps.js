@@ -46,6 +46,7 @@ function useProductionWidgetListOps({
         return { ...widget, targets: nextTargets };
       })
     );
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- hostsSignature est la clé de contenu de hosts
   }, [hostsSignature, setWidgets]);
 
   return {

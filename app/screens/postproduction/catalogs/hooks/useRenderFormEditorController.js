@@ -38,7 +38,7 @@ export function useRenderFormEditorController({
       selectedProjectRef,
       projectLabelByAnyKey,
     });
-  }, [selectedForm?.projectName, selectedProjectRef, projectLabelByAnyKey]);
+  }, [selectedForm, selectedProjectRef, projectLabelByAnyKey]);
 
   const metaController = useRenderFormMetaController({
     t,

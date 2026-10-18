@@ -84,7 +84,7 @@ function SelfProfileCard({
       .filter(Boolean);
   }, [projects]);
 
-  const rawActivities = Array.isArray(myActivity) ? myActivity : [];
+  const rawActivities = useMemo(() => (Array.isArray(myActivity) ? myActivity : []), [myActivity]);
 
   const typedActivities = useMemo(
     () => rawActivities.filter((item) => activityMatchesSelectedType(item, "all")),
@@ -141,6 +141,7 @@ function SelfProfileCard({
     });
     setEditorAvatarError("");
     setEditorAvatarLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- brouillon réinitialisé seulement quand un autre utilisateur est affiché (préserve la saisie)
   }, [userId]);
 
   const avatarPath = String(draft?.avatarPath || "");

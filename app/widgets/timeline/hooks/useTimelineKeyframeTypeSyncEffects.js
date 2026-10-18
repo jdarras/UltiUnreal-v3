@@ -13,7 +13,9 @@ export function useTimelineKeyframeTypeSyncEffects({
     if (lockKeyframeTypes && keyframeType !== 'constant') {
       applyKeyframeType('constant');
     }
-  }, [lockKeyframeTypes]); // keep deps minimal to avoid loops
+    // Déclenché seulement au verrouillage : des dépendances complètes provoqueraient une boucle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockKeyframeTypes]);
 
   // Synchronise le selecteur d'interpolation avec le/les keyframes selectionnes.
   useEffect(() => {

@@ -42,7 +42,7 @@ function usePostprodRenderTemplateMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderTemplates, showNotice, t]);
+  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderTemplates, showNotice, t, setPostprodRenderTemplates]);
 
   const handlePostprodUpdateRenderTemplate = useCallback(async (templateId, payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -65,7 +65,7 @@ function usePostprodRenderTemplateMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderTemplates, showNotice, t]);
+  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderTemplates, showNotice, t, setPostprodRenderTemplates]);
 
   const handlePostprodDeleteRenderTemplate = useCallback(async (templateId) => {
     const token = String(postprodAuth.token || '').trim();
@@ -88,7 +88,7 @@ function usePostprodRenderTemplateMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderTemplates, showNotice, t]);
+  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderTemplates, showNotice, t, setPostprodRenderTemplates]);
 
   const handlePostprodCreateRenderForm = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -111,7 +111,7 @@ function usePostprodRenderTemplateMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderForms, showNotice, t]);
+  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderForms, showNotice, t, setPostprodRenderForms]);
 
   const handlePostprodUpdateRenderForm = useCallback(async (formId, payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -134,7 +134,7 @@ function usePostprodRenderTemplateMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderForms, showNotice, t]);
+  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderForms, showNotice, t, setPostprodRenderForms]);
 
   const handlePostprodDeleteRenderForm = useCallback(async (formId) => {
     const token = String(postprodAuth.token || '').trim();
@@ -168,7 +168,7 @@ function usePostprodRenderTemplateMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderForms, showNotice, t]);
+  }, [postprodAuth.token, postprodCanManageRenderTemplates, loadPostprodRenderForms, showNotice, t, setPostprodRenderForms]);
 
   const handlePostprodLoadRenderFormFields = useCallback(async (formId) => {
     const token = String(postprodAuth.token || '').trim();

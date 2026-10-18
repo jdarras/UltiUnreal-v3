@@ -66,7 +66,7 @@ function usePostprodRenderCallbacks({
         error: resolvePostprodRendersError(e, t),
       }));
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, setPostprodRenderWorkers]);
 
   const handlePatchLocalWorkerAptitude = useCallback(async (apte) => {
     const token = String(postprodAuth.token || '').trim();
@@ -117,12 +117,13 @@ function usePostprodRenderCallbacks({
     loadPostprodRenderHealth,
     showNotice,
     t,
+    setAptitudeCheckPending,
   ]);
 
   const handleAptitudeCancel = useCallback(() => {
     setAptitudeCheckPending(null);
     showNotice(t('postprod.renders.aptitude.noticeCancelled'), 'warn');
-  }, [showNotice, t]);
+  }, [showNotice, t, setAptitudeCheckPending]);
 
   const handleQueuePausedLaunchConfirm = useCallback(async () => {
     const pending = queuePausedLaunchPending;
@@ -164,12 +165,13 @@ function usePostprodRenderCallbacks({
     loadPostprodRenderHealth,
     showNotice,
     t,
+    setQueuePausedLaunchPending,
   ]);
 
   const handleQueuePausedLaunchContinue = useCallback(() => {
     setQueuePausedLaunchPending(null);
     showNotice(t('postprod.renders.queuePause.noticeKeptPaused'), 'info');
-  }, [showNotice, t]);
+  }, [showNotice, t, setQueuePausedLaunchPending]);
 
   const handleBusyImmediateLaunchConfirm = useCallback(async () => {
     const pending = busyImmediateLaunchPending;
@@ -215,12 +217,15 @@ function usePostprodRenderCallbacks({
     loadPostprodRenderWorkers,
     loadPostprodRenderHealth,
     showNotice,
+    setBusyImmediateLaunchPending,
+    setHostsCfg,
+    setHostsLoaded,
   ]);
 
   const handleBusyImmediateLaunchCancel = useCallback(() => {
     setBusyImmediateLaunchPending(null);
     showNotice(t('postprod.renders.msg.waitingForStation'), "info");
-  }, [showNotice, t]);
+  }, [showNotice, t, setBusyImmediateLaunchPending]);
 
   const handlePostprodReserveRenderId = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();
@@ -550,6 +555,9 @@ function usePostprodRenderCallbacks({
     setBusyImmediateLaunchPending,
     handlePatchLocalWorkerAptitude,
     t,
+    setPostprodRenderWorkers,
+    setPostprodRenders,
+    setQueuePausedLaunchPending,
   ]);
 
   const handlePostprodScheduleRender = useCallback(async (renderId, scheduledAt) => {
@@ -610,6 +618,7 @@ function usePostprodRenderCallbacks({
     loadPostprodUserAlerts,
     showNotice,
     t,
+    setPostprodRenders,
   ]);
 
   const handlePostprodReorderRenders = useCallback(async (order = []) => {
@@ -642,7 +651,7 @@ function usePostprodRenderCallbacks({
         error: resolvePostprodRendersError(e, t),
       }));
     }
-  }, [postprodAuth.token, loadPostprodRenders, loadPostprodRenderHealth, loadPostprodUserAlerts, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodRenders, loadPostprodRenderHealth, loadPostprodUserAlerts, showNotice, t, setPostprodRenders]);
 
   const handlePostprodDispatchRenders = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -711,6 +720,7 @@ function usePostprodRenderCallbacks({
     loadPostprodUserAlerts,
     showNotice,
     t,
+    setPostprodRenders,
   ]);
 
   const handlePostprodPatchWorkerAptitude = useCallback(async (workerKey, apte) => {
@@ -748,7 +758,7 @@ function usePostprodRenderCallbacks({
       }));
       return null;
     }
-  }, [postprodAuth.token, loadPostprodRenderHealth, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodRenderHealth, showNotice, t, setPostprodRenders]);
   return {
     loadPostprodRenderWorkers,
     handlePatchLocalWorkerAptitude,

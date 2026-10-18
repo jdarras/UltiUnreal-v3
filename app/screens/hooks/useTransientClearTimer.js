@@ -4,11 +4,13 @@ function useTransientClearTimer() {
   const timersRef = useRef(new Set());
 
   useEffect(() => {
+    // Même Set pendant toute la vie du composant.
+    const timers = timersRef.current;
     return () => {
-      for (const timerId of timersRef.current) {
+      for (const timerId of timers) {
         clearTimeout(timerId);
       }
-      timersRef.current.clear();
+      timers.clear();
     };
   }, []);
 

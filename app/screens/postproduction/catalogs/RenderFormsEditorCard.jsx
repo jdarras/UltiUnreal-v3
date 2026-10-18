@@ -58,6 +58,7 @@ function RenderFormsEditorCard({
 
   useEffect(() => {
     if (showEditor) editorState.backToList();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- retour à la liste seulement au changement d'onglet
   }, [tabKey]);
 
   useEffect(() => {
@@ -65,6 +66,7 @@ function RenderFormsEditorCard({
     const formId = Number(renderFormFocusRequest?.ref || 0);
     if (formId > 0 && typeof startEdit === "function") startEdit({ id: formId });
     onRenderFormFocusHandled?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chaque demande de focus n'est traitée qu'une fois
   }, [renderFormFocusRequest]);
 
   return (

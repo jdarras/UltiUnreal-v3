@@ -225,7 +225,7 @@ function App() {
     setCommonCfg(next);
     setCommonLoaded(true);
   }, []);
-  const safeIdentity = identity && typeof identity === 'object' ? identity : {};
+  const safeIdentity = useMemo(() => (identity && typeof identity === 'object' ? identity : {}), [identity]);
   const appMode = normalizeAppMode(safeIdentity.mode);
   const role = appMode === APP_MODE_POSTPROD
     ? "server"
@@ -243,6 +243,7 @@ function App() {
       cancelled = true;
     };
   }, [lang]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- i18nToken force un nouveau t une fois les traductions chargées
   const t = useMemo(() => createT(lang), [lang, i18nToken]);
   const postprodAuthenticated = !!(postprodAuth.token && postprodAuth.user);
   const postprodModeAccess = useMemo(
@@ -323,6 +324,7 @@ function App() {
     safeIdentity.mode,
     safeIdentity.role,
     safeIdentity.serverIp,
+    safeIdentity,
   ]);
 
   // Fournit la bande de notification globale
@@ -726,6 +728,7 @@ function App() {
     if (localHostName) out.hostName = localHostName;
     if (localPrimaryUnrealEditorPath) out.unrealEditorPath = localPrimaryUnrealEditorPath;
     return out;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- localUnrealVersionsKey est la clé de contenu de localUnrealVersions
   }, [hasLocalUnrealCapability, localRenderEnabled, localPrimaryUnrealEditorPath, localUnrealVersionsKey, localHostName]);
 
   const ensureLocalRenderWorkerOnline = useCallback(async () => {
@@ -751,7 +754,6 @@ function App() {
     renderWorkerKey,
     renderWorkerDisplayName,
     renderWorkerCapabilities,
-    hasLocalUnrealCapability,
     localRenderEnabled,
     localRenderAvailability,
   ]);
@@ -793,7 +795,6 @@ function App() {
     renderWorkerKey,
     renderWorkerDisplayName,
     renderWorkerCapabilities,
-    hasLocalUnrealCapability,
     localRenderEnabled,
     localRenderAvailability,
   ]);
@@ -948,7 +949,6 @@ function App() {
     appMode,
     postprodAuthenticated,
     renderWorkerKey,
-    localPrimaryUnrealEditorPath,
     postprodOfflineOutbox,
     postprodWorkerCompletionOutbox,
     postprodOfflineOutboxCount,
@@ -1122,7 +1122,6 @@ function App() {
     postprodCanManageUsers, postprodCanManageRoles,
     postprodCanManageRenderTemplates, postprodCanAccessResources,
     postprodTaskFormOpen, postprodUserEditorOpen,
-    postprodAuth,
     loadPostprodUsers, loadPostprodMyActivity, loadPostprodRoles,
     loadPostprodTasks, loadPostprodTaskCatalog, loadPostprodProjects,
     loadPostprodResources, loadPostprodRenderTemplates, loadPostprodRenderWorkers,

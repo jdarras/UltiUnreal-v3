@@ -469,6 +469,7 @@ function AppShell({ state, actions }) {
   ]);
   useEffect(() => {
     noticeApi.clearNotice();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- le bandeau n'est effacé qu'au changement d'onglet
   }, [current]);
 
   const {

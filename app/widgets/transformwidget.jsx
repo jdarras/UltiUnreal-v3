@@ -113,6 +113,7 @@ export default function TransformWidget({
 
       return changed ? next : prev;
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- committed est recalculé à chaque rendu : les dépendances sont ses valeurs
   }, [
     committed.Location.X,
     committed.Location.Y,

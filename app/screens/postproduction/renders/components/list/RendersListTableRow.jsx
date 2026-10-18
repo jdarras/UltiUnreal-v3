@@ -95,10 +95,11 @@ function RendersListTableRow({
     justifyContent: "center",
   };
 
+  const thumbCandidatesKey = thumbCandidates.join("|");
   useEffect(() => {
     setThumbIndex(0);
     setThumbError(false);
-  }, [renderId, thumbCandidates.join("|")]);
+  }, [renderId, thumbCandidatesKey]);
 
   const handleDeleteRender = async () => {
     if (!canDeleteRender || rendersLoading || isBusy) return;

@@ -31,7 +31,7 @@ function usePostprodTaskMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodTasks, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodTasks, showNotice, t, setPostprodTasks]);
 
   const handlePostprodUpdateTask = useCallback(async (taskId, payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -50,7 +50,7 @@ function usePostprodTaskMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodTasks, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodTasks, showNotice, t, setPostprodTasks]);
 
   const handlePostprodDeleteTask = useCallback(async (taskId) => {
     const token = String(postprodAuth.token || '').trim();
@@ -69,7 +69,7 @@ function usePostprodTaskMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodTasks, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodTasks, showNotice, t, setPostprodTasks]);
 
   const handlePostprodTransitionTask = useCallback(async (taskId, payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -86,7 +86,7 @@ function usePostprodTaskMutations({
         error: resolvePostprodTasksError(e, t),
       }));
     }
-  }, [postprodAuth.token, loadPostprodTasks, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodTasks, showNotice, t, setPostprodTasks]);
 
   return {
     handlePostprodCreateTask,

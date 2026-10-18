@@ -62,7 +62,7 @@ function usePostprodUserRoleMutations({
     } catch {
       return null;
     }
-  }, [postprodAuth.token, applyUserLanguageToIdentity]);
+  }, [postprodAuth.token, applyUserLanguageToIdentity, setPostprodAuth]);
 
   const handlePostprodUpdateMe = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -103,7 +103,7 @@ function usePostprodUserRoleMutations({
       });
       return false;
     }
-  }, [postprodAuth.token, postprodCanManageUsers, loadPostprodUsers, showNotice, t, applyUserLanguageToIdentity]);
+  }, [postprodAuth.token, postprodCanManageUsers, loadPostprodUsers, showNotice, t, applyUserLanguageToIdentity, setPostprodAuth, setPostprodProfile]);
 
   const handlePostprodCreateUser = useCallback(async (payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -122,7 +122,7 @@ function usePostprodUserRoleMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodUsers, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodUsers, showNotice, t, setPostprodUsers]);
 
   const handlePostprodUpdateUser = useCallback(async (userId, payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -162,7 +162,7 @@ function usePostprodUserRoleMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, postprodAuth.user?.id, loadPostprodUsers, showNotice, t, applyUserLanguageToIdentity]);
+  }, [postprodAuth.token, postprodAuth.user?.id, loadPostprodUsers, showNotice, t, applyUserLanguageToIdentity, setPostprodAuth, setPostprodUsers]);
 
   const handlePostprodDeleteUser = useCallback(async (userId) => {
     const token = String(postprodAuth.token || '').trim();
@@ -181,7 +181,7 @@ function usePostprodUserRoleMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodUsers, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodUsers, showNotice, t, setPostprodUsers]);
 
   const handlePostprodUpdateUserProjectPermissions = useCallback(async (userId, projectRef, payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -239,7 +239,7 @@ function usePostprodUserRoleMutations({
         error: resolvePostprodUsersError(e, t),
       }));
     }
-  }, [postprodAuth.token, postprodCanBanUsers, loadPostprodUsers, showNotice, t]);
+  }, [postprodAuth.token, postprodCanBanUsers, loadPostprodUsers, showNotice, t, setPostprodUsers]);
 
   const handlePostprodLoadUserActivity = useCallback(async (userId, limit = 50, options = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -296,7 +296,7 @@ function usePostprodUserRoleMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodRoles, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodRoles, showNotice, t, setPostprodRoles]);
 
   const handlePostprodUpdateRole = useCallback(async (roleKey, payload = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -315,7 +315,7 @@ function usePostprodUserRoleMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodRoles, refreshPostprodSessionUser, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodRoles, refreshPostprodSessionUser, showNotice, t, setPostprodRoles]);
 
   const handlePostprodDeleteRole = useCallback(async (roleKey) => {
     const token = String(postprodAuth.token || '').trim();
@@ -334,7 +334,7 @@ function usePostprodUserRoleMutations({
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodRoles, loadPostprodUsers, refreshPostprodSessionUser, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodRoles, loadPostprodUsers, refreshPostprodSessionUser, showNotice, t, setPostprodRoles]);
 
   return {
     refreshPostprodSessionUser,

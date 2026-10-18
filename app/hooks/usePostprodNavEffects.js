@@ -28,7 +28,7 @@ function usePostprodNavEffects({
     if (current !== POSTPROD_TAB_USERS) {
       setPostprodUserEditorOpen(false);
     }
-  }, [current]);
+  }, [current, setPostprodTaskFormOpen, setPostprodUserEditorOpen]);
 
   useEffect(() => {
     if (current !== POSTPROD_TAB_RENDERS_CREATE) {
@@ -44,7 +44,7 @@ function usePostprodNavEffects({
     if (wasOpen && !isOpen && !postprodRenderEditorRequest) {
       setCurrent("Rendus");
     }
-  }, [current, postprodTaskFormOpen, postprodRenderEditorRequest]);
+  }, [current, postprodTaskFormOpen, postprodRenderEditorRequest, setCurrent]);
 
   // Garde un onglet valide quand le rôle change
   useEffect(() => {
@@ -60,7 +60,7 @@ function usePostprodNavEffects({
     if (!allowed.includes(current)) {
       setCurrent(resolveDefaultTab(allowed, appMode));
     }
-  }, [role, appMode, current, clientSyncEnabled, resourcesTabAvailable, postprodVisibleTabs, postprodCanManageMachines, liveAccountTabs]);
+  }, [role, appMode, current, clientSyncEnabled, resourcesTabAvailable, postprodVisibleTabs, postprodCanManageMachines, liveAccountTabs, setCurrent]);
 
   useEffect(() => {
     if (appMode !== APP_MODE_POSTPROD || postprodAuthenticated) return;
@@ -87,6 +87,7 @@ function usePostprodNavEffects({
     postprodVisibleTabs,
     postprodCanManageMachines,
     liveAccountTabs,
+    setCurrent,
   ]);
 
   useEffect(() => {
@@ -98,7 +99,7 @@ function usePostprodNavEffects({
     if (current === "Historique") {
       setCurrent("Logs");
     }
-  }, [appMode, current]);
+  }, [appMode, current, setCurrent]);
 
   // Côté client : déterminer dès que possible l'onglet par défaut selon syncEnabled (depuis le serveur ou l'unique host)
   useEffect(() => {
@@ -150,7 +151,7 @@ function usePostprodNavEffects({
     return () => {
       cancelled = true;
     };
-  }, [role, appMode, showWelcome, initialClientNavDone, safeIdentity.localIp, current]);
+  }, [role, appMode, showWelcome, initialClientNavDone, safeIdentity.localIp, current, setClientSyncEnabled, setCurrent, setInitialClientNavDone]);
 }
 
 export { usePostprodNavEffects };

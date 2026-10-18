@@ -62,7 +62,10 @@ function RenderDetailLogsPanel({
   detailTransitions = [],
 } = {}) {
   const [expandedByKey, setExpandedByKey] = useState({});
-  const transitions = Array.isArray(detailTransitions) ? detailTransitions : [];
+  const transitions = useMemo(
+    () => (Array.isArray(detailTransitions) ? detailTransitions : []),
+    [detailTransitions]
+  );
 
   const normalizedLogs = useMemo(() => transitions.map((entry, index) => {
     const key = `render-detail-log-${Number(entry?.id || 0)}-${index}`;

@@ -66,7 +66,7 @@ export function useInlineDrafts({
       }
       return getChannelInputValue(entry, channelId);
     },
-    [getChannelInputValue, inlineDrafts]
+    [getChannelInputValue, inlineDrafts, getInlineDraftKey]
   );
 
   const resetInlineDrafts = useCallback(() => setInlineDrafts({}), []);

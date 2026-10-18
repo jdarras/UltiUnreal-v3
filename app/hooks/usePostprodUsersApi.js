@@ -31,7 +31,7 @@ function usePostprodUsersApi({
         error: resolvePostprodUsersError(e, t),
       }));
     }
-  }, [postprodAuth.token, postprodCanManageUsers, t]);
+  }, [postprodAuth.token, postprodCanManageUsers, t, setPostprodUsers]);
 
   const loadPostprodRoles = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();
@@ -51,7 +51,7 @@ function usePostprodUsersApi({
         error: resolvePostprodRolesError(e, t),
       }));
     }
-  }, [postprodAuth.token, postprodCanManageUsers, postprodCanManageRoles, t]);
+  }, [postprodAuth.token, postprodCanManageUsers, postprodCanManageRoles, t, setPostprodRoles]);
 
   return { loadPostprodUsers, loadPostprodRoles };
 }

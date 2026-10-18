@@ -95,6 +95,7 @@ export function useTimelineDraftSyncEffects({
         livePlayerRef.current.stop?.();
         livePlayerRef.current = null;
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- au démontage, c'est le lecteur courant qui doit être arrêté
       editorPlayerRef.current?.stop?.();
     };
   }, [editorPlayerRef, livePlayerRef, sendTimerRef]);

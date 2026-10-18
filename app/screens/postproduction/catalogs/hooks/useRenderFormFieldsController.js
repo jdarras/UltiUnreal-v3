@@ -122,6 +122,7 @@ export function useRenderFormFieldsController({
         }
       }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- metaWrcFilesKey est la clé de contenu de metaWrcFiles
   }, [
     fieldsLoading,
     selectedFormId,

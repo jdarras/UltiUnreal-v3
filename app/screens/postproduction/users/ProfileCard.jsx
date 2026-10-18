@@ -64,12 +64,15 @@ function ProfileCard({
     setAvatarLoading(false);
     setPassword("");
     resetActivityFilters();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- réinitialisation seulement quand l'utilisateur affiché change
   }, [user]);
 
-  const activityItems = Array.isArray(myActivity) ? myActivity : [];
-  const activitySummary = myActivitySummary && typeof myActivitySummary === "object"
-    ? myActivitySummary
-    : { total: activityItems.length, projects: [], byType: { auth: 0, task: 0, render: 0, sync: 0, other: 0 } };
+  const activityItems = useMemo(() => (Array.isArray(myActivity) ? myActivity : []), [myActivity]);
+  const activitySummary = useMemo(() => (
+    myActivitySummary && typeof myActivitySummary === "object"
+      ? myActivitySummary
+      : { total: activityItems.length, projects: [], byType: { auth: 0, task: 0, render: 0, sync: 0, other: 0 } }
+  ), [myActivitySummary, activityItems]);
   const activityTypeSummary = useMemo(
     () => getActivityTypeSummary(activitySummary, activityItems),
     [activitySummary, activityItems]

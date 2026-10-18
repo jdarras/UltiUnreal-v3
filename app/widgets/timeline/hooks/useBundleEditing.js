@@ -190,7 +190,8 @@ export function useBundleEditing({
       showStatus,
       updateTrack,
       isTrackLinked
-      , defaultInterp
+      , defaultInterp,
+      toLocalFrameRounded,
     ]
   );
 
@@ -291,8 +292,7 @@ export function useBundleEditing({
       setBundleValueDrafts,
       setKeyframeValueDraft,
       showStatus,
-      updateTrack,
-      defaultInterp
+      updateTrack
     ]
   );
 

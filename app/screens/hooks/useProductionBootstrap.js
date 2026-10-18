@@ -148,6 +148,7 @@ function useProductionBootstrap({
     return () => {
       alive = false;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chargement initial, une seule fois au montage
   }, []);
 }
 

@@ -40,7 +40,7 @@ function usePostprodNavCallbacks({
       setDatasTabKey((prev) => prev + 1);
     }
     setCurrent(item);
-  }, [appMode, postprodCanAccessResources, resourcesTabAvailable]);
+  }, [appMode, postprodCanAccessResources, resourcesTabAvailable, setCurrent, setDatasTabKey, setResourcesRefreshKey, setRoleTabKey, setUserTabKey]);
 
   const handlePostprodOpenRenderEditor = useCallback((payload = {}) => {
     const typeRaw = String(payload?.type || '').trim().toLowerCase();
@@ -66,7 +66,7 @@ function usePostprodNavCallbacks({
       task,
     });
     setCurrent(POSTPROD_TAB_RENDERS_CREATE);
-  }, []);
+  }, [setCurrent, setPostprodRenderEditorRequest]);
 
   const handlePostprodOpenActivityTarget = useCallback((payload = {}) => {
     const type = String(payload?.type || "").trim().toLowerCase();
@@ -104,7 +104,7 @@ function usePostprodNavCallbacks({
     if (type === "validation" || type === "render" || type === "rendu") {
       setCurrent("Rendus");
     }
-  }, []);
+  }, [setCurrent, setPostprodRenderEditorRequest]);
 
   const normalizePostprodWrcFiles = useCallback((wrcPresets = []) => {
     const list = Array.isArray(wrcPresets) ? wrcPresets : [];
@@ -232,38 +232,38 @@ function usePostprodNavCallbacks({
     }
     try { localStorage.setItem('uu_pending_detail', ref); } catch {}
     setCurrent('Projets');
-  }, [hostsCfg, localIp, showNotice, t, postprodAuth.token, refreshPostprodProjectWrcSnapshots]);
+  }, [hostsCfg, localIp, showNotice, t, postprodAuth.token, refreshPostprodProjectWrcSnapshots, setCurrent]);
 
   const handlePostprodRenderEditorHandled = useCallback(() => {
     setPostprodRenderEditorRequest(null);
-  }, []);
+  }, [setPostprodRenderEditorRequest]);
 
   const handlePostprodRenderFormFocusHandled = useCallback(() => {
     setPostprodRenderFormFocusRequest(null);
-  }, []);
+  }, [setPostprodRenderFormFocusRequest]);
 
   const handlePostprodNavigateToRenderForm = useCallback((form) => {
     const formId = Number(form?.id || 0);
     if (formId <= 0) return;
     setPostprodRenderFormFocusRequest({ ref: String(formId) });
     setCurrent("Datas");
-  }, []);
+  }, [setCurrent, setPostprodRenderFormFocusRequest]);
 
   const handlePostprodEditUserHandled = useCallback((reqKey) => {
     setPostprodEditUserRequest(prev => prev?.reqKey === reqKey ? null : prev);
-  }, []);
+  }, [setPostprodEditUserRequest]);
 
   const handlePostprodOpenUser = useCallback((entry) => {
     const userId = Number(entry?.id || 0);
     if (!userId) return;
     handleNavClick(POSTPROD_TAB_USERS);
     setPostprodEditUserRequest({ userId, reqKey: Date.now() });
-  }, [handleNavClick]);
+  }, [handleNavClick, setPostprodEditUserRequest]);
 
   const handleLibraryImported = useCallback(() => {
     setHasLibraryItems(true);
     setResourcesRefreshKey((prev) => prev + 1);
-  }, []);
+  }, [setHasLibraryItems, setResourcesRefreshKey]);
 
   return {
     handleNavClick,

@@ -68,7 +68,11 @@ function useUserActivity({
   const editingActivity = (!isCreate && editingUserId > 0)
     ? (activityByUserId?.[editingUserId] || null)
     : null;
-  const rawEditingActivities = Array.isArray(editingActivity?.activities) ? editingActivity.activities : [];
+  const editingActivityList = editingActivity?.activities;
+  const rawEditingActivities = useMemo(
+    () => (Array.isArray(editingActivityList) ? editingActivityList : []),
+    [editingActivityList]
+  );
   const typedEditingActivities = useMemo(
     () => rawEditingActivities.filter((item) => activityMatchesSelectedType(item, "all")),
     [rawEditingActivities]

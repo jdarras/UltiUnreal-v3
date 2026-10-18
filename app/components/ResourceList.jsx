@@ -76,9 +76,10 @@ function ResourceThumbImage({ candidates = [], alt = '', className = '', style =
   const [srcIndex, setSrcIndex] = React.useState(0);
   const src = srcList[srcIndex] || '';
 
+  const srcListKey = srcList.join('|');
   React.useEffect(() => {
     setSrcIndex(0);
-  }, [srcList.join('|')]);
+  }, [srcListKey]);
 
   if (!src) return null;
 
@@ -705,11 +706,13 @@ function VirtualizedResourceListCards(props) {
   }, [items.length, disconnectRowObserver]);
 
   React.useEffect(() => {
+    // Même Map pendant toute la vie du composant.
+    const observers = resizeObserversRef.current;
     return () => {
-      for (const observer of resizeObserversRef.current.values()) {
+      for (const observer of observers.values()) {
         try { observer.disconnect(); } catch {}
       }
-      resizeObserversRef.current.clear();
+      observers.clear();
     };
   }, []);
 

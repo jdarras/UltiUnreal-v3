@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
   normalizeProjectOptions,
   buildProjectLabelByAnyKey,
@@ -58,17 +58,21 @@ export function useRenderFormsListController({
     return deriveSelectedFormProjectRef(visibleForms, selectedFormId);
   }, [visibleForms, selectedFormId]);
 
-  function isFormFavorite(form) {
-    return isFavoriteForm(form, formsFavorites, selectedProjectRef);
-  }
+  // Mémorisées avec leurs vraies dépendances : le filtre et le tri se recalculent
+  // quand les libellés de projets ou le projet sélectionné changent.
+  const isFormFavorite = useCallback(
+    (form) => isFavoriteForm(form, formsFavorites, selectedProjectRef),
+    [formsFavorites, selectedProjectRef]
+  );
 
   function toggleFormFavorite(form) {
     toggleFavoriteForm(form, setFormsFavorites, selectedProjectRef);
   }
 
-  function formProjectLabel(form) {
-    return getFormProjectLabel(form, selectedProjectRef, projectLabelByAnyKey);
-  }
+  const formProjectLabel = useCallback(
+    (form) => getFormProjectLabel(form, selectedProjectRef, projectLabelByAnyKey),
+    [selectedProjectRef, projectLabelByAnyKey]
+  );
 
   function formProjectId(form) {
     const ref = String(form?.projectName || "").trim().toLowerCase();
@@ -112,7 +116,8 @@ export function useRenderFormsListController({
     formsFavoriteOnly,
     normalizedFormsSearchQuery,
     formsSearchAdvanced,
-    formsFavorites,
+    isFormFavorite,
+    formProjectLabel,
   ]);
 
   const sortedForms = useMemo(() => {
@@ -122,7 +127,7 @@ export function useRenderFormsListController({
       formsSortDir,
       formProjectLabel,
     });
-  }, [filteredForms, formsSortMode, formsSortDir, projectLabelByAnyKey, selectedProjectRef]);
+  }, [filteredForms, formsSortMode, formsSortDir, formProjectLabel]);
 
   function handleFormsListSort(modeRaw) {
     const next = nextFormsSortState(modeRaw, formsSortMode, formsSortDir);

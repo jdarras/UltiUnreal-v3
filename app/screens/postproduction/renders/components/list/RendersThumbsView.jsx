@@ -227,10 +227,11 @@ function RendersThumbCard({
   const canOpenProjectLink = typeof onNavigateToProject === "function" && !!projectRef;
   const canOpenFormLink = typeof onNavigateToRenderForm === "function" && formId > 0;
 
+  const thumbCandidatesKey = thumbCandidates.join("|");
   useEffect(() => {
     setThumbIndex(0);
     setThumbError(false);
-  }, [renderId, thumbCandidates.join("|")]);
+  }, [renderId, thumbCandidatesKey]);
 
   const handleDeleteRender = async () => {
     if (!canDeleteRender || rendersLoading || isBusy) return;

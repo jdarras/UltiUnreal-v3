@@ -524,6 +524,7 @@ function RenderDetailInfoPanel({
   useEffect(() => {
     setDestinationValues(resolvedDestinationValues);
     setSavingDestinations(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- resolvedDestinationKey est la clé de contenu ; préserve la saisie en cours
   }, [renderId, resolvedDestinationKey]);
 
   useEffect(() => {

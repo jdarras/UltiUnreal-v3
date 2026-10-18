@@ -72,7 +72,7 @@ function usePostprodContentApi({
         error: resolvePostprodTasksError(e, t),
       }));
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, setPostprodTasks]);
 
   const loadPostprodProjects = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();
@@ -97,7 +97,7 @@ function usePostprodContentApi({
         error: resolvePostprodProjectsError(e, t),
       }));
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, setPostprodProjects]);
 
   const loadPostprodResources = useCallback(async (options = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -125,7 +125,7 @@ function usePostprodContentApi({
         error: resolvePostprodResourcesError(e, t),
       }));
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, setPostprodResources]);
 
   const loadPostprodTaskCatalog = useCallback(async (options = {}) => {
     const silent = options?.silent === true;
@@ -164,7 +164,7 @@ function usePostprodContentApi({
         error: t('postprod.tasks.catalog.error'),
       }));
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, setPostprodTaskCatalog]);
 
   const handlePostprodLoadResourceDetail = useCallback(async (resourceRef) => {
     const token = String(postprodAuth.token || '').trim();
@@ -213,7 +213,7 @@ function usePostprodContentApi({
       }));
       return false;
     }
-  }, [postprodAuth.token, loadPostprodResources, loadPostprodTaskCatalog, showNotice, t]);
+  }, [postprodAuth.token, loadPostprodResources, loadPostprodTaskCatalog, showNotice, t, setPostprodResources]);
 
   const handlePostprodLoadProjectRenderTemplates = useCallback(async (projectRef) => {
     const token = String(postprodAuth.token || '').trim();
@@ -281,7 +281,7 @@ function usePostprodContentApi({
       err.code = e?.code || '';
       throw err;
     }
-  }, [postprodAuth.token, t, refreshPostprodProjectWrcSnapshots, showNotice]);
+  }, [postprodAuth.token, t, refreshPostprodProjectWrcSnapshots, showNotice, postprodWrcCacheNoticeRef]);
 
   const handlePostprodLoadProjectWrcFields = useCallback(async (projectRef, wrcFile = '', options = null) => {
     const token = String(postprodAuth.token || '').trim();
@@ -313,7 +313,7 @@ function usePostprodContentApi({
       err.code = e?.code || '';
       throw err;
     }
-  }, [postprodAuth.token, t, showNotice]);
+  }, [postprodAuth.token, t, showNotice, postprodWrcCacheNoticeRef]);
 
   const handlePostprodLoadProjectDataTables = useCallback(async (projectRef) => {
     const token = String(postprodAuth.token || '').trim();
@@ -405,7 +405,7 @@ function usePostprodContentApi({
         error: t('postprod.renders.projects.error'),
       }));
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, setPostprodRenderProjectCatalog]);
 
   return {
     loadPostprodTasks,

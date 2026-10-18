@@ -381,7 +381,7 @@ export default function ConfigurationScreen({
     } finally {
       setProxyRegenBusy(false);
     }
-  }, [postprodToken, proxyRegenBusy, t, showInfoFeedback]);
+  }, [postprodToken, proxyRegenBusy, t, showInfoFeedback, cfgRef]);
 
   const handleScanDetectedRenders = React.useCallback(async () => {
     if (detectedScanBusy) return;

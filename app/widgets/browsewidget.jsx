@@ -629,6 +629,7 @@ export function BrowseEditorRight({ selected, updateSelected, updateBinding, pre
     return () => {
       cancelled = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- aperçu rechargé seulement quand la valeur par défaut change
   }, [selected?.defaultValue]);
 
   if (!selected) return null;

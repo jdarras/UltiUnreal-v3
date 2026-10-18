@@ -83,7 +83,7 @@ function usePostprodAuthCallbacks({
       purgeError: '',
       lastPurge: null,
     });
-  }, []);
+  }, [resetOutboxState, setPostprodAudit, setPostprodAuth, setPostprodMyActivity, setPostprodProfile, setPostprodProjects, setPostprodRenderForms, setPostprodRenderHealth, setPostprodRenderHealthAuditMaintenance, setPostprodRenderProjectCatalog, setPostprodRenderTemplates, setPostprodRenderWorkers, setPostprodRenders, setPostprodResources, setPostprodRoles, setPostprodTaskCatalog, setPostprodTasks, setPostprodUserAlerts, setPostprodUsers]);
 
   const handlePostprodLogin = useCallback(async (credentials = {}) => {
     setPostprodAuth((prev) => ({ ...prev, busy: true, error: '' }));
@@ -174,6 +174,10 @@ function usePostprodAuthCallbacks({
     postprodCanManageMachines,
     liveAccountTabs,
     postprodVisibleTabs,
+    setCurrent,
+    setIdentity,
+    setPostprodAuth,
+    setPostprodProfile,
   ]);
 
   const handlePostprodLogout = useCallback(async () => {
@@ -209,6 +213,8 @@ function usePostprodAuthCallbacks({
     postprodVisibleTabs,
     postprodCanManageMachines,
     liveAccountTabs,
+    setCurrent,
+    setPostprodAuth,
   ]);
   useEffect(() => {
     let cancelled = false;
@@ -258,6 +264,7 @@ function usePostprodAuthCallbacks({
     clearPostprodAuth,
     applyUserLanguageToIdentity,
     t,
+    setPostprodAuth,
   ]);
 
   return { clearPostprodAuth, handlePostprodLogin, handlePostprodLogout };

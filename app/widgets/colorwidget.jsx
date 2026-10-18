@@ -146,9 +146,10 @@ function parseColorValue(value) {
 
 /* ===== Panel flottant avec roue + sliders ===== */
 
+const WHEEL_SIZE = 220;
+const RADIUS = WHEEL_SIZE / 2 - 1;
+
 export function ColorWheelPopover({ hex, alpha: _alpha, onChange, onClose }) {
-  const WHEEL_SIZE = 220;
-  const RADIUS = WHEEL_SIZE / 2 - 1;
 
   const wheelRef = React.useRef(null);
   const [draggingWheel, setDraggingWheel] = React.useState(false);
@@ -257,12 +258,17 @@ export function ColorWheelPopover({ hex, alpha: _alpha, onChange, onClose }) {
     setDraggingWheel(true);
   }
 
+  // Pendant le glissement, chaque mouvement utilise la version courante du
+  // calcul (et donc la luminosité courante), pas celle du début du glissement.
+  const handleWheelPositionRef = React.useRef(handleWheelPosition);
+  handleWheelPositionRef.current = handleWheelPosition;
+
   React.useEffect(() => {
     if (!draggingWheel) return;
 
     function handleMove(e) {
       e.preventDefault();
-      handleWheelPosition(e.clientX, e.clientY);
+      handleWheelPositionRef.current(e.clientX, e.clientY);
     }
     function handleUp() {
       setDraggingWheel(false);

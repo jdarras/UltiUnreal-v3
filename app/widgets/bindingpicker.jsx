@@ -20,6 +20,52 @@ function buildBindingSwatchStyle(hex) {
   return { background: hex };
 }
 
+// Paramètres de fonctions Unreal (fonctions pures, hors du composant).
+const normalizeTypeToken = (input) =>
+  String(input || '')
+    .toLowerCase()
+    .replace(/[\s_\-]/g, '');
+
+const getFunctionParamType = (p) =>
+  String(
+    p?.Type ||
+      p?.ParameterType ||
+      p?.InnerType ||
+      p?.type ||
+      ''
+  );
+
+const getFunctionParamName = (p, idx = 0) =>
+  String(
+    p?.Name ||
+      p?.ParameterName ||
+      p?.name ||
+      `Param${idx + 1}`
+  ).trim();
+
+const isBrowseFunctionArgType = (rawType) => {
+  const t = normalizeTypeToken(rawType);
+  if (!t) return false;
+  return (
+    t.includes('fstring') ||
+    t === 'string' ||
+    t.includes('ftext') ||
+    t === 'text' ||
+    t.includes('fname') ||
+    t === 'name'
+  );
+};
+
+const getBrowseFunctionArgMeta = (func) => {
+  const params = Array.isArray(func?.parameters) ? func.parameters : [];
+  if (params.length !== 1) return null;
+  const p = params[0];
+  const name = getFunctionParamName(p, 0);
+  const rawType = getFunctionParamType(p);
+  if (!name || !isBrowseFunctionArgType(rawType)) return null;
+  return { name, rawType };
+};
+
 export default function BindingPicker({
   kind,
   presetData,
@@ -42,54 +88,9 @@ export default function BindingPicker({
     alpha: 1
   });
     
-      const props = presetData?.props || [];
-      const funcs = presetData?.funcs || [];
+      const props = React.useMemo(() => presetData?.props || [], [presetData?.props]);
+      const funcs = React.useMemo(() => presetData?.funcs || [], [presetData?.funcs]);
       const mode = String(valueMode || '').toLowerCase();
-
-      const normalizeTypeToken = (input) =>
-        String(input || '')
-          .toLowerCase()
-          .replace(/[\s_\-]/g, '');
-
-      const getFunctionParamType = (p) =>
-        String(
-          p?.Type ||
-            p?.ParameterType ||
-            p?.InnerType ||
-            p?.type ||
-            ''
-        );
-
-      const getFunctionParamName = (p, idx = 0) =>
-        String(
-          p?.Name ||
-            p?.ParameterName ||
-            p?.name ||
-            `Param${idx + 1}`
-        ).trim();
-
-      const isBrowseFunctionArgType = (rawType) => {
-        const t = normalizeTypeToken(rawType);
-        if (!t) return false;
-        return (
-          t.includes('fstring') ||
-          t === 'string' ||
-          t.includes('ftext') ||
-          t === 'text' ||
-          t.includes('fname') ||
-          t === 'name'
-        );
-      };
-
-      const getBrowseFunctionArgMeta = (func) => {
-        const params = Array.isArray(func?.parameters) ? func.parameters : [];
-        if (params.length !== 1) return null;
-        const p = params[0];
-        const name = getFunctionParamName(p, 0);
-        const rawType = getFunctionParamType(p);
-        if (!name || !isBrowseFunctionArgType(rawType)) return null;
-        return { name, rawType };
-      };
 
       const listFuncs = React.useMemo(() => {
         if (!Array.isArray(funcs)) return [];

@@ -472,7 +472,7 @@ function usePostprodRendersApi({
         error: resolvePostprodRendersError(e, t),
       }));
     }
-  }, [postprodAuth.token, current, hostsCfg, localIp, safeIdentity.agentPort, safeIdentity.localIp, showNotice, t]);
+  }, [postprodAuth.token, current, hostsCfg, localIp, safeIdentity.agentPort, safeIdentity.localIp, showNotice, t, postprodRendersRequestSeqRef, setPostprodRenders]);
 
   const loadPostprodUserAlerts = useCallback(async (options = {}) => {
     const token = String(postprodAuth.token || '').trim();
@@ -505,7 +505,7 @@ function usePostprodRendersApi({
         error: String(e?.message || e || 'postprod_alerts_load_failed'),
       }));
     }
-  }, [postprodAuth.token]);
+  }, [postprodAuth.token, setPostprodUserAlerts]);
 
   const handlePostprodScanDetectedRenders = useCallback(async () => {
     await loadPostprodRenders({ forceScan: true, showDetectedNotice: true });
@@ -554,7 +554,7 @@ function usePostprodRendersApi({
         error: resolvePostprodRendersError(e, t),
       }));
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, setPostprodRenderTemplates]);
 
   const loadPostprodRenderForms = useCallback(async () => {
     const token = String(postprodAuth.token || '').trim();
@@ -574,7 +574,7 @@ function usePostprodRendersApi({
         error: resolvePostprodRendersError(e, t),
       }));
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, setPostprodRenderForms]);
 
   const loadPostprodRenderHealth = useCallback(async (options = {}) => {
     const silent = options?.silent === true;
@@ -599,7 +599,7 @@ function usePostprodRendersApi({
         error: resolvePostprodRendersError(e, t),
       }));
     }
-  }, [postprodAuth.token, t]);
+  }, [postprodAuth.token, t, setPostprodRenderHealth]);
 
   return {
     loadPostprodRenders,
