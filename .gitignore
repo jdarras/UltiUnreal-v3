@@ -25,3 +25,6 @@ Intermediate/
 tools/ffmpeg/win/ffmpeg.exe
 tools/ffmpeg/win/ffplay.exe
 tools/ffmpeg/win/ffprobe.exe
+
+# Rapports et fichiers de travail des relectures (Claude, Codex)
+audit/
