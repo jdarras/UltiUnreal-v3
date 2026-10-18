@@ -667,6 +667,31 @@ export async function postprodCompleteRenderWorkerJob(token = '', renderId, payl
   return res.json || { ok: true };
 }
 
+// Station bloquée : rend au serveur un rendu attribué mais non commencé, qui
+// repart en file pour une autre station.
+export async function postprodReleaseRenderWorkerJob(token = '', workerKey = '', renderId, timeoutMs = 8000) {
+  const authToken = assertPostprodToken(token);
+  const idNum = Number(renderId);
+  const key = String(workerKey || '').trim();
+  if (!key || !Number.isFinite(idNum) || idNum <= 0) {
+    const err = new Error('invalid_release_request');
+    err.code = 'invalid_release_request';
+    err.status = 400;
+    throw err;
+  }
+  const res = await httpRequest(`/agent/postprod/render-workers/${encodeURIComponent(key)}/release-job`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: { renderId: Math.trunc(idNum) },
+    timeoutMs,
+  });
+  if (!res.ok) throw toRequestError(res);
+  return res.json || { ok: true };
+}
+
 export async function postprodListRenderTransitions(token = '', renderId, timeoutMs = 8000) {
   const authToken = assertPostprodToken(token);
   const idNum = Number(renderId);

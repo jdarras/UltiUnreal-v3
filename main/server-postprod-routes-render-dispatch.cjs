@@ -212,6 +212,58 @@ async function handlePostprodRenderDispatchRoutes({
     return true;
   }
 
+  // Une station bloquée (ancien processus de rendu impossible à arrêter ou à
+  // vérifier) rend un rendu qui lui a été attribué mais qu'elle n'a pas
+  // commencé : il repart en file pour une autre station.
+  const releaseMatch = /^\/agent\/postprod\/render-workers\/([^/]+)\/release-job$/.exec(pathname);
+  if (releaseMatch) {
+    if (req.method !== 'POST') {
+      sendJSON(res, 405, { ok: false, error: 'method_not_allowed' });
+      return true;
+    }
+    const auth = requireSession(req, res, sendJSON);
+    if (!auth) return true;
+    const actorPerms = rolePermissions(auth.session.role, rolesCache);
+    if (actorPerms.canLaunchRenders !== true) {
+      sendJSON(res, 403, { ok: false, error: 'forbidden' });
+      return true;
+    }
+    const workerKey = sanitizeRenderWorkerKey(decodeURIComponent(releaseMatch[1] || ''));
+    const worker = workerKey ? stmts.findRenderWorkerByKey.get(workerKey) : null;
+    if (!worker) {
+      sendJSON(res, 404, { ok: false, error: 'worker_not_found' });
+      return true;
+    }
+    const body = await parseBody(req);
+    const renderIdRaw = Number(body?.renderId);
+    const renderId = Number.isFinite(renderIdRaw) && renderIdRaw > 0 ? Math.trunc(renderIdRaw) : 0;
+    if (renderId <= 0) {
+      sendJSON(res, 400, { ok: false, error: 'invalid_render_id' });
+      return true;
+    }
+    const render = stmts.findRenderJobById.get(renderId);
+    const workerId = Number(worker.id);
+    if (!render || String(render.status || '') !== 'Running' || Number(render.assigned_worker_id) !== workerId) {
+      sendJSON(res, 409, { ok: false, error: 'render_not_assigned_to_worker' });
+      return true;
+    }
+    const now = nowIso();
+    const requeued = db.transaction(() => {
+      const updated = stmts.requeueRenderJobReleasedByWorker.run(now, renderId, workerId);
+      if (Number(updated?.changes || 0) <= 0) return false;
+      stmts.clearRenderWorkerCurrentJobByRenderId.run(now, renderId);
+      stmts.insertRenderJobEvent.run(renderId, 'Running', 'Queued', auth.session.user_id, 'worker_blocked_requeue', now);
+      return true;
+    })();
+    if (!requeued) {
+      sendJSON(res, 409, { ok: false, error: 'render_not_assigned_to_worker' });
+      return true;
+    }
+    audit(auth.session.user_id, 'render_released_by_blocked_worker', { workerKey, renderId }, 'render', String(renderId));
+    sendJSON(res, 200, { ok: true, requeued: true });
+    return true;
+  }
+
   if (pathname === '/agent/postprod/renders/dispatch-policy') {
     const auth = requireSession(req, res, sendJSON);
     if (!auth) return true;

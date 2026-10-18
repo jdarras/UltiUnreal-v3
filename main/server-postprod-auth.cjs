@@ -7207,6 +7207,22 @@ function createStatements(db) {
       WHERE id = ?
         AND status = 'Running'
     `),
+    // Rendu rendu par la station bloquée à laquelle il était attribué.
+    requeueRenderJobReleasedByWorker: db.prepare(`
+      UPDATE render_jobs
+      SET
+        status = 'Queued',
+        review_status = 'to_validate',
+        assigned_worker_id = NULL,
+        started_at = NULL,
+        finished_at = NULL,
+        output_path = '',
+        error_message = 'worker_blocked_requeue',
+        updated_at = ?
+      WHERE id = ?
+        AND status = 'Running'
+        AND assigned_worker_id = ?
+    `),
     dispatchRenderJobToWorker: db.prepare(`
       UPDATE render_jobs
       SET

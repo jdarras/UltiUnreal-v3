@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   canStartRenderAfterReconcile,
   runSupervisedRenderAttempt,
+  shouldReleaseAssignedRender,
 } from "../../app/utils/renderAttemptRunner.js";
 
 const T = 1_800_000_000_000;
@@ -157,4 +158,13 @@ test("an abandoned reservation (no supervisor ever started) fails at once", asyn
 
   assert.deepEqual([a.error, b.error], ["supervisor_launch_abandoned", "supervisor_launch_abandoned"]);
   assert.equal(polled.calls.reads, 2);
+});
+
+test("a blocked station gives back an assigned render only if it never started it", () => {
+  assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: false }, legacyPid: { pid: null } }), true);
+  assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: true, phase: "running" } }), false);
+  assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: true, phase: "unverifiable" } }), false);
+  assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: false }, legacyPid: { pid: 4242 } }), false);
+  assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: null }), false);
+  assert.equal(shouldReleaseAssignedRender({ renderId: 0, localJob: { exists: false } }), false);
 });

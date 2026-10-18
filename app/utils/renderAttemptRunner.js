@@ -11,6 +11,16 @@ function canStartRenderAfterReconcile(reconcile) {
   return Array.isArray(reconcile.busyTags) && reconcile.busyTags.length === 0;
 }
 
+// Station bloquée : un rendu attribué n'est rendu au serveur que si cette
+// station n'en a aucune trace de démarrage (ni suivi Job Object, ni ancien
+// fichier PID). Un suivi présent, même illisible, peut signifier qu'il tourne.
+function shouldReleaseAssignedRender({ renderId, localJob, legacyPid } = {}) {
+  const id = Number(renderId);
+  if (!Number.isFinite(id) || id <= 0) return false;
+  if (localJob?.exists !== false) return false;
+  return !(Number(legacyPid?.pid) > 0);
+}
+
 async function pollJobUntilDone({ pidTag, deadlineMs, now, isStopped, waitMs, pollIntervalMs, readRenderJob }) {
   while (true) {
     if (isStopped()) return { kind: 'stopped' };
@@ -129,4 +139,5 @@ async function runSupervisedRenderAttempt({
 export {
   canStartRenderAfterReconcile,
   runSupervisedRenderAttempt,
+  shouldReleaseAssignedRender,
 };
