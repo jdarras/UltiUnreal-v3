@@ -135,7 +135,7 @@ function usePostprodWorkerRenderLoop({
             .map((entry) => Number(entry?.renderId || 0))
             .filter((renderId) => Number.isFinite(renderId) && renderId > 0)
         );
-        const res = await postprodListRenders(token, 8000);
+        const res = await postprodListRenders(token, 8000, { assignedWorker: workerKey });
         const renders = Array.isArray(res?.renders) ? res.renders : [];
         const assignedRunning = renders.find((render) => {
           const status = String(render?.status || '').trim();

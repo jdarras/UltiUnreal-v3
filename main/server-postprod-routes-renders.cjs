@@ -577,6 +577,14 @@ async function handlePostprodRendersRoutes({
     const actorPerms = rolePermissions(auth.session.role, rolesCache);
 
     if (req.method === 'GET') {
+      // Interrogation fréquente d'une station : seuls ses rendus en cours, sans
+      // liste complète ni analyse des dossiers de rendus détectés.
+      const assignedWorkerKey = String(url?.searchParams?.get('assignedWorker') || '').trim();
+      if (assignedWorkerKey && typeof stmts.listRunningRenderJobsByWorkerKey?.all === 'function') {
+        const workerRenders = stmts.listRunningRenderJobsByWorkerKey.all(assignedWorkerKey).map(buildRenderJobPayload);
+        sendJSON(res, 200, { ok: true, renders: workerRenders });
+        return true;
+      }
       const scanRequested = parseBooleanFlag(url?.searchParams?.get('scan'), false);
       const detectedScan = importDetectedRenderOutputs({
         actorUserId: auth.session.user_id,
@@ -595,7 +603,6 @@ async function handlePostprodRendersRoutes({
       sendJSON(res, 200, {
         ok: true,
         renders,
-        renderJobs: renders,
         detectedScan,
       });
       return true;

@@ -17,9 +17,11 @@ export async function postprodListRenders(token = '', timeoutOrOptions = 8000, m
       : {};
   }
   const shouldScan = options?.scan === true;
-  const endpoint = shouldScan
-    ? '/agent/postprod/renders?scan=true'
-    : '/agent/postprod/renders';
+  // Station : uniquement ses rendus en cours (réponse légère, sans analyse disque).
+  const assignedWorker = String(options?.assignedWorker || '').trim();
+  const endpoint = assignedWorker
+    ? `/agent/postprod/renders?assignedWorker=${encodeURIComponent(assignedWorker)}`
+    : (shouldScan ? '/agent/postprod/renders?scan=true' : '/agent/postprod/renders');
   const res = await httpRequest(endpoint, {
     method: 'GET',
     headers: {
@@ -161,19 +163,6 @@ export async function postprodGetHealth(token = '', timeoutMs = 8000) {
       renders: { queued: 0, running: 0, failed: 0, done: 0 },
     },
   };
-}
-
-export async function postprodListRenderJobs(token = '', timeoutMs = 8000) {
-  const authToken = assertPostprodToken(token);
-  const res = await httpRequest('/agent/postprod/render-jobs', {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${authToken}`,
-    },
-    timeoutMs,
-  });
-  if (!res.ok) throw toRequestError(res);
-  return res.json || { ok: true, renderJobs: [] };
 }
 
 export async function postprodCreateRenderJob(token = '', payload = {}, timeoutMs = 8000) {

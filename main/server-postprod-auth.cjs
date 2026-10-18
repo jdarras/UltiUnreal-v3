@@ -44,6 +44,45 @@ const DEFAULT_AUDIT_HARD_LIMIT_LINES = 10000;
 let AUDIT_WARN_LINES = DEFAULT_AUDIT_WARN_LINES;
 let AUDIT_HARD_LIMIT_LINES = DEFAULT_AUDIT_HARD_LIMIT_LINES;
 
+const RENDER_JOB_LIST_SELECT = `
+      SELECT
+        r.id,
+        r.project_name,
+        r.template_name,
+        r.payload_json,
+        r.status,
+        r.review_status,
+        r.requested_by_user_id,
+        r.validated_by_user_id,
+        r.requires_validation,
+        r.output_path,
+        r.error_message,
+        r.started_at,
+        r.finished_at,
+        r.assigned_worker_id,
+        r.attempt_count,
+        r.max_attempts,
+        r.last_attempt_at,
+        r.scheduled_at,
+        r.queue_order,
+        r.render_station,
+        r.render_station_name,
+        r.origin_station_ip,
+        r.origin_station_name,
+        r.remote_job_id,
+        r.station_status,
+        r.created_at,
+        r.updated_at,
+        req.username AS requested_by_username,
+        val.username AS validated_by_username,
+        rw.worker_key AS assigned_worker_key,
+        rw.display_name AS assigned_worker_name
+      FROM render_jobs r
+      LEFT JOIN users req ON req.id = r.requested_by_user_id
+      LEFT JOIN users val ON val.id = r.validated_by_user_id
+      LEFT JOIN render_workers rw ON rw.id = r.assigned_worker_id
+`;
+
 function applyAuditStorageLimitsFromCommon(raw = null) {
   const src = raw && typeof raw === 'object' ? raw : {};
   const coerce = (v, fb, min) => {
@@ -6692,43 +6731,14 @@ function createStatements(db) {
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
-    listRenderJobs: db.prepare(`
-      SELECT
-        r.id,
-        r.project_name,
-        r.template_name,
-        r.payload_json,
-        r.status,
-        r.review_status,
-        r.requested_by_user_id,
-        r.validated_by_user_id,
-        r.requires_validation,
-        r.output_path,
-        r.error_message,
-        r.started_at,
-        r.finished_at,
-        r.assigned_worker_id,
-        r.attempt_count,
-        r.max_attempts,
-        r.last_attempt_at,
-        r.scheduled_at,
-        r.queue_order,
-        r.render_station,
-        r.render_station_name,
-        r.origin_station_ip,
-        r.origin_station_name,
-        r.remote_job_id,
-        r.station_status,
-        r.created_at,
-        r.updated_at,
-        req.username AS requested_by_username,
-        val.username AS validated_by_username,
-        rw.worker_key AS assigned_worker_key,
-        rw.display_name AS assigned_worker_name
-      FROM render_jobs r
-      LEFT JOIN users req ON req.id = r.requested_by_user_id
-      LEFT JOIN users val ON val.id = r.validated_by_user_id
-      LEFT JOIN render_workers rw ON rw.id = r.assigned_worker_id
+    listRenderJobs: db.prepare(`${RENDER_JOB_LIST_SELECT}
+      ORDER BY r.updated_at DESC, r.id DESC
+    `),
+    // Rendus en cours attribués à une station : interrogé toutes les quelques
+    // secondes par chaque station, au lieu de la liste complète.
+    listRunningRenderJobsByWorkerKey: db.prepare(`${RENDER_JOB_LIST_SELECT}
+      WHERE r.status = 'Running'
+        AND rw.worker_key = ?
       ORDER BY r.updated_at DESC, r.id DESC
     `),
     findRenderJobById: db.prepare(`
