@@ -7217,6 +7217,13 @@ function createStatements(db) {
       WHERE id = ?
         AND status = 'Running'
     `),
+    markRenderWorkerUnavailable: db.prepare(`
+      UPDATE render_workers
+      SET
+        can_render = 0,
+        updated_at = ?
+      WHERE id = ?
+    `),
     // Rendu rendu par la station bloquée à laquelle il était attribué.
     requeueRenderJobReleasedByWorker: db.prepare(`
       UPDATE render_jobs

@@ -23,7 +23,7 @@ const {
 const fabAuth = require('./fab-auth.cjs');
 const {
   formatPidFileContent,
-  parsePidFileContent,
+  readRenderPidStatus,
   listSystemProcesses,
   readSystemProcessStartMs,
   terminateOwnedRenderProcess,
@@ -899,13 +899,6 @@ function renderExitFilePath(tag) {
   return path.join(app.getPath('userData'), `uu_render_${tag}.exit`);
 }
 
-function readRenderPidFile(tag) {
-  const pidFile = renderPidFilePath(tag);
-  const content = fs.readFileSync(pidFile, 'utf8');
-  let fileMtimeMs = null;
-  try { fileMtimeMs = fs.statSync(pidFile).mtimeMs; } catch {}
-  return parsePidFileContent(content, fileMtimeMs);
-}
 
 function removeRenderPidFiles(tag) {
   try { fs.unlinkSync(renderPidFilePath(tag)); } catch {}
@@ -929,16 +922,11 @@ function killSystemProcess(pid) {
 }
 
 async function terminateRenderProcessByTag(tag) {
-  let parsed = null;
-  try {
-    parsed = readRenderPidFile(tag);
-  } catch {
-    return { ok: true, status: 'no_pid_file' };
-  }
-  if (!parsed) {
-    removeRenderPidFiles(tag);
-    return { ok: true, status: 'invalid_pid_in_file' };
-  }
+  const parsed = readRenderPidStatus(renderPidFilePath(tag));
+  if (parsed.state === 'absent') return { ok: true, status: 'no_pid_file' };
+  // Fichier présent mais illisible ou invalide : aucune conclusion possible,
+  // le suivi est conservé et la station reste bloquée.
+  if (parsed.state !== 'present') return { ok: false, status: parsed.error };
   const result = await terminateOwnedRenderProcess({
     pid: parsed.pid,
     processStartMs: parsed.processStartMs,
@@ -953,13 +941,11 @@ async function terminateRenderProcessByTag(tag) {
 
 ipcMain.handle('read-render-pid', async (_evt, pidTag) => {
   const tag = sanitizeRenderPidTag(pidTag);
-  if (!tag) return { pid: null, error: 'invalid_tag' };
-  try {
-    const parsed = readRenderPidFile(tag);
-    if (!parsed) return { pid: null, error: 'invalid_pid_in_file' };
-    // Heure du lancement d'origine : sert à la reprise (délai et fraîcheur des sorties).
-    return { pid: parsed.pid, pidFile: renderPidFilePath(tag), startedAtMs: parsed.spawnedAtMs };
-  } catch { return { pid: null, error: 'pid_file_not_found' }; }
+  if (!tag) return { state: 'invalid_tag', pid: null, error: 'invalid_tag' };
+  const status = readRenderPidStatus(renderPidFilePath(tag));
+  if (status.state !== 'present') return status;
+  // Heure du lancement d'origine : sert à la reprise (délai et fraîcheur des sorties).
+  return { state: 'present', pid: status.pid, pidFile: renderPidFilePath(tag), startedAtMs: status.spawnedAtMs };
 });
 
 ipcMain.handle('delete-render-pid', async (_evt, pidTag) => {

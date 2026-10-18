@@ -38,7 +38,7 @@ import {
 import { isPostprodQueueRuntimeActive } from "../utils/postprodAuthHelpers";
 import { startPostprodAsyncLoop } from "./postprodAsyncLoop";
 import { buildExpectedOutputStems, resolveRenderOutputArtifact } from "../utils/renderOutputArtifact";
-import { canStartRenderAfterReconcile, runSupervisedRenderAttempt, shouldReleaseAssignedRender } from "../utils/renderAttemptRunner";
+import { canStartRenderAfterReconcile, releaseAssignedRenderIfUnstarted, runSupervisedRenderAttempt } from "../utils/renderAttemptRunner";
 
 function usePostprodWorkerRenderLoop({
   postprodAuth, t, showNotice,
@@ -54,7 +54,6 @@ function usePostprodWorkerRenderLoop({
   // vérifier) : elle se déclare au serveur incapable de rendre, pour que les
   // rendus soient attribués à d'autres stations.
   const [renderStationBlocked, setRenderStationBlocked] = useState(false);
-  const releasedRenderIdsRef = useRef(new Set());
 
   useEffect(() => {
     if (!postprodAuthenticated) return;
@@ -163,19 +162,16 @@ function usePostprodWorkerRenderLoop({
             showNotice(t('postprod.renders.msg.workerStationBlocked', { reason }), 'warn');
           }
           setRenderStationBlocked(true);
-          // Rendu déjà attribué mais jamais démarré ici : rendu au serveur, qui
-          // le remet en file pour une autre station.
-          if (renderId > 0 && !releasedRenderIdsRef.current.has(renderId)) {
-            const localJob = await readRenderJob(`r${renderId}`);
-            const legacyPid = await readRenderPid(`r${renderId}`);
-            if (stopped) return;
-            if (shouldReleaseAssignedRender({ renderId, localJob, legacyPid })) {
-              try {
-                await postprodReleaseRenderWorkerJob(token, workerKey, renderId);
-                releasedRenderIdsRef.current.add(renderId);
-              } catch {}
-            }
-          }
+          // Rendu attribué mais jamais démarré ici : rendu au serveur, qui le
+          // remet en file pour une autre station (à chaque cycle, y compris
+          // s'il est réattribué à cette station).
+          await releaseAssignedRenderIfUnstarted({
+            renderId,
+            readRenderJob,
+            readRenderPid,
+            release: (id) => postprodReleaseRenderWorkerJob(token, workerKey, id),
+            isStopped: () => stopped,
+          });
           return;
         }
         renderStationBlockedReasonRef.current = '';

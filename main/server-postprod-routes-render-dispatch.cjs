@@ -252,6 +252,10 @@ async function handlePostprodRenderDispatchRoutes({
       const updated = stmts.requeueRenderJobReleasedByWorker.run(now, renderId, workerId);
       if (Number(updated?.changes || 0) <= 0) return false;
       stmts.clearRenderWorkerCurrentJobByRenderId.run(now, renderId);
+      // Station indisponible dans la même opération : la répartition ne peut pas
+      // lui réattribuer le rendu avant son propre signal d'indisponibilité. Son
+      // signal de présence la rendra disponible à nouveau une fois débloquée.
+      stmts.markRenderWorkerUnavailable.run(now, workerId);
       stmts.insertRenderJobEvent.run(renderId, 'Running', 'Queued', auth.session.user_id, 'worker_blocked_requeue', now);
       return true;
     })();

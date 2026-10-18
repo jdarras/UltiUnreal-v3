@@ -12,13 +12,37 @@ function canStartRenderAfterReconcile(reconcile) {
 }
 
 // Station bloquée : un rendu attribué n'est rendu au serveur que si cette
-// station n'en a aucune trace de démarrage (ni suivi Job Object, ni ancien
-// fichier PID). Un suivi présent, même illisible, peut signifier qu'il tourne.
+// station n'en a aucune trace de démarrage. Les deux suivis doivent être
+// explicitement absents : suivi Job Object (exists: false) ET ancien fichier
+// PID (state: 'absent', fichier inexistant). Un suivi présent, illisible,
+// invalide ou une réponse incomplète peut signifier qu'un rendu tourne.
 function shouldReleaseAssignedRender({ renderId, localJob, legacyPid } = {}) {
   const id = Number(renderId);
   if (!Number.isFinite(id) || id <= 0) return false;
   if (localJob?.exists !== false) return false;
-  return !(Number(legacyPid?.pid) > 0);
+  return legacyPid?.state === 'absent';
+}
+
+// Appelée à chaque cycle tant que la station est bloquée : sans mémoire d'un
+// envoi précédent, une nouvelle attribution du même rendu est de nouveau
+// rendue. Le serveur ne remet en file que si le rendu est toujours attribué à
+// cette station (opération sans effet sinon).
+async function releaseAssignedRenderIfUnstarted({ renderId, readRenderJob, readRenderPid, release, isStopped = () => false } = {}) {
+  const id = Number(renderId);
+  if (!Number.isFinite(id) || id <= 0) return { released: false, reason: 'no_assigned_render' };
+  const tag = `r${Math.trunc(id)}`;
+  const localJob = await readRenderJob(tag);
+  const legacyPid = await readRenderPid(tag);
+  if (isStopped()) return { released: false, reason: 'stopped' };
+  if (!shouldReleaseAssignedRender({ renderId: id, localJob, legacyPid })) {
+    return { released: false, reason: 'local_trace_present' };
+  }
+  try {
+    await release(id);
+    return { released: true };
+  } catch (err) {
+    return { released: false, reason: String(err?.code || err?.message || 'release_failed') };
+  }
 }
 
 async function pollJobUntilDone({ pidTag, deadlineMs, now, isStopped, waitMs, pollIntervalMs, readRenderJob }) {
@@ -138,6 +162,7 @@ async function runSupervisedRenderAttempt({
 
 export {
   canStartRenderAfterReconcile,
+  releaseAssignedRenderIfUnstarted,
   runSupervisedRenderAttempt,
   shouldReleaseAssignedRender,
 };

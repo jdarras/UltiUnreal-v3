@@ -10,7 +10,7 @@ const {
 const NOW = '2026-10-17T12:00:00.000Z';
 
 function makeServer({ render, worker = { id: 5, worker_key: 'station-a' }, canLaunchRenders = true } = {}) {
-  const calls = { requeue: [], clear: [], events: [], audits: [] };
+  const calls = { requeue: [], clear: [], events: [], audits: [], unavailable: [] };
   const renders = new Map(render ? [[render.id, { ...render }]] : []);
   const stmts = {
     findRenderWorkerByKey: { get: (key) => (worker && key === worker.worker_key ? worker : undefined) },
@@ -26,6 +26,7 @@ function makeServer({ render, worker = { id: 5, worker_key: 'station-a' }, canLa
       },
     },
     clearRenderWorkerCurrentJobByRenderId: { run: (now, id) => calls.clear.push(id) },
+    markRenderWorkerUnavailable: { run: (now, workerId) => calls.unavailable.push(workerId) },
     insertRenderJobEvent: { run: (...args) => calls.events.push(args) },
   };
   const send = async (pathname, body) => {
@@ -59,6 +60,9 @@ test('a blocked station gives back a render assigned to it: the render is queued
   assert.deepEqual(server.calls.clear, [12]);
   assert.deepEqual(server.calls.events[0].slice(0, 3), [12, 'Running', 'Queued']);
   assert.equal(server.calls.events[0][4], 'worker_blocked_requeue');
+  // W2 : la station est rendue indisponible dans la même opération, pour que le
+  // rendu ne lui soit pas réattribué avant son signal d'indisponibilité.
+  assert.deepEqual(server.calls.unavailable, [5]);
 });
 
 test('a station cannot give back a render assigned to another station', async () => {
@@ -69,6 +73,7 @@ test('a station cannot give back a render assigned to another station', async ()
   assert.deepEqual([res.status, res.payload.error], [409, 'render_not_assigned_to_worker']);
   assert.equal(server.renders.get(12).status, 'Running');
   assert.deepEqual(server.calls.clear, []);
+  assert.deepEqual(server.calls.unavailable, []);
 });
 
 test('a render that is no longer running is not touched', async () => {

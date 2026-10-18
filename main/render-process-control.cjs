@@ -9,6 +9,7 @@
 // rattaché que s'il a pour parent un processus possédé et qu'il a démarré après
 // lui, ce qui retrouve aussi les enfants d'un parent déjà terminé.
 
+const fs = require('fs');
 const { execFile } = require('child_process');
 
 // Anciens fichiers PID sans heure de création exacte : seule l'heure d'écriture
@@ -35,6 +36,25 @@ function parsePidFileContent(content = '', fileMtimeMs = null) {
     spawnedAtMs: positive(lines[1]) ?? positive(fileMtimeMs),
     processStartMs: positive(lines[2]),
   };
+}
+
+// Lecture d'un ancien fichier PID avec un état explicite. Seule l'absence
+// du fichier (ENOENT) prouve qu'aucun lancement n'a eu lieu ; un fichier
+// illisible ou invalide est une trace dont on ne peut rien conclure.
+function readRenderPidStatus(pidFile) {
+  let content;
+  try {
+    content = fs.readFileSync(pidFile, 'utf8');
+  } catch (err) {
+    return err?.code === 'ENOENT'
+      ? { state: 'absent', pid: null, error: 'pid_file_not_found' }
+      : { state: 'unreadable', pid: null, error: 'pid_file_unreadable' };
+  }
+  let fileMtimeMs = null;
+  try { fileMtimeMs = fs.statSync(pidFile).mtimeMs; } catch {}
+  const parsed = parsePidFileContent(content, fileMtimeMs);
+  if (!parsed) return { state: 'invalid', pid: null, error: 'invalid_pid_in_file' };
+  return { state: 'present', pid: parsed.pid, spawnedAtMs: parsed.spawnedAtMs, processStartMs: parsed.processStartMs };
 }
 
 function isRootOwned(entry, { processStartMs, spawnedAtMs }) {
@@ -178,6 +198,7 @@ module.exports = {
   LEGACY_OWNERSHIP_TOLERANCE_MS,
   formatPidFileContent,
   parsePidFileContent,
+  readRenderPidStatus,
   parseProcessTableLines,
   listSystemProcesses,
   readSystemProcessStartMs,

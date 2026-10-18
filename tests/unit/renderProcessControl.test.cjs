@@ -151,3 +151,25 @@ test('legacy stop: a root or survivor without readable creation date is never ki
 
   assert.equal(r2.ok, false);
 });
+
+// ---- W1 : lecture d'un ancien fichier PID avec un état explicite ----
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { readRenderPidStatus } = require('../../main/render-process-control.cjs');
+
+test('the legacy pid file reader distinguishes absent, present, invalid and unreadable', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uu-pid-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const valid = path.join(dir, 'valid.pid');
+  fs.writeFileSync(valid, `4242\n${T}\n${T + 7}`);
+  const invalid = path.join(dir, 'invalid.pid');
+  fs.writeFileSync(invalid, 'tronqu');
+  const unreadable = path.join(dir, 'dossier.pid');
+  fs.mkdirSync(unreadable);
+
+  assert.deepEqual(readRenderPidStatus(path.join(dir, 'absent.pid')), { state: 'absent', pid: null, error: 'pid_file_not_found' });
+  assert.deepEqual(readRenderPidStatus(valid), { state: 'present', pid: 4242, spawnedAtMs: T, processStartMs: T + 7 });
+  assert.deepEqual(readRenderPidStatus(invalid), { state: 'invalid', pid: null, error: 'invalid_pid_in_file' });
+  assert.deepEqual(readRenderPidStatus(unreadable), { state: 'unreadable', pid: null, error: 'pid_file_unreadable' });
+});

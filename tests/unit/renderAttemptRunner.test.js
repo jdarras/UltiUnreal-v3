@@ -5,6 +5,7 @@ import {
   canStartRenderAfterReconcile,
   runSupervisedRenderAttempt,
   shouldReleaseAssignedRender,
+  releaseAssignedRenderIfUnstarted,
 } from "../../app/utils/renderAttemptRunner.js";
 
 const T = 1_800_000_000_000;
@@ -161,10 +162,67 @@ test("an abandoned reservation (no supervisor ever started) fails at once", asyn
 });
 
 test("a blocked station gives back an assigned render only if it never started it", () => {
-  assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: false }, legacyPid: { pid: null } }), true);
+  assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: false }, legacyPid: { state: "absent", pid: null } }), true);
+  // W1 : un fichier PID présent mais invalide ou illisible n'est pas une absence.
+  assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: false }, legacyPid: { state: "invalid", pid: null } }), false);
+  assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: false }, legacyPid: { state: "unreadable", pid: null } }), false);
+  assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: false }, legacyPid: { pid: null } }), false);
   assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: true, phase: "running" } }), false);
   assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: true, phase: "unverifiable" } }), false);
   assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: { exists: false }, legacyPid: { pid: 4242 } }), false);
   assert.equal(shouldReleaseAssignedRender({ renderId: 7, localJob: null }), false);
   assert.equal(shouldReleaseAssignedRender({ renderId: 0, localJob: { exists: false } }), false);
+});
+
+// W1 : trajet complet, du vrai lecteur de fichier PID jusqu'à la décision.
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { createRequire } from "node:module";
+const { readRenderPidStatus } = createRequire(import.meta.url)("../../main/render-process-control.cjs");
+
+test("only a truly missing legacy pid file allows giving back a render", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "uu-release-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, "tronque.pid"), "abc");
+  fs.mkdirSync(path.join(dir, "illisible.pid"));
+  const decide = (file) => shouldReleaseAssignedRender({
+    renderId: 7,
+    localJob: { exists: false },
+    legacyPid: readRenderPidStatus(path.join(dir, file)),
+  });
+
+  assert.equal(decide("absent.pid"), true);
+  assert.equal(decide("tronque.pid"), false);
+  assert.equal(decide("illisible.pid"), false);
+});
+
+// W2 : la même station peut se voir réattribuer le rendu (signal d'indisponibilité
+// en retard ou perdu) : chaque cycle bloqué le rend de nouveau.
+test("a render reassigned to the blocked station is given back again on the next cycle", async () => {
+  const released = [];
+  const deps = {
+    readRenderJob: async () => ({ exists: false }),
+    readRenderPid: async () => ({ state: "absent", pid: null }),
+    release: async (id) => { released.push(id); },
+  };
+
+  const first = await releaseAssignedRenderIfUnstarted({ renderId: 7, ...deps });
+  const second = await releaseAssignedRenderIfUnstarted({ renderId: 7, ...deps });
+
+  assert.deepEqual([first.released, second.released], [true, true]);
+  assert.deepEqual(released, [7, 7]);
+});
+
+test("nothing is given back when a local trace exists or the release fails", async () => {
+  const base = { renderId: 7, readRenderPid: async () => ({ state: "absent", pid: null }) };
+  const traced = await releaseAssignedRenderIfUnstarted({
+    ...base, readRenderJob: async () => ({ exists: true, phase: "running" }), release: async () => assert.fail("must not release"),
+  });
+  const failed = await releaseAssignedRenderIfUnstarted({
+    ...base, readRenderJob: async () => ({ exists: false }), release: async () => { throw Object.assign(new Error("x"), { code: "offline" }); },
+  });
+
+  assert.deepEqual([traced.released, traced.reason], [false, "local_trace_present"]);
+  assert.deepEqual([failed.released, failed.reason], [false, "offline"]);
 });
