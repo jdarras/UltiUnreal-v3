@@ -23,6 +23,20 @@ function shouldReleaseAssignedRender({ renderId, localJob, legacyPid } = {}) {
   return legacyPid?.state === 'absent';
 }
 
+// Mode d'une tentative de rendu selon l'ancien suivi par fichier PID (W3) :
+//   legacy-resume : un ancien lancement est enregistré (mise à jour pendant un
+//                   rendu) : on reprend son suivi, jamais de second lancement ;
+//   supervised    : aucun ancien suivi, lancement dans un Job Object (Windows) ;
+//   legacy-spawn  : aucun ancien suivi, plateforme sans Job Object ;
+//   blocked       : ancien suivi invalide, illisible ou réponse incomplète :
+//                   aucune conclusion possible, rien n'est lancé ni effacé.
+function chooseRenderAttemptMode({ supportsJobs = false, legacyPid = null } = {}) {
+  const state = legacyPid?.state;
+  if (state === 'present' && Number(legacyPid?.pid) > 0) return 'legacy-resume';
+  if (state === 'absent') return supportsJobs === true ? 'supervised' : 'legacy-spawn';
+  return 'blocked';
+}
+
 // Appelée à chaque cycle tant que la station est bloquée : sans mémoire d'un
 // envoi précédent, une nouvelle attribution du même rendu est de nouveau
 // rendue. Le serveur ne remet en file que si le rendu est toujours attribué à
@@ -162,6 +176,7 @@ async function runSupervisedRenderAttempt({
 
 export {
   canStartRenderAfterReconcile,
+  chooseRenderAttemptMode,
   releaseAssignedRenderIfUnstarted,
   runSupervisedRenderAttempt,
   shouldReleaseAssignedRender,

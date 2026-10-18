@@ -343,6 +343,8 @@ function createRenderJobStore({
   listProcesses,
   runRelay,
   readProcessStartMs,
+  // État de l'ancien fichier PID du rendu ({ state: 'absent' | 'present' | ... }).
+  readLegacyPidStatus = () => ({ state: 'absent' }),
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now = () => Date.now(),
   newAttemptId = () => crypto.randomBytes(16).toString('hex'),
@@ -507,6 +509,17 @@ function createRenderJobStore({
   }
 
   async function start({ tag, scriptFile, command, args = [], cwd = '', startTimeoutMs = 30000 }) {
+    // Aucun lancement tant qu'un suivi existe pour ce rendu : un ancien fichier
+    // PID (rendu lancé avant une mise à jour) ou une réservation Job Object.
+    // Seule l'absence confirmée autorise le lancement ; la trace n'est jamais effacée ici.
+    let legacy;
+    try {
+      legacy = await readLegacyPidStatus(tag);
+    } catch {
+      legacy = null;
+    }
+    if (legacy?.state !== 'absent') return { ok: false, error: 'legacy_tracking_present' };
+    if (readJsonFile(fileFor(tag, 'job')).status !== 'absent') return { ok: false, error: 'job_tracking_present' };
     removeFiles(tag);
     const spawnedAtMs = now();
     const attemptId = newAttemptId();

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   canStartRenderAfterReconcile,
+  chooseRenderAttemptMode,
   runSupervisedRenderAttempt,
   shouldReleaseAssignedRender,
   releaseAssignedRenderIfUnstarted,
@@ -225,4 +226,29 @@ test("nothing is given back when a local trace exists or the release fails", asy
 
   assert.deepEqual([traced.released, traced.reason], [false, "local_trace_present"]);
   assert.deepEqual([failed.released, failed.reason], [false, "offline"]);
+});
+
+// W3 : mise à jour pendant un rendu suivi par l'ancien mécanisme (fichier PID).
+test("an old pid tracking is resumed, never followed by a second launch", () => {
+  const present = { state: "present", pid: 4242 };
+  assert.equal(chooseRenderAttemptMode({ supportsJobs: true, legacyPid: present }), "legacy-resume");
+  assert.equal(chooseRenderAttemptMode({ supportsJobs: false, legacyPid: present }), "legacy-resume");
+});
+
+test("an invalid, unreadable or incomplete old tracking blocks the attempt", () => {
+  for (const legacyPid of [
+    { state: "invalid", pid: null },
+    { state: "unreadable", pid: null },
+    { pid: null, error: "pid_file_not_found" },
+    { state: "present", pid: null },
+    null,
+  ]) {
+    assert.equal(chooseRenderAttemptMode({ supportsJobs: true, legacyPid }), "blocked", JSON.stringify(legacyPid));
+  }
+});
+
+test("only a confirmed absence of old tracking allows a new launch", () => {
+  const absent = { state: "absent", pid: null };
+  assert.equal(chooseRenderAttemptMode({ supportsJobs: true, legacyPid: absent }), "supervised");
+  assert.equal(chooseRenderAttemptMode({ supportsJobs: false, legacyPid: absent }), "legacy-spawn");
 });

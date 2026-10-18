@@ -38,7 +38,7 @@ import {
 import { isPostprodQueueRuntimeActive } from "../utils/postprodAuthHelpers";
 import { startPostprodAsyncLoop } from "./postprodAsyncLoop";
 import { buildExpectedOutputStems, resolveRenderOutputArtifact } from "../utils/renderOutputArtifact";
-import { canStartRenderAfterReconcile, releaseAssignedRenderIfUnstarted, runSupervisedRenderAttempt } from "../utils/renderAttemptRunner";
+import { canStartRenderAfterReconcile, chooseRenderAttemptMode, releaseAssignedRenderIfUnstarted, runSupervisedRenderAttempt } from "../utils/renderAttemptRunner";
 
 function usePostprodWorkerRenderLoop({
   postprodAuth, t, showNotice,
@@ -290,7 +290,10 @@ function usePostprodWorkerRenderLoop({
 
               const existingPidRes = await readRenderPid(pidTag);
               if (stopped) return;
-              const existingPid = Number(existingPidRes?.pid || 0);
+              // Un ancien suivi par fichier PID (rendu lancé avant une mise à jour) est
+              // toujours repris, même sous Windows : jamais de second lancement.
+              const attemptMode = chooseRenderAttemptMode({ supportsJobs: useSupervisedJob, legacyPid: existingPidRes });
+              const existingPid = attemptMode === 'legacy-resume' ? Number(existingPidRes?.pid || 0) : 0;
               // Reprise d'un processus déjà lancé : l'heure de départ est celle du lancement d'origine.
               const resumedStartMs = Number(existingPidRes?.startedAtMs);
               if (existingPid > 0 && Number.isFinite(resumedStartMs) && resumedStartMs > 0) {
@@ -356,7 +359,12 @@ function usePostprodWorkerRenderLoop({
                   : `process_signal_${exitInfo.signal || 'unknown'}`;
               };
 
-              if (useSupervisedJob) {
+              if (attemptMode === 'blocked') {
+                // Ancien suivi invalide, illisible ou réponse incomplète : rien n'est
+                // lancé ni effacé ; la réconciliation bloque la station.
+                _procOk = false;
+                _procError = 'legacy_tracking_unverifiable';
+              } else if (attemptMode === 'supervised') {
                 // Windows : tout l'arbre du rendu est dans un Job Object ; la tentative
                 // se termine quand le job ne contient plus aucun processus.
                 const attempt = await runSupervisedRenderAttempt({
@@ -380,7 +388,7 @@ function usePostprodWorkerRenderLoop({
                 if (attempt.status === 'stopped') return;
                 _procOk = attempt.ok === true;
                 _procError = attempt.ok === true ? '' : String(attempt.error || 'worker_process_failed');
-              } else if (existingPid > 0) {
+              } else if (attemptMode === 'legacy-resume') {
                 const aliveCheck = await checkPidAlive(existingPid);
                 if (stopped) return;
                 if (aliveCheck?.alive) {

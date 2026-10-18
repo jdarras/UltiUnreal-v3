@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { createRenderJobStore } = require('../../main/render-job-supervisor.cjs');
+const { readRenderPidStatus } = require('../../main/render-process-control.cjs');
 
 const T = 1_800_000_000_000;
 
@@ -18,6 +19,8 @@ function makeDir(t) {
 function makeStore(dir, { table = [], relayPid = 900, onRelay = () => {}, clock = { now: T } } = {}) {
   return createRenderJobStore({
     dir,
+    // Ancien suivi lu sur disque, comme dans l'application.
+    readLegacyPidStatus: (tag) => readRenderPidStatus(path.join(dir, `uu_render_${tag}.pid`)),
     listProcesses: async () => table,
     runRelay: async () => { onRelay(); return relayPid; },
     readProcessStartMs: async (pid) => table.find((entry) => entry.pid === pid)?.startMs ?? null,
@@ -82,6 +85,55 @@ test('nothing is launched when the reservation cannot be written', async (t) => 
   const started = await store.start({ tag: 'r1', scriptFile: 'x.ps1', command: 'cmd.exe' });
 
   assert.deepEqual([started.ok, started.error, relayed], [false, 'job_meta_unwritable', false]);
+});
+
+// W3 : un rendu lancé avant une mise à jour (ancien fichier PID) n'est jamais
+// relancé, et sa trace n'est jamais effacée par un lancement supervisé.
+for (const [label, content] of [['a valid', '4321\n1799999990000\n'], ['a truncated', '43']]) {
+  test(`${label} legacy pid file blocks a supervised start and is kept`, async (t) => {
+    const dir = makeDir(t);
+    fs.writeFileSync(file(dir, 'pid'), content);
+    let relayed = false;
+    const store = makeStore(dir, { onRelay: () => { relayed = true; } });
+
+    const started = await store.start({ tag: 'r1', scriptFile: 'x.ps1', command: 'cmd.exe' });
+
+    assert.deepEqual([started.ok, started.error, relayed], [false, 'legacy_tracking_present', false]);
+    assert.equal(fs.readFileSync(file(dir, 'pid'), 'utf8'), content);
+    assert.equal(fs.existsSync(file(dir, 'job')), false);
+  });
+}
+
+test('an invalid or unreadable legacy pid file blocks a supervised start', async (t) => {
+  const invalidDir = makeDir(t);
+  fs.writeFileSync(file(invalidDir, 'pid'), 'abc');
+  const unreadableDir = makeDir(t);
+  fs.mkdirSync(file(unreadableDir, 'pid'));
+  const failingRead = createRenderJobStore({
+    dir: makeDir(t),
+    listProcesses: async () => [],
+    runRelay: async () => { throw new Error('must not launch'); },
+    readProcessStartMs: async () => null,
+    readLegacyPidStatus: () => { throw new Error('io'); },
+  });
+
+  for (const store of [makeStore(invalidDir), makeStore(unreadableDir), failingRead]) {
+    const started = await store.start({ tag: 'r1', scriptFile: 'x.ps1', command: 'cmd.exe' });
+    assert.deepEqual([started.ok, started.error], [false, 'legacy_tracking_present']);
+  }
+});
+
+test('an existing job tracking blocks a new start and is kept', async (t) => {
+  const dir = makeDir(t);
+  const meta = JSON.stringify({ phase: 'launched', attemptId: ATTEMPT, spawnedAtMs: T, supervisorPid: 900 });
+  fs.writeFileSync(file(dir, 'job'), meta);
+  let relayed = false;
+  const store = makeStore(dir, { onRelay: () => { relayed = true; } });
+
+  const started = await store.start({ tag: 'r1', scriptFile: 'x.ps1', command: 'cmd.exe' });
+
+  assert.deepEqual([started.ok, started.error, relayed], [false, 'job_tracking_present', false]);
+  assert.equal(fs.readFileSync(file(dir, 'job'), 'utf8'), meta);
 });
 
 test('a supervisor launched just before the app died is found through its own state', async (t) => {

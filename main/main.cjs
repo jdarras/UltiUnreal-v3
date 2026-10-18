@@ -1029,13 +1029,15 @@ function getRenderJobStore() {
       listProcesses: listSystemProcesses,
       runRelay: runSupervisorRelay,
       readProcessStartMs: readSystemProcessStartMs,
+      readLegacyPidStatus: (tag) => readRenderPidStatus(renderPidFilePath(tag)),
     });
   }
   return renderJobStore;
 }
 
+// Les suivis existants (ancien fichier PID, réservation) ne sont jamais effacés
+// ici : le lancement est refusé tant qu'ils existent.
 async function startSupervisedRender({ tag, command, args, cwd }) {
-  removeRenderPidFiles(tag);
   let scriptFile = '';
   try {
     scriptFile = ensureRenderSupervisorScript();
