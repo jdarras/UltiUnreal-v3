@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { safeT } from "./shared/helpers";
 import { AuthCard } from "./users/AuthCard";
-import { ProfileCard } from "./users/ProfileCard";
 import { RoleManagementCard } from "./users/RoleManagementCard";
 import { UserToolbar } from "./users/UserToolbar";
 import { UserBrowsePanel } from "./users/components/UserBrowsePanel";
@@ -91,7 +90,6 @@ function UserManagementCard({
 
 export {
   AuthCard,
-  ProfileCard,
   UserManagementCard,
   RoleManagementCard,
 };
