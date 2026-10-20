@@ -243,6 +243,25 @@ function resolveGeneratingFlag(render = null) {
   return raw === "generating" || raw === "running" || raw === "pending";
 }
 
+// Icônes du lecteur (conventions des lecteurs vidéo) : image par image =
+// triangle avec une barre verticale contre sa pointe (|◀ et ▶|).
+const VIEWER_ICON_PATHS = {
+  play: "M4 2.5v11l9-5.5z",
+  pause: "M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z",
+  stepBack: "M3 2.5h2v11H3zM13 2.5v11L5.5 8z",
+  stepForward: "M3 2.5v11L10.5 8zM11 2.5h2v11h-2z",
+};
+
+const VIEWER_ICON_STYLE = { display: "block" };
+
+function ViewerIcon({ name }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" focusable="false" style={VIEWER_ICON_STYLE}>
+      <path d={VIEWER_ICON_PATHS[name]} fill="currentColor" />
+    </svg>
+  );
+}
+
 function RenderDetailPreviewPanel({
   t,
   render = null,
@@ -1050,7 +1069,7 @@ function RenderDetailPreviewPanel({
                 ? safeT(t, "postprod.renders.viewer.pause", "Pause")
                 : safeT(t, "postprod.renders.viewer.play", "Lecture")}
             >
-              {isPlaying ? "⏸" : "▶"}
+              <ViewerIcon name={isPlaying ? "pause" : "play"} />
             </button>
             <button
               type="button"
@@ -1058,8 +1077,9 @@ function RenderDetailPreviewPanel({
               onClick={() => stepFrame(-1)}
               disabled={!hasProxy}
               title={safeT(t, "postprod.renders.viewer.prevFrame", "Image précédente")}
+              aria-label={safeT(t, "postprod.renders.viewer.prevFrame", "Image précédente")}
             >
-              ◀
+              <ViewerIcon name="stepBack" />
             </button>
             <button
               type="button"
@@ -1067,8 +1087,9 @@ function RenderDetailPreviewPanel({
               onClick={() => stepFrame(1)}
               disabled={!hasProxy}
               title={safeT(t, "postprod.renders.viewer.nextFrame", "Image suivante")}
+              aria-label={safeT(t, "postprod.renders.viewer.nextFrame", "Image suivante")}
             >
-              ▶
+              <ViewerIcon name="stepForward" />
             </button>
           </div>
 
