@@ -96,10 +96,13 @@ function RendersListTableRow({
   };
 
   const thumbCandidatesKey = thumbCandidates.join("|");
+  // Fiche mise à jour (vignette générée après coup, par exemple) : nouvel
+  // essai d'affichage, même si le chemin de la vignette n'a pas changé.
+  const renderUpdatedAt = String(render?.updatedAt || "");
   useEffect(() => {
     setThumbIndex(0);
     setThumbError(false);
-  }, [renderId, thumbCandidatesKey]);
+  }, [renderId, thumbCandidatesKey, renderUpdatedAt]);
 
   const handleDeleteRender = async () => {
     if (!canDeleteRender || rendersLoading || isBusy) return;

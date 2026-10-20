@@ -125,6 +125,21 @@ function logLineSafe(logLine, payload) {
   try { logLine(payload); } catch {}
 }
 
+// Délais entre deux essais quand la vidéo source n'est pas encore lisible.
+const PROXY_SOURCE_RETRY_DELAYS_MS = [10_000, 30_000, 60_000];
+
+function waitMs(ms) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+  });
+}
+
+// Fichier vidéo incomplet (encore en cours d'écriture ou de finalisation).
+function isUnfinishedMediaError(error) {
+  return /moov atom not found|invalid data found when processing input|end of file/i.test(String(error || ''));
+}
+
 function scheduleProxyGenerationForDoneRender({
   renderId,
   stmts,
@@ -168,19 +183,28 @@ function scheduleProxyGenerationForDoneRender({
       if (!outputPath) return;
       const jobDir = path.dirname(outputPath);
 
-      const thumbResult = await generateThumbnail({
-        outputPath,
-        destDir: jobDir,
-        resolutionPercent,
-        logLine,
-      });
-      const proxyResult = await generateProxy({
-        outputPath,
-        destDir: jobDir,
-        resolutionPercent,
-        qualityCrf,
-        logLine,
-      });
+      // La vidéo peut ne pas être encore finalisée quand le rendu est déclaré
+      // terminé (« moov atom not found ») : nouvel essai après un délai.
+      let thumbResult = null;
+      let proxyResult = null;
+      for (let attempt = 0; ; attempt += 1) {
+        thumbResult = await generateThumbnail({
+          outputPath,
+          destDir: jobDir,
+          resolutionPercent,
+          logLine,
+        });
+        proxyResult = await generateProxy({
+          outputPath,
+          destDir: jobDir,
+          resolutionPercent,
+          qualityCrf,
+          logLine,
+        });
+        if (proxyResult?.ok || attempt >= PROXY_SOURCE_RETRY_DELAYS_MS.length) break;
+        if (!isUnfinishedMediaError(proxyResult?.error)) break;
+        await waitMs(PROXY_SOURCE_RETRY_DELAYS_MS[attempt]);
+      }
 
       if (!proxyResult?.ok) {
         logLineSafe(logLine, {
@@ -776,5 +800,6 @@ async function handlePostprodRenderTransitionRoutes({
 
 module.exports = {
   handlePostprodRenderTransitionRoutes,
+  isUnfinishedMediaError,
   scheduleProxyGenerationForDoneRender,
 };
