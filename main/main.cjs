@@ -6,6 +6,17 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'uu-media', privileges: { secure: true, supportFetchAPI: true, stream: true, bypassCSP: true } },
 ]);
 
+// Types servis par le protocole uu-media (vidéos, images, sons) ; tout autre
+// fichier est refusé.
+const UU_MEDIA_TYPES = {
+  '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm', '.ogg': 'video/ogg',
+  '.mkv': 'video/x-matroska', '.mov': 'video/quicktime', '.avi': 'video/x-msvideo',
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif',
+  '.webp': 'image/webp', '.avif': 'image/avif', '.bmp': 'image/bmp', '.tga': 'image/x-tga',
+  '.ico': 'image/x-icon',
+  '.mp3': 'audio/mpeg', '.wav': 'audio/wav',
+};
+
 const path   = require('path');
 const fs     = require('fs');
 const http   = require('http');
@@ -1475,22 +1486,26 @@ app.whenReady().then(() => {
       return new Response('Bad Request', { status: 400 });
     }
 
+    // Protocole réservé aux médias (aperçus, vignettes) : tout autre type de
+    // fichier est refusé, pour qu'un script de la fenêtre ne puisse pas lire
+    // n'importe quel fichier du disque par ce biais.
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = UU_MEDIA_TYPES[ext];
+    if (!contentType) {
+      return new Response('Forbidden', { status: 403 });
+    }
+
     let stat;
     try {
       stat = fs.statSync(filePath);
     } catch {
       return new Response('Not Found', { status: 404 });
     }
+    if (!stat.isFile()) {
+      return new Response('Not Found', { status: 404 });
+    }
 
     const total = stat.size;
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes = {
-      '.mp4': 'video/mp4', '.webm': 'video/webm', '.ogg': 'video/ogg',
-      '.mkv': 'video/x-matroska', '.mov': 'video/quicktime', '.avi': 'video/x-msvideo',
-      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-      '.gif': 'image/gif', '.webp': 'image/webp', '.tga': 'image/x-tga',
-    };
-    const contentType = mimeTypes[ext] || 'application/octet-stream';
 
     const rangeHeader = request.headers.get('range') || '';
     const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
