@@ -4,6 +4,7 @@ import { useRenderEditorCardListData } from "./useRenderEditorCardListData";
 import { useRenderEditorCardAutoRenderData } from "./useRenderEditorCardAutoRenderData";
 import { normalizeTaskVisualStatusKey } from "../../helpers";
 import { normalizeRenderReviewStatus } from "../../../shared/reviewStatusHelpers.js";
+import { disambiguateAssigneeLabels } from "./assigneeLabels.js";
 
 function toPositiveTaskId(value = 0) {
   const parsed = Number(value || 0);
@@ -108,7 +109,7 @@ export function useRenderEditorDataController({
         label: fallbackLabel,
       });
     }
-    return Array.from(byId.values()).sort((a, b) =>
+    return disambiguateAssigneeLabels(Array.from(byId.values())).sort((a, b) =>
       String(a?.label || "").localeCompare(String(b?.label || ""), undefined, { sensitivity: "base" })
     );
   }, [
