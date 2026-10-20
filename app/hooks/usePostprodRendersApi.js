@@ -556,13 +556,16 @@ function usePostprodRendersApi({
     }
   }, [postprodAuth.token, t, setPostprodRenderTemplates]);
 
-  const loadPostprodRenderForms = useCallback(async () => {
+  // silent : rafraîchissement en arrière-plan, sans indicateur de chargement
+  // (qui ferait sauter l'affichage à chaque cycle).
+  const loadPostprodRenderForms = useCallback(async (options = {}) => {
+    const silent = options?.silent === true;
     const token = String(postprodAuth.token || '').trim();
     if (!token) {
       setPostprodRenderForms({ items: [], loading: false, error: '' });
       return;
     }
-    setPostprodRenderForms((prev) => ({ ...prev, loading: true, error: '' }));
+    setPostprodRenderForms((prev) => (silent ? { ...prev, error: '' } : { ...prev, loading: true, error: '' }));
     try {
       const res = await postprodListRenderForms(token);
       const items = Array.isArray(res?.forms) ? res.forms : [];

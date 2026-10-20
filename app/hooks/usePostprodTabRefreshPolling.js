@@ -27,7 +27,9 @@ function usePostprodTabRefreshPolling({
       if (typeof fn === 'function') jobs.push(fn);
     };
 
-    queue(loadPostprodRenderHealth);
+    // Rafraîchissement en arrière-plan : chargements silencieux (pas d'indicateur
+    // de chargement qui ferait sauter l'affichage à chaque cycle).
+    queue(() => loadPostprodRenderHealth({ silent: true }));
     queue(() => loadPostprodUserAlerts({ silent: true }));
     if (current !== POSTPROD_TAB_RENDERS_CREATE && current !== 'Rendus') {
       queue(() => loadPostprodTasks({ silent: true }));
@@ -64,7 +66,7 @@ function usePostprodTabRefreshPolling({
         queue(() => loadPostprodRenderTemplates({ silent: true }));
         queue(() => loadPostprodRenderWorkers({ silent: true }));
         queue(() => loadPostprodRenders({ silent: true }));
-        queue(loadPostprodRenderForms);
+        queue(() => loadPostprodRenderForms({ silent: true }));
       }
     } else if (current === 'Rendus') {
       queue(() => loadPostprodTasks({ silent: true }));
@@ -72,11 +74,11 @@ function usePostprodTabRefreshPolling({
       queue(() => loadPostprodRenderTemplates({ silent: true }));
       queue(() => loadPostprodRenderWorkers({ silent: true }));
       queue(() => loadPostprodRenders({ silent: true }));
-      queue(loadPostprodRenderForms);
+      queue(() => loadPostprodRenderForms({ silent: true }));
     } else if (current === 'Datas') {
       if (postprodCanManageRenderTemplates) {
         queue(loadPostprodProjects);
-        queue(loadPostprodRenderForms);
+        queue(() => loadPostprodRenderForms({ silent: true }));
       }
     } else if (current === 'Logs') {
       queue(loadPostprodAudit);
