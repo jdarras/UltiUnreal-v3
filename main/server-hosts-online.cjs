@@ -742,7 +742,6 @@ module.exports = {
   listDetectedStations,
   recordDiscoveredPresence,
   getOnlineState: () => ONLINE,
-  setOnlineState: (s) => { ONLINE = s || {}; },
   getPresenceVolatile: () => PRESENCE_VOLATILE,
   setPresenceVolatile: (s) => { PRESENCE_VOLATILE = s || {}; },
 };
