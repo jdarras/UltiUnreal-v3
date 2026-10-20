@@ -137,8 +137,30 @@ function getUnrealProcessCandidates(host = {}) {
   return out;
 }
 
+// Usage déclaré d'un projet (live, rendu automatique, les deux, autre), en
+// acceptant les libellés français et anglais ; vide si inconnu.
+const PROJECT_USAGE_MODE_ALIASES = new Map([
+  ['live', 'live'],
+  ['auto_render', 'auto_render'],
+  ['render', 'auto_render'],
+  ['rendu_automatique', 'auto_render'],
+  ['rendu automatique', 'auto_render'],
+  ['live_auto_render', 'live_auto_render'],
+  ['live + rendu automatique', 'live_auto_render'],
+  ['live et rendu automatique', 'live_auto_render'],
+  ['live_and_auto_render', 'live_auto_render'],
+  ['other', 'other'],
+  ['autre', 'other'],
+]);
+
+function normalizeProjectUsageMode(value) {
+  const key = String(value || '').trim().toLowerCase();
+  return key ? (PROJECT_USAGE_MODE_ALIASES.get(key) || '') : '';
+}
+
 module.exports = {
   hostsToList,
+  normalizeProjectUsageMode,
   getUnrealProcessCandidates,
   resolveRenderAvailability,
   RENDER_AVAILABILITY_VALUES,

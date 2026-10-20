@@ -1,17 +1,10 @@
 'use strict';
 
+const { encodeAlertMeta } = require('./server-postprod-alert-meta.cjs');
+
 function toPositiveInt(value) {
   const parsed = Number(value || 0);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
-}
-
-function encodeAlertMeta(meta = null) {
-  const source = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {};
-  try {
-    return JSON.stringify(source);
-  } catch {
-    return '{}';
-  }
 }
 
 function upsertTaskAssignmentAlert({

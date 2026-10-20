@@ -3,6 +3,7 @@ const os = require('os');
 const path = require('path');
 const { RENDER_JOB_MARKER, isOwnedRenderJobFolder } = require('./render-job-folder.cjs');
 const { scheduleRenderExportForValidatedRender } = require('./server-postprod-routes-render-transitions.cjs');
+const { encodeAlertMeta } = require('./server-postprod-alert-meta.cjs');
 
 function readSafeCommonConfig(readCommonServerConfigFile, commonServerFile) {
   if (typeof readCommonServerConfigFile !== 'function') return {};
@@ -432,15 +433,6 @@ function buildRenderScheduleEventComment(scheduledAt = null) {
     return `Lancement programme: ${scheduledText}`;
   }
   return 'Lancement immediat (sans programmation)';
-}
-
-function encodeAlertMeta(meta = null) {
-  const source = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {};
-  try {
-    return JSON.stringify(source);
-  } catch {
-    return '{}';
-  }
 }
 
 function upsertOpenUserAlert({

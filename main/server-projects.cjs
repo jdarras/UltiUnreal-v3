@@ -6,6 +6,8 @@ const fsp = fs.promises;
 const path = require('path');
 const { getDataDir } = require('./data-path.cjs');
 const { getSharedStore } = require('./server-shared-sqlite.cjs');
+const { normalizeProjectUsageMode } = require('./server-normalize.cjs');
+const { buildUnrealAssetPathFromRelative, classifyUnrealAssetFromName, toPosixPath } = require('./unreal-asset-names.cjs');
 
 const DATA_DIR       = getDataDir();
 const PROJECT_META_DIR = path.join(DATA_DIR, 'projects');
@@ -27,26 +29,6 @@ const sharedStore = getSharedStore({
 function zp4(n) { const s = String(Number(n) || 0); return s.padStart(4, '0'); }
 const ID_PATTERN = /^\d{4}$/;
 function isValidId(v) { return ID_PATTERN.test(String(v || '').trim()); }
-
-function normalizeProjectUsageMode(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  const key = raw.toLowerCase();
-  const aliases = new Map([
-    ['live', 'live'],
-    ['auto_render', 'auto_render'],
-    ['render', 'auto_render'],
-    ['rendu_automatique', 'auto_render'],
-    ['rendu automatique', 'auto_render'],
-    ['live_auto_render', 'live_auto_render'],
-    ['live + rendu automatique', 'live_auto_render'],
-    ['live et rendu automatique', 'live_auto_render'],
-    ['live_and_auto_render', 'live_auto_render'],
-    ['other', 'other'],
-    ['autre', 'other'],
-  ]);
-  return aliases.get(key) || '';
-}
 
 function readEngineVersionFromUproject(uprojectPath) {
   const up = String(uprojectPath || '').trim();
@@ -617,59 +599,6 @@ function parseIniSectionsFromText(txt) {
   }
 
   return out;
-}
-
-function toPosixPath(value) {
-  return String(value || '').replace(/\\/g, '/');
-}
-
-function buildUnrealAssetPathFromRelative(relativePath) {
-  const normalizedRelative = toPosixPath(relativePath)
-    .replace(/^\/+/, '')
-    .trim();
-  if (!normalizedRelative) return '';
-  const withoutExt = normalizedRelative.replace(/\.[^/.\\]+$/g, '').trim();
-  if (!withoutExt) return '';
-  const segments = withoutExt.split('/').filter(Boolean);
-  const leaf = segments[segments.length - 1] || '';
-  if (!leaf) return '';
-  return `/Game/${withoutExt}.${leaf}`;
-}
-
-function classifyUnrealAssetFromName(fileName = '', ext = '') {
-  const normalizedExt = String(ext || '').trim().toLowerCase();
-  const baseName = String(fileName || '').trim().replace(/\.[^/.\\]+$/g, '');
-  const lower = baseName.toLowerCase();
-  const isLevel = normalizedExt === '.umap';
-  const isWrcPreset = (
-    normalizedExt === '.uasset' && (
-      lower.includes('remotecontrol') ||
-      lower.includes('remote_control') ||
-      lower.includes('wrc_preset') ||
-      lower.includes('rcpreset') ||
-      /\bwrc(?:_|-|\b)/.test(lower)
-    )
-  );
-  const isSequence = (
-    normalizedExt === '.uasset' && (
-      lower.startsWith('ls_') ||
-      lower.includes('levelsequence') ||
-      lower.includes('sequence') ||
-      lower.endsWith('_seq')
-    )
-  );
-  const isPreset = (
-    normalizedExt === '.uasset' && (
-      lower.includes('mrg') ||
-      lower.includes('mrq') ||
-      lower.includes('mrc') ||
-      lower.includes('moviepipeline') ||
-      lower.includes('renderpreset') ||
-      lower.includes('preset')
-    ) &&
-    !isWrcPreset
-  );
-  return { isLevel, isSequence, isPreset, isWrcPreset };
 }
 
 function extractProjectInsights(uprojectPath) {

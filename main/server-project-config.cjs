@@ -20,6 +20,7 @@ const {
   normalizeNumberIni,
   buildSmoothedFrameRateRange,
 } = require('./server-ini.cjs');
+const { normalizeProjectUsageMode } = require('./server-normalize.cjs');
 
 const RENDER_BRIDGE_PLUGIN_NAME = 'UltiUnrealRenderBridge';
 const PROJECT_PLUGIN_CATALOG = Object.freeze({
@@ -108,26 +109,6 @@ function ensureHttpServerBindAddress(uprojectPath, bindAddress = '0.0.0.0') {
   } catch (e) {
     return { ok: false, error: 'write_failed', message: String(e?.message || e), iniPath };
   }
-}
-
-function normalizeProjectUsageMode(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  const key = raw.toLowerCase();
-  const aliases = new Map([
-    ['live', 'live'],
-    ['auto_render', 'auto_render'],
-    ['render', 'auto_render'],
-    ['rendu_automatique', 'auto_render'],
-    ['rendu automatique', 'auto_render'],
-    ['live_auto_render', 'live_auto_render'],
-    ['live + rendu automatique', 'live_auto_render'],
-    ['live et rendu automatique', 'live_auto_render'],
-    ['live_and_auto_render', 'live_auto_render'],
-    ['other', 'other'],
-    ['autre', 'other'],
-  ]);
-  return aliases.get(key) || '';
 }
 
 function copyDirectoryRecursive(srcDir, destDir) {

@@ -13,7 +13,7 @@ const {
   ensureDir,
 } = require("./server-files.cjs");
 
-const { hostsToList } = require("./server-normalize.cjs");
+const { hostsToList, normalizeProjectUsageMode } = require("./server-normalize.cjs");
 const { saveProjects, readProjectMeta, setProjectSource } = require("./server-projects.cjs");
 const { statSync, readdirSync } = fs;
 const { isPathInsideRoot, assertSafeSyncPath } = require("./server-sync-paths.cjs");
@@ -212,28 +212,8 @@ function isConfiguredSyncDestination(destDir) {
   }
 }
 
-function normalizeProjectUsageModeLocal(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  const key = raw.toLowerCase();
-  const aliases = new Map([
-    ["live", "live"],
-    ["auto_render", "auto_render"],
-    ["render", "auto_render"],
-    ["rendu_automatique", "auto_render"],
-    ["rendu automatique", "auto_render"],
-    ["live_auto_render", "live_auto_render"],
-    ["live + rendu automatique", "live_auto_render"],
-    ["live et rendu automatique", "live_auto_render"],
-    ["live_and_auto_render", "live_auto_render"],
-    ["other", "other"],
-    ["autre", "other"],
-  ]);
-  return aliases.get(key) || "";
-}
-
 function isRenderAutoUsageMode(value) {
-  const mode = normalizeProjectUsageModeLocal(value);
+  const mode = normalizeProjectUsageMode(value);
   return mode === "auto_render" || mode === "live_auto_render";
 }
 

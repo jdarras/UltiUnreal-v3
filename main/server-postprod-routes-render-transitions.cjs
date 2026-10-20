@@ -10,6 +10,7 @@ const {
   resolveRenderExportDestinationIds,
 } = require('./server-postprod-export-destinations.cjs');
 const { endProxyGeneration, tryBeginProxyGeneration } = require('./render-proxy-recovery.cjs');
+const { encodeAlertMeta } = require('./server-postprod-alert-meta.cjs');
 
 const PROXY_RESOLUTION_ALLOWED = new Set([25, 50, 75]);
 const PROXY_CRF_ALLOWED = new Set([18, 23, 28]);
@@ -29,15 +30,6 @@ function parsePayloadJsonSafe(value) {
 function toPositiveInt(value) {
   const parsed = Number(value || 0);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
-}
-
-function encodeAlertMeta(meta = null) {
-  const source = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {};
-  try {
-    return JSON.stringify(source);
-  } catch {
-    return '{}';
-  }
 }
 
 function resolveAlertTargetUserIds({ renderPayload = null, taskRow = null } = {}) {
