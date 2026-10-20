@@ -278,6 +278,7 @@ const {
   rolePermissions,
 } = require('./server-postprod-roles.cjs');
 const { hashPassword, verifyPassword } = require('./server-postprod-passwords.cjs');
+const { getRequestIp } = require('./server-request-ip.cjs');
 
 const { createTaskRenderHelpers } = require('./server-postprod-auth-task-render-utils.cjs');
 const { createUsersSyncHelpers } = require('./server-postprod-auth-users-sync.cjs');
@@ -2745,15 +2746,6 @@ function subtractDays(isoUtc, days, fallbackDays = 0) {
   const safeDays = Number.isFinite(rawDays) ? Math.max(0, Math.trunc(rawDays)) : Math.max(0, fallback);
   const t = Number.isFinite(base) ? base : Date.now();
   return new Date(t - safeDays * 24 * 60 * 60 * 1000).toISOString();
-}
-
-function getRequestIp(req) {
-  const fwd = String(req?.headers?.['x-forwarded-for'] || '').trim();
-  if (fwd) {
-    const first = fwd.split(',')[0];
-    if (first) return String(first).trim();
-  }
-  return String(req?.socket?.remoteAddress || '').trim();
 }
 
 function getAuthToken(req, fallback = '') {
