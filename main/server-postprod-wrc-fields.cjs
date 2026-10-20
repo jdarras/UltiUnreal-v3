@@ -9,10 +9,47 @@ const {
   sanitizeRenderFormFieldGroupName,
   sanitizeRenderFormFieldPayloadKey,
 } = require('./server-postprod-render-form-field-sanitize.cjs');
+const {
+  MAX_RENDER_TEMPLATE_FIELD_KEY_LEN,
+  MAX_RENDER_TEMPLATE_FIELD_PAYLOAD_KEY_LEN,
+} = require('./server-postprod-auth-constants.cjs');
+
+const MAX_FIELD_KEY_LEN = MAX_RENDER_TEMPLATE_FIELD_KEY_LEN;
+const MAX_PAYLOAD_KEY_LEN = Math.min(MAX_RENDER_TEMPLATE_FIELD_KEY_LEN, MAX_RENDER_TEMPLATE_FIELD_PAYLOAD_KEY_LEN);
+
+// Premier nom libre parmi base, base_2, base_3… La place du suffixe est
+// réservée avant la coupure à la longueur maximale : chaque essai produit un
+// nom différent, même pour une base déjà à la longueur maximale (sinon la
+// boucle ne se terminait jamais et bloquait le serveur).
+function pickUniqueFieldName(base, isTaken, sanitize, maxLen) {
+  let candidate = base;
+  for (let index = 2; isTaken(candidate); index += 1) {
+    const suffix = `_${index}`;
+    candidate = sanitize(`${base.slice(0, Math.max(0, maxLen - suffix.length))}${suffix}`, base);
+  }
+  return candidate;
+}
 
 function inferRenderFormFieldKindFromWrcRawType(rawTypeValue) {
   const rawType = String(rawTypeValue || '').trim().toLowerCase();
   if (!rawType) return { inputKind: 'text', valueType: 'string' };
+  // Conteneurs, énumérations et références d'objets d'abord : leur nom contient
+  // souvent un autre type (TArray<int32>, TEnumAsByte<…>, UMaterialInterface,
+  // UPointLightComponent*) qui serait sinon reconnu à tort.
+  if (
+    /^t(array|set|map)\b/.test(rawType)
+    || /\b(array|set|map)property\b/.test(rawType)
+  ) {
+    return { inputKind: 'json', valueType: 'json' };
+  }
+  if (rawType.includes('enum')) return { inputKind: 'select', valueType: 'enum' };
+  if (
+    rawType.endsWith('*')
+    || /ptr\b|ptr</.test(rawType)
+    || ['interface', 'object', 'class', 'component', 'actor'].some((token) => rawType.includes(token))
+  ) {
+    return { inputKind: 'json', valueType: 'json' };
+  }
   if (rawType.includes('bool')) return { inputKind: 'checkbox', valueType: 'boolean' };
   if (
     rawType.includes('vector2d')
@@ -30,10 +67,12 @@ function inferRenderFormFieldKindFromWrcRawType(rawTypeValue) {
   ) {
     return { inputKind: 'vector3', valueType: 'vector3' };
   }
+  // Entiers : int, int32, uint8, IntProperty, Int64Property, ByteProperty,
+  // integer… (et non « Constraint », « Point » ou « Paint »).
   if (
-    rawType.includes('int')
+    /(^|[^a-z])u?int(8|16|32|64)?(property)?([^a-z]|$)/.test(rawType)
     || rawType.includes('byte')
-    || rawType.includes('uint')
+    || rawType.includes('integer')
   ) {
     return { inputKind: 'integer', valueType: 'integer' };
   }
@@ -557,23 +596,23 @@ function buildRenderFormFieldsFromWrcPreset(presetPayload, wrcFile) {
       sourcePath
     );
     if (!keyBase) continue;
-    let fieldKey = keyBase;
-    let dedupeIndex = 2;
-    while (seenKeys.has(fieldKey)) {
-      fieldKey = sanitizeRenderFormFieldKey(`${keyBase}_${dedupeIndex}`, keyBase);
-      dedupeIndex += 1;
-    }
+    const fieldKey = pickUniqueFieldName(
+      keyBase,
+      (candidate) => seenKeys.has(candidate),
+      sanitizeRenderFormFieldKey,
+      MAX_FIELD_KEY_LEN
+    );
     seenKeys.add(fieldKey);
     const payloadBase = sanitizeRenderFormFieldPayloadKey(
       pickReadableWrcIdentifier(propertyNameRaw, propertyIdRaw, fieldLabel, sourcePathRaw, fieldKey),
       fieldKey
     );
-    let payloadKey = payloadBase || fieldKey;
-    let payloadDedupeIndex = 2;
-    while (seenPayloadKeys.has(payloadKey.toLowerCase())) {
-      payloadKey = sanitizeRenderFormFieldPayloadKey(`${payloadBase || fieldKey}_${payloadDedupeIndex}`, fieldKey);
-      payloadDedupeIndex += 1;
-    }
+    const payloadKey = pickUniqueFieldName(
+      payloadBase || fieldKey,
+      (candidate) => seenPayloadKeys.has(candidate.toLowerCase()),
+      sanitizeRenderFormFieldPayloadKey,
+      MAX_PAYLOAD_KEY_LEN
+    );
     seenPayloadKeys.add(payloadKey.toLowerCase());
 
     const rawType = (
@@ -698,20 +737,20 @@ function buildRenderFormFieldsFromWrcLayoutFieldIds(fieldIds = []) {
     const label = sanitizeRenderFormFieldLabel(rawId, sourcePath);
     const keyBase = sanitizeRenderFormFieldKey(rawId, `field_${index + 1}`);
     if (!keyBase) continue;
-    let fieldKey = keyBase;
-    let dedupeIndex = 2;
-    while (seenFieldKeys.has(fieldKey.toLowerCase())) {
-      fieldKey = sanitizeRenderFormFieldKey(`${keyBase}_${dedupeIndex}`, keyBase);
-      dedupeIndex += 1;
-    }
+    const fieldKey = pickUniqueFieldName(
+      keyBase,
+      (candidate) => seenFieldKeys.has(candidate.toLowerCase()),
+      sanitizeRenderFormFieldKey,
+      MAX_FIELD_KEY_LEN
+    );
     seenFieldKeys.add(fieldKey.toLowerCase());
     const payloadBase = sanitizeRenderFormFieldPayloadKey(rawId, fieldKey) || fieldKey;
-    let payloadKey = payloadBase;
-    let payloadDedupeIndex = 2;
-    while (seenPayloadKeys.has(payloadKey.toLowerCase())) {
-      payloadKey = sanitizeRenderFormFieldPayloadKey(`${payloadBase}_${payloadDedupeIndex}`, fieldKey) || fieldKey;
-      payloadDedupeIndex += 1;
-    }
+    const payloadKey = pickUniqueFieldName(
+      payloadBase,
+      (candidate) => seenPayloadKeys.has(candidate.toLowerCase()),
+      sanitizeRenderFormFieldPayloadKey,
+      MAX_PAYLOAD_KEY_LEN
+    );
     seenPayloadKeys.add(payloadKey.toLowerCase());
     out.push({
       fieldKey,
