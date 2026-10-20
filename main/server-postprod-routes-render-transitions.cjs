@@ -8,6 +8,7 @@ const {
   applyRenderExport,
   resolveExportDestinationEntriesFromCommon,
 } = require('./server-postprod-export-destinations.cjs');
+const { endProxyGeneration, tryBeginProxyGeneration } = require('./render-proxy-recovery.cjs');
 
 const PROXY_RESOLUTION_ALLOWED = new Set([25, 50, 75]);
 const PROXY_CRF_ALLOWED = new Set([18, 23, 28]);
@@ -133,6 +134,8 @@ function scheduleProxyGenerationForDoneRender({
   logLine,
 }) {
   setImmediate(async () => {
+    // Déjà en cours (rattrapage ou fin de rendu en double) : rien à faire.
+    if (!tryBeginProxyGeneration(renderId)) return;
     try {
       if (!stmts?.findRenderJobById || !stmts?.updateRenderJobPayload || typeof nowIso !== 'function') return;
       if (!resolveFfmpegPath()) {
@@ -233,6 +236,8 @@ function scheduleProxyGenerationForDoneRender({
         message: String(err?.message || err),
         data: { renderId },
       });
+    } finally {
+      endProxyGeneration(renderId);
     }
   });
 }

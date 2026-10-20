@@ -57,6 +57,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { isRenderArtifactFileName } = require('./render-artifact-names.cjs');
+const { createProxyRecoveryLoop } = require('./render-proxy-recovery.cjs');
 const zlib = require('zlib');
 const { evaluateBrowserOrigin, corsOriginHeaders } = require('./server-request-security.cjs');
 const {
@@ -2105,4 +2106,34 @@ server.listen(PORT, () => {
     message: `Démarrage v${VERSION} sur le port ${PORT}`,
     data: { dataDir: DATA_DIR }
   });
+  startProxyRecoveryLoop();
 });
+
+// Aperçus manquants (application arrêtée pendant leur génération, par
+// exemple) : retrouvés et générés au démarrage puis toutes les 15 minutes.
+function startProxyRecoveryLoop() {
+  const loop = createProxyRecoveryLoop({
+    listRows: () => {
+      const stmt = postprodAuth?.remoteBridge?.stmts?.listAllRenderJobsForExport;
+      return stmt && typeof stmt.all === 'function' ? stmt.all() : [];
+    },
+    isProxyEnabled: () => {
+      const common = getCommonCached() || {};
+      return common.proxyEnabled === true || common.proxy_enabled === true;
+    },
+    regenerate: (row) => {
+      const common = getCommonCached() || {};
+      return regenerateAllRenderProxies({
+        rows: [row],
+        renderRoots: resolveRenderOutputDirsFromCommon(common),
+        proxyResolution: normalizeProxyResolution(common.proxyResolution ?? common.proxy_resolution, 50),
+        proxyCrf: normalizeProxyCrf(common.proxyCrf ?? common.proxy_crf, 23),
+        logLine,
+        stmts: postprodAuth?.remoteBridge?.stmts,
+        nowIso: postprodAuth?.remoteBridge?.nowIso,
+      });
+    },
+    logLine,
+  });
+  loop.start();
+}

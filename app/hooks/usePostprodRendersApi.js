@@ -521,7 +521,7 @@ function usePostprodRendersApi({
       err.code = "invalid_render_id";
       throw err;
     }
-    const res = await postprodRegenerateAllProxies({ renderIds: [renderId] }, 15 * 60 * 1000);
+    const res = await postprodRegenerateAllProxies(token, { renderIds: [renderId] }, 15 * 60 * 1000);
     if (!res || res.ok === false) {
       const err = new Error(String(res?.error || "proxy_regenerate_failed"));
       err.code = String(res?.error || "proxy_regenerate_failed");
