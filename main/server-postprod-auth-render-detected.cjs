@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const { isRenderArtifactFileName } = require('./render-artifact-names.cjs');
 
+const RENDER_DETECTED_MIN_FILE_AGE_MS = 60_000;
+
 function createRenderDetectedAutoScanHelpers(deps = {}) {
   const {
     db,
@@ -124,6 +126,9 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       startedAt: String(row?.started_at || '').trim() || null,
       expectedName: String(payload?.matchedExpectedRenderName || '').trim(),
       payload,
+      // Rendu en cours sur une station : c'est elle qui le terminera, avec sa
+      // fiche complète. Le scan ne doit ni le compléter ni le dupliquer.
+      managedByStation: status === 'Running' && toPositiveInt(row?.assigned_worker_id) > 0,
     };
   }
 
@@ -485,7 +490,18 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
     let matched = 0;
     let unmatched = 0;
     let firstErrorMessage = '';
+    const scanNowMs = Date.parse(nowIso());
     for (const candidate of candidates) {
+      // Fichier modifié il y a moins d'une minute : probablement encore en
+      // cours d'écriture, repris à un prochain passage.
+      const candidateMtimeMs = Date.parse(String(candidate.fileMtimeAt || ''));
+      if (
+        Number.isFinite(scanNowMs)
+        && Number.isFinite(candidateMtimeMs)
+        && scanNowMs - candidateMtimeMs < RENDER_DETECTED_MIN_FILE_AGE_MS
+      ) {
+        continue;
+      }
       const signature = buildRenderDetectedFileSignature(
         candidate.filePath,
         candidate.fileSize,
@@ -574,6 +590,15 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
         if (candidatesForPath.length > 0) {
           existingRenderCandidate = candidatesForPath[0];
         }
+      }
+      // Fichier d'un rendu qu'une station est en train de produire : laissé à
+      // la station (ni rattaché, ni importé comme nouveau rendu, ni mémorisé ;
+      // une fois le rendu terminé, son chemin est connu et le fichier ignoré).
+      if (existingRenderCandidate?.managedByStation) continue;
+      // Rattachement à un rendu existant : sa fiche est complétée, jamais
+      // remplacée (destinations d'export, configuration du rendu…).
+      if (existingRenderCandidate?.payload && typeof existingRenderCandidate.payload === 'object') {
+        Object.assign(payloadObj, { ...existingRenderCandidate.payload, ...payloadObj });
       }
       if (outputPathKey && knownOutputPathKeys.has(outputPathKey) && toPositiveInt(existingRenderCandidate?.renderId) <= 0) {
         duplicates += 1;
