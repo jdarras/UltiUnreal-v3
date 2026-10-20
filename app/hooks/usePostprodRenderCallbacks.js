@@ -74,7 +74,9 @@ function usePostprodRenderCallbacks({
     if (!token || !workerKey) return;
     try {
       await postprodPatchRenderWorkerAptitude(token, workerKey, apte);
-      await loadPostprodRenderWorkers();
+      // Appelé aussi par la boucle de file (toutes les 5 s) : rechargement
+      // silencieux, sans « Chargement des stations… » qui ferait sauter la page.
+      await loadPostprodRenderWorkers({ silent: true });
     } catch {
       // best-effort
     }

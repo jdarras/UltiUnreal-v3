@@ -69,3 +69,26 @@ test("V3: two simultaneous offline submissions with 99 pending: one queued, one 
   assert.equal(notices.filter((n) => n.message === "postprod.renders.msg.queuedOffline").length, 1);
   assert.equal(notices.filter((n) => n.message === "postprod.renders.msg.offlineQueueFull").length, 1);
 });
+
+// Appelé toutes les 5 s par la boucle de file : la liste des stations est
+// rechargée sans « Chargement des stations… » (qui faisait sauter la page).
+test("updating the local station aptitude reloads the stations silently", async () => {
+  const usePostprodRenderCallbacks = await loadHook();
+  const workerStates = [];
+  const hook = usePostprodRenderCallbacks({
+    postprodAuth: { token: "test", user: { id: 1 } },
+    postprodRenderWorkers: { items: [] },
+    renderWorkerKey: "station-a",
+    setPostprodRenderWorkers: (next) => {
+      workerStates.push(typeof next === "function" ? next({ items: [], loading: false, error: "" }) : next);
+    },
+    setPostprodRenders: () => {},
+    t: (key) => key,
+    showNotice: () => {},
+  });
+
+  await hook.handlePatchLocalWorkerAptitude(true);
+
+  assert.ok(workerStates.length > 0);
+  assert.equal(workerStates.some((state) => state?.loading === true), false);
+});

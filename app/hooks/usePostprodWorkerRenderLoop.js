@@ -537,9 +537,9 @@ function usePostprodWorkerRenderLoop({
           try {
             await postprodCompleteRenderWorkerJob(token, renderId, completionPayload);
             await Promise.all([
-              loadPostprodRenders().catch(() => ({})),
-              loadPostprodRenderWorkers().catch(() => ({})),
-              loadPostprodRenderHealth().catch(() => ({})),
+              loadPostprodRenders({ silent: true }).catch(() => ({})),
+              loadPostprodRenderWorkers({ silent: true }).catch(() => ({})),
+              loadPostprodRenderHealth({ silent: true }).catch(() => ({})),
             ]);
             if (isPostprodQueueRuntimeActive()) {
               await Promise.resolve(
@@ -599,7 +599,7 @@ function usePostprodWorkerRenderLoop({
                 && (currentUserId == null || entry?.userId == null || Number(entry.userId) === currentUserId)
               )).length;
               showNotice(t('postprod.renders.msg.workerQueuedOffline', { count: pendingCount }), 'warn');
-              loadPostprodRenderHealth().catch(() => ({}));
+              loadPostprodRenderHealth({ silent: true }).catch(() => ({}));
             }
           }
         }

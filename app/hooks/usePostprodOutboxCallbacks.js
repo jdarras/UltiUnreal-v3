@@ -73,8 +73,8 @@ function usePostprodOutboxCallbacks({
       updatePostprodOfflineOutbox((current) => applyOutboxReplayOutcome(current, outcome));
       if (replayed > 0) {
         await Promise.all([
-          loadPostprodRenders(),
-          loadPostprodRenderHealth(),
+          loadPostprodRenders({ silent: true }),
+          loadPostprodRenderHealth({ silent: true }),
         ]);
         showNotice(t('postprod.renders.msg.offlineReplaySent', { count: replayed }), 'ok');
       } else if (notifyIfNone && dropped <= 0 && !stoppedOnRecoverableError) {
@@ -146,8 +146,8 @@ function usePostprodOutboxCallbacks({
       updatePostprodWorkerCompletionOutbox((current) => applyOutboxReplayOutcome(current, outcome));
       if (replayed > 0) {
         await Promise.all([
-          loadPostprodRenders(),
-          loadPostprodRenderHealth(),
+          loadPostprodRenders({ silent: true }),
+          loadPostprodRenderHealth({ silent: true }),
         ]);
         showNotice(t('postprod.renders.msg.workerOfflineReplaySent', { count: replayed }), 'ok');
       } else if (notifyIfNone && dropped <= 0 && !stoppedOnRecoverableError) {
