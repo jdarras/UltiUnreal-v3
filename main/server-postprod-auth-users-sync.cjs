@@ -169,7 +169,7 @@ function markUsersSyncPeerOffline(peer, peerKey, errorMessage) {
   const key = resolveUsersSyncPeerKey(peer, peerKey);
   if (!key) return;
   const health = usersSyncRuntimeState.peerHealth.get(key) || { online: true };
-  if (health.online === false) {
+  if (health.online === false && health.lastError === String(errorMessage || '').trim()) {
     usersSyncRuntimeState.peerHealth.set(key, {
       ...health,
       lastError: String(errorMessage || '').trim() || 'failed',
@@ -1262,6 +1262,7 @@ async function pullUsersSyncFromPeer(peer) {
   let applied = 0;
   let skipped = 0;
   let failed = 0;
+  let blockedVersion = null;
   const applyOne = (event) => {
     const result = applyUsersSyncEvent(event, peer);
     if (!result?.ok) throw new Error(result?.reason || 'event_apply_failed');
@@ -1280,6 +1281,7 @@ async function pullUsersSyncFromPeer(peer) {
       maxSeenVersion = eventVersion;
     } catch {
       failed += 1;
+      blockedVersion = eventVersion;
       break;
     }
   }
@@ -1291,6 +1293,7 @@ async function pullUsersSyncFromPeer(peer) {
   return {
     ok: failed === 0,
     ...(failed ? { error: 'event_apply_failed' } : {}),
+    ...(failed ? { blockedVersion } : {}),
     peer: peerId,
     fetched: events.length,
     applied,
@@ -1330,7 +1333,10 @@ async function runUsersSyncPoll() {
         markUsersSyncPeerOnline(peer, peerKey);
         continue;
       }
-      markUsersSyncPeerOffline(peer, peerKey, String(value?.error || 'failed'));
+      const failureMessage = value?.error === 'event_apply_failed'
+        ? `Synchronisation des comptes bloquée à l’événement ${value.blockedVersion}. Les événements suivants restent en attente ; nouvelle tentative au prochain passage.`
+        : String(value?.error || 'failed');
+      markUsersSyncPeerOffline(peer, peerKey, failureMessage);
     }
   } finally {
     usersSyncRuntimeState.polling = false;

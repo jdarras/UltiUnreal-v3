@@ -20,14 +20,14 @@ export async function httpGet(path, timeoutMs = 5000) {
   const url = getBase() + ensureLeadingSlash(path);
   if (window.electron?.httpGet) {
     const r = await window.electron.httpGet(url, {}, timeoutMs);
-    if (!r.ok) throw new Error(r.error || `HTTP ${r.status}`);
+    if (!r.ok) throw toRequestError(r);
     return JSON.parse(r.text || '{}');
   }
   const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
     const txt = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw toRequestError({ status: res.status, text: txt });
     return JSON.parse(txt || '{}');
   } finally { clearTimeout(t); }
 }
@@ -48,9 +48,7 @@ export async function httpPost(path, body = {}, timeoutMs = 5000) {
     };
 
     if (!r || r.ok === false) {
-      const parsedErr = r?.text ? parseText(r.text) : null;
-      const errMsg = parsedErr?.error || r?.error || `HTTP ${r?.status || 'fail'}`;
-      throw new Error(errMsg);
+      throw toRequestError(r);
     }
 
     if (typeof r?.text === 'string') {
@@ -70,7 +68,7 @@ export async function httpPost(path, body = {}, timeoutMs = 5000) {
       signal: ctrl.signal,
     });
     const txt = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw toRequestError({ status: res.status, text: txt });
     try { return JSON.parse(txt || '{}'); } catch { return { ok: true, text: txt }; }
   } finally { clearTimeout(t); }
 }
@@ -139,10 +137,15 @@ export async function httpRequest(path, opts = {}) {
 }
 
 export function toRequestError(res) {
-  const code = String(res?.json?.error || '').trim();
+  let data = res?.json || res?.data;
+  if (!data) {
+    try { data = JSON.parse(res?.text || '{}'); } catch { data = {}; }
+  }
+  const code = String(data?.error || '').trim();
   const message = String(
-    res?.json?.message ||
-    res?.json?.error ||
+    (code === 'station_not_registered' ? 'Station non ajoutée : ajoutez ce poste manuellement sur la station cible avant de la commander.' : '') ||
+    data?.message ||
+    data?.error ||
     res?.error ||
     `HTTP ${Number(res?.status || 0) || 500}`
   );
@@ -317,6 +320,9 @@ export function __parseAgentError(res) {
 
 export function __toAgentError(parsed, fallbackStatus = 500) {
   const p = parsed && typeof parsed === 'object' ? parsed : {};
+  if (p.code === 'station_not_registered') {
+    return toRequestError({ status: p.status, json: { error: p.code }, text: p.text });
+  }
   const err = new Error(
     String(
       p.code ||

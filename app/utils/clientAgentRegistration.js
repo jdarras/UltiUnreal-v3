@@ -48,3 +48,24 @@ export function createClientHostLoader(loadHosts, readIdentity, register, report
     return hosts;
   };
 }
+
+// Deduplicate polling failures, but retry logging if the log endpoint is down.
+export function createClientRegistrationReporter(writeLog) {
+  let last = '';
+  const report = async (error) => {
+    const message = String(error?.message || error);
+    if (last === message) return;
+    last = message;
+    try {
+      await writeLog({
+        level: 'warn',
+        action: 'client_agent_registration_failed',
+        message: `Déclaration de l’agent local impossible : ${message}. La liste des stations reste disponible ; nouvelle tentative au prochain chargement.`,
+      });
+    } catch {
+      if (last === message) last = '';
+    }
+  };
+  report.reset = () => { last = ''; };
+  return report;
+}

@@ -83,6 +83,7 @@ test('account sync stops at a failed event and retries it on the next poll', asy
   let cursor = 0;
   let fail = true;
   const visited = [];
+  const logs = [];
   t.mock.method(globalThis, 'fetch', async () => ({
     ok: true, text: async () => JSON.stringify({
       ok: true, latestVersion: 3,
@@ -90,6 +91,7 @@ test('account sync stops at a failed event and retries it on the next poll', asy
     }),
   }));
   const sync = createUsersSyncHelpers({
+    logLine: (entry) => logs.push(entry),
     hostsToList,
     readCommonServerConfigFile: () => ({ localIp: '192.0.2.1' }),
     readHostsServerConfigFile: () => [{ ip: '192.0.2.2' }],
@@ -107,8 +109,15 @@ test('account sync stops at a failed event and retries it on the next poll', asy
   await sync.runUsersSyncPoll();
   assert.equal(cursor, 1);
   assert.deepEqual(visited, ['1', '2']);
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].level, 'warn');
+  assert.match(logs[0].message, /bloquée à l’événement 2/);
+  assert.match(logs[0].message, /restent en attente/);
+  await sync.runUsersSyncPoll();
+  assert.equal(logs.length, 1, 'identical blockage does not flood the logs');
   fail = false;
   await sync.runUsersSyncPoll();
   assert.equal(cursor, 3);
-  assert.deepEqual(visited, ['1', '2', '2', '3']);
+  assert.deepEqual(visited, ['1', '2', '2', '2', '3']);
+  assert.equal(logs.at(-1).action, 'users_sync_peer_recovered');
 });

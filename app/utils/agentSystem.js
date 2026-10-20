@@ -1,5 +1,5 @@
 import { readIdentity } from './identity';
-import { createClientAgentRegistrar, createClientHostLoader } from './clientAgentRegistration.js';
+import { createClientAgentRegistrar, createClientHostLoader, createClientRegistrationReporter } from './clientAgentRegistration.js';
 import {
   httpGet, httpPost, httpRequest, toRequestError,
   normalizeHosts, getBase,
@@ -31,11 +31,24 @@ export function getAgentBaseUrl() {
 }
 
 const registerClientAgent = createClientAgentRegistrar(__agentRequest);
+// Store this on the controller: the local agent may be unreachable.
+const reportRegistrationFailure = createClientRegistrationReporter(
+  (event) => httpPost('/agent/logs/ui', {
+    ...event,
+    message: `Poste ${readIdentity()?.localIp || 'local'} — ${event.message}`,
+  }, 2000),
+);
 export const getHosts = createClientHostLoader(
   async () => normalizeHosts(await httpGet('/agent/hosts')),
   readIdentity,
-  registerClientAgent,
-  (error) => console.warn('[UltiUnreal] Configuration de l’agent local impossible ; liste des stations conservée.', error),
+  async (identity, hosts) => {
+    await registerClientAgent(identity, hosts);
+    reportRegistrationFailure.reset();
+  },
+  (error) => {
+    console.warn('[UltiUnreal] Configuration de l’agent local impossible ; liste des stations conservée.', error);
+    return reportRegistrationFailure(error);
+  },
 );
 export async function getProjects(opts = {}) {
   const light = opts.light ? '?light=1' : '';

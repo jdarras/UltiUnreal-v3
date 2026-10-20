@@ -1,10 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clientAgentRegistrations, createClientAgentRegistrar, createClientHostLoader } from '../../app/utils/clientAgentRegistration.js';
+import { clientAgentRegistrations, createClientAgentRegistrar, createClientHostLoader, createClientRegistrationReporter } from '../../app/utils/clientAgentRegistration.js';
 
 const identity = { role: 'client', localIp: '192.0.2.2', serverIp: '192.0.2.1', agentPort: 4000 };
 const own = { ip: identity.localIp, syncRoot: 'D:\\Projects', unrealEditors: { '5.6': 'D:\\UE\\UnrealEditor.exe' } };
 const hosts = [{ ip: identity.serverIp, name: 'Controller' }, own, { ip: '192.0.2.99' }];
+
+test('local registration failures reach Logs once per failure episode', async () => {
+  const logs = [];
+  const report = createClientRegistrationReporter(async (event) => logs.push(event));
+  const error = new Error('agent unavailable');
+  await report(error);
+  await report(error);
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].level, 'warn');
+  assert.equal(logs[0].action, 'client_agent_registration_failed');
+  assert.match(logs[0].message, /liste des stations reste disponible/);
+  report.reset();
+  await report(error);
+  assert.equal(logs.length, 2);
+});
+
+test('unavailable log endpoint does not reject and is retried', async () => {
+  let attempts = 0;
+  const report = createClientRegistrationReporter(async () => {
+    if (++attempts === 1) throw new Error('offline');
+  });
+  await report(new Error('agent unavailable'));
+  await report(new Error('agent unavailable'));
+  await report(new Error('agent unavailable'));
+  assert.equal(attempts, 2);
+});
 
 test('host list is available while local agent registration is still pending', async () => {
   let finish;
