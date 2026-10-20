@@ -3,8 +3,10 @@
 const fs = require('fs');
 const path = require('path');
 const { isRenderArtifactFileName } = require('./render-artifact-names.cjs');
+const { parseSequenceFrame, sequenceKey, sequencePatternName } = require('./render-image-sequence.cjs');
 
 const RENDER_DETECTED_MIN_FILE_AGE_MS = 60_000;
+const RENDER_DETECTED_MAX_VISITED_FILES = 50_000;
 
 function createRenderDetectedAutoScanHelpers(deps = {}) {
   const {
@@ -86,11 +88,15 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       .toLowerCase();
   }
 
-  function buildKnownRenderOutputPathKeySet() {
+  function listRenderRowsOnce() {
+    const rows = stmts?.listRenderJobs?.all?.();
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  // Chemins de sortie connus : exacts, et clé de séquence pour les images
+  // (une séquence connue n'est jamais réimportée image par image).
+  function buildKnownRenderOutputPathKeySet(rows = listRenderRowsOnce()) {
     const out = new Set();
-    const rows = Array.isArray(stmts?.listRenderJobs?.all?.())
-      ? stmts.listRenderJobs.all()
-      : [];
     for (const row of rows) {
       const outputPath = sanitizeRenderOutputPath(
         row?.output_path
@@ -108,6 +114,9 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       const payloadKey = normalizeDetectedOutputPathKey(payloadOutputPath);
       if (directKey) out.add(directKey);
       if (payloadKey) out.add(payloadKey);
+      for (const seqKey of [sequenceKey(outputPath), sequenceKey(payloadOutputPath)]) {
+        if (seqKey) out.add(seqKey);
+      }
     }
     return out;
   }
@@ -132,11 +141,8 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
     };
   }
 
-  function buildActiveTaskRenderCandidatesByTaskId() {
+  function buildActiveTaskRenderCandidatesByTaskId(rows = listRenderRowsOnce()) {
     const out = new Map();
-    const rows = Array.isArray(stmts?.listRenderJobs?.all?.())
-      ? stmts.listRenderJobs.all()
-      : [];
     for (const row of rows) {
       const candidate = buildActiveRenderCandidateFromRow(row);
       if (!candidate) continue;
@@ -154,11 +160,8 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
     return out;
   }
 
-  function buildActiveRenderCandidatesByOutputPathKey() {
+  function buildActiveRenderCandidatesByOutputPathKey(rows = listRenderRowsOnce()) {
     const out = new Map();
-    const rows = Array.isArray(stmts?.listRenderJobs?.all?.())
-      ? stmts.listRenderJobs.all()
-      : [];
     for (const row of rows) {
       const candidate = buildActiveRenderCandidateFromRow(row);
       if (!candidate) continue;
@@ -174,10 +177,12 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
         || payload?.filePath
         || ''
       );
-      const candidateKeys = [
+      const candidateKeys = [...new Set([
         normalizeDetectedOutputPathKey(directPath),
         normalizeDetectedOutputPathKey(payloadPath),
-      ].filter(Boolean);
+        sequenceKey(directPath),
+        sequenceKey(payloadPath),
+      ].filter(Boolean))];
       if (candidateKeys.length <= 0) continue;
       for (const key of candidateKeys) {
         const list = out.get(key) || [];
@@ -223,7 +228,11 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       if (!fs.existsSync(absRoot)) continue;
       stack.push({ sourceDir: absRoot, currentDir: absRoot });
     }
-    while (stack.length > 0 && out.length < renderDetectedScanMaxFiles) {
+    // Parcours borné par sécurité ; la sélection finale garde les fichiers
+    // les plus récents (un nouveau rendu est toujours examiné).
+    let visitedFiles = 0;
+    const sequences = new Map();
+    while (stack.length > 0 && visitedFiles < RENDER_DETECTED_MAX_VISITED_FILES) {
       const next = stack.pop();
       if (!next || !next.currentDir) continue;
       let entries = [];
@@ -245,6 +254,7 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
           continue;
         }
         if (!entry.isFile()) continue;
+        visitedFiles += 1;
         if (isRenderArtifactFileName(entryNameLower)) {
           continue;
         }
@@ -280,7 +290,7 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
         ) {
           continue;
         }
-        out.push({
+        const candidate = {
           sourceDir: next.sourceDir,
           filePath: absPath,
           relativePath: String(relPath || entry.name || '').replace(/\\/g, '/'),
@@ -288,12 +298,51 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
           fileExt: ext,
           fileSize: size,
           fileMtimeAt: mtimeIso,
-        });
-        if (out.length >= renderDetectedScanMaxFiles) break;
+        };
+        // Image numérotée : regroupée avec les autres images de sa séquence.
+        const frame = parseSequenceFrame(candidate.fileName);
+        if (frame) {
+          const groupKey = [
+            normalizeDetectedOutputPathKey(next.currentDir),
+            frame.prefix.toLowerCase(),
+            frame.digits.length,
+            frame.ext.toLowerCase(),
+          ].join('|');
+          const group = sequences.get(groupKey) || { frame, frames: [] };
+          group.frames.push(candidate);
+          sequences.set(groupKey, group);
+          continue;
+        }
+        out.push(candidate);
       }
     }
-    out.sort((a, b) => String(a.fileMtimeAt || '').localeCompare(String(b.fileMtimeAt || '')));
-    return out;
+    for (const { frame, frames } of sequences.values()) {
+      if (frames.length < 2) {
+        out.push(frames[0]);
+        continue;
+      }
+      // Une séquence = un seul rendu, désigné par son modèle (Shot.####.exr).
+      const first = frames[0];
+      const patternName = sequencePatternName(frame);
+      const relativeDir = path.posix.dirname(first.relativePath);
+      out.push({
+        sourceDir: first.sourceDir,
+        filePath: path.join(path.dirname(first.filePath), patternName),
+        relativePath: relativeDir === '.' ? patternName : relativeDir + '/' + patternName,
+        fileName: patternName,
+        fileExt: first.fileExt,
+        fileSize: frames.reduce((sum, entry) => sum + entry.fileSize, 0),
+        // Date de la dernière image : la séquence n'est reprise qu'une fois
+        // son écriture terminée.
+        fileMtimeAt: frames.reduce((latest, entry) => (entry.fileMtimeAt > latest ? entry.fileMtimeAt : latest), ''),
+        isSequence: true,
+        frameCount: frames.length,
+      });
+    }
+    out.sort((a, b) => String(b.fileMtimeAt || '').localeCompare(String(a.fileMtimeAt || '')));
+    const selected = out.slice(0, renderDetectedScanMaxFiles);
+    selected.sort((a, b) => String(a.fileMtimeAt || '').localeCompare(String(b.fileMtimeAt || '')));
+    return selected;
   }
 
   function resolveDetectedRenderProjectName(candidate) {
@@ -363,10 +412,11 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       return missingUserSummary;
     }
     const candidates = listRenderDetectedFileCandidates(detectedRoots);
-    const knownOutputPathKeys = buildKnownRenderOutputPathKeySet();
+    const renderRows = listRenderRowsOnce();
+    const knownOutputPathKeys = buildKnownRenderOutputPathKeySet(renderRows);
     const taskMatchCatalog = buildExpectedRenderTaskMatchCatalog(stmts);
-    const activeTaskRenderCandidatesByTaskId = buildActiveTaskRenderCandidatesByTaskId();
-    const activeRenderCandidatesByOutputPathKey = buildActiveRenderCandidatesByOutputPathKey();
+    const activeTaskRenderCandidatesByTaskId = buildActiveTaskRenderCandidatesByTaskId(renderRows);
+    const activeRenderCandidatesByOutputPathKey = buildActiveRenderCandidatesByOutputPathKey(renderRows);
     const taskDetectedProgressById = new Map();
     const proxyScheduledRenderIds = new Set();
     const tx = db.transaction((payload) => {
@@ -511,7 +561,10 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       const templateName = resolveDetectedRenderTemplateName(candidate);
       const filePath = sanitizeRenderOutputPath(candidate.filePath);
       const sourceDir = sanitizeRenderOutputPath(candidate.sourceDir);
-      const outputPathKey = normalizeDetectedOutputPathKey(filePath);
+      // Séquence : comparée par sa clé (indépendante de l'écriture du numéro).
+      const outputPathKey = candidate.isSequence
+        ? sequenceKey(filePath)
+        : normalizeDetectedOutputPathKey(filePath);
       const fileName = String(candidate.fileName || '').trim().slice(0, 260);
       const fileExt = String(candidate.fileExt || '').trim().slice(0, 32).toLowerCase();
       const fileSize = Math.max(0, Math.trunc(Number(candidate.fileSize) || 0));

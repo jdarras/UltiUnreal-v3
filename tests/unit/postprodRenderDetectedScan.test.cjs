@@ -94,3 +94,93 @@ test('a file modified less than a minute ago is not imported yet', (t) => {
   assert.equal(summary.imported, 0);
   assert.equal(writes.inserted.length, 0);
 });
+
+const { sequenceKey, parseSequenceFrame } = require('../../main/render-image-sequence.cjs');
+
+test('every way of writing a frame number designates the same sequence', () => {
+  const keys = ['D:/R/Shot.0001.exr', 'D:\\R\\Shot.{frame_number}.exr', 'D:/R/Shot.%04d.exr', 'D:/R/Shot.####.exr']
+    .map(sequenceKey);
+  assert.equal(new Set(keys).size, 1);
+  assert.equal(sequenceKey('D:/R/Take_001.mp4'), '');
+  assert.equal(parseSequenceFrame('Shot.0012.exr').frame, 12);
+  assert.equal(parseSequenceFrame('Shot.mov'), null);
+});
+
+function writeFrames(dir, count, ageMs) {
+  fs.mkdirSync(dir, { recursive: true });
+  const mtime = new Date(Date.now() - ageMs);
+  for (let i = 1; i <= count; i += 1) {
+    const f = path.join(dir, `Shot.${String(i).padStart(4, '0')}.exr`);
+    fs.writeFileSync(f, 'x');
+    fs.utimesSync(f, mtime, mtime);
+  }
+}
+
+function sequenceHarness(t, renders) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uu-detected-seq-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const inserted = [];
+  const run = (list) => ({ run: (...args) => { list.push(args); return { lastInsertRowid: 900 + list.length }; } });
+  const helpers = createRenderDetectedAutoScanHelpers({
+    db: { transaction: (fn) => (arg) => fn(arg) },
+    stmts: {
+      listRenderJobs: { all: () => renders(root) },
+      findRenderDetectedFileBySignature: { get: () => undefined },
+      countRenderDetectedFilesByTaskId: { get: () => ({ n: 0 }) },
+      updateRenderJobPayload: run([]), updateRenderJobTransition: run([]), updateRenderJobOutputPath: run([]),
+      clearRenderWorkerCurrentJobByRenderId: run([]), insertRenderJobEvent: run([]), insertRenderDetectedFile: run([]),
+      insertRenderJob: run(inserted),
+    },
+    resolveRenderDetectedRoots: () => [root],
+    renderDetectedExtensions: new Set(['.exr', '.png', '.mp4']),
+    buildRenderDetectedFileSignature: (p, size, mtimeAt) => `${p}|${size}|${mtimeAt}`,
+  });
+  return { root, helpers, inserted };
+}
+
+test('an image sequence of a finished render is never re-imported frame by frame', (t) => {
+  const { root, helpers, inserted } = sequenceHarness(t, (dir) => [{
+    id: 400, status: 'Done', review_status: 'to_validate', assigned_worker_id: 4,
+    output_path: path.join(dir, '400_0069', 'Shot.{frame_number}.exr'), payload_json: '{}',
+  }]);
+  writeFrames(path.join(root, '400_0069'), 25, 10 * 60_000);
+  helpers.importDetectedRenderOutputs({ actorUserId: 1, force: true });
+  assert.equal(inserted.length, 0);
+});
+
+test('an unknown image sequence is imported once, as a pattern', (t) => {
+  const { root, helpers } = sequenceHarness(t, () => []);
+  writeFrames(path.join(root, 'manuel'), 25, 10 * 60_000);
+  const candidates = helpers.listRenderDetectedFileCandidates([root]);
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].fileName, 'Shot.####.exr');
+  assert.equal(candidates[0].frameCount, 25);
+});
+
+test('a sequence still being written is not imported yet', (t) => {
+  const { root, helpers, inserted } = sequenceHarness(t, () => []);
+  const dir = path.join(root, 'en-cours');
+  writeFrames(dir, 24, 10 * 60_000);
+  fs.writeFileSync(path.join(dir, 'Shot.0025.exr'), 'x');
+  helpers.importDetectedRenderOutputs({ actorUserId: 1, force: true });
+  assert.equal(inserted.length, 0);
+});
+
+test('beyond the selection limit, the most recent files are the ones examined', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uu-detected-limit-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  for (let i = 0; i < 30; i += 1) {
+    const f = path.join(root, `old-${i}.mp4`);
+    fs.writeFileSync(f, 'x');
+    const mtime = new Date(Date.now() - (60 + i) * 60_000);
+    fs.utimesSync(f, mtime, mtime);
+  }
+  fs.writeFileSync(path.join(root, 'nouveau.mp4'), 'x');
+  const { listRenderDetectedFileCandidates } = createRenderDetectedAutoScanHelpers({
+    renderDetectedExtensions: new Set(['.mp4']),
+    renderDetectedScanMaxFiles: 5,
+  });
+  const names = listRenderDetectedFileCandidates([root]).map((c) => c.fileName);
+  assert.equal(names.length, 5);
+  assert.ok(names.includes('nouveau.mp4'));
+});
