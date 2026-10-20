@@ -10,6 +10,7 @@ import {
   getHosts,
 } from "../utils/agent";
 import { resolvePostprodRendersError } from "../utils/postprodErrorHelpers";
+import { keepIfUnchanged } from "../utils/stateEquality.js";
 
 function usePostprodRendersApi({
   postprodAuth,
@@ -447,7 +448,7 @@ function usePostprodRendersApi({
         return;
       }
 
-      setPostprodRenders({ items: dedupedItems, loading: false, error: '', detectedScan });
+      setPostprodRenders((prev) => keepIfUnchanged(prev, { items: dedupedItems, loading: false, error: '', detectedScan }));
       if (showDetectedNotice && detectedScan) {
         showNotice(
           t('postprod.renders.msg.detectedScanSummary', {

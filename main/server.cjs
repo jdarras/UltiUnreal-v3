@@ -129,6 +129,24 @@ function getCommonCached() {
   return data;
 }
 
+// Stations configurées pour le contrôle d'accès de chaque requête : relues
+// seulement si le fichier a changé (date ou taille), pour que l'ajout ou le
+// retrait d'une station prenne effet immédiatement, sans délai de cache.
+let hostsForAccessCache = { signature: '', data: {} };
+function getHostsForAccessControl() {
+  let signature = '';
+  try {
+    const st = fs.statSync(HOSTS_FILE);
+    signature = `${st.mtimeMs}|${st.size}`;
+  } catch {
+    return readJSON(HOSTS_FILE) || {};
+  }
+  if (signature !== hostsForAccessCache.signature) {
+    hostsForAccessCache = { signature, data: readJSON(HOSTS_FILE) || {} };
+  }
+  return hostsForAccessCache.data;
+}
+
 function setCommonCache(data) {
   applyLogStorageLimitsFromCommon(data);
   applyAuditStorageLimitsFromCommon(data);
@@ -1141,7 +1159,7 @@ const server = http.createServer(async (req, res) => {
     } catch {
       return sendJSON(res, 400, { ok: false, error: 'bad url' });
     }
-    if (!isAgentRequestAllowed(req, url.pathname, readJSON(HOSTS_FILE) || {})) {
+    if (!isAgentRequestAllowed(req, url.pathname, getHostsForAccessControl())) {
       return sendJSON(res, 403, {
         ok: false,
         error: 'station_not_registered',

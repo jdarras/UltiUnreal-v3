@@ -57,6 +57,7 @@ import { startPostprodAsyncLoop } from "./hooks/postprodAsyncLoop";
 import "./global.css";
 import { readIdentity, writeIdentity } from "./utils/identity";
 import { createT, preloadI18n } from "./i18n";
+import { keepIfUnchanged } from "./utils/stateEquality.js";
 
 const LS_SYNC_KEY = 'uu_client_syncEnabled';
 
@@ -571,7 +572,7 @@ function App() {
         try {
           const status = await getLogsStorage({ allHosts: true });
           if (status && typeof status === 'object' && status.ok !== false) {
-            setLogsStorageSummary(status);
+            setLogsStorageSummary((prev) => keepIfUnchanged(prev, status));
           }
         } catch {
           // conserve le dernier état connu en cas d'erreur réseau temporaire

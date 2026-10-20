@@ -24,6 +24,7 @@ import {
   isPostprodQueueRuntimeActive,
   LS_POSTPROD_RENDERS_QUEUE_RUNTIME_MODE_KEY,
 } from "../utils/postprodAuthHelpers";
+import { keepIfUnchanged } from "../utils/stateEquality.js";
 import {
   normalizeBooleanFlag,
   buildDefaultUnrealProcessExecution,
@@ -58,7 +59,7 @@ function usePostprodRenderCallbacks({
     try {
       const res = await postprodListRenderWorkers(token);
       const items = Array.isArray(res?.workers) ? res.workers : [];
-      setPostprodRenderWorkers({ items, loading: false, error: '' });
+      setPostprodRenderWorkers((prev) => keepIfUnchanged(prev, { items, loading: false, error: '' }));
     } catch (e) {
       setPostprodRenderWorkers((prev) => ({
         ...prev,
