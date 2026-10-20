@@ -621,6 +621,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     sendJobToStation,
     readCommonServerConfigFile,
     commonServerFile,
+    logLine,
   });
   if (rendersRoutesHandled) return true;
 

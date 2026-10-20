@@ -285,7 +285,17 @@ function scheduleRenderExportForValidatedRender({
       const destinationIds = Array.isArray(payload?.exportDestinationIds)
         ? payload.exportDestinationIds
         : [];
-      if (!destinationIds.length) return;
+      if (!destinationIds.length) {
+        // Tracé : un rendu validé sans destination n'est copié nulle part.
+        logLineSafe(logLine, {
+          level: 'info',
+          src: 'postprod',
+          action: 'render_export_skipped',
+          message: 'no_export_destination',
+          data: { renderId },
+        });
+        return;
+      }
 
       const result = applyRenderExport({
         renderRow,
@@ -802,4 +812,5 @@ module.exports = {
   handlePostprodRenderTransitionRoutes,
   isUnfinishedMediaError,
   scheduleProxyGenerationForDoneRender,
+  scheduleRenderExportForValidatedRender,
 };

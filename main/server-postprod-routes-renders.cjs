@@ -2,6 +2,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { RENDER_JOB_MARKER, isOwnedRenderJobFolder } = require('./render-job-folder.cjs');
+const { scheduleRenderExportForValidatedRender } = require('./server-postprod-routes-render-transitions.cjs');
 
 function readSafeCommonConfig(readCommonServerConfigFile, commonServerFile) {
   if (typeof readCommonServerConfigFile !== 'function') return {};
@@ -531,6 +532,7 @@ async function handlePostprodRendersRoutes({
   sendJobToStation = null,
   readCommonServerConfigFile = null,
   commonServerFile = '',
+  logLine = () => {},
 }) {
   if (pathname === '/agent/postprod/renders/reserve-id' || pathname === '/agent/postprod/render-jobs/reserve-id') {
     if (req.method !== 'POST') {
@@ -1366,6 +1368,17 @@ async function handlePostprodRendersRoutes({
       now
     );
     const updated = stmts.findRenderJobById.get(renderId);
+    // Rendu déjà validé : les destinations choisies maintenant sont servies
+    // tout de suite (sinon il faudrait le dévalider puis le revalider).
+    if (String(updated?.review_status || '').trim() === 'validated' && exportDestinationIds.length > 0) {
+      scheduleRenderExportForValidatedRender({
+        renderId,
+        renderRow: updated,
+        readCommonServerConfigFile,
+        commonServerFile,
+        logLine,
+      });
+    }
     const payload = buildRenderJobPayload(updated);
     audit(
       auth.session.user_id,
