@@ -31,7 +31,7 @@ function isDetectedRenderSource(source = "") {
   return token === "detected" || token === "detected_file";
 }
 
-function toRenderSortStamp(render = null) {
+export function toRenderSortStamp(render = null) {
   const candidates = [
     render?.updatedAt,
     render?.finishedAt,

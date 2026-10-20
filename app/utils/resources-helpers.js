@@ -274,7 +274,7 @@ export function normalizeUeVersionList(list) {
   return out;
 }
 
-function stripHtml(value) {
+export function stripHtml(value) {
   const raw = String(value || '');
   if (!raw) return '';
   return raw

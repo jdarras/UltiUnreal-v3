@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { useRenderFocusRequestController } from "../useTaskFocusRequestController";
+import { toRenderSortStamp, useRenderFocusRequestController } from "../useTaskFocusRequestController";
 import { useRenderEditorCardListData } from "./useRenderEditorCardListData";
 import { useRenderEditorCardAutoRenderData } from "./useRenderEditorCardAutoRenderData";
 import { normalizeTaskVisualStatusKey } from "../../helpers";
@@ -16,20 +16,6 @@ function resolveRenderLinkedTaskId(render = null) {
     ? render.payload
     : {};
   return toPositiveTaskId(render?.linkedTaskId || payload?.taskId || 0);
-}
-
-function toRenderSortStamp(render = null) {
-  const candidates = [
-    render?.updatedAt,
-    render?.finishedAt,
-    render?.startedAt,
-    render?.createdAt,
-  ];
-  for (const candidate of candidates) {
-    const parsed = Date.parse(String(candidate || "").trim());
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 0;
 }
 
 function normalizeIdentityToken(value = "") {

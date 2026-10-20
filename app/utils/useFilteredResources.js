@@ -1,21 +1,6 @@
 import React from 'react';
 import { normalizeValue, normalizeSearch, normalizeList } from './normalize';
-
-function stripHtml(value) {
-  const raw = String(value || '');
-  if (!raw) return '';
-  return raw
-    .replace(/<\s*br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|li|ul|ol|h\d)>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
+import { stripHtml } from "./resources-helpers.js";
 
 function extractVendorDescription(item) {
   const cached = typeof item?.vendorDescription === 'string'

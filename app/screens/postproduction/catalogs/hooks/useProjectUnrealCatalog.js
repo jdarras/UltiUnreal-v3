@@ -1,24 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { safeT } from "../../shared/helpers";
+import { normalizeAssetLabel } from "../../renderEditor/hooks/autoRender/utils";
 
 function normalizeAssetPath(entry) {
   if (entry == null) return "";
   if (typeof entry === "string" || typeof entry === "number") return String(entry).trim();
   if (typeof entry !== "object") return "";
   return String(entry?.assetPath || entry?.path || entry?.name || "").trim();
-}
-
-function normalizeAssetLabel(entry) {
-  if (entry == null) return "";
-  if (typeof entry === "string" || typeof entry === "number") {
-    const raw = String(entry).trim();
-    return raw.split("/").filter(Boolean).pop() || raw;
-  }
-  if (typeof entry !== "object") return "";
-  const direct = String(entry?.name || entry?.displayName || "").trim();
-  if (direct) return direct;
-  const raw = normalizeAssetPath(entry);
-  return raw.split("/").filter(Boolean).pop() || raw;
 }
 
 export function useProjectUnrealCatalog({
