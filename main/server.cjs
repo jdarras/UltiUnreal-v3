@@ -62,7 +62,7 @@ const zlib = require('zlib');
 const { evaluateBrowserOrigin, corsOriginHeaders } = require('./server-request-security.cjs');
 const {
   isAllowedPeerAddress,
-  collectPeerAddressCandidates,
+  isAgentRequestAllowed,
 } = require('./server-peer-security.cjs');
 const {
   readJSON,
@@ -99,7 +99,6 @@ const {
   handleHostsOnlineRoutes,
   heartbeatLoop,
   getOnlineState,
-  getPresenceVolatile,
 } = require('./server-hosts-online.cjs');
 const { resolveRenderAvailability, RENDER_AVAILABILITY_VALUES } = require('./server-normalize.cjs');
 const { createPostprodAuth, applyAuditStorageLimitsFromCommon } = require('./server-postprod-auth.cjs');
@@ -1130,6 +1129,13 @@ const server = http.createServer(async (req, res) => {
     } catch {
       return sendJSON(res, 400, { ok: false, error: 'bad url' });
     }
+    if (!isAgentRequestAllowed(req, url.pathname, readJSON(HOSTS_FILE) || {})) {
+      return sendJSON(res, 403, {
+        ok: false,
+        error: 'station_not_registered',
+        message: 'Cette station doit être ajoutée manuellement avant de commander cet agent.',
+      });
+    }
 
     // Compression support
     const encHeader = String(req.headers?.['accept-encoding'] || '');
@@ -1180,15 +1186,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     const commonCfgForRemoteRoutes = getCommonCached() || {};
-    if (url.pathname.startsWith('/agent/postprod/remote/')) {
-      const knownPeerAddresses = collectPeerAddressCandidates(
-        readJSON(HOSTS_FILE) || {},
-        getPresenceVolatile() || {}
-      );
-      if (!isAllowedPeerAddress(req?.socket?.remoteAddress, knownPeerAddresses)) {
-        return sendJSON(res, 403, { ok: false, error: 'remote_station_forbidden' });
-      }
-    }
     const handledRemote = await handlePostprodRemoteJobRoutes({
       req,
       res,

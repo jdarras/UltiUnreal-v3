@@ -1,4 +1,5 @@
 import { readIdentity } from './identity';
+import { createClientAgentRegistrar } from './clientAgentRegistration.js';
 import {
   httpGet, httpPost, httpRequest, toRequestError,
   normalizeHosts, getBase,
@@ -29,7 +30,12 @@ export function getAgentBaseUrl() {
   return getBase();
 }
 
-export async function getHosts()  { const raw = await httpGet('/agent/hosts'); return normalizeHosts(raw); }
+const registerClientAgent = createClientAgentRegistrar(__agentRequest);
+export async function getHosts() {
+  const hosts = normalizeHosts(await httpGet('/agent/hosts'));
+  await registerClientAgent(readIdentity(), hosts);
+  return hosts;
+}
 export async function getProjects(opts = {}) {
   const light = opts.light ? '?light=1' : '';
   const timeoutMsRaw = Number(opts.timeoutMs);

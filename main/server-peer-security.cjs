@@ -1,4 +1,29 @@
 'use strict';
+const os = require('os');
+const { hostsToList } = require('./server-normalize.cjs');
+
+function localStationAddresses() {
+  const addresses = ['127.0.0.1', '::1', 'localhost'];
+  for (const entries of Object.values(os.networkInterfaces())) {
+    for (const entry of entries || []) addresses.push(entry.address);
+  }
+  return addresses.map(normalizeNetworkAddress);
+}
+
+// Only the persisted, manually added stations are peers. Discovery metadata
+// must never be supplied to this authorization decision.
+function isConfiguredPeer(remoteAddress, hosts) {
+  const addresses = hostsToList(hosts).map((host) => host.ip);
+  return isAllowedPeerAddress(remoteAddress, [...localStationAddresses(), ...addresses]);
+}
+
+function isAgentRequestAllowed(req, pathname, hosts) {
+  if (req.method === 'GET' && pathname === '/agent/ping') return true;
+  if (req.method === 'POST' && pathname === '/agent/presence') return true;
+  // User-facing Postprod routes enforce their own sessions and roles.
+  if (pathname.startsWith('/agent/postprod/') && !pathname.startsWith('/agent/postprod/remote/')) return true;
+  return isConfiguredPeer(req.socket?.remoteAddress, hosts);
+}
 
 function normalizeNetworkAddress(value) {
   let address = String(value || '').trim().toLowerCase();
@@ -47,6 +72,9 @@ function collectPeerAddressCandidates(...sources) {
 }
 
 module.exports = {
+  localStationAddresses,
+  isConfiguredPeer,
+  isAgentRequestAllowed,
   normalizeNetworkAddress,
   isAllowedPeerAddress,
   collectPeerAddressCandidates,

@@ -4,6 +4,7 @@ const os = require('os');
 function createUsersSyncHelpers(deps = {}) {
   const {
     stmts,
+    db,
     commonServerFile,
     hostsServerFile,
     hostsToList = () => [],
@@ -43,7 +44,6 @@ function createUsersSyncHelpers(deps = {}) {
     MAX_USERS_SYNC_POLL_INTERVAL_MS = 60000,
     DEFAULT_USERS_SYNC_POLL_INTERVAL_MS = 8000,
     DEFAULT_USERS_SYNC_AGENT_PORT = 4000,
-    listDiscoveredUsersSyncPeers = () => [],
     nowIso = () => new Date().toISOString(),
     safeParseObjectJson = () => ({}),
     refreshRolesCache = () => {},
@@ -609,7 +609,6 @@ function resolveUsersSyncAgentPort() {
 function listUsersSyncPeers() {
   const hostsRaw = readHostsServerConfigFile(hostsServerFile);
   const hostList = hostsToList(hostsRaw);
-  const common = readCommonServerConfigFile(commonServerFile);
   const commonPort = resolveUsersSyncAgentPort();
   const peers = [];
   const seen = new Set();
@@ -636,13 +635,6 @@ function listUsersSyncPeers() {
 
   for (const host of hostList) {
     addPeer(host);
-  }
-
-  if (common?.usersSyncDetectedPeers !== false) {
-    const discoveredPeers = listDiscoveredUsersSyncPeers();
-    for (const peer of Array.isArray(discoveredPeers) ? discoveredPeers : []) {
-      addPeer(peer);
-    }
   }
 
   peers.sort((a, b) => String(a.stationName || '').localeCompare(String(b.stationName || '')));
@@ -1270,25 +1262,35 @@ async function pullUsersSyncFromPeer(peer) {
   let applied = 0;
   let skipped = 0;
   let failed = 0;
+  const applyOne = (event) => {
+    const result = applyUsersSyncEvent(event, peer);
+    if (!result?.ok) throw new Error(result?.reason || 'event_apply_failed');
+    return result;
+  };
+  // The receipt and its effect must commit together: otherwise a failed event
+  // would look like a duplicate on retry.
+  const applyAtomic = db ? db.transaction(applyOne) : applyOne;
   for (const event of events) {
     const eventVersion = normalizeSyncVersion(event?.version);
-    if (eventVersion > maxSeenVersion) maxSeenVersion = eventVersion;
     try {
-      const applyRes = applyUsersSyncEvent(event, peer);
-      if (applyRes?.ok && applyRes?.applied) applied += 1;
-      else if (applyRes?.ok) skipped += 1;
-      else failed += 1;
+      if (eventVersion <= maxSeenVersion) throw new Error('invalid_event_order');
+      const applyRes = applyAtomic(event);
+      if (applyRes.applied) applied += 1;
+      else skipped += 1;
+      maxSeenVersion = eventVersion;
     } catch {
       failed += 1;
+      break;
     }
   }
-  const latestVersion = normalizeSyncVersion(fetchRes.latestVersion);
-  if (latestVersion > maxSeenVersion) maxSeenVersion = latestVersion;
+  // latestVersion describes the remote log, not this (bounded) page.
+  // Advance only through the events actually received and processed.
   if (maxSeenVersion > sinceVersion) {
     stmts.upsertUserSyncCursorByPeer.run(peerId, maxSeenVersion, nowIso());
   }
   return {
-    ok: true,
+    ok: failed === 0,
+    ...(failed ? { error: 'event_apply_failed' } : {}),
     peer: peerId,
     fetched: events.length,
     applied,

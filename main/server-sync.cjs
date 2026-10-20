@@ -16,6 +16,8 @@ const {
 const { hostsToList } = require("./server-normalize.cjs");
 const { saveProjects, readProjectMeta, setProjectSource } = require("./server-projects.cjs");
 const { statSync, readdirSync } = fs;
+const { isPathInsideRoot, assertSafeSyncPath } = require("./server-sync-paths.cjs");
+const { localStationAddresses, normalizeNetworkAddress } = require("./server-peer-security.cjs");
 
 function resolveUprojectPath(rawPath) {
   const p = String(rawPath || "").trim();
@@ -178,16 +180,6 @@ function shouldIgnore(relPath, patterns) {
   return false;
 }
 
-function isPathInsideRoot(candidatePath, rootPath) {
-  const candidateRaw = String(candidatePath || "").trim();
-  const rootRaw = String(rootPath || "").trim();
-  if (!candidateRaw || !rootRaw) return false;
-  const candidate = path.resolve(candidateRaw);
-  const root = path.resolve(rootRaw);
-  const relative = path.relative(root, candidate);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
 // Ces constantes seront injectées par server.cjs au moment de l’appel
 let logLine, sendJSON, COMMON_FILE, HOSTS_FILE, loadProjects, stationIp;
 const lastSyncCheckSignatureByHost = new Map();
@@ -195,16 +187,29 @@ const lastSyncCheckStateByHost = new Map(); // "ok" | "error"
 let renderSyncSummaryCache = { at: 0, value: null };
 let renderSyncSummaryPromise = null;
 
-function isConfiguredSyncDestination(destDir) {
-  const destination = String(destDir || "").trim();
-  if (!destination || !HOSTS_FILE) return false;
+function configuredSyncRoot() {
+  if (!HOSTS_FILE) return "";
   const hosts = hostsToList(readJSON(HOSTS_FILE) || {});
   const localHost = hosts.find((host) => (
-    String(host?.ip || host?.address || "").trim() === String(stationIp || "").trim()
+    normalizeNetworkAddress(host.ip) === normalizeNetworkAddress(stationIp)
   ));
-  const localRoot = String(localHost?.syncRoot || "").trim();
-  if (!localRoot) return true;
-  return isPathInsideRoot(destination, localRoot);
+  if (localHost) return String(localHost.syncRoot || "").trim();
+  // Older configurations do not always have common.localIp. Resolve the
+  // persisted local host by a real interface address, never by a remote claim.
+  const localAddresses = new Set(localStationAddresses());
+  const roots = new Set(hosts
+    .filter((host) => localAddresses.has(normalizeNetworkAddress(host.ip)))
+    .map((host) => String(host.syncRoot || "").trim()).filter(Boolean));
+  return roots.size === 1 ? [...roots][0] : "";
+}
+
+function isConfiguredSyncDestination(destDir) {
+  try {
+    assertSafeSyncPath(destDir, configuredSyncRoot());
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function normalizeProjectUsageModeLocal(value) {
@@ -605,7 +610,7 @@ async function checkRenderScopeForHost({
       const sourceDir = await assertReadableSourceProject(source.sourceUproject);
       const projectFolderName = path.basename(sourceDir);
       const destDir = path.join(syncRoot, projectFolderName);
-      const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
+      const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS, { strict: true });
 
       const dstFiles = await getRemoteInventory({ ip, agentPort, destDir });
       const { added, modified, removed } = computeDiffs(srcFiles, dstFiles);
@@ -937,13 +942,14 @@ async function handleSync(req, res, url, context) {
       let stats = null;
       try {
         stats = await fsp.stat(destDir);
-      } catch {
-        stats = null;
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
       }
-      if (!stats || !stats.isDirectory()) {
+      if (!stats) {
         return sendJSON(res, 200, { ok: true, exists: false, files: {} });
       }
-      const files = await collectFilesRecursive(destDir, SYNC_IGNORE_DIRS);
+      if (!stats.isDirectory()) throw new Error("La destination n'est pas un dossier");
+      const files = await collectFilesRecursive(destDir, SYNC_IGNORE_DIRS, { strict: true });
 
       logLine({
         level: "debug",
@@ -1030,7 +1036,7 @@ async function handleSync(req, res, url, context) {
         try {
         await assertReadableSourceProject(sourceUproject);
         // Inventaire source (serveur)
-        const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
+        const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS, { strict: true });
 
         const urlInv = `http://${ip}:${agentPort}/agent/sync/inventory?destDir=${encodeURIComponent(
           destDir
@@ -1204,6 +1210,13 @@ async function handleSync(req, res, url, context) {
       });
     }
 
+    const syncRoot = configuredSyncRoot();
+    try {
+      assertSafeSyncPath(fullPath, syncRoot);
+    } catch (error) {
+      return sendJSON(res, 403, { ok: false, error: "invalid_path", message: error.message });
+    }
+
     // Mode suppression : on supprime le fichier, puis on tente de nettoyer
     // les répertoires vides parents jusqu'à destDir (prune).
     if (op === "delete") {
@@ -1292,10 +1305,18 @@ async function handleSync(req, res, url, context) {
     // Mode copie classique
     const tempDir = path.join(absDest, ".ultiunreal-tmp");
     const tempPath = path.join(tempDir, `${process.pid}-${randomUUID()}.tmp`);
+    let tempCreated = false;
     try {
+      assertSafeSyncPath(tempPath, syncRoot);
       ensureDir(tempPath);
-      await pipeline(req, fs.createWriteStream(tempPath, { flags: "wx" }));
-      await fsp.copyFile(tempPath, fullPath);
+      assertSafeSyncPath(tempPath, syncRoot);
+      const output = fs.createWriteStream(tempPath, { flags: "wx" });
+      output.once("open", () => { tempCreated = true; });
+      await pipeline(req, output);
+      assertSafeSyncPath(fullPath, syncRoot);
+      ensureDir(fullPath);
+      assertSafeSyncPath(fullPath, syncRoot);
+      await fsp.rename(tempPath, fullPath);
       if (hasRequestedMtime) {
         const mtime = new Date(requestedMtimeMs);
         await fsp.utimes(fullPath, mtime, mtime);
@@ -1310,8 +1331,16 @@ async function handleSync(req, res, url, context) {
     } catch (e) {
       return sendJSON(res, 200, { ok: false, error: "write_error", message: e.message });
     } finally {
-      try { await fsp.unlink(tempPath); } catch {}
-      try { await fsp.rmdir(tempDir); } catch {}
+      if (tempCreated) {
+        try {
+          assertSafeSyncPath(tempPath, syncRoot);
+          await fsp.unlink(tempPath);
+        } catch {}
+        try {
+          assertSafeSyncPath(tempDir, syncRoot);
+          await fsp.rmdir(tempDir);
+        } catch {}
+      }
     }
   }
 
@@ -1530,7 +1559,7 @@ async function handleSync(req, res, url, context) {
 
         try {
           await assertReadableSourceProject(source.sourceUproject);
-          const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
+          const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS, { strict: true });
           const dstFiles = await getRemoteInventory({ ip, agentPort, destDir });
           const { added, modified, removed } = computeDiffs(srcFiles, dstFiles);
 
@@ -1707,7 +1736,7 @@ async function handleSync(req, res, url, context) {
     try {
       await assertReadableSourceProject(sourceUproject);
       // 2) Inventaire local + distant
-      const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS);
+      const srcFiles = await collectFilesRecursive(sourceDir, SYNC_IGNORE_DIRS, { strict: true });
 
       const urlInv = `http://${ip}:${agentPort}/agent/sync/inventory?destDir=${encodeURIComponent(
         destDir

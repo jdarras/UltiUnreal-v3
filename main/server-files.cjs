@@ -72,7 +72,7 @@ function writeJSONIfChanged(p, obj) {
 }
 
 // Inventaire récursif d'un dossier (hors certains sous-dossiers)
-async function collectFilesRecursive(root, excludeDirs = []) {
+async function collectFilesRecursive(root, excludeDirs = [], { strict = false } = {}) {
   const out = {};
   const excludesLower = Array.isArray(excludeDirs)
     ? excludeDirs.map((d) => String(d || '').toLowerCase())
@@ -82,7 +82,8 @@ async function collectFilesRecursive(root, excludeDirs = []) {
     let entries;
     try {
       entries = await fsp.readdir(current, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      if (strict) throw Object.assign(new Error(`Inventaire incomplet : ${current}`, { cause: error }), { code: 'incomplete_inventory' });
       return;
     }
 
@@ -99,9 +100,11 @@ async function collectFilesRecursive(root, excludeDirs = []) {
         try {
           const st = await fsp.stat(fullPath);
           out[relPath] = { size: st.size, mtimeMs: st.mtimeMs };
-        } catch {
-          // ignore
+        } catch (error) {
+          if (strict) throw Object.assign(new Error(`Inventaire incomplet : ${fullPath}`, { cause: error }), { code: 'incomplete_inventory' });
         }
+      } else if (strict) {
+        throw Object.assign(new Error(`Inventaire incomplet : lien ou fichier spécial ${fullPath}`), { code: 'incomplete_inventory' });
       }
     }
   }

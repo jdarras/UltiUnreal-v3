@@ -28,14 +28,12 @@ const { handlePostprodAuthAndHealthRoutes } = require('./server-postprod-routes-
 const { handlePostprodAuditRoutes } = require('./server-postprod-routes-audit-export.cjs');
 const { dispatchPostprodRouteHandlers } = require('./server-postprod-route-dispatcher.cjs');
 const {
-  isAllowedPeerAddress,
-  collectPeerAddressCandidates,
+  isConfiguredPeer,
 } = require('./server-peer-security.cjs');
 const {
   selectBestStation,
   sendJobToStation,
 } = require('./server-postprod-remote-dispatcher.cjs');
-const { getPresenceVolatile } = require('./server-hosts-online.cjs');
 const { hostsToList } = require('./server-normalize.cjs');
 
 const DEFAULT_AUDIT_WARN_LINES = 5000;
@@ -7586,6 +7584,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     startUsersSyncPollLoop,
   } = createUsersSyncHelpers({
     stmts,
+    db,
     commonServerFile,
     hostsServerFile,
     hostsToList,
@@ -7625,7 +7624,6 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     MAX_USERS_SYNC_POLL_INTERVAL_MS,
     DEFAULT_USERS_SYNC_POLL_INTERVAL_MS,
     DEFAULT_USERS_SYNC_AGENT_PORT,
-    listDiscoveredUsersSyncPeers: () => Object.values(getPresenceVolatile() || {}),
     nowIso,
     safeParseObjectJson,
     refreshRolesCache,
@@ -7633,14 +7631,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
   });
 
   function isUsersSyncPeerAllowed(req) {
-    const common = readCommonServerConfigFile(commonServerFile);
-    const hosts = hostsToList(readHostsServerConfigFile(hostsServerFile));
-    const sources = [hosts];
-    if (common?.usersSyncDetectedPeers !== false) {
-      sources.push(getPresenceVolatile() || {});
-    }
-    const candidates = collectPeerAddressCandidates(...sources);
-    return isAllowedPeerAddress(req?.socket?.remoteAddress, candidates);
+    return isConfiguredPeer(req?.socket?.remoteAddress, readHostsServerConfigFile(hostsServerFile));
   }
   if (bootstrappedAdminUser && typeof emitUserSyncUpsert === 'function') {
     try {

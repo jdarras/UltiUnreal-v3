@@ -33,6 +33,7 @@ const {
 } = require('./server-projects.cjs');
 
 const { hostsToList } = require('./server-normalize.cjs');
+const { isApprovedUnrealExecutable } = require('./server-launch-policy.cjs');
 
 function extractUnrealEditors(cfg = {}) {
   const map = {};
@@ -818,6 +819,14 @@ async function handleLaunch(req, res, url, context) {
         data: { uproject, editorOnly },
       });
       return sendJSON(res, 400, { ok: false, error: 'invalid_uproject_path', message: '.uproject introuvable' });
+    }
+
+    if (!isApprovedUnrealExecutable(exe, readJSON(HOSTS_FILE), readJSON(COMMON_FILE))) {
+      return sendJSON(res, 403, {
+        ok: false,
+        error: 'unapproved_unreal_executable',
+        message: "L'exécutable doit correspondre à une installation Unreal configurée pour cette station.",
+      });
     }
 
     let args = editorOnly ? [] : [uproject];

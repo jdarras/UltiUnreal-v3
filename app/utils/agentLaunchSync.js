@@ -3,6 +3,7 @@ import { httpGet, httpPost, resolveExeForVersion,
   __withLocalFallback, __isLocalServerIpTarget, __isRetryableNetworkFailure,
 } from './agentHttp.js';
 import { getCommon, getHosts, getProjects } from './agentSystem.js';
+import { readIdentity } from './identity';
 
 // Parse l'argument surchargé (number = timeout, objet = options) commun à checkSync/copySync.
 function resolveSyncTimeoutAndOptions(timeoutOrOptions, maybeOptions, defaultTimeout) {
@@ -39,6 +40,9 @@ export async function postHost(ip, body = {}) {
   }
   try {
     const res = await httpPost(`/agent/host/${safeIp}`, body);
+    if (res?.ok !== false && readIdentity()?.role === 'client') {
+      await getHosts(); // also persist the effective settings on the receiving local agent
+    }
     return res || {};
   } catch (e) {
     console.error('postHost failed', e);

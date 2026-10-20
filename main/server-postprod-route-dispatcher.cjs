@@ -65,6 +65,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     buildUserPayload,
     getAuthToken,
     usersSyncFetchLimit,
+    isUsersSyncPeerAllowed,
     requireManageRoles,
     parseActivityFilters,
     buildUserActivityPayload,
@@ -293,6 +294,7 @@ async function dispatchPostprodRouteHandlers(options = {}) {
     buildUserPayload,
     getAuthToken,
     usersSyncFetchLimit,
+    isUsersSyncPeerAllowed,
   });
   if (authAndHealthRoutesHandled) return true;
 
