@@ -570,10 +570,32 @@ function cleanupRenderExportArtifacts({
   return summary;
 }
 
+// Destinations d'export d'un rendu, avec la même règle que l'écran du rendu
+// (resolveRenderExportDestinationIds dans RenderDetailInfoPanel.jsx) :
+// celles enregistrées sur le rendu (même une liste vide, choix explicite),
+// sinon celles de la demande de rendu liée.
+function resolveRenderExportDestinationIds(payload = null, taskRow = null) {
+  const payloadObj = asRecord(payload) || {};
+  if (Object.prototype.hasOwnProperty.call(payloadObj, 'exportDestinationIds')) {
+    return normalizeExportDestinationIds(payloadObj.exportDestinationIds);
+  }
+  if (Object.prototype.hasOwnProperty.call(payloadObj, 'destinationIds')) {
+    return normalizeExportDestinationIds(payloadObj.destinationIds);
+  }
+  const autoConfig = asRecord(parsePayloadJsonSafe(taskRow?.auto_render_config_json)) || {};
+  const autoPayload = asRecord(autoConfig.payload) || {};
+  for (const candidate of [autoConfig.exportDestinationIds, autoPayload.exportDestinationIds]) {
+    const ids = normalizeExportDestinationIds(candidate);
+    if (ids.length > 0) return ids;
+  }
+  return [];
+}
+
 module.exports = {
   parsePayloadJsonSafe,
   normalizeExportDestinationEntries,
   normalizeExportDestinationIds,
+  resolveRenderExportDestinationIds,
   resolveExportDestinationEntriesFromCommon,
   resolveRenderOutputPath,
   applyRenderExport,

@@ -7,6 +7,7 @@ const {
 const {
   applyRenderExport,
   resolveExportDestinationEntriesFromCommon,
+  resolveRenderExportDestinationIds,
 } = require('./server-postprod-export-destinations.cjs');
 const { endProxyGeneration, tryBeginProxyGeneration } = require('./render-proxy-recovery.cjs');
 
@@ -272,6 +273,7 @@ function scheduleRenderExportForValidatedRender({
   readCommonServerConfigFile,
   commonServerFile,
   logLine,
+  findTaskById = null,
 }) {
   setImmediate(() => {
     try {
@@ -282,9 +284,14 @@ function scheduleRenderExportForValidatedRender({
       if (!destinationEntries.length) return;
 
       const payload = parsePayloadJsonSafe(renderRow?.payload_json);
-      const destinationIds = Array.isArray(payload?.exportDestinationIds)
-        ? payload.exportDestinationIds
-        : [];
+      // Même règle que l'écran du rendu : à défaut de destinations
+      // enregistrées sur le rendu, celles de la demande liée.
+      const taskId = Math.trunc(Number(payload?.taskId) || 0);
+      let taskRow = null;
+      if (taskId > 0 && typeof findTaskById?.get === 'function') {
+        try { taskRow = findTaskById.get(taskId) || null; } catch { taskRow = null; }
+      }
+      const destinationIds = resolveRenderExportDestinationIds(payload, taskRow);
       if (!destinationIds.length) {
         // Tracé : un rendu validé sans destination n'est copié nulle part.
         logLineSafe(logLine, {
@@ -774,6 +781,7 @@ async function handlePostprodRenderTransitionRoutes({
         readCommonServerConfigFile,
         commonServerFile,
         logLine,
+        findTaskById: stmts?.findTaskById,
       });
     }
     sendJSON(res, 200, { ok: true, render: buildRenderJobPayload(updated) });

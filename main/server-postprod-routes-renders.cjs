@@ -1377,6 +1377,7 @@ async function handlePostprodRendersRoutes({
         readCommonServerConfigFile,
         commonServerFile,
         logLine,
+        findTaskById: stmts?.findTaskById,
       });
     }
     const payload = buildRenderJobPayload(updated);
