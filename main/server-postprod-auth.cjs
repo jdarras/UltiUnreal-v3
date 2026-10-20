@@ -265,6 +265,22 @@ const {
 } = require('./server-postprod-roles.cjs');
 const { hashPassword, verifyPassword } = require('./server-postprod-passwords.cjs');
 const { getRequestIp } = require('./server-request-ip.cjs');
+const { maybeVacuum, purgeOldSessions } = require('./server-postprod-db-maintenance.cjs');
+
+const DB_MAINTENANCE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+// Purge des sessions périmées ; compactage seulement au démarrage.
+function runDbMaintenance(db, { logLine = () => {}, vacuum = false } = {}) {
+  try {
+    const purged = purgeOldSessions(db);
+    if (purged > 0) {
+      logLine({ level: 'info', src: 'postprod', action: 'sessions_purged', message: `${purged} sessions périmées supprimées` });
+    }
+  } catch (err) {
+    logLine({ level: 'warn', src: 'postprod', action: 'sessions_purge_failed', message: String(err?.message || err) });
+  }
+  if (vacuum) maybeVacuum(db, { logLine });
+}
 const {
   sanitizeRenderFormFieldKey,
   sanitizeRenderFormFieldLabel,
@@ -7280,6 +7296,7 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     ensureSchema(db, { logLine, bootstrapRolePolicies });
+    runDbMaintenance(db, { logLine, vacuum: true });
   } catch (err) {
     const reason = `Impossible d'initialiser SQLite (${dbPath}): ${String(err?.message || err)}`;
     logLine({
@@ -7295,6 +7312,9 @@ function createPostprodAuth({ dataDir, logLine = () => {} } = {}) {
       remoteBridge: null,
     };
   }
+
+  const dbMaintenanceTimer = setInterval(() => runDbMaintenance(db, { logLine }), DB_MAINTENANCE_INTERVAL_MS);
+  dbMaintenanceTimer.unref?.();
 
   let stmts;
   try {
