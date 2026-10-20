@@ -291,3 +291,24 @@ test('a marker of another render, or for another path, does not authorise the de
   cleanup(root, jobRow(13, path.join(copied, 'x.mov'), { outputDir: copied }));
   assert.equal(fs.existsSync(copiedNotes), true);
 });
+
+// Un ancien scan a pu importer le marqueur comme un rendu : supprimer cette
+// fausse entrée ne touche ni au marqueur ni au vrai rendu du dossier, et le
+// dossier reste supprimable avec son vrai rendu.
+test('deleting a render that points at a job folder marker keeps the marker', (t) => {
+  const root = makeRoot(t);
+  const jobDir = path.join(root, '361_0069');
+  assert.equal(createOwnedRenderJobFolder(jobDir, 361).owned, true);
+  const realOutput = writeFile(path.join(jobDir, 'test-a-r001.mp4'));
+  const marker = path.join(jobDir, '.uu-render-job.json');
+  const realRow = jobRow(361, realOutput, { outputDir: jobDir });
+
+  const result = cleanup(root, jobRow(362, marker), [realRow]);
+
+  assert.equal(fs.existsSync(marker), true);
+  assert.equal(fs.existsSync(realOutput), true);
+  assert.ok(result.skipped.some((entry) => entry.reason === 'render_job_marker'));
+
+  cleanup(root, realRow);
+  assert.equal(fs.existsSync(jobDir), false);
+});

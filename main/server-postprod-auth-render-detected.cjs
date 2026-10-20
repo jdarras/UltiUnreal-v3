@@ -243,6 +243,9 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
         if (isRenderArtifactFileName(entryNameLower)) {
           continue;
         }
+        // Fichiers cachés (dont le marqueur .uu-render-job.json des dossiers de
+        // rendu) : jamais des sorties de rendu.
+        if (entryNameLower.startsWith('.')) continue;
         const ext = String(path.extname(entry.name || '') || '').trim().toLowerCase();
         if (allowedExtensions.size > 0 && ext && !allowedExtensions.has(ext)) continue;
         if (allowedExtensions.size > 0 && !ext) continue;
@@ -757,6 +760,7 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
   }
 
   return {
+    listRenderDetectedFileCandidates,
     renderDetectedScanState,
     isRenderDetectedAutoScanBusy,
     importDetectedRenderOutputs,

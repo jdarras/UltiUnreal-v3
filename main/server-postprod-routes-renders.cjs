@@ -1,7 +1,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { isOwnedRenderJobFolder } = require('./render-job-folder.cjs');
+const { RENDER_JOB_MARKER, isOwnedRenderJobFolder } = require('./render-job-folder.cjs');
 
 function readSafeCommonConfig(readCommonServerConfigFile, commonServerFile) {
   if (typeof readCommonServerConfigFile !== 'function') return {};
@@ -247,6 +247,13 @@ function cleanupRenderArtifacts({
     try {
       if (!fs.lstatSync(absCandidate).isFile()) {
         skipped.push({ path: absCandidate, reason: 'not_a_file' });
+        continue;
+      }
+      // Le marqueur de propriété d'un dossier de rendu n'est jamais supprimé
+      // seul (un ancien scan a pu l'importer à tort comme rendu) : il ne part
+      // qu'avec le dossier entier, par la branche dédiée ci-dessous.
+      if (path.basename(absCandidate).toLowerCase() === RENDER_JOB_MARKER) {
+        skipped.push({ path: absCandidate, reason: 'render_job_marker' });
         continue;
       }
       const realCandidate = canonicalPath(absCandidate);
