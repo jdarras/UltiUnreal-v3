@@ -15,7 +15,7 @@ test('project usage modes accept French and English labels', () => {
 });
 
 test('Unreal asset paths and kinds are derived from project files', () => {
-  assert.equal(buildUnrealAssetPathFromRelative('Maps\Main.umap'), '/Game/Maps/Main.Main');
+  assert.equal(buildUnrealAssetPathFromRelative('Maps\\Main.umap'), '/Game/Maps/Main.Main');
   assert.equal(buildUnrealAssetPathFromRelative(''), '');
   assert.equal(classifyUnrealAssetFromName('Main.umap', '.umap').isLevel, true);
   assert.equal(classifyUnrealAssetFromName('LS_Intro.uasset', '.uasset').isSequence, true);
