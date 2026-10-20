@@ -1,5 +1,5 @@
 import { readIdentity } from './identity';
-import { createClientAgentRegistrar } from './clientAgentRegistration.js';
+import { createClientAgentRegistrar, createClientHostLoader } from './clientAgentRegistration.js';
 import {
   httpGet, httpPost, httpRequest, toRequestError,
   normalizeHosts, getBase,
@@ -31,11 +31,12 @@ export function getAgentBaseUrl() {
 }
 
 const registerClientAgent = createClientAgentRegistrar(__agentRequest);
-export async function getHosts() {
-  const hosts = normalizeHosts(await httpGet('/agent/hosts'));
-  await registerClientAgent(readIdentity(), hosts);
-  return hosts;
-}
+export const getHosts = createClientHostLoader(
+  async () => normalizeHosts(await httpGet('/agent/hosts')),
+  readIdentity,
+  registerClientAgent,
+  (error) => console.warn('[UltiUnreal] Configuration de l’agent local impossible ; liste des stations conservée.', error),
+);
 export async function getProjects(opts = {}) {
   const light = opts.light ? '?light=1' : '';
   const timeoutMsRaw = Number(opts.timeoutMs);

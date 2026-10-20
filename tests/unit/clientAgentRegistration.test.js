@@ -1,10 +1,39 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clientAgentRegistrations, createClientAgentRegistrar } from '../../app/utils/clientAgentRegistration.js';
+import { clientAgentRegistrations, createClientAgentRegistrar, createClientHostLoader } from '../../app/utils/clientAgentRegistration.js';
 
 const identity = { role: 'client', localIp: '192.0.2.2', serverIp: '192.0.2.1', agentPort: 4000 };
 const own = { ip: identity.localIp, syncRoot: 'D:\\Projects', unrealEditors: { '5.6': 'D:\\UE\\UnrealEditor.exe' } };
 const hosts = [{ ip: identity.serverIp, name: 'Controller' }, own, { ip: '192.0.2.99' }];
+
+test('host list is available while local agent registration is still pending', async () => {
+  let finish;
+  const pending = new Promise((resolve) => { finish = resolve; });
+  const load = createClientHostLoader(async () => hosts, () => identity, () => pending, assert.fail);
+  try {
+    const result = await Promise.race([
+      load(),
+      new Promise((resolve) => setImmediate(() => resolve('blocked'))),
+    ]);
+    assert.equal(result, hosts);
+  } finally {
+    finish();
+  }
+});
+
+test('failed local registration is reported without rejecting the host list', async () => {
+  const failure = new Error('local agent unavailable');
+  const errors = [];
+  const load = createClientHostLoader(
+    async () => hosts,
+    () => identity,
+    async () => { throw failure; },
+    (error) => errors.push(error),
+  );
+  assert.equal(await load(), hosts);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(errors, [failure]);
+});
 
 test('client registration mirrors only its explicitly selected controller and own persisted configuration', () => {
   const registrations = clientAgentRegistrations(identity, hosts);

@@ -37,3 +37,14 @@ export function createClientAgentRegistrar(send) {
     return task;
   };
 }
+
+// Local provisioning must never prevent the central host list from displaying.
+export function createClientHostLoader(loadHosts, readIdentity, register, reportError) {
+  return async () => {
+    const hosts = await loadHosts();
+    void Promise.resolve()
+      .then(() => register(readIdentity(), hosts))
+      .catch(reportError);
+    return hosts;
+  };
+}
