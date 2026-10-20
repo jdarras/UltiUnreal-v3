@@ -4,7 +4,6 @@ import {
   AUTO_RENDER_STATE_FLOW as TASK_AUTO_RENDER_STATE_FLOW,
   autoRenderStateFromRenderOrStatus,
   autoRenderStateLabel,
-  autoRenderStateLevel,
   isQueuedRenderWithError,
 } from "../shared/renderStateHelpers.js";
 
@@ -17,7 +16,6 @@ const TASK_STATUS_TO_KEY = {
   Rejetee: "rejetee",
 };
 
-const TASK_STATUS_FLOW = ["Planifiee", "A faire", "En cours", "A valider", "Validee", "Rejetee"];
 const TASK_VISUAL_STATUS_FLOW = [
   "planned",
   "waiting",
@@ -54,10 +52,6 @@ function taskAutoRenderStateFromRenderStatus(renderOrStatus) {
 
 function taskAutoRenderStateLabel(t, stateRaw) {
   return autoRenderStateLabel(t, stateRaw);
-}
-
-function taskAutoRenderStateLevel(stateRaw) {
-  return autoRenderStateLevel(stateRaw);
 }
 
 function normalizeTaskVisualStatusKey(statusRaw = "") {
@@ -235,7 +229,6 @@ function buildTaskExpectedRenderNamesPreview(title = "", expectedRenderCount = 1
 
 export {
   TASK_AUTO_RENDER_STATE_FLOW,
-  TASK_STATUS_FLOW,
   TASK_VISUAL_STATUS_FLOW,
   buildTaskAutoRenderStateByTaskId,
   buildTaskExpectedRenderNamesPreview,
@@ -245,7 +238,6 @@ export {
   resolveTaskAutoRenderState,
   resolveTaskVisualStatus,
   taskAutoRenderStateLabel,
-  taskAutoRenderStateLevel,
   taskAutoRenderStateFromRenderStatus,
   taskVisualStatusClass,
   taskVisualStatusLabel,

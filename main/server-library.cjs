@@ -69,11 +69,6 @@ function setLibraryCache(indexDoc, detailsMap) {
   cacheLibraryItem.clear();
 }
 
-function invalidateLibraryCache() {
-  cacheLibrary = { ts: 0, indexDoc: null, detailsMap: null };
-  cacheLibraryItem.clear();
-}
-
 function readLibraryIndexDocFromStore() {
   return sharedStore.loadLibraryIndexDoc();
 }
@@ -1989,7 +1984,6 @@ async function handleLibraryRoutes(req, res, url, ctx = {}) {
 
 module.exports = {
   handleLibraryRoutes,
-  invalidateLibraryCache,
   setLibraryCache,
   getFabImportCache,
   setFabImportCache,

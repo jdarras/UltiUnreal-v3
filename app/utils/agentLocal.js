@@ -1,21 +1,3 @@
-export async function runLocalProcess({
-  command = '',
-  args = [],
-  timeoutMs = 30 * 60 * 1000,
-  cwd = '',
-} = {}) {
-  if (typeof window.electron?.runProcess !== 'function') {
-    return { ok: false, error: 'run_process_unavailable' };
-  }
-  const payload = {
-    command: String(command || '').trim(),
-    args: Array.isArray(args) ? args : [],
-    timeoutMs,
-    cwd: String(cwd || '').trim(),
-  };
-  return await window.electron.runProcess(payload);
-}
-
 export async function spawnDetachedRender({ command = '', args = [], cwd = '', pidTag = '' } = {}) {
   if (typeof window.electron?.runProcess !== 'function') {
     return { ok: false, error: 'run_process_unavailable' };

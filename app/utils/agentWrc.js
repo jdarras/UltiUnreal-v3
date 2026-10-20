@@ -19,7 +19,7 @@ export async function wrcPutProperty(ip, port, preset, path, value, valueType) {
   return await __agentRequest('PUT', url, body);
 }
 
-export async function wrcCallFunction(ip, port, preset, displayName, parameters = {}) {
+async function wrcCallFunction(ip, port, preset, displayName, parameters = {}) {
   const url = `http://${ip}:${Number(port)}/remote/preset/${encodeURIComponent(preset)}/function/${encodeURIComponent(displayName)}`;
   const body = { Parameters: parameters || {}, GenerateTransaction: true };
   return await __agentRequest('PUT', url, body);

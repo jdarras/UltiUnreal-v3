@@ -156,7 +156,7 @@ export function toRequestError(res) {
   return err;
 }
 
-export function pickUEPath(cfg) {
+function pickUEPath(cfg) {
   return (
     cfg?.unreal_editor ??
     cfg?.unrealEditor ??

@@ -72,29 +72,6 @@ export async function postprodDeleteUser(token = '', userId, timeoutMs = 8000) {
   return res.json || { ok: true };
 }
 
-export async function postprodUpdateUserProfile(token = '', userId, payload = {}, timeoutMs = 8000) {
-  const authToken = assertPostprodToken(token);
-  const idNum = Number(userId);
-  if (!Number.isFinite(idNum) || idNum <= 0) {
-    const err = new Error('invalid_user_id');
-    err.code = 'invalid_user_id';
-    err.status = 400;
-    throw err;
-  }
-  const body = payload && typeof payload === 'object' ? payload : {};
-  const res = await httpRequest(`/agent/postprod/users/${Math.trunc(idNum)}/profile`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${authToken}`,
-    },
-    body,
-    timeoutMs,
-  });
-  if (!res.ok) throw toRequestError(res);
-  return res.json || { ok: true };
-}
-
 export async function postprodUpdateUserProjectPermissions(
   token = '',
   userId,

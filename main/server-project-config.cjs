@@ -236,10 +236,6 @@ function listProjectPluginPackageCandidates(pluginKey = '', engineVersion = '') 
   return out;
 }
 
-function listRenderBridgePackageCandidates(engineVersion = '') {
-  return listProjectPluginPackageCandidates(RENDER_BRIDGE_PLUGIN_NAME, engineVersion);
-}
-
 function resolveProjectPluginManuals(spec = null, packageDir = '') {
   if (!spec?.manualFiles || !packageDir) return {};
   const packageRoot = path.dirname(path.resolve(packageDir));
@@ -287,10 +283,6 @@ function resolveProjectPluginPackage(pluginKey = '', engineVersion = '') {
     packageVersionTag: '',
     manuals: {},
   };
-}
-
-function resolveRenderBridgePackage(engineVersion = '') {
-  return resolveProjectPluginPackage(RENDER_BRIDGE_PLUGIN_NAME, engineVersion);
 }
 
 function findInstalledProjectPlugin(projectPluginsRoot = '', spec = null) {
@@ -1132,8 +1124,6 @@ module.exports = {
   resolveProjectPluginStatus,
   listProjectPluginPackageCandidates,
   listProjectPluginStatuses,
-  listRenderBridgePackageCandidates,
-  resolveRenderBridgePackage,
   resolveEngineVersionTag,
   resolveEngineVersionTagVariants,
 };

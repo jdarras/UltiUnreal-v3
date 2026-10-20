@@ -128,22 +128,6 @@ export async function postprodListRemoteJobsByStation(stationIp = '', agentPort 
   }
 }
 
-export async function postprodScanDetectedRenders(token = '', payload = {}, timeoutMs = 12000) {
-  const authToken = assertPostprodToken(token);
-  const body = payload && typeof payload === 'object' ? payload : {};
-  const res = await httpRequest('/agent/postprod/renders/detected/scan', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${authToken}`,
-    },
-    body,
-    timeoutMs,
-  });
-  if (!res.ok) throw toRequestError(res);
-  return res.json || { ok: true, detectedScan: null };
-}
-
 export async function postprodGetHealth(token = '', timeoutMs = 8000) {
   const authToken = assertPostprodToken(token);
   const res = await httpRequest('/agent/postprod/health', {
@@ -163,22 +147,6 @@ export async function postprodGetHealth(token = '', timeoutMs = 8000) {
       renders: { queued: 0, running: 0, failed: 0, done: 0 },
     },
   };
-}
-
-export async function postprodCreateRenderJob(token = '', payload = {}, timeoutMs = 8000) {
-  const authToken = assertPostprodToken(token);
-  const body = payload && typeof payload === 'object' ? payload : {};
-  const res = await httpRequest('/agent/postprod/render-jobs', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${authToken}`,
-    },
-    body,
-    timeoutMs,
-  });
-  if (!res.ok) throw toRequestError(res);
-  return res.json || { ok: true };
 }
 
 export async function postprodGetRenderJob(token = '', renderId, timeoutMs = 8000) {
@@ -564,22 +532,6 @@ export async function postprodSaveDispatchPolicy(token = '', payload = {}, timeo
   });
   if (!res.ok) throw toRequestError(res);
   return res.json || { ok: true, saved: true, dispatchPolicy: null };
-}
-
-export async function postprodCreateRenderHealthEvent(token = '', payload = {}, timeoutMs = 5000) {
-  const authToken = assertPostprodToken(token);
-  const body = payload && typeof payload === 'object' ? payload : {};
-  const res = await httpRequest('/agent/postprod/renders/health-events', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${authToken}`,
-    },
-    body,
-    timeoutMs,
-  });
-  if (!res.ok) throw toRequestError(res);
-  return res.json || { ok: true };
 }
 
 export async function postprodListRenderWorkers(token = '', timeoutMs = 8000) {

@@ -59,7 +59,6 @@ export async function getProjects(opts = {}) {
   return await httpGet(`/agent/projects${light}`, timeoutMs);
 }
 export async function getCommon() { return await httpGet('/agent/common'); }
-export async function getPresence() { return await httpGet('/agent/presence'); }
 export async function getOnlineStatus() { return await httpGet('/agent/online'); }
 export async function postPresence(body = {}) { return await httpPost('/agent/presence', body); }
 

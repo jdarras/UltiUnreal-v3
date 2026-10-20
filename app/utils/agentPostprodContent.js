@@ -375,23 +375,3 @@ export async function postprodTransitionTask(token = '', taskId, payload = {}, t
   if (!res.ok) throw toRequestError(res);
   return res.json || { ok: true };
 }
-
-export async function postprodListTaskTransitions(token = '', taskId, timeoutMs = 8000) {
-  const authToken = assertPostprodToken(token);
-  const idNum = Number(taskId);
-  if (!Number.isFinite(idNum) || idNum <= 0) {
-    const err = new Error('invalid_task_id');
-    err.code = 'invalid_task_id';
-    err.status = 400;
-    throw err;
-  }
-  const res = await httpRequest(`/agent/postprod/tasks/${Math.trunc(idNum)}/transitions`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${authToken}`,
-    },
-    timeoutMs,
-  });
-  if (!res.ok) throw toRequestError(res);
-  return res.json || { ok: true, transitions: [] };
-}

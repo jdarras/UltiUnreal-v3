@@ -3,7 +3,7 @@ const TIMELINE_BROWSE_FILTERS = [
   { name: 'Videos', extensions: ['mp4', 'mov', 'hap'] }
 ];
 
-export function resolveTimelineChosenFilePath(result) {
+function resolveTimelineChosenFilePath(result) {
   if (!result) return '';
   if (typeof result === 'string') return result;
   if (typeof result !== 'object') return '';
@@ -19,7 +19,7 @@ export function resolveTimelineInputFilePath(file, inputValue = '') {
   return file.path || file.webkitRelativePath || inputValue || file.name || '';
 }
 
-export function triggerTimelineBrowseInput(browseFileInputRef) {
+function triggerTimelineBrowseInput(browseFileInputRef) {
   const input = browseFileInputRef?.current;
   if (!input) return false;
   input.value = '';

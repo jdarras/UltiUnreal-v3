@@ -6,7 +6,7 @@ export function captureActiveFocusableElement() {
   return activeEl && typeof activeEl.focus === "function" ? activeEl : null;
 }
 
-export function focusElementSafely(element, { preventScroll = false } = {}) {
+function focusElementSafely(element, { preventScroll = false } = {}) {
   if (!element || typeof element.focus !== "function" || element.isConnected === false) return;
   try {
     if (preventScroll) {

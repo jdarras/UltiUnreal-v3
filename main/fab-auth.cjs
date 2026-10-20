@@ -29,10 +29,6 @@ async function refreshCookiesFromSession() {
   }
 }
 
-function getCookies() {
-  return cookies.slice();
-}
-
 function clearCookies() {
   cookies = [];
 }
@@ -48,17 +44,11 @@ function buildCookieHeader() {
   return parts.join('; ');
 }
 
-function hasCookies() {
-  return !!buildCookieHeader();
-}
-
 module.exports = {
   AUTH_PARTITION,
   getAuthSession,
   refreshCookiesFromSession,
-  getCookies,
   setCookies,
   clearCookies,
   buildCookieHeader,
-  hasCookies,
 };

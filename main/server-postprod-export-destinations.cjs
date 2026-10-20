@@ -4,11 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const { detectOutputType } = require('./server-postprod-ffmpeg.cjs');
 
-function safeLog(logLine, payload) {
-  if (typeof logLine !== 'function') return;
-  try { logLine(payload); } catch {}
-}
-
 function asRecord(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   return value;
@@ -26,14 +21,6 @@ function parsePayloadJsonSafe(value) {
   }
 }
 
-function normalizePathKey(value) {
-  return String(value || '')
-    .trim()
-    .replace(/[\\/]+/g, '/')
-    .replace(/\/+$/g, '')
-    .toLowerCase();
-}
-
 function resolveAbsSafe(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -42,16 +29,6 @@ function resolveAbsSafe(value) {
   } catch {
     return raw;
   }
-}
-
-function isPathUnderRoot(pathValue, rootValue) {
-  const absPath = resolveAbsSafe(pathValue);
-  const absRoot = resolveAbsSafe(rootValue);
-  const pathKey = normalizePathKey(absPath);
-  const rootKey = normalizePathKey(absRoot);
-  if (!pathKey || !rootKey) return false;
-  if (pathKey === rootKey) return true;
-  return pathKey.startsWith(`${rootKey}/`);
 }
 
 function sanitizeDestinationId(value) {
@@ -471,105 +448,6 @@ function applyRenderExport({
   return summary;
 }
 
-function normalizeArtifactList(value) {
-  const src = Array.isArray(value) ? value : [];
-  const out = [];
-  const seen = new Set();
-  for (const entry of src) {
-    const artifact = asRecord(entry);
-    if (!artifact) continue;
-    const artifactPath = resolveAbsSafe(artifact.path);
-    const key = normalizePathKey(artifactPath);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push({
-      destinationId: sanitizeDestinationId(artifact.destinationId),
-      destinationName: String(artifact.destinationName || '').trim(),
-      destinationPath: resolveAbsSafe(artifact.destinationPath),
-      path: artifactPath,
-      type: String(artifact.type || '').trim().toLowerCase() === 'dir' ? 'dir' : 'file',
-      sourceType: String(artifact.sourceType || '').trim(),
-      fileCount: Number.isFinite(Number(artifact.fileCount)) ? Math.max(0, Math.trunc(Number(artifact.fileCount))) : 0,
-    });
-  }
-  return out;
-}
-
-function cleanupRenderExportArtifacts({
-  artifacts = [],
-  destinationEntries = [],
-  logLine = null,
-} = {}) {
-  const normalizedArtifacts = normalizeArtifactList(artifacts);
-  const destinations = normalizeExportDestinationEntries(destinationEntries || []);
-  const destinationById = new Map(
-    destinations.map((entry) => [sanitizeDestinationId(entry.id), resolveAbsSafe(entry.path)])
-  );
-  const allowedRoots = destinations
-    .map((entry) => resolveAbsSafe(entry.path))
-    .filter(Boolean);
-
-  const summary = {
-    ok: true,
-    removedCount: 0,
-    removed: [],
-    skipped: [],
-    errors: [],
-  };
-
-  for (const artifact of normalizedArtifacts) {
-    const targetPath = resolveAbsSafe(artifact.path);
-    const destinationRoot = resolveAbsSafe(
-      artifact.destinationPath
-      || destinationById.get(sanitizeDestinationId(artifact.destinationId))
-      || ''
-    );
-    const rootCandidates = destinationRoot
-      ? [destinationRoot]
-      : allowedRoots;
-    const isSafe = rootCandidates.length > 0 && rootCandidates.some((root) => isPathUnderRoot(targetPath, root));
-    if (!isSafe) {
-      summary.skipped.push({ path: targetPath, reason: 'unsafe_path' });
-      continue;
-    }
-    if (!fs.existsSync(targetPath)) {
-      summary.skipped.push({ path: targetPath, reason: 'not_found' });
-      continue;
-    }
-    try {
-      const stat = fs.lstatSync(targetPath);
-      if (stat.isDirectory()) {
-        fs.rmSync(targetPath, { recursive: true, force: true });
-        summary.removed.push({ path: targetPath, type: 'dir' });
-      } else {
-        fs.rmSync(targetPath, { force: true });
-        summary.removed.push({ path: targetPath, type: 'file' });
-      }
-      summary.removedCount += 1;
-    } catch (err) {
-      summary.ok = false;
-      summary.errors.push({
-        path: targetPath,
-        message: String(err?.message || err || 'delete_failed'),
-      });
-    }
-  }
-
-  safeLog(logLine, {
-    level: summary.ok ? 'info' : 'warn',
-    src: 'postprod',
-    action: 'render_export_cleanup',
-    message: summary.ok ? 'render_export_cleanup_done' : 'render_export_cleanup_partial',
-    data: {
-      removed: summary.removedCount,
-      skipped: summary.skipped.length,
-      errors: summary.errors.length,
-    },
-  });
-
-  return summary;
-}
-
 // Destinations d'export d'un rendu, avec la même règle que l'écran du rendu
 // (resolveRenderExportDestinationIds dans RenderDetailInfoPanel.jsx) :
 // celles enregistrées sur le rendu (même une liste vide, choix explicite),
@@ -599,5 +477,4 @@ module.exports = {
   resolveExportDestinationEntriesFromCommon,
   resolveRenderOutputPath,
   applyRenderExport,
-  cleanupRenderExportArtifacts,
 };
