@@ -69,3 +69,15 @@ test('nothing is generated when previews are disabled', async () => {
   await loop.runOnce();
   assert.equal(called, false);
 });
+
+test('the generation registry refuses a second reservation until it is released', async () => {
+  // Contrat utilisé par la régénération manuelle (server.cjs) et la fin de rendu.
+  assert.equal(tryBeginProxyGeneration(40), true);
+  try {
+    assert.equal(tryBeginProxyGeneration(40), false);
+  } finally {
+    endProxyGeneration(40);
+  }
+  assert.equal(tryBeginProxyGeneration(40), true);
+  endProxyGeneration(40);
+});

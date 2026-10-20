@@ -57,7 +57,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { isRenderArtifactFileName } = require('./render-artifact-names.cjs');
-const { createProxyRecoveryLoop } = require('./render-proxy-recovery.cjs');
+const { createProxyRecoveryLoop, endProxyGeneration, tryBeginProxyGeneration } = require('./render-proxy-recovery.cjs');
 const zlib = require('zlib');
 const { evaluateBrowserOrigin, corsOriginHeaders } = require('./server-request-security.cjs');
 const {
@@ -386,127 +386,139 @@ async function regenerateAllRenderProxies({
 
   const seenSources = new Set();
   for (const row of list) {
-    const payload = parseRenderPayloadJsonSafe(row?.payload_json);
-    const outputRaw = String(
-      row?.output_path ??
-      payload?.outputPath ??
-      ''
-    ).trim();
-    if (!outputRaw || /\{\{[^{}]+\}\}/.test(outputRaw)) {
+    // Jamais deux générations du même aperçu en même temps (rattrapage
+    // automatique, fin de rendu) : un rendu déjà en cours est signalé et sauté.
+    const reservedRenderId = Number.isFinite(Number(row?.id)) ? Math.trunc(Number(row.id)) : 0;
+    if (reservedRenderId > 0 && !tryBeginProxyGeneration(reservedRenderId)) {
       summary.skipped += 1;
+      summary.inProgress = (summary.inProgress || 0) + 1;
       continue;
     }
-
-    let absSource = '';
     try {
-      absSource = path.resolve(outputRaw);
-    } catch {
-      summary.skipped += 1;
-      continue;
-    }
-    if (!absSource) {
-      summary.skipped += 1;
-      continue;
-    }
-    const sourceKey = normalizeFsPathKey(absSource);
-    if (!sourceKey || seenSources.has(sourceKey)) {
-      summary.skipped += 1;
-      continue;
-    }
-    seenSources.add(sourceKey);
-
-    if (roots.length > 0 && !roots.some((root) => isPathUnderRoot(absSource, root))) {
-      summary.skipped += 1;
-      continue;
-    }
-
-    const outputType = postprodFfmpeg.detectOutputType(absSource);
-    if (outputType.type === 'unknown') {
-      summary.skipped += 1;
-      continue;
-    }
-    if (outputType.type !== 'image_sequence') {
-      let stat = null;
-      try {
-        stat = fs.statSync(absSource);
-      } catch {
-        stat = null;
-      }
-      if (!stat || !stat.isFile()) {
+      const payload = parseRenderPayloadJsonSafe(row?.payload_json);
+      const outputRaw = String(
+        row?.output_path ??
+        payload?.outputPath ??
+        ''
+      ).trim();
+      if (!outputRaw || /\{\{[^{}]+\}\}/.test(outputRaw)) {
         summary.skipped += 1;
         continue;
       }
-    }
-    const isAlreadyProxyOutput = /[\\/]_?proxy[\\/](proxy|proxy_alpha)\.mp4$/i.test(sourceKey)
-      || isRenderArtifactFileName(path.basename(sourceKey));
-    if (isAlreadyProxyOutput) {
-      summary.skipped += 1;
-      continue;
-    }
 
-    const thumbGenerated = await postprodFfmpeg.generateThumbnail({
-      outputPath: absSource,
-      destDir: path.dirname(absSource),
-      resolutionPercent: summary.proxyResolution,
-      logLine,
-    });
-
-    const generated = await postprodFfmpeg.generateProxy({
-      outputPath: absSource,
-      destDir: path.dirname(absSource),
-      resolutionPercent: summary.proxyResolution,
-      qualityCrf: summary.proxyCrf,
-      logLine,
-    });
-    if (generated?.ok) {
-      if (stmts?.findRenderJobById && stmts?.updateRenderJobPayload && typeof nowIso === 'function') {
-        try {
-          const latestJob = stmts.findRenderJobById.get(row?.id);
-          const existingPayload = parseRenderPayloadJsonSafe(latestJob?.payload_json || '{}');
-          const updatedPayload = {
-            ...existingPayload,
-            proxyPath: String(generated?.proxyPath || '').trim() || null,
-            alphaPath: String(generated?.alphaPath || '').trim() || null,
-            thumbPath: thumbGenerated?.ok ? (String(thumbGenerated?.thumbPath || '').trim() || null) : null,
-            proxyWidth: Number.isFinite(Number(generated?.width)) ? Math.trunc(Number(generated.width)) : 0,
-            proxyHeight: Number.isFinite(Number(generated?.height)) ? Math.trunc(Number(generated.height)) : 0,
-            proxyTotalFrames: Number.isFinite(Number(generated?.totalFrames)) ? Math.trunc(Number(generated.totalFrames)) : 0,
-            proxyFrameRate: Number.isFinite(Number(generated?.frameRate)) ? Number(generated.frameRate) : 0,
-          };
-          stmts.updateRenderJobPayload.run(JSON.stringify(updatedPayload), nowIso(), row?.id);
-        } catch {}
+      let absSource = '';
+      try {
+        absSource = path.resolve(outputRaw);
+      } catch {
+        summary.skipped += 1;
+        continue;
       }
-      summary.regenerated += 1;
-      continue;
-    }
+      if (!absSource) {
+        summary.skipped += 1;
+        continue;
+      }
+      const sourceKey = normalizeFsPathKey(absSource);
+      if (!sourceKey || seenSources.has(sourceKey)) {
+        summary.skipped += 1;
+        continue;
+      }
+      seenSources.add(sourceKey);
 
-    const errMessage = String(generated?.error || 'proxy_regenerate_failed').trim();
-    if (errMessage === 'ffmpeg_not_found') {
-      summary.ok = false;
-      summary.error = 'ffmpeg_not_found';
-      summary.message = 'ffmpeg_not_found';
-      summary.count = summary.regenerated;
-      return summary;
-    }
+      if (roots.length > 0 && !roots.some((root) => isPathUnderRoot(absSource, root))) {
+        summary.skipped += 1;
+        continue;
+      }
 
-    {
-      summary.failed += 1;
-      if (summary.errors.length < 10) {
-        summary.errors.push({
-          renderId: Number.isFinite(Number(row?.id)) ? Math.trunc(Number(row.id)) : 0,
-          outputPath: absSource,
-          error: errMessage,
+      const outputType = postprodFfmpeg.detectOutputType(absSource);
+      if (outputType.type === 'unknown') {
+        summary.skipped += 1;
+        continue;
+      }
+      if (outputType.type !== 'image_sequence') {
+        let stat = null;
+        try {
+          stat = fs.statSync(absSource);
+        } catch {
+          stat = null;
+        }
+        if (!stat || !stat.isFile()) {
+          summary.skipped += 1;
+          continue;
+        }
+      }
+      const isAlreadyProxyOutput = /[\\/]_?proxy[\\/](proxy|proxy_alpha)\.mp4$/i.test(sourceKey)
+        || isRenderArtifactFileName(path.basename(sourceKey));
+      if (isAlreadyProxyOutput) {
+        summary.skipped += 1;
+        continue;
+      }
+
+      const thumbGenerated = await postprodFfmpeg.generateThumbnail({
+        outputPath: absSource,
+        destDir: path.dirname(absSource),
+        resolutionPercent: summary.proxyResolution,
+        logLine,
+      });
+
+      const generated = await postprodFfmpeg.generateProxy({
+        outputPath: absSource,
+        destDir: path.dirname(absSource),
+        resolutionPercent: summary.proxyResolution,
+        qualityCrf: summary.proxyCrf,
+        logLine,
+      });
+      if (generated?.ok) {
+        if (stmts?.findRenderJobById && stmts?.updateRenderJobPayload && typeof nowIso === 'function') {
+          try {
+            const latestJob = stmts.findRenderJobById.get(row?.id);
+            const existingPayload = parseRenderPayloadJsonSafe(latestJob?.payload_json || '{}');
+            const updatedPayload = {
+              ...existingPayload,
+              proxyPath: String(generated?.proxyPath || '').trim() || null,
+              alphaPath: String(generated?.alphaPath || '').trim() || null,
+              thumbPath: thumbGenerated?.ok ? (String(thumbGenerated?.thumbPath || '').trim() || null) : null,
+              proxyWidth: Number.isFinite(Number(generated?.width)) ? Math.trunc(Number(generated.width)) : 0,
+              proxyHeight: Number.isFinite(Number(generated?.height)) ? Math.trunc(Number(generated.height)) : 0,
+              proxyTotalFrames: Number.isFinite(Number(generated?.totalFrames)) ? Math.trunc(Number(generated.totalFrames)) : 0,
+              proxyFrameRate: Number.isFinite(Number(generated?.frameRate)) ? Number(generated.frameRate) : 0,
+            };
+            stmts.updateRenderJobPayload.run(JSON.stringify(updatedPayload), nowIso(), row?.id);
+          } catch {}
+        }
+        summary.regenerated += 1;
+        continue;
+      }
+
+      const errMessage = String(generated?.error || 'proxy_regenerate_failed').trim();
+      if (errMessage === 'ffmpeg_not_found') {
+        summary.ok = false;
+        summary.error = 'ffmpeg_not_found';
+        summary.message = 'ffmpeg_not_found';
+        summary.count = summary.regenerated;
+        return summary;
+      }
+
+      {
+        summary.failed += 1;
+        if (summary.errors.length < 10) {
+          summary.errors.push({
+            renderId: Number.isFinite(Number(row?.id)) ? Math.trunc(Number(row.id)) : 0,
+            outputPath: absSource,
+            error: errMessage,
+          });
+        }
+        logLine({
+          level: 'warn',
+          action: 'proxy_regenerate_failed',
+          message: errMessage,
+          data: {
+            renderId: Number.isFinite(Number(row?.id)) ? Math.trunc(Number(row.id)) : 0,
+            outputPath: absSource,
+          },
         });
       }
-      logLine({
-        level: 'warn',
-        action: 'proxy_regenerate_failed',
-        message: errMessage,
-        data: {
-          renderId: Number.isFinite(Number(row?.id)) ? Math.trunc(Number(row.id)) : 0,
-          outputPath: absSource,
-        },
-      });
+    } finally {
+      if (reservedRenderId > 0) endProxyGeneration(reservedRenderId);
     }
   }
 

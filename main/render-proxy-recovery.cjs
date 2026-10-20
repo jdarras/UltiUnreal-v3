@@ -86,18 +86,18 @@ function createProxyRecoveryLoop({
     for (const row of candidates) {
       if (stopped) break;
       const id = Math.trunc(Number(row.id));
-      if (!tryBeginProxyGeneration(id)) continue;
+      if (inFlight.has(id)) continue;
       attempted.add(id);
       try {
+        // regenerate réserve lui-même le rendu dans le registre (et le saute
+        // s'il est déjà en cours ailleurs).
         const summary = await regenerate(row);
-        // Rendu ignoré (type sans aperçu, hors des dossiers de rendu) : ni
-        // rattrapé ni en échec.
+        // Rendu ignoré (type sans aperçu, hors des dossiers de rendu, déjà en
+        // cours) : ni rattrapé ni en échec.
         if (Number(summary?.regenerated) > 0) recovered += 1;
         else if (Number(summary?.failed) > 0 || summary?.ok === false) failed += 1;
       } catch {
         failed += 1;
-      } finally {
-        endProxyGeneration(id);
       }
     }
     if (recovered > 0 || failed > 0) {
