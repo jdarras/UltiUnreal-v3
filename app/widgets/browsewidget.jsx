@@ -4,6 +4,7 @@ import './browsewidget.css';
 import BindingPicker from './bindingpicker.jsx';
 import { getCompanionBaseUrl } from '../utils/agent';
 import { getWidgetT } from './widgetTranslator.js';
+import { isOversizedThumb, shrinkImageDataUrl } from '../utils/imageThumb.js';
 import {
   getBrowseActionLabel,
   getBrowsePathPlaceholder,
@@ -118,6 +119,22 @@ export function BrowseWidget({
   const rawValue = value ?? '';
   const rawDefault = defaultValue ?? '';
 
+  // Vignette enregistrée trop lourde (image entière, anciennes versions) :
+  // réduite puis réenregistrée une seule fois.
+  const onPersistRef = React.useRef(onPersist);
+  onPersistRef.current = onPersist;
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
+  const shrunkThumbRef = React.useRef('');
+  React.useEffect(() => {
+    if (!isOversizedThumb(thumb) || shrunkThumbRef.current === thumb) return;
+    shrunkThumbRef.current = thumb;
+    shrinkImageDataUrl(thumb).then((small) => {
+      if (!small || small === thumb) return;
+      onPersistRef.current?.(valueRef.current, small);
+    });
+  }, [thumb]);
+
   React.useEffect(() => {
     if (thumb) {
       setPreview(thumb);
@@ -169,7 +186,7 @@ export function BrowseWidget({
         let dataUrl = '';
         if (mt === 'image' && window.electron?.readFileAsDataUrl) {
           try {
-            dataUrl = await window.electron.readFileAsDataUrl(norm);
+            dataUrl = await shrinkImageDataUrl(await window.electron.readFileAsDataUrl(norm));
           } catch {
             dataUrl = '';
           }
@@ -215,7 +232,7 @@ export function BrowseWidget({
     const mt = extToType(next);
     if (mt === 'image' && window.electron?.readFileAsDataUrl) {
       try {
-        const dataUrl = await window.electron.readFileAsDataUrl(next);
+        const dataUrl = await shrinkImageDataUrl(await window.electron.readFileAsDataUrl(next));
         if (dataUrl) {
           setPreview(dataUrl);
           setMediaType('image');
