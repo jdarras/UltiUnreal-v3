@@ -17,6 +17,7 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
     renderDetectedExtensions = new Set(),
     DEFAULT_RENDER_DETECTED_EXTENSIONS = [],
     renderDetectedScanMaxFiles = 500,
+    renderDetectedScanMaxVisitedFiles = RENDER_DETECTED_MAX_VISITED_FILES,
     renderDetectedScanIntervalMs = 5000,
     MIN_RENDER_DETECTED_SCAN_INTERVAL_MS = 1000,
     MAX_RENDER_DETECTED_SCAN_INTERVAL_MS = 600000,
@@ -52,6 +53,9 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
   };
   let renderDetectedAutoScanTimer = null;
   let renderDetectedAutoScanBusy = false;
+  let pendingTraversal = null;
+  let selectionRootsKey = '';
+  const selectedPathKeys = new Set();
 
   function parsePayloadJsonSafe(value) {
     if (value && typeof value === 'object' && !Array.isArray(value)) return value;
@@ -214,34 +218,48 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
   }
 
   function listRenderDetectedFileCandidates(detectedRoots = null) {
-    const out = [];
     const allowedExtensions = renderDetectedExtensions instanceof Set
       ? renderDetectedExtensions
       : new Set(DEFAULT_RENDER_DETECTED_EXTENSIONS);
     const roots = Array.isArray(detectedRoots) && detectedRoots.length > 0
       ? detectedRoots
       : resolveRenderDetectedRoots();
-    const stack = [];
-    for (const root of roots) {
-      const absRoot = String(root || '').trim();
-      if (!absRoot) continue;
-      if (!fs.existsSync(absRoot)) continue;
-      stack.push({ sourceDir: absRoot, currentDir: absRoot });
+    const rootsKey = JSON.stringify(roots);
+    if (rootsKey !== selectionRootsKey) {
+      selectedPathKeys.clear();
+      selectionRootsKey = rootsKey;
+      pendingTraversal = null;
     }
-    // Parcours borné par sécurité ; la sélection finale garde les fichiers
-    // les plus récents (un nouveau rendu est toujours examiné).
+    if (!pendingTraversal) {
+      pendingTraversal = { stack: [], out: [], sequences: new Map() };
+      for (const root of roots) {
+        const absRoot = String(root || '').trim();
+        if (!absRoot) continue;
+        if (!fs.existsSync(absRoot)) continue;
+        pendingTraversal.stack.push({ sourceDir: absRoot, currentDir: absRoot });
+      }
+    }
+    const { stack, out, sequences } = pendingTraversal;
+    // A bounded pass resumes at the exact directory entry next time. Do not
+    // publish partial image sequences before the whole traversal is complete.
     let visitedFiles = 0;
-    const sequences = new Map();
-    while (stack.length > 0 && visitedFiles < RENDER_DETECTED_MAX_VISITED_FILES) {
+    const visitBudget = Math.max(1, Number(renderDetectedScanMaxVisitedFiles) || RENDER_DETECTED_MAX_VISITED_FILES);
+    while (stack.length > 0 && visitedFiles < visitBudget) {
       const next = stack.pop();
       if (!next || !next.currentDir) continue;
       let entries = [];
       try {
-        entries = fs.readdirSync(next.currentDir, { withFileTypes: true });
+        entries = next.entries || fs.readdirSync(next.currentDir, { withFileTypes: true });
       } catch {
         continue;
       }
-      for (const entry of entries) {
+      for (let index = next.index || 0; index < entries.length; index += 1) {
+        if (visitedFiles >= visitBudget) {
+          stack.push({ ...next, entries, index });
+          break;
+        }
+        visitedFiles += 1;
+        const entry = entries[index];
         if (!entry || !entry.name) continue;
         const absPath = path.join(next.currentDir, entry.name);
         const entryName = String(entry.name || '').trim();
@@ -254,7 +272,6 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
           continue;
         }
         if (!entry.isFile()) continue;
-        visitedFiles += 1;
         if (isRenderArtifactFileName(entryNameLower)) {
           continue;
         }
@@ -316,6 +333,9 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
         out.push(candidate);
       }
     }
+    renderDetectedScanState.traversalPending = stack.length > 0;
+    if (stack.length > 0) return [];
+    pendingTraversal = null;
     for (const { frame, frames } of sequences.values()) {
       if (frames.length < 2) {
         out.push(frames[0]);
@@ -340,7 +360,18 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       });
     }
     out.sort((a, b) => String(b.fileMtimeAt || '').localeCompare(String(a.fileMtimeAt || '')));
-    const selected = out.slice(0, renderDetectedScanMaxFiles);
+    // Newest first within each cycle, without starving the older outputs.
+    const availableKeys = new Set(out.map((entry) => normalizeDetectedOutputPathKey(entry.filePath)));
+    for (const key of selectedPathKeys) {
+      if (!availableKeys.has(key)) selectedPathKeys.delete(key);
+    }
+    let remaining = out.filter((entry) => !selectedPathKeys.has(normalizeDetectedOutputPathKey(entry.filePath)));
+    if (remaining.length === 0) {
+      selectedPathKeys.clear();
+      remaining = out;
+    }
+    const selected = remaining.slice(0, renderDetectedScanMaxFiles);
+    for (const entry of selected) selectedPathKeys.add(normalizeDetectedOutputPathKey(entry.filePath));
     selected.sort((a, b) => String(a.fileMtimeAt || '').localeCompare(String(b.fileMtimeAt || '')));
     return selected;
   }
@@ -751,6 +782,7 @@ function createRenderDetectedAutoScanHelpers(deps = {}) {
       matched,
       unmatched,
       scanned: candidates.length,
+      traversalPending: renderDetectedScanState.traversalPending === true,
       firstErrorMessage,
       roots: detectedRoots,
       maxFiles: renderDetectedScanMaxFiles,

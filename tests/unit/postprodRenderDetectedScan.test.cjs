@@ -149,12 +149,16 @@ test('an image sequence of a finished render is never re-imported frame by frame
 });
 
 test('an unknown image sequence is imported once, as a pattern', (t) => {
-  const { root, helpers } = sequenceHarness(t, () => []);
+  const { root, helpers, inserted } = sequenceHarness(t, () => []);
   writeFrames(path.join(root, 'manuel'), 25, 10 * 60_000);
   const candidates = helpers.listRenderDetectedFileCandidates([root]);
   assert.equal(candidates.length, 1);
   assert.equal(candidates[0].fileName, 'Shot.####.exr');
   assert.equal(candidates[0].frameCount, 25);
+  const summary = helpers.importDetectedRenderOutputs({ actorUserId: 1, force: true });
+  assert.equal(summary.imported, 1);
+  assert.equal(inserted.length, 1);
+  assert.match(inserted[0][8], /Shot\.####\.exr$/);
 });
 
 test('a sequence still being written is not imported yet', (t) => {
@@ -183,4 +187,53 @@ test('beyond the selection limit, the most recent files are the ones examined', 
   const names = listRenderDetectedFileCandidates([root]).map((c) => c.fileName);
   assert.equal(names.length, 5);
   assert.ok(names.includes('nouveau.mp4'));
+});
+
+test('repeated scans eventually examine every output, including those beyond 500', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uu-detected-rotation-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  for (let i = 0; i < 505; i += 1) fs.writeFileSync(path.join(root, `render-${i}.mp4`), 'x');
+  const { listRenderDetectedFileCandidates } = createRenderDetectedAutoScanHelpers({
+    renderDetectedExtensions: new Set(['.mp4']),
+  });
+  const first = listRenderDetectedFileCandidates([root]);
+  const second = listRenderDetectedFileCandidates([root]);
+  assert.equal(first.length, 500);
+  assert.equal(second.length, 5);
+  assert.equal(new Set([...first, ...second].map((c) => c.filePath)).size, 505);
+  assert.equal(listRenderDetectedFileCandidates([root]).length, 500, 'a new cycle rechecks changed files');
+});
+
+test('bounded traversal resumes inside a directory and never publishes a partial sequence', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uu-detected-resume-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  writeFrames(root, 8, 10 * 60_000);
+  const helpers = createRenderDetectedAutoScanHelpers({
+    renderDetectedExtensions: new Set(['.exr']),
+    renderDetectedScanMaxVisitedFiles: 3,
+  });
+  assert.deepEqual(helpers.listRenderDetectedFileCandidates([root]), []);
+  assert.equal(helpers.renderDetectedScanState.traversalPending, true);
+  assert.deepEqual(helpers.listRenderDetectedFileCandidates([root]), []);
+  const final = helpers.listRenderDetectedFileCandidates([root]);
+  assert.equal(final.length, 1);
+  assert.equal(final[0].frameCount, 8);
+  assert.equal(helpers.renderDetectedScanState.traversalPending, false);
+});
+
+test('changing roots abandons a pending traversal of the old directory', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uu-detected-roots-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const oldRoot = path.join(root, 'old');
+  const newRoot = path.join(root, 'new');
+  writeFrames(oldRoot, 8, 10 * 60_000);
+  fs.mkdirSync(newRoot);
+  fs.writeFileSync(path.join(newRoot, 'new.mp4'), 'x');
+  const helpers = createRenderDetectedAutoScanHelpers({
+    renderDetectedExtensions: new Set(['.exr', '.mp4']),
+    renderDetectedScanMaxVisitedFiles: 3,
+  });
+  assert.deepEqual(helpers.listRenderDetectedFileCandidates([oldRoot]), []);
+  const next = helpers.listRenderDetectedFileCandidates([newRoot]);
+  assert.deepEqual(next.map((entry) => entry.fileName), ['new.mp4']);
 });
