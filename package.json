@@ -30,7 +30,6 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "globals": "^16.4.0",
-    "png-to-ico": "^3.0.1",
     "vite": "^7.3.1",
     "wait-on": "^9.0.1"
   },
