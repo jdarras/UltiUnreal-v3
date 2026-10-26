@@ -28,7 +28,7 @@
     }
   ],
   "win": {
-    "artifactName": "UltiUnreal 2026.3.${ext}",
+    "artifactName": "UltiUnreal ${version}.${ext}",
     "target": [
       {
         "target": "nsis",
@@ -45,7 +45,7 @@
     ]
   },
   "nsis": {
-    "artifactName": "UltiUnreal Setup 2026.3.${ext}",
+    "artifactName": "UltiUnreal Setup ${version}.${ext}",
     "oneClick": false,
     "perMachine": false,
     "selectPerMachineByDefault": true,
