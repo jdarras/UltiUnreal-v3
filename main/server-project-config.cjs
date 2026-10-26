@@ -21,6 +21,7 @@ const {
   buildSmoothedFrameRateRange,
 } = require('./server-ini.cjs');
 const { normalizeProjectUsageMode } = require('./server-normalize.cjs');
+const { isInstalledPluginOutdated } = require('./project-plugin-sync.cjs');
 
 const RENDER_BRIDGE_PLUGIN_NAME = 'UltiUnrealRenderBridge';
 const PROJECT_PLUGIN_CATALOG = Object.freeze({
@@ -350,6 +351,10 @@ function resolveProjectPluginStatus(proj = {}, pluginKey = '') {
 
   const packageInfo = resolveProjectPluginPackage(spec.key, proj?.engineVersion || '');
   const availableInProject = installedInProject || marketplaceReference;
+  // Copie installée dans le projet différente de la version fournie.
+  const updateAvailable = installedInProject
+    && packageInfo.packageAvailable === true
+    && isInstalledPluginOutdated(packageInfo.packageDir, projectInstalledPluginDir) === true;
   const installationSource = installedInProject
     ? 'project'
     : (marketplaceReference ? 'marketplace' : '');
@@ -371,6 +376,7 @@ function resolveProjectPluginStatus(proj = {}, pluginKey = '') {
     availableInProject,
     installationSource,
     ready: availableInProject && enabledInProject,
+    updateAvailable,
     packageAvailable: packageInfo.packageAvailable === true,
     packageDir: packageInfo.packageDir || '',
     packageUpluginPath: packageInfo.packageUpluginPath || '',

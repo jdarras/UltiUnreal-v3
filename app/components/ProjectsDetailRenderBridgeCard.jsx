@@ -7,6 +7,7 @@ const WORD_BREAK_ALL_STYLE = { wordBreak: 'break-all' };
 export default function ProjectsDetailRenderBridgeCard({
   t,
   renderBridgeReady = false,
+  renderBridgeUpdateAvailable = false,
   renderBridgeStateLabel = '',
   renderBridgePackageAvailable = false,
   renderBridgeStatus = null,
@@ -25,7 +26,7 @@ export default function ProjectsDetailRenderBridgeCard({
           <div className="uu-label w-160">{t('projects.detail.renderBridge.stateLabel')}</div>
           <div
             className="uu-value"
-            style={renderBridgeReady ? RENDER_BRIDGE_STATE_READY_STYLE : RENDER_BRIDGE_STATE_DEFAULT_STYLE}
+            style={renderBridgeReady && !renderBridgeUpdateAvailable ? RENDER_BRIDGE_STATE_READY_STYLE : RENDER_BRIDGE_STATE_DEFAULT_STYLE}
           >
             {renderBridgeStateLabel}
           </div>
@@ -46,7 +47,8 @@ export default function ProjectsDetailRenderBridgeCard({
             </div>
           </div>
         ) : null}
-        {!renderBridgeReady ? (
+        {/* Actions : plugin absent, non activé, ou différent de la version fournie. */}
+        {!renderBridgeReady || renderBridgeUpdateAvailable ? (
           <div className="uu-row wrap uu-align-center uu-gap-8">
             <div className="uu-label w-160">{t('projects.detail.renderBridge.actionsLabel')}</div>
             <div className="uu-row uu-gap-8">

@@ -141,8 +141,11 @@ export default function ProjectsDetailView({
   const renderBridgeEnabled = renderBridgeStatus?.enabledInProject === true;
   const renderBridgeReady = renderBridgeStatus?.ready === true;
   const renderBridgePackageAvailable = renderBridgeStatus?.packageAvailable === true;
+  const renderBridgeUpdateAvailable = renderBridgeStatus?.updateAvailable === true;
   const renderBridgeStateLabel = renderBridgeReady
-    ? t('projects.detail.renderBridge.state.ready')
+    ? (renderBridgeUpdateAvailable
+      ? t('projects.detail.renderBridge.state.updateAvailable')
+      : t('projects.detail.renderBridge.state.ready'))
     : (
         renderBridgeInstalled
           ? (renderBridgeEnabled
@@ -236,6 +239,7 @@ export default function ProjectsDetailView({
               <ProjectsDetailRenderBridgeCard
                 t={t}
                 renderBridgeReady={renderBridgeReady}
+                renderBridgeUpdateAvailable={renderBridgeUpdateAvailable}
                 renderBridgeStateLabel={renderBridgeStateLabel}
                 renderBridgePackageAvailable={renderBridgePackageAvailable}
                 renderBridgeStatus={renderBridgeStatus}

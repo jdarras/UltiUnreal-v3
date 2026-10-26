@@ -11,6 +11,9 @@ const PLUGIN_STATE_TEXT_STYLE = { color: 'var(--uu-color-text)' };
 const WORD_BREAK_ALL_STYLE = { wordBreak: 'break-all' };
 
 function getPluginStateLabel(t, status = {}) {
+  if (status?.installedInProject === true && status?.updateAvailable === true) {
+    return t('projects.detail.livePlugins.state.updateAvailable');
+  }
   if (status?.ready === true) return t('projects.detail.livePlugins.state.ready');
   if (status?.installedInProject === true) {
     return status?.enabledInProject === true
