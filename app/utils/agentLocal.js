@@ -75,6 +75,18 @@ export async function startRenderJob({ command = '', args = [], cwd = '', pidTag
   });
 }
 
+// Fiche de fin de rendu du plugin : emplacement préparé avant le lancement,
+// lecture après la fin du processus.
+export async function prepareRenderResult(pidTag) {
+  if (typeof window.electron?.prepareRenderResult !== 'function') return { ok: false, error: 'unavailable' };
+  return await window.electron.prepareRenderResult(pidTag);
+}
+
+export async function readRenderResult(pidTag) {
+  if (typeof window.electron?.readRenderResult !== 'function') return { state: 'absent' };
+  return await window.electron.readRenderResult(pidTag);
+}
+
 export async function readRenderJob(pidTag) {
   if (typeof window.electron?.readRenderJob !== 'function') return { exists: false };
   return await window.electron.readRenderJob(pidTag);

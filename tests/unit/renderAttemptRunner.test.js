@@ -252,3 +252,12 @@ test("only a confirmed absence of old tracking allows a new launch", () => {
   assert.equal(chooseRenderAttemptMode({ supportsJobs: true, legacyPid: absent }), "supervised");
   assert.equal(chooseRenderAttemptMode({ supportsJobs: false, legacyPid: absent }), "legacy-spawn");
 });
+
+test("a failure reported by Unreal in its result manifest is kept as the attempt error", async () => {
+  const job = fakeJob({ phases: [{ exists: true, phase: "exited", rootExitCode: 0 }] });
+  job.deps.resolveOutput = async () => ({ ok: false, mismatchPath: "", error: "unreal_reported_failure" });
+
+  const result = await runSupervisedRenderAttempt(job.deps);
+
+  assert.deepEqual([result.ok, result.error], [false, "unreal_reported_failure"]);
+});

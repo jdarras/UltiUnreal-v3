@@ -167,7 +167,7 @@ async function runSupervisedRenderAttempt({
     const resolved = await resolveOutput(processStartMs);
     ok = resolved?.ok === true;
     mismatchPath = String(resolved?.mismatchPath || '');
-    if (!ok) error = mismatchPath ? 'output_name_mismatch' : 'output_file_not_found';
+    if (!ok) error = String(resolved?.error || '') || (mismatchPath ? 'output_name_mismatch' : 'output_file_not_found');
   }
 
   if (!processStillRunning) await deleteRenderJob(pidTag);

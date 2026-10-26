@@ -911,10 +911,16 @@ function renderExitFilePath(tag) {
 }
 
 
+// Fiche de fin de rendu écrite par le plugin (UURenderResultSubsystem) :
+// succès rapporté par Unreal et fichiers produits.
+function renderResultFilePath(tag) {
+  return path.join(app.getPath('userData'), `uu_render_${tag}.result.json`);
+}
+
 function removeRenderPidFiles(tag) {
   try { fs.unlinkSync(renderPidFilePath(tag)); } catch {}
   try { fs.unlinkSync(renderExitFilePath(tag)); } catch {}
-  for (const ext of ['job', 'state', 'stop', 'state.tmp']) {
+  for (const ext of ['job', 'state', 'stop', 'state.tmp', 'result.json', 'result.json.tmp']) {
     try { fs.unlinkSync(path.join(app.getPath('userData'), `uu_render_${tag}.${ext}`)); } catch {}
   }
 }
@@ -977,6 +983,38 @@ ipcMain.handle('read-render-exit', async (_evt, pidTag) => {
     return { known: true, code, signal: parsed?.signal || null };
   } catch {
     return { known: false };
+  }
+});
+
+// Avant un lancement : l'ancienne fiche (autre tentative) est supprimée et
+// l'emplacement de la nouvelle est transmis à Unreal (-UURenderResultFile=).
+ipcMain.handle('prepare-render-result', async (_evt, pidTag) => {
+  const tag = sanitizeRenderPidTag(pidTag);
+  if (!tag) return { ok: false, error: 'invalid_tag' };
+  const filePath = renderResultFilePath(tag);
+  for (const candidate of [filePath, `${filePath}.tmp`]) {
+    try { fs.unlinkSync(candidate); } catch (err) {
+      if (err?.code !== 'ENOENT') return { ok: false, error: 'stale_result_not_removed' };
+    }
+  }
+  return { ok: true, path: filePath, pathB64: Buffer.from(filePath, 'utf8').toString('base64') };
+});
+
+// Après la fin du processus : absente, illisible ou présente.
+ipcMain.handle('read-render-result', async (_evt, pidTag) => {
+  const tag = sanitizeRenderPidTag(pidTag);
+  if (!tag) return { state: 'invalid' };
+  let text;
+  try {
+    text = fs.readFileSync(renderResultFilePath(tag), 'utf8');
+  } catch (err) {
+    return { state: err?.code === 'ENOENT' ? 'absent' : 'invalid' };
+  }
+  try {
+    const manifest = JSON.parse(text.replace(/^﻿/, ''));
+    return manifest && typeof manifest === 'object' ? { state: 'present', manifest } : { state: 'invalid' };
+  } catch {
+    return { state: 'invalid' };
   }
 });
 

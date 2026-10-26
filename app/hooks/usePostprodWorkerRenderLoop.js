@@ -18,7 +18,10 @@ import {
   readRenderJob,
   stopRenderJob,
   getOnlineMap,
+  prepareRenderResult,
+  readRenderResult,
 } from "../utils/agent";
+import { buildRenderResultJobId, evaluateRenderResultManifest } from "../utils/renderResultManifest.js";
 import {
   MAX_POSTPROD_WORKER_COMPLETION_OUTBOX_ITEMS,
   normalizePostprodWorkerCompletionOutbox,
@@ -311,7 +314,35 @@ function usePostprodWorkerRenderLoop({
                 }
               };
 
+              // Fiche de fin de rendu du plugin (UURenderResultSubsystem) : préparée
+              // à chaque nouveau lancement, avec un identifiant propre à ce lancement.
+              let resultJobId = '';
+              let resultFailureError = '';
+              const withRenderResultArgs = async (args) => {
+                const prepared = await prepareRenderResult(pidTag);
+                if (prepared?.ok !== true || !prepared.pathB64) return args;
+                resultJobId = buildRenderResultJobId(renderId);
+                return [...args, `-UURenderResultFileB64=${prepared.pathB64}`, `-UURenderResultJobId=${resultJobId}`];
+              };
+
               const resolveOutputOk = async () => {
+                // Fiche présente : le résultat rapporté par Unreal fait foi (échec,
+                // ou fichier exact). Absente : recherche de la sortie comme avant.
+                if (resultJobId) {
+                  const verdict = evaluateRenderResultManifest(await readRenderResult(pidTag), { expectedJobId: resultJobId });
+                  if (verdict.decision === 'failure') {
+                    resultFailureError = verdict.error;
+                    return false;
+                  }
+                  if (verdict.decision === 'success') {
+                    const probePath = verdict.outputPath.includes('#') ? verdict.files[0] : verdict.outputPath;
+                    const exists = await checkFileExists(probePath);
+                    if (exists?.exists === true) {
+                      detectedOutputPath = verdict.outputPath;
+                      return true;
+                    }
+                  }
+                }
                 const resolved = await resolveRenderOutputArtifact({
                   directCandidates: buildRenderOutputPathCandidates(
                     completionOutputPath || fallbackOutputPath
@@ -376,13 +407,14 @@ function usePostprodWorkerRenderLoop({
                   isStopped: () => stopped,
                   waitMs,
                   readRenderJob,
-                  startRenderJob,
+                  // Nouveau lancement seulement (jamais sur une reprise) : fiche préparée.
+                  startRenderJob: async (options) => startRenderJob({ ...options, args: await withRenderResultArgs(options.args) }),
                   stopRenderJob,
                   deleteRenderJob: deleteRenderPid,
                   resolveOutput: async (startMs) => {
                     processStartMs = startMs;
                     const ok = await resolveOutputOk();
-                    return { ok, mismatchPath: mismatchedOutputPath };
+                    return { ok, mismatchPath: mismatchedOutputPath, error: resultFailureError };
                   },
                 });
                 if (attempt.status === 'stopped') return;
@@ -400,11 +432,13 @@ function usePostprodWorkerRenderLoop({
                 if (_procOk === null) await checkProcessExit();
                 if (_procOk === null) {
                   _procOk = await resolveOutputOk();
-                  if (!_procOk) _procError = mismatchedOutputPath ? 'output_name_mismatch' : 'output_file_not_found';
+                  if (!_procOk) _procError = resultFailureError || (mismatchedOutputPath ? 'output_name_mismatch' : 'output_file_not_found');
                 }
                 if (!processStillRunning) await deleteRenderPid(pidTag);
               } else {
-                const spawnRes = await spawnDetachedRender({ command, args: normalizedArgs, cwd, pidTag });
+                const spawnArgs = await withRenderResultArgs(normalizedArgs);
+                if (stopped) return;
+                const spawnRes = await spawnDetachedRender({ command, args: spawnArgs, cwd, pidTag });
                 if (stopped) return;
                 if (!spawnRes?.ok || !spawnRes?.detached) {
                   _procOk = false;
@@ -416,7 +450,7 @@ function usePostprodWorkerRenderLoop({
                   if (_procOk === null) await checkProcessExit();
                   if (_procOk === null) {
                     _procOk = await resolveOutputOk();
-                    if (!_procOk) _procError = mismatchedOutputPath ? 'output_name_mismatch' : 'output_file_not_found';
+                    if (!_procOk) _procError = resultFailureError || (mismatchedOutputPath ? 'output_name_mismatch' : 'output_file_not_found');
                   }
                   if (!processStillRunning) await deleteRenderPid(pidTag);
                 }
