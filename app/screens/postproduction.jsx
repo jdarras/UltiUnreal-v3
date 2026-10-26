@@ -199,7 +199,7 @@ function PostProductionScreen({
   const handleRequestOpenRenderEditor = onRequestOpenRenderEditor;
 
   const title = String(titleOverride || "").trim() || resolveTitle(tabKey, t);
-  const intro = safeT(t, "postprod.stub.intro", "Workspace under construction (v2026.3).");
+  const intro = safeT(t, "postprod.stub.intro", "Workspace under construction.");
   const description = safeT(
     t,
     "postprod.stub.description",

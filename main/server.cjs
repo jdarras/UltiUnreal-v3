@@ -110,7 +110,7 @@ const {
 } = require('./server-postprod-export-destinations.cjs');
 
 const NAME = 'UltiUnreal Agent';
-const VERSION = '0.9.0';
+const { APP_VERSION: VERSION } = require('./app-version.cjs');
 
 const CACHE_TTL_MS = 10 * 1000;
 let cacheCommon = { ts: 0, data: null };

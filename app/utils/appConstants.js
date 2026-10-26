@@ -1,4 +1,5 @@
-const APP_VERSION = "2026.3"; // à mettre à jour quand tu changes de version
+// Fourni par Vite (app/vite.config.mjs) depuis le champ « version » de package.json.
+const APP_VERSION = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "";
 const APP_MODE_LIVE = 'live';
 const APP_MODE_POSTPROD = 'postprod';
 const POSTPROD_TAB_USERS = "Utilisateurs";

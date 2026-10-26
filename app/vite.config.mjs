@@ -1,12 +1,19 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
+import fs from 'node:fs'
+
+// Numéro de version affiché dans l'interface : champ « version » de package.json
+// (« 2026.3.0 » s'affiche « 2026.3 »).
+const packageVersion = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')).version
+const appVersion = String(packageVersion || '').replace(/\.0$/, '')
 
 export default defineConfig({
   // très important : on dit que la racine Vite est le dossier "app"
   root: __dirname,
   base: './',
   plugins: [react()],
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   server: { port: 5173, strictPort: true },
   build: {
     outDir: path.resolve(__dirname, '../dist'),

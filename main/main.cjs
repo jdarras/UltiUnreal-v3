@@ -50,7 +50,7 @@ const {
   isAllowedRendererNavigation,
 } = require('./ipc-security.cjs');
 
-const VERSION = '2026.3';
+const { APP_VERSION: VERSION } = require('./app-version.cjs');
 const APP_AUTHOR  = 'Julien Darras';
 const APP_CONTACT = 'contact@jdarrasvp.fr - www.jdarrasvp.fr';
 const APP_ICON = path.join(__dirname, '..', 'app', 'assets', 'icon.png');

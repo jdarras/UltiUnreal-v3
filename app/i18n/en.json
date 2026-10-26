@@ -1182,7 +1182,7 @@
   "postprod.audit.loading": "Loading audit history...",
   "postprod.audit.empty": "No entry.",
   "postprod.audit.error.generic": "Unable to load audit history.",
-  "postprod.stub.intro": "Workspace under construction (v2026.3).",
+  "postprod.stub.intro": "Workspace under construction.",
   "postprod.stub.description": "The {tab} tab will be wired to tasks, validations, renders, and data workflows.",
   "postprod.stub.next": "Next step: connect SQLite + authentication + audit.",
   "errorBoundary.title": "UltiUnreal — render error",

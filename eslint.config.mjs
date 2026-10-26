@@ -6,6 +6,7 @@ const sharedGlobals = {
   ...globals.es2024,
   ...globals.node,
   ...globals.browser,
+  __APP_VERSION__: 'readonly',
 };
 
 export default [

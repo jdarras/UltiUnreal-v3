@@ -1178,7 +1178,7 @@
   "postprod.audit.loading": "Chargement de l'historique...",
   "postprod.audit.empty": "Aucune entree.",
   "postprod.audit.error.generic": "Impossible de charger l'historique d'audit.",
-  "postprod.stub.intro": "Espace en construction (v2026.3).",
+  "postprod.stub.intro": "Espace en construction.",
   "postprod.stub.description": "L'onglet {tab} sera relié aux workflows de tâches, validations, rendus et datas.",
   "postprod.stub.next": "Prochaine etape: brancher SQLite + authentification + audit.",
   "errorBoundary.title": "UltiUnreal — erreur de rendu",
